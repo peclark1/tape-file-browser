@@ -1,6 +1,6 @@
 # Tape File Browser
 
-A small GTK4 desktop application for browsing SIMH `.tap` tape images, written for IBM System/36 and AS/400 archival work.
+A small GTK4 desktop application for browsing SIMH and E11-style `.tap` tape images, written for IBM System/36 and AS/400 archival work.
 
 The application is intentionally read-only. It indexes the SIMH tape structure, lets you browse logical tape files and individual records, and displays record contents as IBM EBCDIC CP037 text.
 
@@ -14,7 +14,8 @@ The application is intentionally read-only. It indexes the SIMH tape structure, 
   - decoded EBCDIC contents of the selected record
 - Displays record length and image/data offsets
 - Highlights SIMH records carrying the error flag
-- Summarizes record sizes, tape marks, EOM, and gap markers
+- Summarizes record sizes, tape marks, logical EOT, EOM, and gap markers
+- Auto-detects SIMH padding versus E11 unpadded odd-length records
 - Indexes record offsets instead of loading the entire tape image into memory
 - Desktop launcher for Ubuntu/GNOME
 - Installer can pin the application to the Ubuntu/GNOME dock
@@ -86,17 +87,20 @@ For example, standard IBM tape labels become immediately readable:
 
 Binary portions of AS/400 save data will naturally still appear mostly as periods or apparently arbitrary characters. The browser does not modify the image.
 
-## SIMH `.tap` handling
+## SIMH / E11 `.tap` handling
 
-Tape File Browser understands the standard SIMH record framing used by the project's tape capture tools:
+Tape File Browser understands both closely related 32-bit tape-image layouts:
 
-- 32-bit little-endian record length header
-- record payload
-- optional pad byte for odd-length records
-- matching 32-bit record length trailer
+- SIMH: odd-length record payloads are padded to an even byte boundary
+- E11: odd-length record payloads are not padded
+- 32-bit little-endian record length header and matching trailer
 - zero-length tape marks
+- double tape mark as logical end-of-tape
 - end-of-medium and gap markers
 - SIMH error-record flag
+
+The two layouts are identical until an odd-length record is encountered, so the
+browser auto-detects the variant at the first odd-length record.
 
 ## Uninstall
 
