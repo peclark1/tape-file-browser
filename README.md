@@ -98,6 +98,43 @@ Tape File Browser understands the standard SIMH record framing used by the proje
 - end-of-medium and gap markers
 - SIMH error-record flag
 
+## COPYTAPE CPTP conversion
+
+The repository also includes `cptp_to_simh.py` for old tape dumps made by
+David S. Hayes' `copytape` utility.  Those dumps use a text-framed `CPTP`
+format and can combine many original fixed 512-byte QIC blocks into one large
+`CPTP:BLK` record.
+
+The converter leaves the original `.img` files untouched, splits each CPTP
+block back into 512-byte records by default, preserves tape marks, reconstructs
+the terminal double tape mark represented by `CPTP:EOT`, and writes a separate
+standard SIMH `.tap` image.
+
+Convert one image alongside the original:
+
+```bash
+python3 cptp_to_simh.py V3R1M0_VOL001.img
+```
+
+This creates:
+
+```text
+V3R1M0_VOL001-fixed.tap
+```
+
+Convert an entire set into a separate directory:
+
+```bash
+mkdir -p converted
+python3 cptp_to_simh.py -o converted V3R1M0_VOL*.img
+```
+
+The script refuses to overwrite existing output unless `--force` is given and
+prints SHA-256 hashes for both source and converted images by default.  If a
+CPTP data block is not divisible by the selected physical block size, conversion
+stops rather than guessing.  Use `--block-size` only when the original tape's
+fixed block size is known to be something other than 512 bytes.
+
 ## Uninstall
 
 ```bash
