@@ -34,7 +34,7 @@ Clone the repository and run:
 ```bash
 git clone https://github.com/peclark1/tape-file-browser.git
 cd tape-file-browser
-./install.sh
+bash install.sh
 ```
 
 The installer copies the program to:
@@ -52,7 +52,7 @@ and installs a desktop launcher as:
 On GNOME/Ubuntu it also attempts to add **Tape File Browser** to the dock/favorites. To install without changing the dock:
 
 ```bash
-./install.sh --no-pin
+bash install.sh --no-pin
 ```
 
 ## Run without installing
@@ -101,5 +101,5 @@ Tape File Browser understands the standard SIMH record framing used by the proje
 ## Uninstall
 
 ```bash
-./uninstall.sh
+bash uninstall.sh
 ```
