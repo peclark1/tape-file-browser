@@ -49,6 +49,9 @@ class TapImage:
         self.path = os.path.abspath(path)
         self.files: list[TapeFile] = []
         self.eom_found = False
+        self.logical_eot_found = False
+        self.trailing_bytes = 0
+        self.format_name = "SIMH/E11"
         self.gaps: list[int] = []
         self._scan()
 
@@ -64,6 +67,9 @@ class TapImage:
         current = TapeFile(0)
         file_no = 0
         record_no = 0
+        tape_format = None  # Determined when the first odd-length record is seen.
+        consecutive_tape_marks = 0
+        image_size = os.path.getsize(self.path)
 
         with open(self.path, "rb") as handle:
             while True:
@@ -83,11 +89,23 @@ class TapImage:
                 word = struct.unpack("<I", raw)[0]
 
                 if word == TMK:
+                    # Two consecutive tape marks are the conventional logical
+                    # end-of-tape marker.  Physical tape captures can contain
+                    # stale/unwritten bytes after this point, so do not try to
+                    # interpret them as more records.
+                    if consecutive_tape_marks:
+                        self.logical_eot_found = True
+                        self.trailing_bytes = max(0, image_size - handle.tell())
+                        break
+
                     self.files.append(current)
                     file_no += 1
                     record_no = 0
                     current = TapeFile(file_no)
+                    consecutive_tape_marks = 1
                     continue
+
+                consecutive_tape_marks = 0
 
                 if word == EOM:
                     self.eom_found = True
@@ -101,14 +119,71 @@ class TapImage:
 
                 error = bool(word & ERR)
                 length = word & ~ERR
+                if length > 0x00FFFFFF:
+                    raise ValueError(
+                        f"Invalid record length 0x{length:X} at image offset "
+                        f"{image_offset}"
+                    )
+
                 data_offset = handle.tell()
-
                 handle.seek(length, os.SEEK_CUR)
-                if length & 1:
-                    handle.seek(1, os.SEEK_CUR)
 
-                trailer_offset = handle.tell()
-                trailer_raw = handle.read(4)
+                # SIMH and E11 use the same 32-bit header/trailer framing.
+                # They differ only for odd-length records:
+                #   SIMH pads the data to an even byte boundary.
+                #   E11 puts the trailer immediately after the last data byte.
+                #
+                # Detect the format on the first odd-length record by checking
+                # both possible trailer positions.
+                if length & 1:
+                    unpadded_trailer_offset = handle.tell()
+
+                    if tape_format == "SIMH":
+                        handle.seek(1, os.SEEK_CUR)
+                        trailer_offset = handle.tell()
+                        trailer_raw = handle.read(4)
+
+                    elif tape_format == "E11":
+                        trailer_offset = handle.tell()
+                        trailer_raw = handle.read(4)
+
+                    else:
+                        trailer_offset = unpadded_trailer_offset
+                        trailer_raw = handle.read(4)
+
+                        if (
+                            len(trailer_raw) == 4
+                            and struct.unpack("<I", trailer_raw)[0] == word
+                        ):
+                            tape_format = "E11"
+                            self.format_name = "E11"
+                        else:
+                            handle.seek(unpadded_trailer_offset + 1)
+                            trailer_offset = handle.tell()
+                            trailer_raw = handle.read(4)
+
+                            if (
+                                len(trailer_raw) == 4
+                                and struct.unpack("<I", trailer_raw)[0] == word
+                            ):
+                                tape_format = "SIMH"
+                                self.format_name = "SIMH"
+                            else:
+                                unpadded_value = (
+                                    struct.unpack("<I", trailer_raw)[0]
+                                    if len(trailer_raw) == 4
+                                    else None
+                                )
+                                raise ValueError(
+                                    "Could not identify SIMH/E11 framing for "
+                                    f"odd-length record at image offset "
+                                    f"{image_offset} (length {length})"
+                                )
+
+                else:
+                    trailer_offset = handle.tell()
+                    trailer_raw = handle.read(4)
+
                 if len(trailer_raw) != 4:
                     raise ValueError(
                         f"Missing record trailer at image offset {trailer_offset}"
@@ -134,6 +209,9 @@ class TapImage:
                 current.sizes[length] += 1
                 if error:
                     current.errors += 1
+
+        if tape_format is None:
+            self.format_name = "SIMH/E11 (no odd-length records)"
 
     def read_record(self, record: TapeRecord) -> bytes:
         with open(self.path, "rb") as handle:
@@ -403,12 +481,19 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
 
         name = os.path.basename(image.path)
         self.set_title(f"Tape File Browser — {name}")
+        format_text = f" • {image.format_name} format"
         eom_text = " • EOM marker" if image.eom_found else ""
+        leot_text = " • logical EOT (double tape mark)" if image.logical_eot_found else ""
+        trailing_text = (
+            f" • {image.trailing_bytes:,} trailing byte(s) after logical EOT"
+            if image.trailing_bytes
+            else ""
+        )
         gap_text = f" • {len(image.gaps)} gap marker(s)" if image.gaps else ""
         self.status.set_text(
             f"{image.path}  •  {len(image.files):,} logical files  •  "
             f"{image.total_records:,} records  •  {image.total_errors:,} error records"
-            f"{eom_text}{gap_text}"
+            f"{format_text}{eom_text}{leot_text}{trailing_text}{gap_text}"
         )
 
         self.text_buffer.set_text(
