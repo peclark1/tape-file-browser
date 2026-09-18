@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Tape File Browser
+Comment=Browse SIMH tape images and view IBM EBCDIC record contents
+Exec=@EXEC@ %f
+TryExec=@EXEC@
+Icon=drive-removable-media
+Terminal=false
+Categories=Utility;System;
+StartupNotify=true
