@@ -135,6 +135,46 @@ CPTP data block is not divisible by the selected physical block size, conversion
 stops rather than guessing.  Use `--block-size` only when the original tape's
 fixed block size is known to be something other than 512 bytes.
 
+## AS/400 tape-set validation
+
+After conversion, `validate_as400_tapes.py` can scan a complete IBM Standard
+Label tape set and report its structure without modifying any image.
+
+For the six-volume V3R1M0 installation set:
+
+```bash
+python3 validate_as400_tapes.py \
+    converted/V3R1M0_VOL001-fixed.tap \
+    converted/V3R1M0_VOL002-fixed.tap \
+    converted/V3R1M0_VOL003-fixed.tap \
+    converted/V3R1M0_VOL004-fixed.tap \
+    converted/V3R1M0_VOL005-fixed.tap \
+    converted/V3R1M0_VOL006-fixed.tap
+```
+
+The validator reports:
+
+- tape-image framing and record counts
+- tape marks and logical end-of-tape
+- `VOL1` volume identifiers
+- `HDR1/HDR2`, `EOF1/EOF2`, and `EOV1/EOV2` labels
+- each dataset's file id, sequence fields, block/record format, and data size
+- cross-volume continuity when a dataset ends with `EOV1`
+
+Optional machine-readable reports can also be written:
+
+```bash
+python3 validate_as400_tapes.py \
+    --csv v3r1m0-report.csv \
+    --json v3r1m0-report.json \
+    converted/V3R1M0_VOL*-fixed.tap
+```
+
+Pass the volumes in physical volume order.  A cross-volume check is marked
+`PASS` when an `EOV1` dataset continues on the next tape with the same file
+identity and compatible sequence fields.  The final volume is flagged if it
+still ends in `EOV1`, indicating that another volume appears to be required.
+
 ## Uninstall
 
 ```bash
