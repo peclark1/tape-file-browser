@@ -49,6 +49,8 @@ class TapImage:
         self.path = os.path.abspath(path)
         self.files: list[TapeFile] = []
         self.eom_found = False
+        self.logical_eot_found = False
+        self.tape_format = "SIMH/E11 (only even-length records)"
         self.gaps: list[int] = []
         self._scan()
 
@@ -64,6 +66,8 @@ class TapImage:
         current = TapeFile(0)
         file_no = 0
         record_no = 0
+        tape_format = None
+        consecutive_tape_marks = 0
 
         with open(self.path, "rb") as handle:
             while True:
@@ -83,11 +87,20 @@ class TapImage:
                 word = struct.unpack("<I", raw)[0]
 
                 if word == TMK:
+                    if consecutive_tape_marks:
+                        # Two consecutive tape marks are the standard logical
+                        # end-of-tape marker.  Do not try to interpret bytes
+                        # beyond it as another TAP record.
+                        self.logical_eot_found = True
+                        break
                     self.files.append(current)
                     file_no += 1
                     record_no = 0
                     current = TapeFile(file_no)
+                    consecutive_tape_marks = 1
                     continue
+
+                consecutive_tape_marks = 0
 
                 if word == EOM:
                     self.eom_found = True
@@ -104,11 +117,49 @@ class TapImage:
                 data_offset = handle.tell()
 
                 handle.seek(length, os.SEEK_CUR)
-                if length & 1:
-                    handle.seek(1, os.SEEK_CUR)
 
-                trailer_offset = handle.tell()
-                trailer_raw = handle.read(4)
+                # SIMH pads odd-length records to an even boundary; E11 does
+                # not.  Auto-detect framing at the first odd-length record,
+                # then use the detected format consistently for the image.
+                if length & 1:
+                    unpadded_trailer_offset = handle.tell()
+
+                    if tape_format == "SIMH":
+                        handle.seek(1, os.SEEK_CUR)
+                        trailer_offset = handle.tell()
+                        trailer_raw = handle.read(4)
+                    elif tape_format == "E11":
+                        trailer_offset = handle.tell()
+                        trailer_raw = handle.read(4)
+                    else:
+                        trailer_offset = handle.tell()
+                        trailer_raw = handle.read(4)
+                        if (
+                            len(trailer_raw) == 4
+                            and struct.unpack("<I", trailer_raw)[0] == word
+                        ):
+                            tape_format = "E11"
+                            self.tape_format = "E11"
+                        else:
+                            handle.seek(unpadded_trailer_offset + 1)
+                            trailer_offset = handle.tell()
+                            trailer_raw = handle.read(4)
+                            if (
+                                len(trailer_raw) == 4
+                                and struct.unpack("<I", trailer_raw)[0] == word
+                            ):
+                                tape_format = "SIMH"
+                                self.tape_format = "SIMH"
+                            else:
+                                raise ValueError(
+                                    "Could not identify SIMH/E11 framing for "
+                                    f"odd-length record at image offset {image_offset} "
+                                    f"(length {length})"
+                                )
+                else:
+                    trailer_offset = handle.tell()
+                    trailer_raw = handle.read(4)
+
                 if len(trailer_raw) != 4:
                     raise ValueError(
                         f"Missing record trailer at image offset {trailer_offset}"
@@ -404,11 +455,13 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         name = os.path.basename(image.path)
         self.set_title(f"Tape File Browser — {name}")
         eom_text = " • EOM marker" if image.eom_found else ""
+        logical_eot_text = " • logical EOT" if image.logical_eot_found else ""
         gap_text = f" • {len(image.gaps)} gap marker(s)" if image.gaps else ""
         self.status.set_text(
-            f"{image.path}  •  {len(image.files):,} logical files  •  "
+            f"{image.path}  •  {image.tape_format}  •  "
+            f"{len(image.files):,} logical files  •  "
             f"{image.total_records:,} records  •  {image.total_errors:,} error records"
-            f"{eom_text}{gap_text}"
+            f"{logical_eot_text}{eom_text}{gap_text}"
         )
 
         self.text_buffer.set_text(
