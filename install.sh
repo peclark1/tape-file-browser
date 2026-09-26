@@ -6,6 +6,7 @@ APP_ID="com.peclark.TapeFileBrowser"
 BIN_DIR="${HOME}/.local/bin"
 APP_DIR="${HOME}/.local/share/applications"
 BIN_PATH="${BIN_DIR}/tape-file-browser"
+FORMAT_MODULE_PATH="${BIN_DIR}/tape_formats.py"
 DESKTOP_PATH="${APP_DIR}/${APP_ID}.desktop"
 PIN=true
 
@@ -15,9 +16,9 @@ fi
 
 mkdir -p "${BIN_DIR}" "${APP_DIR}"
 install -m 0755 "${SCRIPT_DIR}/tape-file-browser.py" "${BIN_PATH}"
+install -m 0644 "${SCRIPT_DIR}/tape_formats.py" "${FORMAT_MODULE_PATH}"
 
-sed "s|@EXEC@|${BIN_PATH}|g" \
-    "${SCRIPT_DIR}/${APP_ID}.desktop" > "${DESKTOP_PATH}"
+sed "s|@EXEC@|${BIN_PATH}|g"     "${SCRIPT_DIR}/${APP_ID}.desktop" > "${DESKTOP_PATH}"
 chmod 0644 "${DESKTOP_PATH}"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
@@ -51,6 +52,7 @@ fi
 echo
 echo "Installed Tape File Browser."
 echo "Executable: ${BIN_PATH}"
+echo "Format core: ${FORMAT_MODULE_PATH}"
 echo "Launcher:   ${DESKTOP_PATH}"
 echo
 if ! ${PIN}; then
