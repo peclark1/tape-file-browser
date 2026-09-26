@@ -93,6 +93,11 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
 
         self.file_strings = Gtk.StringList.new([])
         self.file_selection = Gtk.SingleSelection.new(self.file_strings)
+        # Do not let GTK select row 0 implicitly while the model is being
+        # populated.  We select it explicitly after the dependent views are
+        # ready so the selection callback always refreshes the record pane.
+        self.file_selection.set_autoselect(False)
+        self.file_selection.set_can_unselect(True)
         self.file_factory = self._make_string_factory()
         self.file_view = Gtk.ListView(
             model=self.file_selection, factory=self.file_factory
@@ -126,6 +131,11 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
 
         self.record_strings = Gtk.StringList.new([])
         self.record_selection = Gtk.SingleSelection.new(self.record_strings)
+        # See file_selection above.  Explicit selection avoids the first
+        # record becoming visually selected before notify::selected can drive
+        # the EBCDIC pane.
+        self.record_selection.set_autoselect(False)
+        self.record_selection.set_can_unselect(True)
         self.record_factory = self._make_string_factory()
         self.record_view = Gtk.ListView(
             model=self.record_selection, factory=self.record_factory
