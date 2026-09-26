@@ -1,150 +1,20 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
-import struct
 import sys
 import threading
 from collections import Counter
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib, Gtk, Pango
+from gi.repository import GLib, Gtk, Pango
 
-TMK = 0x00000000
-EOM = 0xFFFFFFFF
-GAP = 0xFFFFFFFE
-ERR = 0x80000000
+from tape_formats import ConversionReport, TapeImage, convert_tape, open_tape_image
+
 APP_ID = "com.peclark.TapeFileBrowser"
-
-
-@dataclass
-class TapeRecord:
-    number: int
-    image_offset: int
-    data_offset: int
-    length: int
-    error: bool
-
-
-@dataclass
-class TapeFile:
-    number: int
-    records: list[TapeRecord] = field(default_factory=list)
-    total_bytes: int = 0
-    errors: int = 0
-    sizes: Counter = field(default_factory=Counter)
-
-
-class TapImage:
-    """Read-only index of a SIMH .tap image.
-
-    The scanner stores record offsets and metadata, but does not retain record
-    payloads in memory. Individual records are read only when selected in the UI.
-    """
-
-    def __init__(self, path: str):
-        self.path = os.path.abspath(path)
-        self.files: list[TapeFile] = []
-        self.eom_found = False
-        self.gaps: list[int] = []
-        self._scan()
-
-    @property
-    def total_records(self) -> int:
-        return sum(len(tape_file.records) for tape_file in self.files)
-
-    @property
-    def total_errors(self) -> int:
-        return sum(tape_file.errors for tape_file in self.files)
-
-    def _scan(self):
-        current = TapeFile(0)
-        file_no = 0
-        record_no = 0
-
-        with open(self.path, "rb") as handle:
-            while True:
-                image_offset = handle.tell()
-                raw = handle.read(4)
-
-                if not raw:
-                    if current.records:
-                        self.files.append(current)
-                    break
-
-                if len(raw) != 4:
-                    raise ValueError(
-                        f"Truncated record header at image offset {image_offset}"
-                    )
-
-                word = struct.unpack("<I", raw)[0]
-
-                if word == TMK:
-                    self.files.append(current)
-                    file_no += 1
-                    record_no = 0
-                    current = TapeFile(file_no)
-                    continue
-
-                if word == EOM:
-                    self.eom_found = True
-                    if current.records:
-                        self.files.append(current)
-                    break
-
-                if word == GAP:
-                    self.gaps.append(image_offset)
-                    continue
-
-                error = bool(word & ERR)
-                length = word & ~ERR
-                data_offset = handle.tell()
-
-                handle.seek(length, os.SEEK_CUR)
-                if length & 1:
-                    handle.seek(1, os.SEEK_CUR)
-
-                trailer_offset = handle.tell()
-                trailer_raw = handle.read(4)
-                if len(trailer_raw) != 4:
-                    raise ValueError(
-                        f"Missing record trailer at image offset {trailer_offset}"
-                    )
-
-                trailer = struct.unpack("<I", trailer_raw)[0]
-                if trailer != word:
-                    raise ValueError(
-                        "Header/trailer mismatch at image offset "
-                        f"{image_offset}: {word:08X} != {trailer:08X}"
-                    )
-
-                record_no += 1
-                record = TapeRecord(
-                    number=record_no,
-                    image_offset=image_offset,
-                    data_offset=data_offset,
-                    length=length,
-                    error=error,
-                )
-                current.records.append(record)
-                current.total_bytes += length
-                current.sizes[length] += 1
-                if error:
-                    current.errors += 1
-
-    def read_record(self, record: TapeRecord) -> bytes:
-        with open(self.path, "rb") as handle:
-            handle.seek(record.data_offset)
-            data = handle.read(record.length)
-
-        if len(data) != record.length:
-            raise ValueError(
-                f"Could not read all {record.length} bytes of record {record.number}"
-            )
-        return data
 
 
 def ebcdic_text(data: bytes) -> str:
@@ -175,9 +45,10 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.set_title("Tape File Browser")
         self.set_default_size(1280, 800)
 
-        self.tap: TapImage | None = None
+        self.tap: TapeImage | None = None
         self.initial_path = initial_path
         self._file_dialog = None
+        self._convert_dialog = None
 
         self._build_ui()
 
@@ -192,6 +63,12 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.open_button.set_icon_name("document-open-symbolic")
         self.open_button.connect("clicked", self.on_open_clicked)
         header.pack_start(self.open_button)
+
+        self.convert_button = Gtk.Button(label="Convert…")
+        self.convert_button.set_icon_name("document-save-as-symbolic")
+        self.convert_button.set_sensitive(False)
+        self.convert_button.connect("clicked", self.on_convert_clicked)
+        header.pack_start(self.convert_button)
 
         self.spinner = Gtk.Spinner()
         header.pack_end(self.spinner)
@@ -283,8 +160,8 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.text_view.set_wrap_mode(Gtk.WrapMode.NONE)
         self.text_buffer = self.text_view.get_buffer()
         self.text_buffer.set_text(
-            "Open a SIMH .tap image, select a tape file, then select a record.\n"
-            "Text is displayed as IBM EBCDIC CP037."
+            "Open a SIMH .tap or AWS .aws image, select a tape file, then "
+            "select a record.\nText is displayed as IBM EBCDIC CP037."
         )
 
         text_scroll = Gtk.ScrolledWindow()
@@ -330,19 +207,19 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         factory.connect("bind", bind)
         return factory
 
-    def on_open_clicked(self, _button):
-        dialog = Gtk.FileChooserNative.new(
-            "Open SIMH Tape Image",
-            self,
-            Gtk.FileChooserAction.OPEN,
-            "Open",
-            "Cancel",
-        )
-
+    @staticmethod
+    def _add_tape_filters(dialog):
         tape_filter = Gtk.FileFilter()
-        tape_filter.set_name("SIMH tape images (*.tap)")
-        tape_filter.add_pattern("*.tap")
-        tape_filter.add_pattern("*.TAP")
+        tape_filter.set_name("Tape images (*.tap, *.aws)")
+        for pattern in (
+            "*.tap",
+            "*.TAP",
+            "*.aws",
+            "*.AWS",
+            "*.awstape",
+            "*.AWSTAPE",
+        ):
+            tape_filter.add_pattern(pattern)
         dialog.add_filter(tape_filter)
 
         all_filter = Gtk.FileFilter()
@@ -350,6 +227,15 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         all_filter.add_pattern("*")
         dialog.add_filter(all_filter)
 
+    def on_open_clicked(self, _button):
+        dialog = Gtk.FileChooserNative.new(
+            "Open Tape Image",
+            self,
+            Gtk.FileChooserAction.OPEN,
+            "Open",
+            "Cancel",
+        )
+        self._add_tape_filters(dialog)
         dialog.connect("response", self.on_file_dialog_response)
         self._file_dialog = dialog
         dialog.show()
@@ -366,8 +252,53 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
             self._file_dialog = None
             dialog.destroy()
 
+    def on_convert_clicked(self, _button):
+        if not self.tap:
+            return
+
+        default_extension = ".aws" if self.tap.format_name == "SIMH" else ".tap"
+        default_name = Path(self.tap.path).stem + default_extension
+
+        dialog = Gtk.FileChooserNative.new(
+            f"Convert {self.tap.format_name} Tape Image",
+            self,
+            Gtk.FileChooserAction.SAVE,
+            "Convert",
+            "Cancel",
+        )
+        dialog.set_current_name(default_name)
+        self._add_tape_filters(dialog)
+        dialog.connect("response", self.on_convert_dialog_response)
+        self._convert_dialog = dialog
+        dialog.show()
+
+    def on_convert_dialog_response(self, dialog, response):
+        try:
+            if response != Gtk.ResponseType.ACCEPT or not self.tap:
+                return
+
+            gio_file = dialog.get_file()
+            if not gio_file:
+                return
+            path = gio_file.get_path()
+            if not path:
+                return
+
+            suffix = Path(path).suffix.lower()
+            if suffix not in {".tap", ".aws", ".awstape"}:
+                default_extension = (
+                    ".aws" if self.tap.format_name == "SIMH" else ".tap"
+                )
+                path += default_extension
+
+            self._start_conversion(path)
+        finally:
+            self._convert_dialog = None
+            dialog.destroy()
+
     def load_tape(self, path):
         self.open_button.set_sensitive(False)
+        self.convert_button.set_sensitive(False)
         self.spinner.start()
         self.status.set_text(f"Scanning {path} …")
         self._clear_models()
@@ -375,7 +306,7 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
 
         def worker():
             try:
-                image = TapImage(path)
+                image = open_tape_image(path)
             except Exception as exc:
                 GLib.idle_add(self._load_failed, path, str(exc))
                 return
@@ -388,6 +319,7 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.tap = image
         self.spinner.stop()
         self.open_button.set_sensitive(True)
+        self.convert_button.set_sensitive(True)
 
         summaries = []
         for tape_file in image.files:
@@ -406,13 +338,17 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         eom_text = " • EOM marker" if image.eom_found else ""
         gap_text = f" • {len(image.gaps)} gap marker(s)" if image.gaps else ""
         self.status.set_text(
-            f"{image.path}  •  {len(image.files):,} logical files  •  "
-            f"{image.total_records:,} records  •  {image.total_errors:,} error records"
+            f"{image.path}  •  {image.format_name}  •  "
+            f"{len(image.files):,} logical files  •  "
+            f"{image.tape_mark_count:,} tape marks  •  "
+            f"{image.total_records:,} records  •  "
+            f"{image.total_errors:,} error records"
             f"{eom_text}{gap_text}"
         )
 
         self.text_buffer.set_text(
-            "Tape image loaded. Select a logical tape file on the left."
+            f"{image.format_name} tape image loaded. "
+            "Select a logical tape file on the left."
         )
 
         if image.files:
@@ -423,9 +359,51 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.tap = None
         self.spinner.stop()
         self.open_button.set_sensitive(True)
+        self.convert_button.set_sensitive(False)
         self.status.set_text(f"Could not open {path}")
         self.text_buffer.set_text(message)
         self._show_error("Could not open tape image", message)
+        return False
+
+    def _start_conversion(self, output_path):
+        if not self.tap:
+            return
+
+        source_path = self.tap.path
+        self.open_button.set_sensitive(False)
+        self.convert_button.set_sensitive(False)
+        self.spinner.start()
+        self.status.set_text(f"Converting to {output_path} …")
+
+        def worker():
+            try:
+                report = convert_tape(source_path, output_path)
+            except Exception as exc:
+                GLib.idle_add(self._conversion_failed, str(exc))
+                return
+            GLib.idle_add(self._conversion_finished, report)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _conversion_finished(self, report: ConversionReport):
+        self.spinner.stop()
+        self.open_button.set_sensitive(True)
+        self.convert_button.set_sensitive(self.tap is not None)
+        self.status.set_text(
+            f"Converted and verified {report.records:,} records → {report.output_path}"
+        )
+        self._show_info(
+            "Tape conversion complete",
+            report.summary() + f"\n\nOutput: {report.output_path}",
+        )
+        return False
+
+    def _conversion_failed(self, message):
+        self.spinner.stop()
+        self.open_button.set_sensitive(True)
+        self.convert_button.set_sensitive(self.tap is not None)
+        self.status.set_text("Tape conversion failed")
+        self._show_error("Could not convert tape image", message)
         return False
 
     def _clear_models(self):
@@ -499,6 +477,7 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
 
         status = "ERROR FLAG SET" if record.error else "OK"
         header = (
+            f"Format:        {self.tap.format_name}\n"
             f"Tape file:     {tape_file.number}\n"
             f"Record:        {record.number}\n"
             f"Length:        {record.length:,} bytes\n"
@@ -528,6 +507,18 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         dialog.connect("response", lambda dlg, _response: dlg.destroy())
         dialog.show()
 
+    def _show_info(self, title, message):
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.CLOSE,
+            text=title,
+        )
+        dialog.format_secondary_text(message)
+        dialog.connect("response", lambda dlg, _response: dlg.destroy())
+        dialog.show()
+
 
 class TapeBrowserApplication(Gtk.Application):
     def __init__(self, initial_path=None):
@@ -541,11 +532,42 @@ class TapeBrowserApplication(Gtk.Application):
         self.window.present()
 
 
-def main():
-    initial_path = None
-    if len(sys.argv) > 1:
-        initial_path = str(Path(sys.argv[1]).expanduser())
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description="Browse SIMH/AWS tape images or convert between the formats."
+    )
+    parser.add_argument("image", nargs="?", help="SIMH .tap or AWS .aws image to open")
+    parser.add_argument(
+        "--convert",
+        metavar="OUTPUT",
+        help="convert IMAGE to OUTPUT (.tap or .aws), then verify every record",
+    )
+    return parser.parse_args(argv)
 
+
+def main():
+    args = parse_args(sys.argv[1:])
+
+    if args.convert:
+        if not args.image:
+            print(
+                "tape-file-browser: --convert requires an input IMAGE",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            report = convert_tape(
+                str(Path(args.image).expanduser()),
+                str(Path(args.convert).expanduser()),
+            )
+        except Exception as exc:
+            print(f"Conversion failed: {exc}", file=sys.stderr)
+            return 1
+        print(report.summary())
+        print(f"Output: {report.output_path}")
+        return 0
+
+    initial_path = str(Path(args.image).expanduser()) if args.image else None
     app = TapeBrowserApplication(initial_path=initial_path)
     return app.run([sys.argv[0]])
 
