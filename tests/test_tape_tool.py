@@ -100,7 +100,34 @@ class TapeToolTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 rc = main(["compare", str(tap), str(aws)])
             self.assertEqual(rc, 0)
-            self.assertIn("Logical tapes are identical.", stdout.getvalue())
+            self.assertIn(
+                "All selected tape images are logically identical.",
+                stdout.getvalue(),
+            )
+
+
+    def test_compare_multiple_images_and_require_two(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tap = Path(directory) / "sample.tap"
+            aws1 = Path(directory) / "sample1.aws"
+            aws2 = Path(directory) / "sample2.aws"
+            write_simh(tap, [[b"first", b"second"], [b"third"]])
+            convert_tape(tap, aws1)
+            convert_tape(tap, aws2)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main(
+                    ["compare", str(tap), str(aws1), str(aws2)]
+                )
+            self.assertEqual(rc, 0)
+            self.assertEqual(stdout.getvalue().count("IDENTICAL"), 2)
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                rc = main(["compare", str(tap)])
+            self.assertEqual(rc, 1)
+            self.assertIn("at least two", stderr.getvalue())
 
     def test_missing_file_number_returns_error(self):
         with tempfile.TemporaryDirectory() as directory:
