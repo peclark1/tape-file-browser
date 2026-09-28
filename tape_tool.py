@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-"""Headless command-line and curses interfaces for Tape File Browser."""
+"""Command-line and curses TUI interfaces for Tape File Browser."""
 
 import argparse
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from tape_formats import (
+    TapeImage,
     convert_tape,
     logical_sha256,
     open_tape_image,
@@ -22,6 +24,8 @@ from tape_text import (
     size_summary,
     tape_summary_lines,
 )
+
+TAPE_SUFFIXES = {".tap", ".aws", ".awstape"}
 
 
 def _open(path):
@@ -99,36 +103,52 @@ def cmd_convert(args):
     return 0
 
 
+def _comparison_lines(images):
+    reference = images[0]
+    reference_hash = logical_sha256(reference)
+    lines = [
+        f"Reference: {reference.path} ({reference.format_name})",
+        f"Logical SHA-256: {reference_hash}",
+        "",
+    ]
+    all_match = True
+
+    for candidate in images[1:]:
+        try:
+            verify_logical_tapes(reference, candidate)
+            candidate_hash = logical_sha256(candidate)
+            if candidate_hash != reference_hash:
+                all_match = False
+                lines.append(
+                    f"DIFFERENT  {candidate.path} — logical SHA-256 differs"
+                )
+            else:
+                lines.append(f"IDENTICAL  {candidate.path} ({candidate.format_name})")
+        except ValueError as exc:
+            all_match = False
+            lines.append(f"DIFFERENT  {candidate.path}")
+            lines.append(f"           {exc}")
+
+    lines.extend(
+        [
+            "",
+            (
+                "All selected tape images are logically identical."
+                if all_match
+                else "One or more selected tape images differ from the reference."
+            ),
+        ]
+    )
+    return lines, all_match
+
+
 def cmd_compare(args):
-    first = _open(args.first)
-    second = _open(args.second)
-
-    try:
-        verify_logical_tapes(first, second)
-    except ValueError as exc:
-        print(f"Logical tapes differ: {exc}", file=sys.stderr)
-        return 1
-
-    first_hash = logical_sha256(first)
-    second_hash = logical_sha256(second)
-
-    print(f"First:   {first.path} ({first.format_name})")
-    print(f"Second:  {second.path} ({second.format_name})")
-    print()
-    print(f"Logical files:  {len(first.files):,} = {len(second.files):,}")
-    print(f"Tape marks:     {first.tape_mark_count:,} = {second.tape_mark_count:,}")
-    print(f"Records:        {first.total_records:,} = {second.total_records:,}")
-    print(f"Payload bytes:  {first.total_bytes:,} = {second.total_bytes:,}")
-    print(f"Logical SHA-256: {first_hash}")
-    print()
-    if first_hash == second_hash:
-        print("Logical tapes are identical.")
-        return 0
-
-    # verify_logical_tapes should make this unreachable, but keep the result
-    # explicit in case the logical hash definition is extended later.
-    print("Structure and records match, but logical hashes differ.", file=sys.stderr)
-    return 1
+    if len(args.images) < 2:
+        raise ValueError("compare requires at least two tape images")
+    images = [_open(path) for path in args.images]
+    lines, all_match = _comparison_lines(images)
+    print("\n".join(lines))
+    return 0 if all_match else 1
 
 
 def _clip(text, width):
@@ -155,6 +175,14 @@ def _safe_addstr(screen, y, x, text, attr=0):
         pass
 
 
+def _list_start(count, selected, visible):
+    if count <= 0 or visible <= 0:
+        return 0
+    selected = max(0, min(selected, count - 1))
+    start = max(0, selected - visible // 2)
+    return min(start, max(0, count - visible))
+
+
 def _draw_list(screen, title, items, selected, x, y, width, height, focused):
     import curses
 
@@ -163,15 +191,14 @@ def _draw_list(screen, title, items, selected, x, y, width, height, focused):
 
     visible = max(0, height - 1)
     if visible == 0:
-        return
+        return 0
 
     if not items:
         _safe_addstr(screen, y + 1, x, "(empty)", curses.A_DIM)
-        return
+        return 0
 
     selected = max(0, min(selected, len(items) - 1))
-    start = max(0, selected - visible // 2)
-    start = min(start, max(0, len(items) - visible))
+    start = _list_start(len(items), selected, visible)
 
     for row, item_index in enumerate(range(start, min(len(items), start + visible))):
         prefix = "> " if item_index == selected else "  "
@@ -183,6 +210,7 @@ def _draw_list(screen, title, items, selected, x, y, width, height, focused):
             _clip(prefix + items[item_index], width - 1),
             attr,
         )
+    return start
 
 
 def _viewer_lines(image, tape_file, record, mode):
@@ -210,7 +238,215 @@ def _viewer_lines(image, tape_file, record, mode):
     return lines
 
 
-def _browse(stdscr, image):
+@dataclass
+class OpenTapeState:
+    image: TapeImage
+    file_index: int = 0
+    record_index: int = 0
+    viewer_scroll: int = 0
+    compare_selected: bool = False
+
+
+def _normalized_path(path):
+    return os.path.realpath(os.path.abspath(os.path.expanduser(str(path))))
+
+
+def _add_open_images(states, paths):
+    existing = {_normalized_path(state.image.path) for state in states}
+    added = []
+    errors = []
+
+    for path in paths:
+        normalized = _normalized_path(path)
+        if normalized in existing:
+            continue
+        try:
+            image = _open(normalized)
+        except (OSError, ValueError) as exc:
+            errors.append(f"{path}: {exc}")
+            continue
+        states.append(OpenTapeState(image=image))
+        existing.add(normalized)
+        added.append(normalized)
+
+    return added, errors
+
+
+def _picker_entries(directory):
+    directory = Path(directory).resolve()
+    directories = []
+    files = []
+    try:
+        entries = list(directory.iterdir())
+    except OSError:
+        return []
+
+    for entry in entries:
+        try:
+            if entry.is_dir():
+                if not entry.name.startswith("."):
+                    directories.append(entry)
+            elif entry.is_file() and entry.suffix.lower() in TAPE_SUFFIXES:
+                files.append(entry)
+        except OSError:
+            continue
+
+    directories.sort(key=lambda item: item.name.lower())
+    files.sort(key=lambda item: item.name.lower())
+
+    result = []
+    if directory.parent != directory:
+        result.append((directory.parent, True))
+    result.extend((entry, True) for entry in directories)
+    result.extend((entry, False) for entry in files)
+    return result
+
+
+def _file_picker(stdscr, start_dir):
+    """Curses file-open dialog with multi-select support."""
+    import curses
+
+    directory = Path(start_dir).expanduser()
+    if not directory.is_dir():
+        directory = Path.cwd()
+    directory = directory.resolve()
+
+    selected = 0
+    marked = set()
+    status = ""
+
+    while True:
+        entries = _picker_entries(directory)
+        if entries:
+            selected = max(0, min(selected, len(entries) - 1))
+        else:
+            selected = 0
+
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+
+        title = " Open tape image(s) "
+        _safe_addstr(stdscr, 0, 0, title, curses.A_BOLD | curses.A_REVERSE)
+        _safe_addstr(stdscr, 1, 0, f"Directory: {directory}", curses.A_BOLD)
+
+        list_y = 3
+        visible = max(1, height - 7)
+        start = _list_start(len(entries), selected, visible)
+
+        if not entries:
+            _safe_addstr(stdscr, list_y, 2, "(no tape images or subdirectories)")
+        else:
+            for row, idx in enumerate(range(start, min(len(entries), start + visible))):
+                path, is_dir = entries[idx]
+                is_parent = is_dir and path == directory.parent and path != directory
+                if is_parent:
+                    label = "    <DIR> ../"
+                elif is_dir:
+                    label = f"    <DIR> {path.name}/"
+                else:
+                    check = "x" if _normalized_path(path) in marked else " "
+                    label = f"[{check}]       {path.name}"
+                attr = curses.A_REVERSE if idx == selected else 0
+                _safe_addstr(stdscr, list_y + row, 0, label, attr)
+
+        _safe_addstr(
+            stdscr,
+            height - 3,
+            0,
+            status or f"{len(marked)} file(s) marked",
+            curses.A_DIM,
+        )
+        _safe_addstr(
+            stdscr,
+            height - 2,
+            0,
+            "Space: mark  Enter: open current/marked  Backspace: parent",
+        )
+        _safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            "↑/↓ PgUp/PgDn Home/End: navigate   Esc/q: cancel",
+            curses.A_REVERSE,
+        )
+        stdscr.refresh()
+
+        key = stdscr.getch()
+
+        if key in (27, ord("q"), ord("Q")):
+            return []
+        if key in (curses.KEY_BACKSPACE, 127, 8):
+            parent = directory.parent
+            if parent != directory:
+                directory = parent
+                selected = 0
+                marked.clear()
+                status = ""
+            continue
+        if key == curses.KEY_UP:
+            selected = max(0, selected - 1)
+            continue
+        if key == curses.KEY_DOWN:
+            selected = min(max(0, len(entries) - 1), selected + 1)
+            continue
+        if key == curses.KEY_PPAGE:
+            selected = max(0, selected - visible)
+            continue
+        if key == curses.KEY_NPAGE:
+            selected = min(max(0, len(entries) - 1), selected + visible)
+            continue
+        if key == curses.KEY_HOME:
+            selected = 0
+            continue
+        if key == curses.KEY_END:
+            selected = max(0, len(entries) - 1)
+            continue
+
+        if not entries:
+            continue
+
+        path, is_dir = entries[selected]
+
+        if key == ord(" "):
+            if is_dir:
+                status = "Directories cannot be marked; press Enter to open it."
+            else:
+                normalized = _normalized_path(path)
+                if normalized in marked:
+                    marked.remove(normalized)
+                else:
+                    marked.add(normalized)
+                status = ""
+            continue
+
+        if key in (10, 13, curses.KEY_ENTER):
+            if is_dir:
+                directory = path.resolve()
+                selected = 0
+                marked.clear()
+                status = ""
+                continue
+
+            if marked:
+                return sorted(marked)
+            return [_normalized_path(path)]
+
+
+def _comparison_view(states):
+    selected = [state.image for state in states if state.compare_selected]
+    if len(selected) < 2:
+        return [
+            "Compare",
+            "",
+            "Select at least two open tape images in the Images pane.",
+            "Press Space to mark or unmark an image for comparison.",
+            "Then press c.",
+        ], False
+
+    return _comparison_lines(selected)
+
+
+def _browse(stdscr, initial_states):
     import curses
 
     try:
@@ -219,23 +455,40 @@ def _browse(stdscr, image):
         pass
     stdscr.keypad(True)
 
-    file_index = 0
-    record_index = 0
+    try:
+        curses.mousemask(curses.ALL_MOUSE_EVENTS)
+    except curses.error:
+        pass
+
+    states = list(initial_states)
+    image_index = 0
     focus = 0
     view_modes = ("EBCDIC", "HEX", "BOTH")
     view_index = 0
-    viewer_scroll = 0
+    compare_lines = None
+    status = ""
+
+    if states:
+        picker_dir = Path(states[0].image.path).parent
+    else:
+        picker_dir = Path.cwd()
+        chosen = _file_picker(stdscr, picker_dir)
+        added, errors = _add_open_images(states, chosen)
+        if added:
+            picker_dir = Path(added[-1]).parent
+        if errors:
+            status = errors[0]
 
     while True:
         stdscr.erase()
         height, width = stdscr.getmaxyx()
 
-        if height < 16 or width < 72:
+        if height < 18 or width < 90:
             _safe_addstr(
                 stdscr,
                 0,
                 0,
-                f"Terminal too small ({width}x{height}); need at least 72x16.",
+                f"Terminal too small ({width}x{height}); need at least 90x18.",
                 curses.A_BOLD,
             )
             _safe_addstr(stdscr, 2, 0, "Resize the terminal, or press q to quit.")
@@ -245,189 +498,394 @@ def _browse(stdscr, image):
                 return
             continue
 
-        file_w = max(22, min(34, width // 4))
-        record_w = max(28, min(42, width // 3))
-        viewer_x = file_w + record_w + 2
-        viewer_w = width - viewer_x
-        body_y = 2
-        body_h = height - 4
+        # The three navigation lists share the upper portion of the terminal.
+        # Record contents and compare results use a full-width pane below them,
+        # where wide hex/EBCDIC data and paths are much easier to read.
+        top_y = 2
+        content_h = height - 5
+        top_h = max(6, int(content_h * 0.45))
+        separator_y = top_y + top_h
+        viewer_y = separator_y + 1
+        viewer_h = max(3, (height - 2) - viewer_y)
+        viewer_w = width
 
-        title = (
-            f"Tape File Browser — {os.path.basename(image.path)} — "
-            f"{image.format_name} — {image.total_records:,} records — "
-            f"{image.tape_mark_count:,} tape marks"
-        )
+        usable_w = width - 2
+        image_w = max(20, int(usable_w * 0.30))
+        file_w = max(20, int(usable_w * 0.30))
+        record_w = usable_w - image_w - file_w
+        file_x = image_w + 1
+        record_x = file_x + file_w + 1
+
+        if states:
+            image_index = max(0, min(image_index, len(states) - 1))
+            current_state = states[image_index]
+            image = current_state.image
+            if image.files:
+                current_state.file_index = max(
+                    0, min(current_state.file_index, len(image.files) - 1)
+                )
+                tape_file = image.files[current_state.file_index]
+                if tape_file.records:
+                    current_state.record_index = max(
+                        0,
+                        min(current_state.record_index, len(tape_file.records) - 1),
+                    )
+                    record = tape_file.records[current_state.record_index]
+                else:
+                    current_state.record_index = 0
+                    record = None
+            else:
+                tape_file = None
+                record = None
+        else:
+            current_state = None
+            image = None
+            tape_file = None
+            record = None
+
+        title = f"Tape File Browser TUI — {len(states)} image(s) open"
+        if image is not None:
+            title += (
+                f" — {os.path.basename(image.path)} [{image.format_name}]"
+                f" — {image.total_records:,} records"
+            )
         _safe_addstr(stdscr, 0, 0, title, curses.A_BOLD)
 
-        for y in range(1, height - 1):
-            _safe_addstr(stdscr, y, file_w, "│", curses.A_DIM)
-            _safe_addstr(stdscr, y, file_w + record_w + 1, "│", curses.A_DIM)
+        for y in range(top_y, separator_y):
+            _safe_addstr(stdscr, y, image_w, "│", curses.A_DIM)
+            _safe_addstr(stdscr, y, file_x + file_w, "│", curses.A_DIM)
 
-        file_items = [
-            f"{f.number}: {len(f.records):,} rec / {f.total_bytes:,} B"
-            for f in image.files
-        ]
+        for x in range(width):
+            _safe_addstr(stdscr, separator_y, x, "─", curses.A_DIM)
+        _safe_addstr(stdscr, separator_y, image_w, "┴", curses.A_DIM)
+        _safe_addstr(stdscr, separator_y, file_x + file_w, "┴", curses.A_DIM)
 
-        if image.files:
-            file_index = max(0, min(file_index, len(image.files) - 1))
-            tape_file = image.files[file_index]
+        image_items = []
+        for state in states:
+            check = "x" if state.compare_selected else " "
+            name = os.path.basename(state.image.path)
+            image_items.append(f"[{check}] {name} [{state.image.format_name}]")
+
+        if image is not None:
+            file_items = [
+                f"{f.number}: {len(f.records):,} rec / {f.total_bytes:,} B"
+                for f in image.files
+            ]
+        else:
+            file_items = []
+
+        if tape_file is not None:
             record_items = [
                 f"{r.number}: {r.length:,} B @ 0x{r.image_offset:X}"
                 + (" ERROR" if r.error else "")
                 for r in tape_file.records
             ]
-            if tape_file.records:
-                record_index = max(0, min(record_index, len(tape_file.records) - 1))
-                record = tape_file.records[record_index]
-            else:
-                record_index = 0
-                record = None
         else:
-            tape_file = None
             record_items = []
-            record = None
 
-        _draw_list(
+        image_start = _draw_list(
+            stdscr,
+            " Images ",
+            image_items,
+            image_index,
+            0,
+            top_y,
+            image_w,
+            top_h,
+            focus == 0,
+        )
+        file_start = _draw_list(
             stdscr,
             " Tape files ",
             file_items,
-            file_index,
-            0,
-            body_y,
+            current_state.file_index if current_state else 0,
+            file_x,
+            top_y,
             file_w,
-            body_h,
-            focus == 0,
+            top_h,
+            focus == 1,
         )
-        _draw_list(
+        record_start = _draw_list(
             stdscr,
             " Records ",
             record_items,
-            record_index,
-            file_w + 1,
-            body_y,
+            current_state.record_index if current_state else 0,
+            record_x,
+            top_y,
             record_w,
-            body_h,
-            focus == 1,
+            top_h,
+            focus == 2,
         )
 
         mode = view_modes[view_index]
-        viewer_heading = f" Record view [{mode}] "
-        heading_attr = curses.A_BOLD | (curses.A_REVERSE if focus == 2 else 0)
+        viewer_heading = (
+            " Compare results "
+            if compare_lines is not None
+            else f" Record view [{mode}] "
+        )
+        heading_attr = curses.A_BOLD | (curses.A_REVERSE if focus == 3 else 0)
         _safe_addstr(
             stdscr,
-            body_y,
-            viewer_x,
+            viewer_y,
+            0,
             viewer_heading.ljust(max(0, viewer_w - 1)),
             heading_attr,
         )
 
-        if tape_file is None:
+        if compare_lines is not None:
+            viewer_lines = compare_lines
+        elif image is None:
+            viewer_lines = [
+                "No tape images are open.",
+                "",
+                "Press o to open one or more SIMH/AWS tape images.",
+            ]
+        elif tape_file is None:
             viewer_lines = ["No logical tape files in this image."]
         else:
             viewer_lines = _viewer_lines(image, tape_file, record, mode)
 
-        viewer_visible = max(1, body_h - 1)
+        viewer_visible = max(1, viewer_h - 1)
+        viewer_scroll = current_state.viewer_scroll if current_state else 0
         max_scroll = max(0, len(viewer_lines) - viewer_visible)
         viewer_scroll = max(0, min(viewer_scroll, max_scroll))
+        if current_state:
+            current_state.viewer_scroll = viewer_scroll
+
         for row, line in enumerate(
             viewer_lines[viewer_scroll : viewer_scroll + viewer_visible]
         ):
-            _safe_addstr(stdscr, body_y + 1 + row, viewer_x, line)
+            _safe_addstr(stdscr, viewer_y + 1 + row, 0, line)
+
+        selected_count = sum(1 for state in states if state.compare_selected)
+        status_line = status or (
+            f"{selected_count} image(s) marked for compare"
+            if selected_count
+            else "Space marks images for compare"
+        )
+        _safe_addstr(stdscr, height - 2, 0, status_line, curses.A_DIM)
 
         help_text = (
-            "←/→ or Tab: pane  ↑/↓: move/scroll  PgUp/PgDn: page  "
-            "v: view  e: EBCDIC  x: hex  b: both  q: quit"
+            "o: open  Space: mark  c: compare  Del: close  "
+            "←/→/Tab: pane  ↑/↓: move  v/e/x/b: view  q: quit"
         )
         _safe_addstr(stdscr, height - 1, 0, help_text, curses.A_REVERSE)
         stdscr.refresh()
 
         key = stdscr.getch()
+        status = ""
 
-        if key in (ord("q"), ord("Q"), 27):
+        if key in (ord("q"), ord("Q")):
             return
+
+        if key in (ord("o"), ord("O")):
+            chosen = _file_picker(stdscr, picker_dir)
+            if chosen:
+                added, errors = _add_open_images(states, chosen)
+                if added:
+                    picker_dir = Path(added[-1]).parent
+                    image_index = len(states) - 1
+                    compare_lines = None
+                if errors:
+                    status = errors[0]
+            continue
+
+        if key == curses.KEY_MOUSE:
+            try:
+                _id, mx, my, _z, bstate = curses.getmouse()
+            except curses.error:
+                continue
+
+            click_mask = (
+                getattr(curses, "BUTTON1_CLICKED", 0)
+                | getattr(curses, "BUTTON1_PRESSED", 0)
+                | getattr(curses, "BUTTON1_RELEASED", 0)
+            )
+            if not (bstate & click_mask):
+                continue
+
+            if my >= viewer_y:
+                focus = 3
+                continue
+
+            row = my - (top_y + 1)
+            if mx < image_w:
+                focus = 0
+                if 0 <= row < top_h - 1:
+                    idx = image_start + row
+                    if idx < len(states):
+                        image_index = idx
+                        compare_lines = None
+            elif file_x <= mx < file_x + file_w:
+                focus = 1
+                if current_state and 0 <= row < top_h - 1:
+                    idx = file_start + row
+                    if idx < len(current_state.image.files):
+                        current_state.file_index = idx
+                        current_state.record_index = 0
+                        current_state.viewer_scroll = 0
+                        compare_lines = None
+            elif record_x <= mx < record_x + record_w:
+                focus = 2
+                if tape_file and current_state and 0 <= row < top_h - 1:
+                    idx = record_start + row
+                    if idx < len(tape_file.records):
+                        current_state.record_index = idx
+                        current_state.viewer_scroll = 0
+                        compare_lines = None
+            continue
+
         if key in (9,):
-            focus = (focus + 1) % 3
+            focus = (focus + 1) % 4
             continue
         if key == curses.KEY_LEFT:
             focus = max(0, focus - 1)
             continue
         if key == curses.KEY_RIGHT:
-            focus = min(2, focus + 1)
+            focus = min(3, focus + 1)
             continue
+
+        if key == ord(" ") and focus == 0 and current_state:
+            current_state.compare_selected = not current_state.compare_selected
+            continue
+
+        if key in (ord("c"), ord("C")):
+            compare_lines, _ = _comparison_view(states)
+            if current_state:
+                current_state.viewer_scroll = 0
+            focus = 3
+            continue
+
+        if key in (curses.KEY_DC, 127) and focus == 0 and states:
+            removed = states.pop(image_index)
+            status = f"Closed {os.path.basename(removed.image.path)}"
+            image_index = min(image_index, max(0, len(states) - 1))
+            compare_lines = None
+            continue
+
         if key in (ord("v"), ord("V")):
             view_index = (view_index + 1) % len(view_modes)
-            viewer_scroll = 0
+            compare_lines = None
+            if current_state:
+                current_state.viewer_scroll = 0
             continue
         if key in (ord("e"), ord("E")):
             view_index = 0
-            viewer_scroll = 0
+            compare_lines = None
+            if current_state:
+                current_state.viewer_scroll = 0
             continue
         if key in (ord("x"), ord("X")):
             view_index = 1
-            viewer_scroll = 0
+            compare_lines = None
+            if current_state:
+                current_state.viewer_scroll = 0
             continue
         if key in (ord("b"), ord("B")):
             view_index = 2
-            viewer_scroll = 0
+            compare_lines = None
+            if current_state:
+                current_state.viewer_scroll = 0
             continue
 
-        if focus == 0 and image.files:
-            old = file_index
+        page = max(1, top_h - 2)
+
+        if focus == 0 and states:
+            old = image_index
             if key == curses.KEY_UP:
-                file_index = max(0, file_index - 1)
+                image_index = max(0, image_index - 1)
             elif key == curses.KEY_DOWN:
-                file_index = min(len(image.files) - 1, file_index + 1)
+                image_index = min(len(states) - 1, image_index + 1)
             elif key == curses.KEY_PPAGE:
-                file_index = max(0, file_index - max(1, body_h - 2))
+                image_index = max(0, image_index - page)
             elif key == curses.KEY_NPAGE:
-                file_index = min(
-                    len(image.files) - 1, file_index + max(1, body_h - 2)
+                image_index = min(len(states) - 1, image_index + page)
+            elif key == curses.KEY_HOME:
+                image_index = 0
+            elif key == curses.KEY_END:
+                image_index = len(states) - 1
+            if image_index != old:
+                compare_lines = None
+
+        elif focus == 1 and current_state and image and image.files:
+            old = current_state.file_index
+            if key == curses.KEY_UP:
+                current_state.file_index = max(0, current_state.file_index - 1)
+            elif key == curses.KEY_DOWN:
+                current_state.file_index = min(
+                    len(image.files) - 1, current_state.file_index + 1
+                )
+            elif key == curses.KEY_PPAGE:
+                current_state.file_index = max(0, current_state.file_index - page)
+            elif key == curses.KEY_NPAGE:
+                current_state.file_index = min(
+                    len(image.files) - 1, current_state.file_index + page
                 )
             elif key == curses.KEY_HOME:
-                file_index = 0
+                current_state.file_index = 0
             elif key == curses.KEY_END:
-                file_index = len(image.files) - 1
-            if file_index != old:
-                record_index = 0
-                viewer_scroll = 0
+                current_state.file_index = len(image.files) - 1
+            if current_state.file_index != old:
+                current_state.record_index = 0
+                current_state.viewer_scroll = 0
+                compare_lines = None
 
-        elif focus == 1 and tape_file and tape_file.records:
-            old = record_index
+        elif focus == 2 and current_state and tape_file and tape_file.records:
+            old = current_state.record_index
             if key == curses.KEY_UP:
-                record_index = max(0, record_index - 1)
+                current_state.record_index = max(0, current_state.record_index - 1)
             elif key == curses.KEY_DOWN:
-                record_index = min(len(tape_file.records) - 1, record_index + 1)
+                current_state.record_index = min(
+                    len(tape_file.records) - 1, current_state.record_index + 1
+                )
             elif key == curses.KEY_PPAGE:
-                record_index = max(0, record_index - max(1, body_h - 2))
+                current_state.record_index = max(
+                    0, current_state.record_index - page
+                )
             elif key == curses.KEY_NPAGE:
-                record_index = min(
+                current_state.record_index = min(
                     len(tape_file.records) - 1,
-                    record_index + max(1, body_h - 2),
+                    current_state.record_index + page,
                 )
             elif key == curses.KEY_HOME:
-                record_index = 0
+                current_state.record_index = 0
             elif key == curses.KEY_END:
-                record_index = len(tape_file.records) - 1
-            if record_index != old:
-                viewer_scroll = 0
+                current_state.record_index = len(tape_file.records) - 1
+            if current_state.record_index != old:
+                current_state.viewer_scroll = 0
+                compare_lines = None
 
-        elif focus == 2:
+        elif focus == 3 and current_state:
             if key == curses.KEY_UP:
-                viewer_scroll = max(0, viewer_scroll - 1)
+                current_state.viewer_scroll = max(
+                    0, current_state.viewer_scroll - 1
+                )
             elif key == curses.KEY_DOWN:
-                viewer_scroll = min(max_scroll, viewer_scroll + 1)
+                current_state.viewer_scroll = min(
+                    max_scroll, current_state.viewer_scroll + 1
+                )
             elif key == curses.KEY_PPAGE:
-                viewer_scroll = max(0, viewer_scroll - viewer_visible)
+                current_state.viewer_scroll = max(
+                    0, current_state.viewer_scroll - viewer_visible
+                )
             elif key == curses.KEY_NPAGE:
-                viewer_scroll = min(max_scroll, viewer_scroll + viewer_visible)
+                current_state.viewer_scroll = min(
+                    max_scroll, current_state.viewer_scroll + viewer_visible
+                )
             elif key == curses.KEY_HOME:
-                viewer_scroll = 0
+                current_state.viewer_scroll = 0
             elif key == curses.KEY_END:
-                viewer_scroll = max_scroll
+                current_state.viewer_scroll = max_scroll
 
 
 def cmd_browse(args):
-    image = _open(args.image)
+    states = []
+    added, errors = _add_open_images(states, args.images)
+    if errors and not added and args.images:
+        for error in errors:
+            print(f"tape-tool: {error}", file=sys.stderr)
+        return 1
+
     try:
         import curses
     except ImportError as exc:
@@ -435,7 +893,7 @@ def cmd_browse(args):
             "The curses module is not available in this Python installation"
         ) from exc
 
-    curses.wrapper(_browse, image)
+    curses.wrapper(_browse, states)
     return 0
 
 
@@ -443,8 +901,8 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog="tape-tool",
         description=(
-            "Headless tools for browsing, inspecting, comparing, and converting "
-            "SIMH/AWS tape images."
+            "Command-line and text-mode tools for browsing, inspecting, comparing, "
+            "and converting SIMH/AWS tape images."
         ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -487,16 +945,17 @@ def build_parser():
     convert.set_defaults(func=cmd_convert)
 
     compare = subparsers.add_parser(
-        "compare", help="compare two tape images by logical files and payloads"
+        "compare",
+        help="compare two or more tape images against the first image",
     )
-    compare.add_argument("first")
-    compare.add_argument("second")
+    compare.add_argument("images", nargs="+")
     compare.set_defaults(func=cmd_compare)
 
     browse = subparsers.add_parser(
-        "browse", help="interactive curses browser; no X/GTK required"
+        "browse",
+        help="interactive curses TUI; accepts zero or more initial images",
     )
-    browse.add_argument("image")
+    browse.add_argument("images", nargs="*")
     browse.set_defaults(func=cmd_browse)
 
     return parser

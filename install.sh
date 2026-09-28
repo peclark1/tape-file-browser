@@ -11,24 +11,27 @@ FORMAT_MODULE_PATH="${BIN_DIR}/tape_formats.py"
 TEXT_MODULE_PATH="${BIN_DIR}/tape_text.py"
 DESKTOP_PATH="${APP_DIR}/${APP_ID}.desktop"
 PIN=true
-HEADLESS=false
+TEXT_MODE_ONLY=false
 
 for arg in "$@"; do
     case "$arg" in
         --no-pin)
             PIN=false
             ;;
-        --headless)
-            HEADLESS=true
+        --text-mode|--headless)
+            TEXT_MODE_ONLY=true
             PIN=false
             ;;
         -h|--help)
             cat <<'EOF'
-Usage: bash install.sh [--headless] [--no-pin]
+Usage: bash install.sh [--text-mode] [--no-pin]
 
-  --headless  Install only tape-tool and the shared tape core. No GTK/X
-              components, desktop launcher, or GNOME integration are installed.
-  --no-pin    Install the GTK application but do not pin it to the GNOME dock.
+  --text-mode  Install the command-line interface (CLI), curses text user
+               interface (TUI), and shared tape core only. No GTK/X components,
+               desktop launcher, or GNOME integration are installed.
+  --headless   Compatibility alias for --text-mode.
+  --no-pin     Install the GTK4 graphical interface (GUI) but do not pin it to
+               the GNOME dock.
 EOF
             exit 0
             ;;
@@ -44,7 +47,7 @@ install -m 0755 "${SCRIPT_DIR}/tape_tool.py" "${TOOL_PATH}"
 install -m 0644 "${SCRIPT_DIR}/tape_formats.py" "${FORMAT_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/tape_text.py" "${TEXT_MODULE_PATH}"
 
-if ! ${HEADLESS}; then
+if ! ${TEXT_MODE_ONLY}; then
     mkdir -p "${APP_DIR}"
     install -m 0755 "${SCRIPT_DIR}/tape-file-browser.py" "${BIN_PATH}"
 
@@ -87,12 +90,13 @@ echo "Executable:   ${TOOL_PATH}"
 echo "Format core:  ${FORMAT_MODULE_PATH}"
 echo "Text helpers: ${TEXT_MODULE_PATH}"
 
-if ${HEADLESS}; then
+if ${TEXT_MODE_ONLY}; then
     echo
-    echo "Headless installation complete; GTK/X components were skipped."
-    echo "Try: tape-tool --help"
+    echo "Text-mode installation complete; GTK/X components were skipped."
+    echo "CLI: tape-tool --help"
+    echo "TUI: tape-tool browse"
 else
-    echo "GTK browser:  ${BIN_PATH}"
+    echo "GTK4 GUI:     ${BIN_PATH}"
     echo "Launcher:     ${DESKTOP_PATH}"
     echo
     if ! ${PIN}; then

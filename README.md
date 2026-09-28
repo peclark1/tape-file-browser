@@ -2,19 +2,26 @@
 
 Tools for browsing, inspecting, comparing, and converting SIMH and AWS tape images, written for IBM System/36 and AS/400 archival work.
 
-The project has three layers:
+The project separates the tape backend from three user interfaces:
 
-- `tape_formats.py` — headless parsing/conversion core with no GUI dependency
-- `tape-tool` — command-line tools plus an interactive curses text-mode browser
-- `tape-file-browser` — GTK4 desktop browser
+- **Core/backend** — `tape_formats.py`, with SIMH/AWS parsing, conversion, verification, and hashing
+- **CLI** — `tape-tool` subcommands for scripted/server use
+- **TUI** — `tape-tool browse`, an interactive curses text user interface
+- **GUI** — `tape-file-browser`, the GTK4 graphical desktop interface
+
+The core, CLI, and TUI do not require GTK or X.
 
 Browsing is read-only. Conversion writes a new output image and then reopens it to verify the logical tape structure and every record payload before reporting success.
 
 ## Features
 
 - GTK4 desktop interface
-- Headless command-line interface requiring no X/GTK libraries
-- Interactive curses text-mode browser for SSH/server use
+- Command-line interface (CLI) requiring no X/GTK libraries
+- Interactive curses text user interface (TUI) for SSH/server use
+- TUI file-open dialog with multi-select
+- Multiple simultaneously open tape images with an Images pane
+- Mouse or keyboard switching between open images
+- Mark two or more open images and compare them from inside the TUI
 - Opens SIMH `.tap` and AWS/Hercules `.aws` tape images
 - Three-pane browser:
   - logical tape files
@@ -34,7 +41,7 @@ Browsing is read-only. Conversion writes a new output image and then reopens it 
 
 ## Requirements
 
-The headless core and `tape-tool` use only the Python standard library. On normal Linux Python installations, the curses module is included as well.
+The core, CLI, and TUI use only the Python standard library. On normal Linux Python installations, the curses module is included as well.
 
 The GTK4 desktop browser additionally needs:
 
@@ -52,7 +59,7 @@ cd tape-file-browser
 bash install.sh
 ```
 
-The normal installer installs both the GTK browser and headless tools:
+The normal installer installs the GTK4 GUI plus the CLI/TUI tools:
 
 ```text
 ~/.local/bin/tape-file-browser
@@ -73,13 +80,13 @@ On GNOME/Ubuntu it also attempts to add **Tape File Browser** to the dock/favori
 bash install.sh --no-pin
 ```
 
-For a server with no X/GTK libraries, install only the headless tools:
+For a server with no X/GTK libraries, install the text-mode interfaces only:
 
 ```bash
-bash install.sh --headless
+bash install.sh --text-mode
 ```
 
-That installs `tape-tool` plus the shared parser/converter modules and skips the GTK application, desktop launcher, and GNOME integration.
+That installs the CLI, TUI, and shared parser/converter modules and skips the GTK application, desktop launcher, and GNOME integration. `--headless` remains accepted as a compatibility alias for `--text-mode`.
 
 ## Run without installing
 
@@ -100,16 +107,21 @@ After installation:
 tape-file-browser MULIC-pass3.tap
 ```
 
-For the text-mode browser:
+For the TUI:
 
 ```bash
+tape-tool browse
 tape-tool browse MULIC-pass3.tap
-tape-tool browse MULIC-pass3.aws
+tape-tool browse MULIC-pass3.tap MULIC-pass3.aws
 ```
 
-The curses browser has three panes for logical files, records, and record contents. Use Left/Right or Tab to change panes, Up/Down and Page Up/Page Down to navigate, and `e`, `x`, or `b` for EBCDIC, hex, or both.
+With no filename, the TUI opens its file picker immediately. Press `o` at any time to open more tape images. The file picker supports marking multiple files with Space and opening them together. It shows an explicit `<DIR> ../` entry for the parent directory; Backspace is also available as a parent-directory shortcut.
 
-## Headless command-line tools
+The TUI uses three navigation panes across the upper portion of the terminal — **Images**, **Tape files**, and **Records** — with a full-width **Record view / Compare results** pane below them. The wider lower pane is intended for hex/EBCDIC data, long paths, and comparison output. Selecting an image switches the other panes to that image. Keyboard navigation always works; terminals with mouse reporting can also select images/files/records by clicking.
+
+In the Images pane, Space marks an image for comparison. Mark two or more images and press `c`; each selected image is compared against the first selected image using the same logical record/payload verification as the CLI converter.
+
+## Command-line interface (CLI)
 
 `tape-tool` exposes the core without importing GTK:
 
@@ -122,13 +134,14 @@ tape-tool show MULIC-pass3.tap --file 4 --record 1 --view hex
 tape-tool browse MULIC-pass3.tap
 ```
 
-To compare two containers record-by-record:
+To compare two or more containers record-by-record:
 
 ```bash
 tape-tool compare MULIC-pass3.tap MULIC-pass3.aws
+tape-tool compare original.tap copy1.aws copy2.tap
 ```
 
-A successful comparison verifies logical file/tape-mark structure, every record length, and every record payload.
+The first image is the reference. A successful comparison verifies logical file/tape-mark structure, every record length, and every record payload for each additional image.
 
 ## Converting tape images
 
