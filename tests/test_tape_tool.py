@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tape_formats import EOM, TMK, convert_tape
 from tape_text import format_ebcdic, format_hex
-from tape_tool import main
+from tape_tool import _picker_entries, main
 
 
 def write_simh(path, files):
@@ -128,6 +128,17 @@ class TapeToolTests(unittest.TestCase):
                 rc = main(["compare", str(tap)])
             self.assertEqual(rc, 1)
             self.assertIn("at least two", stderr.getvalue())
+
+    def test_picker_includes_parent_directory_first(self):
+        with tempfile.TemporaryDirectory() as directory:
+            child = Path(directory) / "child"
+            child.mkdir()
+            (child / "sample.tap").write_bytes(b"")
+
+            entries = _picker_entries(child)
+            self.assertTrue(entries)
+            self.assertEqual(entries[0], (child.parent.resolve(), True))
+            self.assertIn((child / "sample.tap", False), entries)
 
     def test_missing_file_number_returns_error(self):
         with tempfile.TemporaryDirectory() as directory:
