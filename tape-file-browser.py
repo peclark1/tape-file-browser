@@ -217,12 +217,14 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
             "Select an image, tape file, and record to browse its contents."
         )
 
-        text_scroll = Gtk.ScrolledWindow()
-        text_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        text_scroll.set_hexpand(True)
-        text_scroll.set_vexpand(True)
-        text_scroll.set_child(self.text_view)
-        text_box.append(text_scroll)
+        self.text_scroll = Gtk.ScrolledWindow()
+        self.text_scroll.set_policy(
+            Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC
+        )
+        self.text_scroll.set_hexpand(True)
+        self.text_scroll.set_vexpand(True)
+        self.text_scroll.set_child(self.text_view)
+        text_box.append(self.text_scroll)
 
         self.main_pane.set_end_child(text_box)
         self.main_pane.set_resize_end_child(True)
@@ -238,6 +240,35 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.status.set_margin_end(8)
         self.status.set_ellipsize(Pango.EllipsizeMode.END)
         outer.append(self.status)
+
+    def _set_view_text(self, text, title=None):
+        """Replace lower-pane text and force a full viewport repaint.
+
+        GTK4 can occasionally leave stale glyph fragments behind when a large
+        TextView buffer is replaced by much shorter content.  Updating the
+        buffer is correct, but explicitly invalidating the lower viewport on
+        the next main-loop turn prevents those old snapshots from lingering.
+        """
+        if title is not None:
+            self.record_title.set_text(title)
+        self.text_buffer.set_text(text)
+        GLib.idle_add(self._refresh_text_view)
+    
+    def _refresh_text_view(self):
+        if not self.get_mapped():
+            return False
+
+        vadjustment = self.text_scroll.get_vadjustment()
+        hadjustment = self.text_scroll.get_hadjustment()
+        if vadjustment is not None:
+            vadjustment.set_value(vadjustment.get_lower())
+        if hadjustment is not None:
+            hadjustment.set_value(hadjustment.get_lower())
+
+        self.text_view.queue_draw()
+        self.text_scroll.queue_draw()
+        self.main_pane.queue_draw()
+        return False
 
     @staticmethod
     def _make_string_factory():
@@ -444,7 +475,7 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
 
         if not self.open_images:
             self.status.set_text("No tape images loaded")
-            self.text_buffer.set_text("No tape images loaded.")
+            self._set_view_text("No tape images loaded.", "Record view")
         return False
 
     def on_close_clicked(self, _button):
@@ -469,9 +500,9 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
             self.convert_button.set_sensitive(False)
             self.set_title("Tape File Browser")
             self.status.set_text("No tape images loaded")
-            self.record_title.set_text("Record view")
-            self.text_buffer.set_text(
-                "No tape images are open. Click Open… to select one or more images."
+            self._set_view_text(
+                "No tape images are open. Click Open… to select one or more images.",
+                "Record view",
             )
 
     def on_image_selected(self, _listbox, row):
@@ -515,9 +546,9 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
             self.file_selection.set_selected(state.file_index)
             self._restoring_selection = False
         else:
-            self.record_title.set_text("Record view")
-            self.text_buffer.set_text(
-                f"{image.format_name} tape image contains no logical files."
+            self._set_view_text(
+                f"{image.format_name} tape image contains no logical files.",
+                "Record view",
             )
 
     def on_file_selected(self, selection, _pspec):
@@ -547,14 +578,14 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.record_selection.set_selected(Gtk.INVALID_LIST_POSITION)
         self.record_strings.splice(0, self.record_strings.get_n_items(), summaries)
 
-        self.record_title.set_text(f"Record view — File {tape_file.number}")
-        self.text_buffer.set_text(
+        self._set_view_text(
             f"Logical tape file {tape_file.number}\n"
             f"Records: {len(tape_file.records):,}\n"
             f"Data bytes: {tape_file.total_bytes:,}\n"
             f"Error records: {tape_file.errors:,}\n"
             f"Record sizes: {size_summary(tape_file.sizes)}\n\n"
-            "Select a record above to display its EBCDIC contents."
+            "Select a record above to display its EBCDIC contents.",
+            f"Record view — File {tape_file.number}",
         )
 
         if tape_file.records:
@@ -601,14 +632,13 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
             f"Encoding:      IBM EBCDIC CP037\n"
             "\n"
         )
-        self.record_title.set_text(
-            f"Record view — {os.path.basename(self.tap.path)} — "
-            f"File {tape_file.number}, Record {record.number}"
+        self._set_view_text(
+            header + format_ebcdic(data),
+            (
+                f"Record view — {os.path.basename(self.tap.path)} — "
+                f"File {tape_file.number}, Record {record.number}"
+            ),
         )
-        self.text_buffer.set_text(header + format_ebcdic(data))
-
-        start = self.text_buffer.get_start_iter()
-        self.text_view.scroll_to_iter(start, 0.0, False, 0.0, 0.0)
 
     def _clear_navigation_models(self):
         self.file_selection.set_selected(Gtk.INVALID_LIST_POSITION)
@@ -675,15 +705,14 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.spinner.stop()
         self.open_button.set_sensitive(True)
         self._update_compare_button()
-        self.record_title.set_text(f"Compare results — {count} images")
-        self.text_buffer.set_text("\n".join(lines))
+        self._set_view_text(
+            "\n".join(lines), f"Compare results — {count} images"
+        )
         self.status.set_text(
             "All selected tape images are logically identical."
             if all_match
             else "Comparison complete — differences found."
         )
-        start = self.text_buffer.get_start_iter()
-        self.text_view.scroll_to_iter(start, 0.0, False, 0.0, 0.0)
         return False
 
     def on_convert_clicked(self, _button):
