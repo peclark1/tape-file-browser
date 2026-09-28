@@ -15,7 +15,9 @@ Browsing is read-only. Conversion writes a new output image and then reopens it 
 
 ## Features
 
-- GTK4 desktop interface
+- GTK4 graphical interface (GUI) with multi-image workspace
+- GUI native multi-file open dialog and per-image navigation state
+- GUI image checkboxes and full-width compare-results pane
 - Command-line interface (CLI) requiring no X/GTK libraries
 - Interactive curses text user interface (TUI) for SSH/server use
 - TUI file-open dialog with multi-select
@@ -94,11 +96,11 @@ That installs the CLI, TUI, and shared parser/converter modules and skips the GT
 python3 tape-file-browser.py
 ```
 
-You can also open either format directly:
+You can also open one or more images directly:
 
 ```bash
 python3 tape-file-browser.py MULIC-pass3.tap
-python3 tape-file-browser.py MULIC-pass3.aws
+python3 tape-file-browser.py MULIC-pass3.tap MULIC-pass3.aws
 ```
 
 After installation:
@@ -106,6 +108,12 @@ After installation:
 ```bash
 tape-file-browser MULIC-pass3.tap
 ```
+
+### GTK4 graphical interface (GUI)
+
+The GUI uses the same workspace model as the TUI: **Images**, **Tape files**, and **Records** across the upper portion of the window, with a full-width **Record view / Compare results** pane below.
+
+**Open…** accepts multiple tape images at once. Each open image keeps its own tape-file and record position when you switch between images. Check two or more images in the Images pane and click **Compare** to run the same logical tape verification used by the CLI/TUI. **Close** removes only the active image from the workspace, while **Convert…** operates on the active image.
 
 For the TUI:
 
@@ -154,7 +162,7 @@ tape-tool convert MULIC-pass3.tap MULIC-pass3.aws
 tape-tool convert MULIC-pass3.aws MULIC-pass3-roundtrip.tap
 ```
 
-The older GTK executable also retains its command-line conversion option when GTK is installed.
+The GTK executable also retains its command-line conversion option when GTK is installed.
 
 After writing the output, Tape File Browser reopens it and verifies:
 
