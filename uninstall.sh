@@ -3,10 +3,12 @@ set -euo pipefail
 
 APP_ID="com.peclark.TapeFileBrowser"
 BIN_PATH="${HOME}/.local/bin/tape-file-browser"
+TOOL_PATH="${HOME}/.local/bin/tape-tool"
 FORMAT_MODULE_PATH="${HOME}/.local/bin/tape_formats.py"
+TEXT_MODULE_PATH="${HOME}/.local/bin/tape_text.py"
 DESKTOP_PATH="${HOME}/.local/share/applications/${APP_ID}.desktop"
 
-rm -f "${BIN_PATH}" "${FORMAT_MODULE_PATH}" "${DESKTOP_PATH}"
+rm -f "${BIN_PATH}" "${TOOL_PATH}" "${FORMAT_MODULE_PATH}" "${TEXT_MODULE_PATH}" "${DESKTOP_PATH}"
 
 if command -v gsettings >/dev/null 2>&1; then
     python3 - "${APP_ID}.desktop" <<'PY' || true
