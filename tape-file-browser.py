@@ -45,6 +45,9 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.initial_paths = list(initial_paths or [])
         self._file_dialog = None
         self._convert_dialog = None
+        self._busy_window = None
+        self._busy_label = None
+        self._busy_spinner = None
         self._restoring_selection = False
 
         self._build_ui()
@@ -206,16 +209,11 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.record_title.add_css_class("heading")
         text_box.append(self.record_title)
 
-        self.text_view = Gtk.TextView()
-        self.text_view.set_editable(False)
-        self.text_view.set_cursor_visible(False)
-        self.text_view.set_monospace(True)
-        self.text_view.set_wrap_mode(Gtk.WrapMode.NONE)
-        self.text_buffer = self.text_view.get_buffer()
-        self.text_buffer.set_text(
+        self.text_view = self._make_text_view(
             "Open one or more SIMH .tap or AWS .aws images. "
             "Select an image, tape file, and record to browse its contents."
         )
+        self.text_buffer = self.text_view.get_buffer()
 
         self.text_scroll = Gtk.ScrolledWindow()
         self.text_scroll.set_policy(
@@ -241,19 +239,85 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.status.set_ellipsize(Pango.EllipsizeMode.END)
         outer.append(self.status)
 
-    def _set_view_text(self, text, title=None):
-        """Replace lower-pane text and force a full viewport repaint.
+    @staticmethod
+    def _make_text_view(text):
+        view = Gtk.TextView()
+        view.set_editable(False)
+        view.set_cursor_visible(False)
+        view.set_monospace(True)
+        view.set_wrap_mode(Gtk.WrapMode.NONE)
+        view.get_buffer().set_text(text)
+        return view
 
-        GTK4 can occasionally leave stale glyph fragments behind when a large
-        TextView buffer is replaced by much shorter content.  Updating the
-        buffer is correct, but explicitly invalidating the lower viewport on
-        the next main-loop turn prevents those old snapshots from lingering.
+    def _show_busy_dialog(self, message):
+        if self._busy_window is not None:
+            self._update_busy_dialog(message)
+            return
+
+        window = Gtk.Window(
+            title="Please wait…",
+            transient_for=self,
+            modal=True,
+        )
+        window.set_resizable(False)
+        window.set_deletable(False)
+        window.set_default_size(420, 130)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(20)
+        box.set_margin_bottom(20)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+
+        spinner = Gtk.Spinner()
+        spinner.set_halign(Gtk.Align.CENTER)
+        spinner.start()
+        box.append(spinner)
+
+        label = Gtk.Label(label=message, xalign=0.5)
+        label.set_justify(Gtk.Justification.CENTER)
+        label.set_wrap(True)
+        box.append(label)
+
+        window.set_child(box)
+        self._busy_window = window
+        self._busy_label = label
+        self._busy_spinner = spinner
+        window.present()
+
+    def _update_busy_dialog(self, message):
+        if self._busy_label is not None:
+            self._busy_label.set_text(message)
+        return False
+
+    def _hide_busy_dialog(self):
+        if self._busy_spinner is not None:
+            self._busy_spinner.stop()
+        if self._busy_window is not None:
+            self._busy_window.close()
+        self._busy_window = None
+        self._busy_label = None
+        self._busy_spinner = None
+        return False
+
+    def _set_view_text(self, text, title=None):
+        """Replace the lower TextView instead of reusing its rendered snapshot.
+
+        On some GTK4/Mesa combinations, replacing a large TextBuffer with much
+        shorter content can leave stale glyph fragments in the viewport until
+        the window is externally redrawn.  Replacing the TextView widget gives
+        GTK a fresh render node and avoids reusing the stale snapshot.
         """
         if title is not None:
             self.record_title.set_text(title)
-        self.text_buffer.set_text(text)
+
+        new_view = self._make_text_view(text)
+        self.text_scroll.set_child(new_view)
+        self.text_view = new_view
+        self.text_buffer = new_view.get_buffer()
+
         GLib.idle_add(self._refresh_text_view)
-    
+
     def _refresh_text_view(self):
         if not self.get_mapped():
             return False
@@ -265,7 +329,6 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         if hadjustment is not None:
             hadjustment.set_value(hadjustment.get_lower())
 
-        self.text_view.queue_draw()
         self.text_scroll.queue_draw()
         self.main_pane.queue_draw()
         return False
@@ -432,16 +495,27 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.close_button.set_sensitive(False)
         self.convert_button.set_sensitive(False)
         self.spinner.start()
-        self.status.set_text(
-            f"Scanning {len(pending):,} tape image(s)…"
+        loading_text = (
+            f"Opening {len(pending):,} tape images…\nPlease wait while they are scanned."
             if len(pending) > 1
-            else f"Scanning {pending[0]} …"
+            else f"Opening {os.path.basename(pending[0])}…\nPlease wait while it is scanned."
         )
+        self.status.set_text(loading_text.replace("\n", " "))
+        self._show_busy_dialog(loading_text)
 
         def worker():
             images = []
             errors = []
-            for path in pending:
+            for index, path in enumerate(pending, start=1):
+                GLib.idle_add(
+                    self._update_busy_dialog,
+                    (
+                        f"Opening tape image {index} of {len(pending)}…\n"
+                        f"{os.path.basename(path)}"
+                        if len(pending) > 1
+                        else f"Opening {os.path.basename(path)}…\nPlease wait."
+                    ),
+                )
                 try:
                     images.append(open_tape_image(path))
                 except Exception as exc:
@@ -456,6 +530,7 @@ class TapeBrowserWindow(Gtk.ApplicationWindow):
         self.open_images.extend(OpenImageState(image=image) for image in images)
 
         self.spinner.stop()
+        self._hide_busy_dialog()
         self.open_button.set_sensitive(True)
         self._rebuild_image_rows()
 
