@@ -105,9 +105,10 @@ def cmd_convert(args):
 
 def _comparison_lines(images):
     reference = images[0]
+    reference_hash = logical_sha256(reference)
     lines = [
         f"Reference: {reference.path} ({reference.format_name})",
-        f"Logical SHA-256: {logical_sha256(reference)}",
+        f"Logical SHA-256: {reference_hash}",
         "",
     ]
     all_match = True
@@ -116,7 +117,7 @@ def _comparison_lines(images):
         try:
             verify_logical_tapes(reference, candidate)
             candidate_hash = logical_sha256(candidate)
-            if candidate_hash != logical_sha256(reference):
+            if candidate_hash != reference_hash:
                 all_match = False
                 lines.append(
                     f"DIFFERENT  {candidate.path} — logical SHA-256 differs"
@@ -142,6 +143,8 @@ def _comparison_lines(images):
 
 
 def cmd_compare(args):
+    if len(args.images) < 2:
+        raise ValueError("compare requires at least two tape images")
     images = [_open(path) for path in args.images]
     lines, all_match = _comparison_lines(images)
     print("\n".join(lines))
