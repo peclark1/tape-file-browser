@@ -90,6 +90,12 @@ bash install.sh --text-mode
 
 That installs the CLI, TUI, and shared parser/converter modules and skips the GTK application, desktop launcher, and GNOME integration. `--headless` remains accepted as a compatibility alias for `--text-mode`.
 
+gtk4 GUI
+<img width="2616" height="1658" alt="image" src="https://github.com/user-attachments/assets/a0e0e9bb-a950-4747-963a-932d844d5854" />
+
+TUI
+<img width="3560" height="2422" alt="image" src="https://github.com/user-attachments/assets/d01c317c-0231-4ba4-a09c-c59ef82c398e" />
+
 ## Run without installing
 
 ```bash
