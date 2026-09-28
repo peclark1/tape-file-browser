@@ -273,10 +273,11 @@ def _add_open_images(states, paths):
 
 
 def _picker_entries(directory):
+    directory = Path(directory).resolve()
     directories = []
     files = []
     try:
-        entries = list(Path(directory).iterdir())
+        entries = list(directory.iterdir())
     except OSError:
         return []
 
@@ -292,9 +293,13 @@ def _picker_entries(directory):
 
     directories.sort(key=lambda item: item.name.lower())
     files.sort(key=lambda item: item.name.lower())
-    return [(entry, True) for entry in directories] + [
-        (entry, False) for entry in files
-    ]
+
+    result = []
+    if directory.parent != directory:
+        result.append((directory.parent, True))
+    result.extend((entry, True) for entry in directories)
+    result.extend((entry, False) for entry in files)
+    return result
 
 
 def _file_picker(stdscr, start_dir):
@@ -333,7 +338,10 @@ def _file_picker(stdscr, start_dir):
         else:
             for row, idx in enumerate(range(start, min(len(entries), start + visible))):
                 path, is_dir = entries[idx]
-                if is_dir:
+                is_parent = is_dir and path == directory.parent and path != directory
+                if is_parent:
+                    label = "    <DIR> ../"
+                elif is_dir:
                     label = f"    <DIR> {path.name}/"
                 else:
                     check = "x" if _normalized_path(path) in marked else " "
@@ -475,12 +483,12 @@ def _browse(stdscr, initial_states):
         stdscr.erase()
         height, width = stdscr.getmaxyx()
 
-        if height < 16 or width < 100:
+        if height < 18 or width < 90:
             _safe_addstr(
                 stdscr,
                 0,
                 0,
-                f"Terminal too small ({width}x{height}); need at least 100x16.",
+                f"Terminal too small ({width}x{height}); need at least 90x18.",
                 curses.A_BOLD,
             )
             _safe_addstr(stdscr, 2, 0, "Resize the terminal, or press q to quit.")
@@ -490,15 +498,23 @@ def _browse(stdscr, initial_states):
                 return
             continue
 
-        image_w = max(20, min(30, width // 5))
-        file_w = max(18, min(28, width // 5))
-        record_w = max(24, min(36, width // 4))
+        # The three navigation lists share the upper portion of the terminal.
+        # Record contents and compare results use a full-width pane below them,
+        # where wide hex/EBCDIC data and paths are much easier to read.
+        top_y = 2
+        content_h = height - 5
+        top_h = max(6, int(content_h * 0.45))
+        separator_y = top_y + top_h
+        viewer_y = separator_y + 1
+        viewer_h = max(3, (height - 2) - viewer_y)
+        viewer_w = width
+
+        usable_w = width - 2
+        image_w = max(20, int(usable_w * 0.30))
+        file_w = max(20, int(usable_w * 0.30))
+        record_w = usable_w - image_w - file_w
         file_x = image_w + 1
         record_x = file_x + file_w + 1
-        viewer_x = record_x + record_w + 1
-        viewer_w = width - viewer_x
-        body_y = 2
-        body_h = height - 5
 
         if states:
             image_index = max(0, min(image_index, len(states) - 1))
@@ -535,10 +551,14 @@ def _browse(stdscr, initial_states):
             )
         _safe_addstr(stdscr, 0, 0, title, curses.A_BOLD)
 
-        for y in range(1, height - 2):
+        for y in range(top_y, separator_y):
             _safe_addstr(stdscr, y, image_w, "│", curses.A_DIM)
             _safe_addstr(stdscr, y, file_x + file_w, "│", curses.A_DIM)
-            _safe_addstr(stdscr, y, record_x + record_w, "│", curses.A_DIM)
+
+        for x in range(width):
+            _safe_addstr(stdscr, separator_y, x, "─", curses.A_DIM)
+        _safe_addstr(stdscr, separator_y, image_w, "┴", curses.A_DIM)
+        _safe_addstr(stdscr, separator_y, file_x + file_w, "┴", curses.A_DIM)
 
         image_items = []
         for state in states:
@@ -569,9 +589,9 @@ def _browse(stdscr, initial_states):
             image_items,
             image_index,
             0,
-            body_y,
+            top_y,
             image_w,
-            body_h,
+            top_h,
             focus == 0,
         )
         file_start = _draw_list(
@@ -580,9 +600,9 @@ def _browse(stdscr, initial_states):
             file_items,
             current_state.file_index if current_state else 0,
             file_x,
-            body_y,
+            top_y,
             file_w,
-            body_h,
+            top_h,
             focus == 1,
         )
         record_start = _draw_list(
@@ -591,9 +611,9 @@ def _browse(stdscr, initial_states):
             record_items,
             current_state.record_index if current_state else 0,
             record_x,
-            body_y,
+            top_y,
             record_w,
-            body_h,
+            top_h,
             focus == 2,
         )
 
@@ -606,8 +626,8 @@ def _browse(stdscr, initial_states):
         heading_attr = curses.A_BOLD | (curses.A_REVERSE if focus == 3 else 0)
         _safe_addstr(
             stdscr,
-            body_y,
-            viewer_x,
+            viewer_y,
+            0,
             viewer_heading.ljust(max(0, viewer_w - 1)),
             heading_attr,
         )
@@ -625,7 +645,7 @@ def _browse(stdscr, initial_states):
         else:
             viewer_lines = _viewer_lines(image, tape_file, record, mode)
 
-        viewer_visible = max(1, body_h - 1)
+        viewer_visible = max(1, viewer_h - 1)
         viewer_scroll = current_state.viewer_scroll if current_state else 0
         max_scroll = max(0, len(viewer_lines) - viewer_visible)
         viewer_scroll = max(0, min(viewer_scroll, max_scroll))
@@ -635,7 +655,7 @@ def _browse(stdscr, initial_states):
         for row, line in enumerate(
             viewer_lines[viewer_scroll : viewer_scroll + viewer_visible]
         ):
-            _safe_addstr(stdscr, body_y + 1 + row, viewer_x, line)
+            _safe_addstr(stdscr, viewer_y + 1 + row, 0, line)
 
         selected_count = sum(1 for state in states if state.compare_selected)
         status_line = status or (
@@ -684,17 +704,21 @@ def _browse(stdscr, initial_states):
             if not (bstate & click_mask):
                 continue
 
-            row = my - (body_y + 1)
+            if my >= viewer_y:
+                focus = 3
+                continue
+
+            row = my - (top_y + 1)
             if mx < image_w:
                 focus = 0
-                if 0 <= row < body_h - 1:
+                if 0 <= row < top_h - 1:
                     idx = image_start + row
                     if idx < len(states):
                         image_index = idx
                         compare_lines = None
             elif file_x <= mx < file_x + file_w:
                 focus = 1
-                if current_state and 0 <= row < body_h - 1:
+                if current_state and 0 <= row < top_h - 1:
                     idx = file_start + row
                     if idx < len(current_state.image.files):
                         current_state.file_index = idx
@@ -703,14 +727,12 @@ def _browse(stdscr, initial_states):
                         compare_lines = None
             elif record_x <= mx < record_x + record_w:
                 focus = 2
-                if tape_file and current_state and 0 <= row < body_h - 1:
+                if tape_file and current_state and 0 <= row < top_h - 1:
                     idx = record_start + row
                     if idx < len(tape_file.records):
                         current_state.record_index = idx
                         current_state.viewer_scroll = 0
                         compare_lines = None
-            elif mx >= viewer_x:
-                focus = 3
             continue
 
         if key in (9,):
@@ -766,7 +788,7 @@ def _browse(stdscr, initial_states):
                 current_state.viewer_scroll = 0
             continue
 
-        page = max(1, body_h - 2)
+        page = max(1, top_h - 2)
 
         if focus == 0 and states:
             old = image_index
