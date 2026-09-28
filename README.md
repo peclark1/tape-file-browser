@@ -1,12 +1,20 @@
 # Tape File Browser
 
-A small GTK4 desktop application for browsing and converting SIMH and AWS tape images, written for IBM System/36 and AS/400 archival work.
+Tools for browsing, inspecting, comparing, and converting SIMH and AWS tape images, written for IBM System/36 and AS/400 archival work.
 
-The browser is read-only. Conversion writes a new output image and then reopens it to verify the logical tape structure and every record payload before reporting success.
+The project has three layers:
+
+- `tape_formats.py` — headless parsing/conversion core with no GUI dependency
+- `tape-tool` — command-line tools plus an interactive curses text-mode browser
+- `tape-file-browser` — GTK4 desktop browser
+
+Browsing is read-only. Conversion writes a new output image and then reopens it to verify the logical tape structure and every record payload before reporting success.
 
 ## Features
 
 - GTK4 desktop interface
+- Headless command-line interface requiring no X/GTK libraries
+- Interactive curses text-mode browser for SSH/server use
 - Opens SIMH `.tap` and AWS/Hercules `.aws` tape images
 - Three-pane browser:
   - logical tape files
@@ -17,6 +25,8 @@ The browser is read-only. Conversion writes a new output image and then reopens 
 - Summarizes record sizes, tape marks, EOM, and SIMH gap markers
 - Indexes record offsets instead of loading the entire tape image into memory
 - Converts SIMH -> AWS and AWS -> SIMH
+- Compares SIMH/AWS images for logical record-by-record equivalence
+- EBCDIC and hex/EBCDIC record views in the text-mode tools
 - Verifies conversions record-by-record with SHA-256 payload hashes
 - Supports standard multi-chunk AWS records
 - Desktop launcher for Ubuntu/GNOME
@@ -24,13 +34,13 @@ The browser is read-only. Conversion writes a new output image and then reopens 
 
 ## Requirements
 
-On Ubuntu 24.04 or similar:
+The headless core and `tape-tool` use only the Python standard library. On normal Linux Python installations, the curses module is included as well.
+
+The GTK4 desktop browser additionally needs:
 
 ```bash
 sudo apt install python3-gi gir1.2-gtk-4.0
 ```
-
-The conversion core itself uses only the Python standard library.
 
 ## Install
 
@@ -42,11 +52,13 @@ cd tape-file-browser
 bash install.sh
 ```
 
-The installer copies the program and tape-format module to:
+The normal installer installs both the GTK browser and headless tools:
 
 ```text
 ~/.local/bin/tape-file-browser
+~/.local/bin/tape-tool
 ~/.local/bin/tape_formats.py
+~/.local/bin/tape_text.py
 ```
 
 and installs a desktop launcher as:
@@ -60,6 +72,14 @@ On GNOME/Ubuntu it also attempts to add **Tape File Browser** to the dock/favori
 ```bash
 bash install.sh --no-pin
 ```
+
+For a server with no X/GTK libraries, install only the headless tools:
+
+```bash
+bash install.sh --headless
+```
+
+That installs `tape-tool` plus the shared parser/converter modules and skips the GTK application, desktop launcher, and GNOME integration.
 
 ## Run without installing
 
@@ -80,16 +100,48 @@ After installation:
 tape-file-browser MULIC-pass3.tap
 ```
 
+For the text-mode browser:
+
+```bash
+tape-tool browse MULIC-pass3.tap
+tape-tool browse MULIC-pass3.aws
+```
+
+The curses browser has three panes for logical files, records, and record contents. Use Left/Right or Tab to change panes, Up/Down and Page Up/Page Down to navigate, and `e`, `x`, or `b` for EBCDIC, hex, or both.
+
+## Headless command-line tools
+
+`tape-tool` exposes the core without importing GTK:
+
+```bash
+tape-tool info MULIC-pass3.tap --hash
+tape-tool files MULIC-pass3.tap
+tape-tool records MULIC-pass3.tap --file 4
+tape-tool show MULIC-pass3.tap --file 4 --record 1
+tape-tool show MULIC-pass3.tap --file 4 --record 1 --view hex
+tape-tool browse MULIC-pass3.tap
+```
+
+To compare two containers record-by-record:
+
+```bash
+tape-tool compare MULIC-pass3.tap MULIC-pass3.aws
+```
+
+A successful comparison verifies logical file/tape-mark structure, every record length, and every record payload.
+
 ## Converting tape images
 
 With an image open in the GUI, click **Convert…**. A SIMH image defaults to an `.aws` output name and an AWS image defaults to `.tap`.
 
-Conversion is also available from the command line:
+The preferred headless conversion interface is:
 
 ```bash
-tape-file-browser MULIC-pass3.tap --convert MULIC-pass3.aws
-tape-file-browser MULIC-pass3.aws --convert MULIC-pass3-roundtrip.tap
+tape-tool convert MULIC-pass3.tap MULIC-pass3.aws
+tape-tool convert MULIC-pass3.aws MULIC-pass3-roundtrip.tap
 ```
+
+The older GTK executable also retains its command-line conversion option when GTK is installed.
 
 After writing the output, Tape File Browser reopens it and verifies:
 
@@ -151,7 +203,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The tape-format core has standard-library unit tests covering SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, and AWS images without a trailing tape mark:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, and the headless command-line tools:
 
 ```bash
 python3 -m unittest discover -s tests -v

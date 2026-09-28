@@ -4,7 +4,6 @@ import argparse
 import os
 import sys
 import threading
-from collections import Counter
 from pathlib import Path
 
 import gi
@@ -13,30 +12,11 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk, Pango
 
 from tape_formats import ConversionReport, TapeImage, convert_tape, open_tape_image
+from tape_text import format_ebcdic, size_summary
 
 APP_ID = "com.peclark.TapeFileBrowser"
 
 
-def ebcdic_text(data: bytes) -> str:
-    """Decode IBM EBCDIC CP037, replacing controls with dots."""
-    text = data.decode("cp037", errors="replace")
-    return "".join(
-        ch if ch.isprintable() and ch not in "\r\n\t" else "." for ch in text
-    )
-
-
-def format_ebcdic(data: bytes, width: int = 64) -> str:
-    lines = []
-    for offset in range(0, len(data), width):
-        chunk = data[offset : offset + width]
-        lines.append(f"{offset:04X}: {ebcdic_text(chunk)}")
-    return "\n".join(lines)
-
-
-def size_summary(sizes: Counter) -> str:
-    if not sizes:
-        return "empty"
-    return ", ".join(f"{size} x {count}" for size, count in sorted(sizes.items()))
 
 
 class TapeBrowserWindow(Gtk.ApplicationWindow):
