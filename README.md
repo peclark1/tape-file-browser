@@ -115,9 +115,9 @@ tape-tool browse MULIC-pass3.tap
 tape-tool browse MULIC-pass3.tap MULIC-pass3.aws
 ```
 
-With no filename, the TUI opens its file picker immediately. Press `o` at any time to open more tape images. The file picker supports marking multiple files with Space and opening them together.
+With no filename, the TUI opens its file picker immediately. Press `o` at any time to open more tape images. The file picker supports marking multiple files with Space and opening them together. It shows an explicit `<DIR> ../` entry for the parent directory; Backspace is also available as a parent-directory shortcut.
 
-The TUI has four panes: **Images**, **Tape files**, **Records**, and **Record view**. Selecting an image switches the other panes to that image. Keyboard navigation always works; terminals with mouse reporting can also select images/files/records by clicking.
+The TUI uses three navigation panes across the upper portion of the terminal — **Images**, **Tape files**, and **Records** — with a full-width **Record view / Compare results** pane below them. The wider lower pane is intended for hex/EBCDIC data, long paths, and comparison output. Selecting an image switches the other panes to that image. Keyboard navigation always works; terminals with mouse reporting can also select images/files/records by clicking.
 
 In the Images pane, Space marks an image for comparison. Mark two or more images and press `c`; each selected image is compared against the first selected image using the same logical record/payload verification as the CLI converter.
 
