@@ -374,6 +374,57 @@ contexts such as `QRPG`, `QSDE`, `JHUDGINS`, `MSICKBERT`,
 `PPSIPROTO`, and `PPSITEST`. Major system contexts such as QSYS/QGPL are
 not expected to be complete on that surviving non-load-source disk.
 
+## Database member cursors and member metadata
+
+The next database layer is now partially decoded.
+
+IBM documents MI type/subtype `0D50` as a permanent database-file member
+cursor. The 30-byte MI object name is laid out as:
+
+```text
+bytes  0- 9   file name
+bytes 10-19   member name
+bytes 20-29   blanks
+```
+
+The CLI therefore supports:
+
+```bash
+as400-dasd members disk.hda QGPL
+as400-dasd members disk.hda QGPL QCLSRC
+as400-dasd members disk.hda QGPL QCLSRC --long
+```
+
+The permanent cursor's YYSGHDR `SPACE` address identifies its associated-space
+offset within the recovered segment. IBM's documented cursor layout places a
+four-byte offset at associated-space +4; adding that value locates the member
+header. The member header begins with five system pointers followed by fields
+including descriptive text, source type, source-change time, and creation time.
+
+This has been verified against the real Mark/Patrik image. For
+`QGPL/QCLSRC(REFRESH2)`:
+
+```text
+MI object:              0D/50
+virtual address:        00F3C2000000
+physical LBA:           1,668,664
+segment pages:          5
+associated-space:       +0x440
+member-header offset:   +0x8D0
+source type:            CLP
+source changed:         1998-01-03 02:31:14
+created:                1998-01-03 02:31:11
+text:                   Refresh PkMS demo data - new version (GE 170)
+```
+
+The same decoder successfully extracts member-header metadata from 3,682 of the
+3,779 recovered `0D50` cursor objects on that image in an exploratory full-disk
+probe. Other real examples include `QRPGSRC(PROOF)`,
+`QRPGSRC(PROOF38)`, and `QDDSSRC(QDSIGNON)`.
+
+This moves the disk browser beyond merely identifying `*FILE` objects: it can
+now enumerate many file members and recover their source-member metadata.
+
 ### Important limitation
 
 Library membership is currently reconstructed from the EPA **object -> context**
@@ -506,8 +557,9 @@ The next research/implementation targets are:
   descriptors directly;
 - improve permanent/temporary indicator decoding so fewer candidates require
   structural corroboration;
-- decode `*FILE` object-specific structures, members/cursors, format objects,
-  and data spaces;
+- follow permanent member cursors into their data-space/data-space-index
+  relationships;
+- decode `*FILE` format objects and field descriptions;
 - expose database field definitions and ultimately physical-file records;
 - integrate these read-only structures into the GTK/TUI browser after the CLI
   model is stable.
