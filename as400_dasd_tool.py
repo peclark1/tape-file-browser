@@ -1078,6 +1078,128 @@ def cmd_cat(args):
     return cmd_source(args)
 
 
+def _dlo_preview_strings(data, internal_name="", limit=3):
+    """Return short printable EBCDIC runs useful while decoding DLO metadata.
+
+    This deliberately does not claim that a printable run is the authoritative
+    QDLS name or path. The QUSRSYS QAOSS* search-index files are the intended
+    source for that mapping; these strings are forensic hints only.
+    """
+
+    strings = _tui_ebcdic_strings(data, min_length=4)
+    result = []
+    internal = internal_name.upper()
+    for value in strings:
+        if internal and value.upper() == internal:
+            continue
+        if len(value) > 120:
+            value = value[:117] + "..."
+        result.append(value)
+        if limit and len(result) >= limit:
+            break
+    return result
+
+
+def cmd_dlos(args):
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+
+    wanted_subtype = None
+    if args.object_class == "doc":
+        wanted_subtype = 0x0E
+    elif args.object_class == "flr":
+        wanted_subtype = 0x12
+
+    dlos = [
+        obj
+        for obj in inventory.in_library("QDOC")
+        if obj.object_type == 0x19
+        and obj.object_subtype in (0x0E, 0x12)
+        and (
+            wanted_subtype is None
+            or obj.object_subtype == wanted_subtype
+        )
+    ]
+    dlos.sort(
+        key=lambda obj: (
+            obj.object_subtype,
+            obj.name,
+            obj.segment.virtual_address,
+        )
+    )
+
+    total = len(dlos)
+    shown = dlos if not args.limit else dlos[: args.limit]
+
+    print(f"Disk: {image.path}")
+    print(f"Recovered QDOC DLO objects: {total:,}")
+    print(
+        "Note: SYSOBJNAM is the internal QDOC object name. Printable strings "
+        "below are forensic hints, not yet reconstructed QDLS paths."
+    )
+    print()
+    print(
+        "Class  SYSOBJNAM                       Virtual addr   "
+        "LBA        pages  printable metadata hints"
+    )
+
+    for obj in shown:
+        label = "*DOC" if obj.object_subtype == 0x0E else "*FLR"
+        hints = []
+        if args.strings:
+            try:
+                data = image.read_segment_bytes(obj.segment)
+                hints = _dlo_preview_strings(
+                    data,
+                    internal_name=obj.name,
+                    limit=args.strings,
+                )
+            except Exception:
+                hints = []
+        preview = " | ".join(hints) if hints else "-"
+        print(
+            f"{label:<6} {obj.name:<30.30} "
+            f"{obj.segment.virtual_address:012X} "
+            f"{obj.segment.start_lba:>9,} "
+            f"{obj.segment.pages:>6,}  "
+            f"{preview}"
+        )
+
+    if len(shown) < total:
+        print(f"... {total - len(shown):,} additional DLO objects omitted")
+
+    qao_prefix = "QAO" if args.all_qao else "QAOSS"
+    qao_files = [
+        obj
+        for obj in inventory.in_library("QUSRSYS")
+        if obj.object_type == 0x19
+        and obj.object_subtype == 0x01
+        and obj.name.upper().startswith(qao_prefix)
+    ]
+    print()
+    if qao_files:
+        label = "QAO*" if args.all_qao else "QAOSS*"
+        print(
+            f"Recovered QUSRSYS {label} DLO-index/support file candidates "
+            f"({len(qao_files):,}):"
+        )
+        for obj in qao_files:
+            print(
+                f"  {obj.name:<10} "
+                f"VA {obj.segment.virtual_address:012X}  "
+                f"LBA {obj.segment.start_lba:,}  "
+                f"{obj.segment.pages:,} pages"
+            )
+    else:
+        label = "QAO*" if args.all_qao else "QAOSS*"
+        print(
+            f"No recovered QUSRSYS {label} *FILE objects were found in "
+            "this image."
+        )
+
+    return 0
+
+
 def cmd_context_page(args):
     image = _open(args.image)
     _, segments, inventory = _recover_all(image)
@@ -3392,6 +3514,42 @@ def build_parser():
         help="explicit MI 19/51 format name when automatic FCB matching is ambiguous",
     )
     fields.set_defaults(func=cmd_fields)
+
+    dlos = sub.add_parser(
+        "dlos",
+        help=(
+            "list recovered QDOC document/folder objects and QUSRSYS "
+            "DLO-index candidates"
+        ),
+    )
+    dlos.add_argument("image")
+    dlos.add_argument(
+        "--class",
+        dest="object_class",
+        choices=("doc", "flr"),
+        help="restrict output to documents or folders",
+    )
+    dlos.add_argument(
+        "--strings",
+        type=int,
+        default=3,
+        help=(
+            "print up to this many EBCDIC metadata hints per DLO; "
+            "use 0 to suppress them (default: 3)"
+        ),
+    )
+    dlos.add_argument(
+        "--all-qao",
+        action="store_true",
+        help="list all recovered QUSRSYS QAO* files, not only QAOSS*",
+    )
+    dlos.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum DLO rows to print; use 0 for all (default: 200)",
+    )
+    dlos.set_defaults(func=cmd_dlos)
 
     context_page = sub.add_parser(
         "context-page",
