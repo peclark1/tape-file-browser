@@ -189,6 +189,7 @@ as400-dasd dlos disk.hda
 as400-dasd dlos disk.hda --model-fields
 as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
 as400-dasd dlo-index-scan disk.hda
+as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
@@ -336,6 +337,15 @@ object name, so objects containing many such references are especially useful
 candidates even when their normal library/file relationship has not yet been
 reconstructed. The tooling deliberately does **not** label printable strings or
 cross-references as proven QDLS paths until the relevant structures are decoded.
+
+For recovered documents with an IBM `*DOCBSS` (MI `06/C1`) companion,
+`as400-dasd dlo-export IMAGE SYSOBJNAM OUTPUT` can now extract the workstation
+byte stream conservatively. The V2R3 layout has a metadata page followed by the
+byte stream; two observed length fields must agree and the payload must fit the
+recovered segment before export is allowed. Existing output files are not
+replaced unless `--force` is supplied. This does not yet reconstruct the
+user-facing QDLS path, so export is addressed by the 10-character internal
+SYSOBJNAM.
 
 `as400-dasd dlo-index-scan disk.hda` takes the next conservative step by
 correlating all recovered QDOC 10-character SYSOBJNAM values against recovered
