@@ -695,6 +695,171 @@ class MemberStorage:
         return self.data_pages * PAGE_SIZE
 
 
+QDDS_ENTRY_COUNT_OFFSET = 0x11A
+QDDS_FORCE_COUNT_OFFSET = 0x11E
+QDDS_RECORD_LENGTH_OFFSET = 0x1E4
+QDDS_ENTRY_LENGTH_OFFSET = 0x1EC
+QDDS_LAYOUT_MIN_SIZE = QDDS_ENTRY_LENGTH_OFFSET + 2
+
+
+@dataclass(frozen=True)
+class DataSpaceLayout:
+    """Scalar record-layout fields recovered from a QDDS primary segment.
+
+    The offsets below were identified on the independent V2R3 image and are
+    consistent across standard source files and ordinary database members.
+    IBM's VMC documentation independently identifies the corresponding data
+    space-header concepts: entry count, force count, and entry length.
+
+    entry_count excludes the ordinal-zero default entry. entry_length includes
+    the one-byte entry status and, for normal fixed-length members, equals
+    record_length + 1.
+    """
+
+    entry_count: int
+    force_count: int
+    record_length: int
+    entry_length: int
+
+    @classmethod
+    def from_primary_segment(cls, data: bytes) -> "DataSpaceLayout":
+        if len(data) < QDDS_LAYOUT_MIN_SIZE:
+            raise ValueError("QDDS primary segment is too short for layout scalars")
+
+        layout = cls(
+            entry_count=int.from_bytes(
+                data[
+                    QDDS_ENTRY_COUNT_OFFSET :
+                    QDDS_ENTRY_COUNT_OFFSET + 4
+                ],
+                "big",
+            ),
+            force_count=int.from_bytes(
+                data[
+                    QDDS_FORCE_COUNT_OFFSET :
+                    QDDS_FORCE_COUNT_OFFSET + 4
+                ],
+                "big",
+            ),
+            record_length=int.from_bytes(
+                data[
+                    QDDS_RECORD_LENGTH_OFFSET :
+                    QDDS_RECORD_LENGTH_OFFSET + 4
+                ],
+                "big",
+            ),
+            entry_length=int.from_bytes(
+                data[
+                    QDDS_ENTRY_LENGTH_OFFSET :
+                    QDDS_ENTRY_LENGTH_OFFSET + 2
+                ],
+                "big",
+            ),
+        )
+
+        if layout.record_length <= 0:
+            raise ValueError("QDDS record length is zero")
+        if layout.entry_length <= 0:
+            raise ValueError("QDDS entry length is zero")
+        if layout.entry_length < layout.record_length + 1:
+            raise ValueError(
+                "QDDS entry length is shorter than status + record data"
+            )
+        return layout
+
+    @property
+    def expected_entries_with_default(self) -> int:
+        return self.entry_count + 1
+
+    @property
+    def per_entry_overhead(self) -> int:
+        return self.entry_length - self.record_length
+
+    @property
+    def standard_fixed_layout(self) -> bool:
+        return self.entry_length == self.record_length + 1
+
+
+@dataclass(frozen=True)
+class DataSpaceRecord:
+    """One ordinal-addressed data-space entry."""
+
+    ordinal: int
+    status: int
+    data: bytes
+    extra_raw: bytes = b""
+
+    @property
+    def rrn(self) -> int:
+        """Relative record number; zero is the data-space default entry."""
+
+        return self.ordinal
+
+    @property
+    def ebcdic_preview(self) -> str:
+        decoded = self.data.decode("cp037", errors="replace")
+        return "".join(
+            character if character.isprintable() else "."
+            for character in decoded
+        ).rstrip()
+
+
+@dataclass(frozen=True)
+class DataSpaceRecordSet:
+    """Logical data-space records reconstructed across 03B4 segment groups."""
+
+    layout: DataSpaceLayout
+    records: tuple[DataSpaceRecord, ...]
+    data_segment_count: int
+    raw_stream_bytes: int
+
+    @property
+    def complete(self) -> bool:
+        return len(self.records) == self.layout.expected_entries_with_default
+
+    @property
+    def default_record(self) -> DataSpaceRecord | None:
+        if self.records and self.records[0].ordinal == 0:
+            return self.records[0]
+        return None
+
+    @property
+    def user_records(self) -> tuple[DataSpaceRecord, ...]:
+        return tuple(record for record in self.records if record.ordinal != 0)
+
+
+def decode_data_space_records(
+    stream: bytes,
+    layout: DataSpaceLayout,
+) -> tuple[DataSpaceRecord, ...]:
+    """Decode ordinal entries using the QDDS header's authoritative lengths.
+
+    IBM documents entry addressing as ordinal * entry-length into the logical
+    data-segment address space after segment-group headers are omitted. The
+    data-space header's entry count excludes the default entry at ordinal zero.
+    """
+
+    records: list[DataSpaceRecord] = []
+    for ordinal in range(layout.expected_entries_with_default):
+        start = ordinal * layout.entry_length
+        end = start + layout.entry_length
+        if end > len(stream):
+            break
+
+        entry = stream[start:end]
+        record_start = 1
+        record_end = record_start + layout.record_length
+        records.append(
+            DataSpaceRecord(
+                ordinal=ordinal,
+                status=entry[0],
+                data=entry[record_start:record_end],
+                extra_raw=entry[record_end:],
+            )
+        )
+    return tuple(records)
+
+
 SOURCE_RECORD_DATA_LENGTH = 92
 SOURCE_ENTRY_LENGTH = SOURCE_RECORD_DATA_LENGTH + 1
 
@@ -1270,25 +1435,77 @@ class DASDImage:
             stream.extend(data[SEGMENT_HEADER_SIZE:])
         return bytes(stream), data_segments
 
+    def read_data_space_layout(
+        self,
+        storage: MemberStorage,
+    ) -> DataSpaceLayout | None:
+        """Read record counts and lengths from the QDDS primary segment."""
+
+        if storage.data_space is None:
+            return None
+        data = self.read_segment_bytes(storage.data_space.segment)
+        try:
+            return DataSpaceLayout.from_primary_segment(data)
+        except ValueError:
+            return None
+
+    def read_data_space_records(
+        self,
+        storage: MemberStorage,
+    ) -> DataSpaceRecordSet | None:
+        """Recover ordinal records from a member's QDDS data segments."""
+
+        layout = self.read_data_space_layout(storage)
+        if layout is None:
+            return None
+
+        stream, data_segments = self.read_data_space_entry_stream(storage)
+        if not stream:
+            return None
+
+        records = decode_data_space_records(stream, layout)
+        if not records:
+            return None
+
+        return DataSpaceRecordSet(
+            layout=layout,
+            records=records,
+            data_segment_count=len(data_segments),
+            raw_stream_bytes=len(stream),
+        )
+
     def read_source_member(
         self,
         storage: MemberStorage,
     ) -> SourceMemberContent | None:
         """Decode a standard source physical-file member when recognized."""
 
-        stream, data_segments = self.read_data_space_entry_stream(storage)
-        if not stream:
+        record_set = self.read_data_space_records(storage)
+        if record_set is None:
+            return None
+        if (
+            record_set.layout.record_length != SOURCE_RECORD_DATA_LENGTH
+            or record_set.layout.entry_length != SOURCE_ENTRY_LENGTH
+        ):
             return None
 
-        decoded = decode_standard_source_stream(stream)
+        # Limit recognition to the header-declared ordinal range. This avoids
+        # accidentally interpreting unused tail space/status areas as records.
+        stream = bytearray()
+        for record in record_set.records:
+            stream.append(record.status)
+            stream.extend(record.data)
+            stream.extend(record.extra_raw)
+
+        decoded = decode_standard_source_stream(bytes(stream))
         if decoded is None:
             return None
 
         return SourceMemberContent(
             records=decoded.records,
             default_entry_present=decoded.default_entry_present,
-            data_segment_count=len(data_segments),
-            raw_stream_bytes=decoded.raw_stream_bytes,
+            data_segment_count=record_set.data_segment_count,
+            raw_stream_bytes=record_set.raw_stream_bytes,
         )
 
     def recover_segments(
