@@ -187,7 +187,7 @@ as400-dasd cat disk.hda QGPL QCLSRC REFRESH2
 as400-dasd fields disk.hda QGPL PDPICKORG
 as400-dasd dlos disk.hda
 as400-dasd dlos disk.hda --model-fields
-as400-dasd dlo-xref disk.hda FMPV082760
+as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
@@ -314,19 +314,22 @@ The browser is completely read-only.
 
 For QDLS/document-library work, `as400-dasd dlos disk.hda` lists recovered
 QDOC `*DOC`/`*FLR` objects using their 10-character internal system object
-names and shows short printable EBCDIC metadata hints. It reports any recovered
-QUSRSYS `QAOSS*` runtime files, which IBM documents as the search indexes
-used to track DLOs, and separately identifies QSYS model files such as
-`QAOSIQDL`, `QAOSIRTV`, `QADSPDOC`, and `QADSPFLR`. Use
-`--model-fields` to show the recovered MI 19/51 field definitions for those
-models.
+names and shows short printable EBCDIC metadata hints. IBM recovery
+documentation names the document/folder search-index files explicitly as
+`QUSRSYS/QAOSSS10` through `QAOSSS15`, plus `QAOSSS17` and
+`QAOSSS18`; `dlos` now reports the recovery status of each one separately.
+It also distinguishes QSYS command model files such as `QAOSIQDL`,
+`QAOSIRTV`, `QADSPDOC`, and `QADSPFLR`. Use `--model-fields` to
+show recovered MI 19/51 field definitions for those models.
 
-`as400-dasd dlo-xref disk.hda FMPV082760` searches other recovered object
-segments for byte-level references to a QDOC `SYSOBJNAM`. This gives us a
-neutral way to locate candidate DLO indexes/metadata even if their normal
-library/file relationship has not yet been reconstructed. The tooling
-deliberately does **not** label printable strings or cross-references as proven
-QDLS paths until the relevant structures are decoded.
+`as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712` searches
+other recovered object segments for byte-level references to several QDOC
+`SYSOBJNAM` values in a single recovery pass. IBM specifically documents an
+"anchor record" in `QAOSSS14` as one of the places that stores the DLO system
+object name, so objects containing many such references are especially useful
+candidates even when their normal library/file relationship has not yet been
+reconstructed. The tooling deliberately does **not** label printable strings or
+cross-references as proven QDLS paths until the relevant structures are decoded.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan,
 `docs/AS400_DASD_TODO.md` for the active backlog, and
