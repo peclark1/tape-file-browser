@@ -165,7 +165,7 @@ The first image is the reference. A successful comparison verifies logical file/
 
 ## Experimental CISC AS/400 DASD explorer
 
-The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer for raw CISC AS/400 DASD images with 520-byte sectors. It intentionally distinguishes confirmed physical facts from still-unvalidated interpretations of the eight-byte storage-management header.
+The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer for raw CISC AS/400 DASD images with 520-byte sectors. The first real B10/0671S15 image has now been used to validate the initial storage-header model and build a sanitized real-header regression fixture.
 
 Current commands:
 
@@ -182,14 +182,14 @@ The current milestone can:
 - validate exact 520-byte image geometry;
 - expose each eight-byte header separately from its 512-byte CISC storage page;
 - inspect individual sectors with hex and EBCDIC output;
-- compare candidate six-byte virtual-address placements and byte orders without pretending the header bit layout is already known;
-- detect long physical runs whose candidate virtual addresses advance consistently;
-- summarize zero-header, all-FF-header, unclassified, and sequential-address regions;
-- compare the inferred header model and virtual coverage across multiple images;
-- test the documented B10 load-source shadow-log virtual address `000083000000` as a validation anchor;
+- decode the evidence-backed 39-bit virtual-page identity from the first five header bytes while leaving unknown status bits unlabeled;
+- decode power-of-two extent sizes from the low nibble of header byte 5;
+- detect a repeated free-space delimiter and infer the storage-management LBA origin;
+- reconstruct free extents, allocated extent candidates, unresolved gaps, and candidate virtual chains;
+- test the documented B10 load-source shadow-log virtual address `000083000000` through reconstructed extents;
 - write a repeatable text report for comparison between real and initialized/replacement disk images.
 
-The address-header interpretation is deliberately labeled as a **hypothesis** until we can run the scanner against a real B10 image and match IBM's exact header-field definitions. The parser never writes to the image.
+On the surviving B10 D1 image, the current parser detects a managed-storage origin at LBA 2,112, seven 32,768-page free extents, and reconstructs 95.7% of the managed sectors as free or allocated extent candidates. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan.
 
@@ -266,7 +266,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, and synthetic CISC AS/400 DASD geometry/header/region cases:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD cases, and a sanitized real B10 regression fixture containing storage headers only. GitHub Actions runs the same suite on pushes and pull requests:
 
 ```bash
 python3 -m unittest discover -s tests -v
