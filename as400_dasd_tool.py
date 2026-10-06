@@ -1406,6 +1406,98 @@ def cmd_dlos(args):
     return 0
 
 
+def cmd_dlo_export(args):
+    """Export a conservatively validated *DOCBSS workstation byte stream."""
+
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+
+    sysobjnam = args.sysobjnam.upper()
+    if len(sysobjnam) != 10:
+        raise ValueError("SYSOBJNAM must be exactly 10 characters")
+
+    docs = [
+        obj
+        for obj in inventory.in_library("QDOC")
+        if (
+            obj.object_type == 0x19
+            and obj.object_subtype == 0x0E
+            and obj.name.upper() == sysobjnam
+        )
+    ]
+    if not docs:
+        raise ValueError(
+            f"QDOC *DOC object not recovered: {sysobjnam}"
+        )
+
+    companion_name = sysobjnam + "F"
+    companions = sorted(
+        [
+            obj
+            for obj in inventory.objects
+            if (
+                obj.object_type == 0x06
+                and obj.object_subtype == 0xC1
+                and obj.name.upper() == companion_name
+            )
+        ],
+        key=lambda obj: (
+            obj.segment.virtual_address,
+            obj.segment.start_lba,
+        ),
+    )
+    if not companions:
+        raise ValueError(
+            f"no recovered IBM *DOCBSS companion named {companion_name}"
+        )
+    if len(companions) > 1:
+        raise ValueError(
+            f"multiple *DOCBSS companions named {companion_name}; "
+            "refusing ambiguous export"
+        )
+
+    companion = companions[0]
+    info, payload = image.read_document_byte_string(companion)
+
+    output = Path(args.output).expanduser()
+    image_path = Path(args.image).expanduser().resolve()
+    try:
+        output_resolved = output.resolve()
+    except OSError:
+        output_resolved = output.absolute()
+    if output_resolved == image_path:
+        raise ValueError("output path must not be the DASD image")
+
+    if output.exists() and not args.force:
+        raise ValueError(
+            f"output already exists: {output}; use --force to replace it"
+        )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(payload)
+
+    prefix = payload[:16]
+    ascii_prefix = "".join(
+        chr(byte) if 32 <= byte < 127 else "."
+        for byte in prefix
+    )
+    print(f"Disk:       {image.path}")
+    print(f"QDOC:       {sysobjnam} (*DOC)")
+    print(
+        f"DOCBSS:     {companion.name}  "
+        f"VA {companion.segment.virtual_address:012X}  "
+        f"LBA {companion.segment.start_lba:,}"
+    )
+    print(f"Bytes:      {len(payload):,}")
+    print(f"Allocated:  {info.allocated_length:,}")
+    print(
+        "Validation: duplicate length fields agree; declared payload fits "
+        "inside recovered segment"
+    )
+    print(f"Prefix:     {prefix.hex(' ').upper()}  {ascii_prefix}")
+    print(f"Output:     {output}")
+    return 0
+
+
 def cmd_dlo_xref(args):
     """Find byte-level references to one or more QDOC SYSOBJNAM values."""
 
@@ -4056,6 +4148,29 @@ def build_parser():
         help="maximum DLO rows to print; use 0 for all (default: 200)",
     )
     dlos.set_defaults(func=cmd_dlos)
+
+    dlo_export = sub.add_parser(
+        "dlo-export",
+        help=(
+            "export a validated workstation byte stream from a recovered "
+            "QDOC document's IBM *DOCBSS companion"
+        ),
+    )
+    dlo_export.add_argument("image")
+    dlo_export.add_argument(
+        "sysobjnam",
+        help="10-character internal QDOC document SYSOBJNAM",
+    )
+    dlo_export.add_argument(
+        "output",
+        help="destination file for the recovered workstation bytes",
+    )
+    dlo_export.add_argument(
+        "--force",
+        action="store_true",
+        help="replace an existing output file",
+    )
+    dlo_export.set_defaults(func=cmd_dlo_export)
 
     dlo_xref = sub.add_parser(
         "dlo-xref",
