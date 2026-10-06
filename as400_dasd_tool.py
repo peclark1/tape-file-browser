@@ -1514,6 +1514,186 @@ def cmd_dlo_export(args):
     return 0
 
 
+def _dlo_schema_marker_evidence(window, marker_offset, format_name):
+    """Extract exact 8-byte IBM identifier relationships around a format marker.
+
+    The V2R3 image contains dense metadata blocks where an 8-character field
+    identifier is immediately followed by WOSFMTxx, then a small separator and
+    one or more concatenated 8-character QAOSS/WOS identifiers. This helper
+    preserves those literal names without assigning meanings to the binary
+    descriptor bytes around them.
+    """
+
+    marker = format_name.encode("cp037")
+    if window[marker_offset : marker_offset + len(marker)] != marker:
+        return None
+
+    field = ""
+    for back in (8, 16, 24):
+        start = marker_offset - back
+        if start < 0:
+            continue
+        token = window[start : start + 8]
+        if len(token) != 8:
+            continue
+        text = token.decode("cp037", errors="replace")
+        if re.fullmatch(r"WOS[A-Z0-9]{5}", text):
+            field = text
+            break
+    if not field or field == format_name:
+        return None
+
+    tail_start = marker_offset + len(marker)
+    first = None
+    for delta in range(0, 8):
+        pos = tail_start + delta
+        token = window[pos : pos + 8]
+        if len(token) != 8:
+            break
+        text = token.decode("cp037", errors="replace")
+        if re.fullmatch(r"QAOSS[A-Z0-9]{3}", text):
+            first = pos
+            break
+    if first is None:
+        return None
+
+    related = []
+    pos = first
+    while pos + 8 <= len(window):
+        text = window[pos : pos + 8].decode(
+            "cp037",
+            errors="replace",
+        )
+        if not re.fullmatch(r"[A-Z][A-Z0-9]{7}", text):
+            break
+        if text.startswith(("QAOSS", "WOS")):
+            related.append(text)
+            pos += 8
+            continue
+        break
+
+    if not related:
+        return None
+    return field, tuple(related)
+
+
+def _iter_file_pattern_windows(
+    path,
+    needle,
+    *,
+    before=32,
+    after=128,
+    chunk_size=4 * 1024 * 1024,
+):
+    """Yield raw-file windows around pattern hits without loading the image."""
+
+    overlap = max(len(needle) - 1, before)
+    with open(path, "rb") as handle:
+        base = 0
+        carry = b""
+        while True:
+            chunk = handle.read(chunk_size)
+            if not chunk:
+                break
+            data = carry + chunk
+            data_base = base - len(carry)
+            pos = 0
+            while True:
+                hit = data.find(needle, pos)
+                if hit < 0:
+                    break
+                absolute = data_base + hit
+                # Hits wholly inside the carry were already emitted.
+                if absolute >= base - len(carry):
+                    start = max(0, hit - before)
+                    end = min(
+                        len(data),
+                        hit + len(needle) + after,
+                    )
+                    marker_offset = hit - start
+                    yield absolute, data[start:end], marker_offset
+                pos = hit + 1
+            if len(data) <= overlap:
+                carry = data
+            else:
+                carry = data[-overlap:]
+            base += len(chunk)
+
+
+def cmd_dlo_schema(args):
+    """Report literal WOSFMT/QAOSS schema associations from the raw image."""
+
+    image = _open(args.image)
+    format_name = args.format_name.upper()
+    if not re.fullmatch(r"WOSFMT[0-9A-Z]{2}", format_name):
+        raise ValueError(
+            "format name must use the WOSFMTxx form, for example WOSFMT14"
+        )
+
+    needle = format_name.encode("cp037")
+    counts = {}
+    first_offsets = {}
+    for absolute, window, marker_offset in _iter_file_pattern_windows(
+        image.path,
+        needle,
+    ):
+        evidence = _dlo_schema_marker_evidence(
+            window,
+            marker_offset,
+            format_name,
+        )
+        if evidence is None:
+            continue
+        field, related = evidence
+        if args.family:
+            family = args.family.upper()
+            if not related or related[0] != family:
+                continue
+        key = (field, related)
+        counts[key] = counts.get(key, 0) + 1
+        first_offsets.setdefault(key, absolute)
+
+    rows = sorted(
+        counts,
+        key=lambda item: (
+            item[1][0] if item[1] else "",
+            item[0],
+            item[1],
+        ),
+    )
+
+    print(f"Disk:       {image.path}")
+    print(f"Format:     {format_name}")
+    if args.family:
+        print(f"Family:     {args.family.upper()}")
+    print(f"Evidence:   {sum(counts.values()):,} marker association(s)")
+    print()
+    print(
+        "Field      Primary     Related identifiers                    "
+        "Count  First raw offset"
+    )
+    for field, related in rows:
+        primary = related[0] if related else "-"
+        extras = " ".join(related[1:]) or "-"
+        print(
+            f"{field:<10} {primary:<11} {extras:<38.38} "
+            f"{counts[(field, related)]:>5,}  "
+            f"0x{first_offsets[(field, related)]:09X}"
+        )
+
+    if not rows:
+        print("No matching raw schema associations were found.")
+    else:
+        print()
+        print(
+            "These are literal identifier relationships recovered from IBM "
+            "metadata near the format marker. The command intentionally does "
+            "not expand abbreviations or assign field semantics from names "
+            "alone."
+        )
+    return 0
+
+
 def cmd_dlo_xref(args):
     """Find byte-level references to one or more QDOC SYSOBJNAM values."""
 
@@ -4478,6 +4658,29 @@ def build_parser():
         help="replace an existing output file",
     )
     dlo_export.set_defaults(func=cmd_dlo_export)
+
+    dlo_schema = sub.add_parser(
+        "dlo-schema",
+        help=(
+            "report raw WOSFMT/QAOSS identifier associations useful for "
+            "QDLS search-index reverse engineering"
+        ),
+    )
+    dlo_schema.add_argument("image")
+    dlo_schema.add_argument(
+        "--format",
+        dest="format_name",
+        default="WOSFMT14",
+        help="8-character WOSFMTxx marker (default: WOSFMT14)",
+    )
+    dlo_schema.add_argument(
+        "--family",
+        help=(
+            "restrict to one primary QAOSS identifier, for example "
+            "QAOSSS14 or QAOSSY14"
+        ),
+    )
+    dlo_schema.set_defaults(func=cmd_dlo_schema)
 
     dlo_xref = sub.add_parser(
         "dlo-xref",
