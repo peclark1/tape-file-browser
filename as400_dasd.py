@@ -6,10 +6,15 @@ The physical facts are deliberately kept separate from interpretations that are
 still being validated. A CISC sector is 520 bytes: an eight-byte storage-
 management header followed by a 512-byte page.
 
-The current implementation follows IBM's documented System/38 directory-
-recovery model: find relative record zero, recognize aligned large-free-space
-delimiter extents, collect aligned permanent-extent candidates, and treat all
-remaining sectors as reclaimable during directory recovery.
+The recovery path follows IBM's documented System/38 storage-management model:
+find relative record zero, recognize aligned large-free-space delimiter extents,
+collect aligned permanent-extent candidates, then reconstruct permanent segment
+groups from those candidates.
+
+For CISC AS/400 object discovery, the parser also recognizes the 32-byte
+YYSGHDR segment header and the following EPA object header as they appear in the
+two real images used by this project. Unknown flag bits remain deliberately
+unlabeled.
 
 Nothing in this module writes to a DASD image.
 """
@@ -25,17 +30,47 @@ from typing import Iterator
 SECTOR_SIZE = 520
 HEADER_SIZE = 8
 PAGE_SIZE = 512
+SEGMENT_HEADER_SIZE = 32
+EPA_MIN_SIZE = 0x58
 ZERO_HEADER = b"\x00" * HEADER_SIZE
 FF_HEADER = b"\xff" * HEADER_SIZE
 
 # The same preassigned large-free-space delimiter is present in both the B10
-# surviving disk and the independent single-disk V2R3 image.  IBM's System/38
+# surviving disk and the independent single-disk V2R3 image. IBM's System/38
 # VMC documentation describes exactly this kind of preassigned virtual address
 # on the first page of large unallocated extents.
 FREE_SPACE_DELIMITER = bytes.fromhex("0000fc00000f0000")
 
 # 9404 Service Guide: 64-KB shadow error log on the load-source disk.
 KNOWN_B10_SHADOW_LOG_VADDR = 0x000083000000
+
+
+@dataclass(frozen=True)
+class InternalAddress:
+    """Eight-byte CISC internal address: 2-byte extender + 6-byte address."""
+
+    extender: int
+    address: int
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "InternalAddress":
+        if len(raw) != 8:
+            raise ValueError("internal address must be exactly 8 bytes")
+        return cls(
+            extender=int.from_bytes(raw[:2], "big"),
+            address=int.from_bytes(raw[2:], "big"),
+        )
+
+    @property
+    def is_null(self) -> bool:
+        return self.extender == 0 and self.address == 0
+
+    @property
+    def key(self) -> tuple[int, int]:
+        return self.extender, self.address
+
+    def __str__(self) -> str:
+        return f"{self.extender:04X}:{self.address:012X}"
 
 
 @dataclass(frozen=True)
@@ -107,8 +142,6 @@ class SectorHeader:
 
     @property
     def pointer_field_c(self) -> int:
-        # IBM VMC documentation describes the final five bits as field C when
-        # the pointer indicator is active.
         return self.raw[7] & 0x1F
 
 
@@ -165,6 +198,10 @@ class Extent:
         if self.virtual_address is None:
             return None
         return self.virtual_address + self.byte_length - 1
+
+    @property
+    def key(self) -> tuple[int, int, int]:
+        return self.start_lba, self.virtual_address or -1, self.pages
 
 
 @dataclass(frozen=True)
@@ -253,6 +290,215 @@ class ScanResult:
             if extent.virtual_address <= address <= extent.virtual_end:
                 return extent
         return None
+
+
+@dataclass(frozen=True)
+class SegmentGroupHeader:
+    """32-byte AS/400 segment-group header (YYSGHDR).
+
+    The AS/400 dump layout observed in both real CISC images uses a 16-bit
+    segment type, 16-bit page count, flag/domain fields, an 8-byte owning-object
+    address, and an 8-byte space address. This is the layout shown by IBM dump
+    formatting on later systems as well. The individual flag meanings are not
+    interpreted here.
+    """
+
+    raw: bytes
+    segment_type: int
+    size_pages: int
+    new_flags: int
+    flags: int
+    domain: int
+    owner: InternalAddress
+    space: InternalAddress
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "SegmentGroupHeader":
+        if len(raw) < SEGMENT_HEADER_SIZE:
+            raise ValueError("segment group header requires 32 bytes")
+        data = raw[:SEGMENT_HEADER_SIZE]
+        return cls(
+            raw=data,
+            segment_type=int.from_bytes(data[0:2], "big"),
+            size_pages=int.from_bytes(data[2:4], "big"),
+            new_flags=data[4],
+            flags=data[5],
+            domain=int.from_bytes(data[6:8], "big"),
+            owner=InternalAddress.from_bytes(data[8:16]),
+            space=InternalAddress.from_bytes(data[24:32]),
+        )
+
+
+@dataclass(frozen=True)
+class RecoveredSegment:
+    start_extent: Extent
+    extents: tuple[Extent, ...]
+    header: SegmentGroupHeader
+
+    @property
+    def virtual_address(self) -> int:
+        return self.start_extent.virtual_address or 0
+
+    @property
+    def start_lba(self) -> int:
+        return self.start_extent.start_lba
+
+    @property
+    def pages(self) -> int:
+        return self.header.size_pages
+
+    @property
+    def end_virtual_address(self) -> int:
+        return self.virtual_address + self.pages * PAGE_SIZE - 1
+
+    @property
+    def is_primary(self) -> bool:
+        return self.header.owner.address == self.virtual_address
+
+    @property
+    def owner_key(self) -> tuple[int, int]:
+        return self.header.owner.key
+
+
+@dataclass
+class SegmentRecoveryResult:
+    segments: list[RecoveredSegment] = field(default_factory=list)
+    unrecovered_candidates: list[Extent] = field(default_factory=list)
+
+    @property
+    def primary_segments(self) -> list[RecoveredSegment]:
+        return [segment for segment in self.segments if segment.is_primary]
+
+    @property
+    def secondary_segments(self) -> list[RecoveredSegment]:
+        return [segment for segment in self.segments if not segment.is_primary]
+
+    @property
+    def recovered_extent_count(self) -> int:
+        return sum(len(segment.extents) for segment in self.segments)
+
+    @property
+    def segment_type_histogram(self) -> Counter:
+        return Counter(segment.header.segment_type for segment in self.segments)
+
+
+@dataclass(frozen=True)
+class EPAHeader:
+    """Subset of the common EPA object header needed for offline browsing."""
+
+    raw: bytes
+    att1: int
+    jopt: int
+    object_type: int
+    object_subtype: int
+    name_raw: bytes
+    context: InternalAddress
+    object_space: InternalAddress
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "EPAHeader":
+        if len(raw) < EPA_MIN_SIZE:
+            raise ValueError(
+                f"EPA header requires at least {EPA_MIN_SIZE} bytes"
+            )
+        return cls(
+            raw=raw,
+            att1=raw[0],
+            jopt=raw[1],
+            object_type=raw[2],
+            object_subtype=raw[3],
+            name_raw=raw[4:34],
+            context=InternalAddress.from_bytes(raw[0x48:0x50]),
+            object_space=InternalAddress.from_bytes(raw[0x50:0x58]),
+        )
+
+    @property
+    def name(self) -> str:
+        decoded = self.name_raw.decode("cp037", errors="replace")
+        return decoded.rstrip(" \x00")
+
+    @property
+    def name_is_printable(self) -> bool:
+        name = self.name
+        return all(32 <= ord(character) <= 126 for character in name)
+
+
+@dataclass(frozen=True)
+class RecoveredObject:
+    segment: RecoveredSegment
+    epa: EPAHeader
+    library_name: str | None = None
+
+    @property
+    def name(self) -> str:
+        if self.epa.name:
+            return self.epa.name
+        if self.epa.object_type == 0x81:
+            return "<MACHINE-CONTEXT>"
+        return "<unnamed>"
+
+    @property
+    def object_type(self) -> int:
+        return self.epa.object_type
+
+    @property
+    def object_subtype(self) -> int:
+        return self.epa.object_subtype
+
+    @property
+    def type_code(self) -> str:
+        return f"{self.object_type:02X}/{self.object_subtype:02X}"
+
+    @property
+    def external_type_hint(self) -> str:
+        known = {
+            (0x02, 0x01): "*PGM",
+            (0x04, 0x01): "*LIB",
+            (0x08, 0x01): "*USRPRF",
+            (0x19, 0x01): "*FILE",
+        }
+        return known.get(
+            (self.object_type, self.object_subtype),
+            "",
+        )
+
+
+@dataclass
+class ObjectInventory:
+    objects: list[RecoveredObject]
+    contexts_by_key: dict[tuple[int, int], RecoveredObject]
+
+    @property
+    def libraries(self) -> list[RecoveredObject]:
+        return sorted(
+            [
+                obj
+                for obj in self.objects
+                if obj.object_type == 0x04
+                and obj.object_subtype == 0x01
+            ],
+            key=lambda obj: obj.name,
+        )
+
+    @property
+    def assigned_objects(self) -> list[RecoveredObject]:
+        return [obj for obj in self.objects if obj.library_name is not None]
+
+    def in_library(self, name: str) -> list[RecoveredObject]:
+        wanted = name.upper()
+        return sorted(
+            [
+                obj
+                for obj in self.objects
+                if (obj.library_name or "").upper() == wanted
+            ],
+            key=lambda obj: (
+                obj.object_type,
+                obj.object_subtype,
+                obj.name,
+                obj.segment.virtual_address,
+            ),
+        )
 
 
 class HeaderSnapshot:
@@ -350,6 +596,199 @@ class DASDImage:
                     nonzero += 1
         return nonzero
 
+    def recover_segments(
+        self,
+        scan_result: ScanResult | None = None,
+    ) -> SegmentRecoveryResult:
+        """Perform the second directory-recovery pass.
+
+        Candidates are examined in virtual-address order. A plausible first
+        segment page supplies the segment's total page count; subsequent extents
+        must begin exactly where the previous extent ends in virtual storage.
+        Only exact chains are accepted.
+        """
+
+        result = scan_result or self.scan()
+        candidates = sorted(
+            (
+                extent
+                for extent in result.permanent_candidates
+                if extent.virtual_address is not None
+            ),
+            key=lambda extent: (
+                extent.virtual_address,
+                extent.start_lba,
+            ),
+        )
+
+        by_virtual: dict[int, list[Extent]] = {}
+        for extent in candidates:
+            by_virtual.setdefault(
+                extent.virtual_address or 0,
+                [],
+            ).append(extent)
+        for extents in by_virtual.values():
+            extents.sort(key=lambda extent: extent.start_lba)
+
+        recovered: list[RecoveredSegment] = []
+        consumed: set[tuple[int, int, int]] = set()
+
+        with open(self.path, "rb") as handle:
+            for extent in candidates:
+                if extent.key in consumed:
+                    continue
+
+                handle.seek(extent.start_lba * SECTOR_SIZE + HEADER_SIZE)
+                first_page = handle.read(PAGE_SIZE)
+                if len(first_page) != PAGE_SIZE:
+                    continue
+
+                try:
+                    segment_header = SegmentGroupHeader.from_bytes(first_page)
+                except ValueError:
+                    continue
+
+                if (
+                    segment_header.size_pages <= 0
+                    or segment_header.size_pages < extent.pages
+                    or segment_header.owner.is_null
+                    or segment_header.owner.address % PAGE_SIZE
+                ):
+                    continue
+
+                chain = [extent]
+                chain_keys = {extent.key}
+                pages = extent.pages
+                expected = (
+                    (extent.virtual_address or 0)
+                    + extent.pages * PAGE_SIZE
+                )
+                valid = True
+
+                while pages < segment_header.size_pages:
+                    remaining = segment_header.size_pages - pages
+                    options = [
+                        candidate
+                        for candidate in by_virtual.get(expected, [])
+                        if candidate.key not in consumed
+                        and candidate.key not in chain_keys
+                        and candidate.pages <= remaining
+                    ]
+                    if not options:
+                        valid = False
+                        break
+
+                    # Directory recovery should normally have one candidate at
+                    # the required virtual address. Keep selection deterministic
+                    # if stale duplicate headers exist.
+                    next_extent = options[0]
+                    chain.append(next_extent)
+                    chain_keys.add(next_extent.key)
+                    pages += next_extent.pages
+                    expected += next_extent.pages * PAGE_SIZE
+
+                if not valid or pages != segment_header.size_pages:
+                    continue
+
+                segment = RecoveredSegment(
+                    start_extent=extent,
+                    extents=tuple(chain),
+                    header=segment_header,
+                )
+                recovered.append(segment)
+                consumed.update(chain_keys)
+
+        unrecovered = [
+            extent for extent in candidates if extent.key not in consumed
+        ]
+        return SegmentRecoveryResult(
+            segments=recovered,
+            unrecovered_candidates=unrecovered,
+        )
+
+    def recover_objects(
+        self,
+        scan_result: ScanResult | None = None,
+        segment_result: SegmentRecoveryResult | None = None,
+    ) -> ObjectInventory:
+        """Recover common EPA object identities and library back-pointers."""
+
+        scan = scan_result or self.scan()
+        segments = segment_result or self.recover_segments(scan)
+
+        recovered: list[RecoveredObject] = []
+        with open(self.path, "rb") as handle:
+            for segment in segments.primary_segments:
+                handle.seek(
+                    segment.start_lba * SECTOR_SIZE
+                    + HEADER_SIZE
+                    + SEGMENT_HEADER_SIZE
+                )
+                epa_raw = handle.read(PAGE_SIZE - SEGMENT_HEADER_SIZE)
+                if len(epa_raw) < EPA_MIN_SIZE:
+                    continue
+
+                try:
+                    epa = EPAHeader.from_bytes(epa_raw)
+                except ValueError:
+                    continue
+
+                # ATT1 high bit is present on the permanent common object
+                # headers seen in both real images. The machine context has a
+                # blank name; ordinary recovered objects must have a printable
+                # EBCDIC name.
+                if not (epa.att1 & 0x80):
+                    continue
+                if epa.object_type == 0:
+                    continue
+                if not epa.name_is_printable:
+                    continue
+                if not epa.name and epa.object_type != 0x81:
+                    continue
+
+                recovered.append(
+                    RecoveredObject(
+                        segment=segment,
+                        epa=epa,
+                    )
+                )
+
+        context_map: dict[tuple[int, int], RecoveredObject] = {}
+        for obj in recovered:
+            if (
+                (obj.object_type, obj.object_subtype) == (0x04, 0x01)
+                or obj.object_type == 0x81
+            ):
+                context_map[
+                    (
+                        obj.segment.header.owner.extender,
+                        obj.segment.virtual_address,
+                    )
+                ] = obj
+
+        assigned: list[RecoveredObject] = []
+        for obj in recovered:
+            context = context_map.get(obj.epa.context.key)
+            library_name = None
+            if context is not None:
+                library_name = (
+                    "*MACHINE"
+                    if context.object_type == 0x81
+                    else context.name
+                )
+            assigned.append(
+                RecoveredObject(
+                    segment=obj.segment,
+                    epa=obj.epa,
+                    library_name=library_name,
+                )
+            )
+
+        return ObjectInventory(
+            objects=assigned,
+            contexts_by_key=context_map,
+        )
+
 
 def _header_at(header_bytes: bytes, lba: int) -> bytes:
     start = lba * HEADER_SIZE
@@ -416,18 +855,7 @@ def _count_supporting_large_extents(
 
 
 def detect_storage_origin(header_bytes: bytes) -> OriginCandidate | None:
-    """Infer relative-record zero from IBM's large-free-space delimiter.
-
-    Directory recovery uses relative record numbers, not raw image LBAs.  The
-    same order-15 preassigned free-space delimiter appears in both independent
-    CISC images.  Its physical LBA modulo 32768 directly reveals the relative
-    record zero offset:
-      B10 surviving disk -> 2112
-      one-disk V2R3 image -> 64
-
-    Multiple occurrences must agree on the same residue.  Large independently
-    validated extents are counted as additional confidence evidence.
-    """
+    """Infer relative-record zero from IBM's large-free-space delimiter."""
 
     sector_count = len(header_bytes) // HEADER_SIZE
     delimiter = SectorHeader(FREE_SPACE_DELIMITER)
@@ -479,9 +907,6 @@ def _permanent_extent_candidate(
         return None
 
     if pages == 1:
-        # There is no second page available for the independent validation IBM
-        # describes for multi-page extents. Keep these, but mark the weaker
-        # evidence level so later stages can treat them conservatively.
         return Extent(
             start_lba=lba,
             pages=pages,
