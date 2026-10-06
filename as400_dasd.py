@@ -519,6 +519,8 @@ class RecoveredObject:
             (0x02, 0x01): "*PGM",
             (0x04, 0x01): "*LIB",
             (0x08, 0x01): "*USRPRF",
+            (0x0B, 0x90): "*QDDS",
+            (0x0C, 0x90): "*QDDSI",
             (0x0D, 0x50): "*MEM",
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
@@ -627,6 +629,64 @@ class ObjectInventory:
                 obj.segment.virtual_address,
             ),
         )
+
+    def matching_objects(
+        self,
+        *,
+        library: str | None = None,
+        name_raw: bytes | None = None,
+        object_type: int | None = None,
+        object_subtype: int | None = None,
+    ) -> list[RecoveredObject]:
+        """Return recovered objects matching internal identity fields."""
+
+        library_wanted = library.upper() if library else None
+        matches = []
+        for obj in self.objects:
+            if (
+                library_wanted is not None
+                and (obj.library_name or "").upper() != library_wanted
+            ):
+                continue
+            if name_raw is not None and obj.epa.name_raw != name_raw:
+                continue
+            if (
+                object_type is not None
+                and obj.object_type != object_type
+            ):
+                continue
+            if (
+                object_subtype is not None
+                and obj.object_subtype != object_subtype
+            ):
+                continue
+            matches.append(obj)
+
+        return sorted(
+            matches,
+            key=lambda obj: (
+                obj.segment.virtual_address,
+                obj.segment.start_lba,
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class MemberStorage:
+    """Recovered storage objects associated with one database member cursor."""
+
+    cursor: RecoveredObject
+    data_space: RecoveredObject | None
+    data_index: RecoveredObject | None
+    data_segments: tuple[RecoveredSegment, ...] = ()
+
+    @property
+    def data_pages(self) -> int:
+        return sum(segment.pages for segment in self.data_segments)
+
+    @property
+    def data_bytes(self) -> int:
+        return self.data_pages * PAGE_SIZE
 
 
 class HeaderSnapshot:
@@ -801,6 +861,66 @@ class DASDImage:
             create_raw=data[
                 member_header + 0xA7 : member_header + 0xB4
             ],
+        )
+
+    def resolve_member_storage(
+        self,
+        member: RecoveredObject,
+        inventory: ObjectInventory,
+        segments: SegmentRecoveryResult,
+    ) -> MemberStorage:
+        """Pair a 0D50 member cursor with same-named QDDS/QDDSI objects.
+
+        IBM describes each physical-file member as having a data space, and
+        keyed members may also have a data-space index. On the independent real
+        V2R3 image, the 0D50 cursor and its 0B90 QDDS use the same 30-byte
+        file/member object name and context. Secondary data-space segment
+        groups point back to the QDDS primary virtual address through YYSGHDR's
+        owning-object address.
+        """
+
+        if not member.is_member_cursor:
+            raise ValueError("object is not a 0D50 member cursor")
+
+        qdds = inventory.matching_objects(
+            library=member.library_name,
+            name_raw=member.epa.name_raw,
+            object_type=0x0B,
+            object_subtype=0x90,
+        )
+        qddsi = inventory.matching_objects(
+            library=member.library_name,
+            name_raw=member.epa.name_raw,
+            object_type=0x0C,
+            object_subtype=0x90,
+        )
+
+        data_space = qdds[0] if qdds else None
+        data_index = qddsi[0] if qddsi else None
+        owned: list[RecoveredSegment] = []
+
+        if data_space is not None:
+            owner_key = (
+                data_space.segment.header.owner.extender,
+                data_space.segment.virtual_address,
+            )
+            owned = sorted(
+                [
+                    segment
+                    for segment in segments.segments
+                    if segment.owner_key == owner_key
+                ],
+                key=lambda segment: (
+                    segment.virtual_address,
+                    segment.start_lba,
+                ),
+            )
+
+        return MemberStorage(
+            cursor=member,
+            data_space=data_space,
+            data_index=data_index,
+            data_segments=tuple(owned),
         )
 
     def recover_segments(
