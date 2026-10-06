@@ -74,7 +74,7 @@
     },
     "QIWS": {
       "category": "Client Access / PC Support",
-      "description": "PC Support/400 and Client Access host/server library. It provides host-side PC connectivity functions including file serving/transfer and, in later releases, virtual printing, messaging, and remote SQL support.",
+      "description": "PC Support/400 and Client Access host/server library. It provides host-side PC connectivity functions including file transfer and serving and, in later releases, virtual printing, messaging, and remote SQL support.",
       "status": "documented"
     },
     "QIWS2D": {
