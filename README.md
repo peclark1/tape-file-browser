@@ -170,11 +170,15 @@ The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer 
 Current commands:
 
 ```bash
-as400-dasd info disk5.hda
-as400-dasd map disk5.hda disk6.hda
-as400-dasd regions disk5.hda --only-runs
-as400-dasd sector disk5.hda 12345
-as400-dasd scan disk5.hda disk6.hda --report dasd-report.txt
+as400-dasd info disk.hda
+as400-dasd map disk.hda
+as400-dasd regions disk.hda
+as400-dasd sector disk.hda 12345
+as400-dasd segments disk.hda
+as400-dasd libraries disk.hda
+as400-dasd objects disk.hda
+as400-dasd ls disk.hda QGPL --type 19/01
+as400-dasd scan disk.hda --report dasd-report.txt
 ```
 
 The current milestone can:
@@ -186,10 +190,16 @@ The current milestone can:
 - decode power-of-two extent sizes from the low nibble of the indicators byte;
 - use IBM's preassigned large-free-space delimiter to infer device-relative record zero;
 - reconstruct explicit free extents, permanent extent candidates, reclaimable-by-recovery regions, and candidate virtual chains;
+- perform the second directory-recovery pass and reconstruct multi-extent segment groups;
+- parse common EPA object headers from recovered primary segments;
+- recover permanent contexts/libraries and assign objects to them through EPA context back-pointers;
+- list real library contents such as QGPL files from an offline disk image;
 - resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
 - write a repeatable text report for comparison between real and initialized/replacement disk images.
 
 On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
+
+The second pass currently recovers about 12.7k segment groups from the surviving B10 disk and 43k from the independent V2R3 disk. On the latter it identifies roughly 31.5k EPA objects and 40 permanent contexts/libraries, including QSYS, QGPL, QUSRSYS, and QSYS2. QGPL can already be browsed offline; recovered `19/01` objects include QCLSRC, QCMDSRC, QDDSSRC, and other files. Library membership currently comes from the object's EPA context back-pointer; parsing the context machine index is the next independent cross-check.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan.
 
@@ -266,7 +276,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD cases, and sanitized real-header regression fixtures from both independent CISC AS/400 images. The fixtures contain no 512-byte disk payloads. GitHub Actions runs the same suite on pushes and pull requests:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD/segment/object cases, sanitized real extent-header fixtures from both independent CISC AS/400 images, and selected 128-byte real segment/EPA metadata for QSYS, QGPL, QCLSRC, and a B10 program object. The fixtures contain no database/member record payloads. GitHub Actions runs the same suite on pushes and pull requests:
 
 ```bash
 python3 -m unittest discover -s tests -v
