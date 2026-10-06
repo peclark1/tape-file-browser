@@ -8,15 +8,18 @@ from as400_dasd import (
     PAGE_SIZE,
     SECTOR_SIZE,
     DASDImage,
+    EPAHeader,
     Extent,
     HeaderSnapshot,
     ScanResult,
     SectorHeader,
+    SegmentGroupHeader,
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 B10_FIXTURE = FIXTURE_DIR / "b10_d1_first232064.headers.rle.txt"
 P02_FIXTURE = FIXTURE_DIR / "p02_v2r3_selected.headers.rle.txt"
+OBJECT_FIXTURE = FIXTURE_DIR / "real_object_headers.txt"
 
 
 def make_header(address, order=0, *, tail=0):
@@ -48,6 +51,16 @@ def load_rle_fixture(path):
     return b"".join(chunks)
 
 
+
+
+def load_object_fixture(path):
+    result = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        label, lba_text, hex_data = line.split()
+        result[label] = (int(lba_text), bytes.fromhex(hex_data))
+    return result
 
 def make_internal_address(extender, address):
     return extender.to_bytes(2, "big") + address.to_bytes(6, "big")
@@ -289,6 +302,57 @@ class DASDHeaderTests(unittest.TestCase):
                 qgpl_objects[0].external_type_hint,
                 "*FILE",
             )
+
+
+    def test_real_segment_and_epa_object_headers(self):
+        fixture = load_object_fixture(OBJECT_FIXTURE)
+
+        lba, raw = fixture["MARK_QSYS"]
+        self.assertEqual(lba, 76024)
+        segment = SegmentGroupHeader.from_bytes(raw[:32])
+        epa = EPAHeader.from_bytes(raw[32:])
+        self.assertEqual(segment.segment_type, 0x0190)
+        self.assertEqual(segment.size_pages, 904)
+        self.assertEqual(segment.owner.extender, 1)
+        self.assertEqual(segment.owner.address, 0x000233000000)
+        self.assertEqual((epa.object_type, epa.object_subtype), (0x04, 0x01))
+        self.assertEqual(epa.name, "QSYS")
+        self.assertEqual(epa.context.extender, 0)
+        self.assertEqual(epa.context.address, 0x0000000D000000)
+
+        lba, raw = fixture["MARK_QGPL"]
+        self.assertEqual(lba, 76968)
+        segment = SegmentGroupHeader.from_bytes(raw[:32])
+        epa = EPAHeader.from_bytes(raw[32:])
+        self.assertEqual(segment.segment_type, 0x0190)
+        self.assertEqual(segment.size_pages, 56)
+        self.assertEqual(segment.owner.address, 0x000274000000)
+        self.assertEqual((epa.object_type, epa.object_subtype), (0x04, 0x01))
+        self.assertEqual(epa.name, "QGPL")
+        self.assertEqual(epa.context.address, 0x0000000D000000)
+
+        lba, raw = fixture["MARK_QCLSRC"]
+        self.assertEqual(lba, 1760434)
+        segment = SegmentGroupHeader.from_bytes(raw[:32])
+        epa = EPAHeader.from_bytes(raw[32:])
+        self.assertEqual(segment.segment_type, 0x0180)
+        self.assertEqual(segment.size_pages, 2)
+        self.assertEqual(segment.owner.address, 0x0037AE000000)
+        self.assertEqual((epa.object_type, epa.object_subtype), (0x19, 0x01))
+        self.assertEqual(epa.name, "QCLSRC")
+        self.assertEqual(epa.context.extender, 1)
+        self.assertEqual(epa.context.address, 0x000274000000)
+
+        lba, raw = fixture["B10_QOOADGPM"]
+        self.assertEqual(lba, 231552)
+        segment = SegmentGroupHeader.from_bytes(raw[:32])
+        epa = EPAHeader.from_bytes(raw[32:])
+        self.assertEqual(segment.segment_type, 0x0181)
+        self.assertEqual(segment.size_pages, 46)
+        self.assertEqual(segment.owner.extender, 0x00E0)
+        self.assertEqual(segment.owner.address, 0x00A1C6000000)
+        self.assertEqual((epa.object_type, epa.object_subtype), (0x02, 0x01))
+        self.assertEqual(epa.name, "QOOADGPM")
 
 
 if __name__ == "__main__":
