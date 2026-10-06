@@ -8,6 +8,7 @@ from as400_dasd import (
     PAGE_SIZE,
     SECTOR_SIZE,
     DASDImage,
+    DataSpaceLayout,
     EPAHeader,
     Extent,
     HeaderSnapshot,
@@ -17,6 +18,7 @@ from as400_dasd import (
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
+    decode_data_space_records,
     decode_standard_source_stream,
 )
 
@@ -25,6 +27,7 @@ B10_FIXTURE = FIXTURE_DIR / "b10_d1_first232064.headers.rle.txt"
 P02_FIXTURE = FIXTURE_DIR / "p02_v2r3_selected.headers.rle.txt"
 OBJECT_FIXTURE = FIXTURE_DIR / "real_object_headers.txt"
 MEMBER_FIXTURE = FIXTURE_DIR / "real_member_metadata.txt"
+QDDS_LAYOUT_FIXTURE = FIXTURE_DIR / "real_qdds_layout.txt"
 
 
 def make_header(address, order=0, *, tail=0):
@@ -75,6 +78,19 @@ def load_offset_fixture(path):
             continue
         label, offset_text, hex_data = line.split()
         result[label] = (int(offset_text, 0), bytes.fromhex(hex_data))
+    return result
+
+
+def load_qdds_layout_fixture(path):
+    result = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        label, counts_hex, layout_hex = line.split()
+        primary = bytearray(0x1EE)
+        primary[0x118:0x126] = bytes.fromhex(counts_hex)
+        primary[0x1E0:0x1F0] = bytes.fromhex(layout_hex)
+        result[label] = bytes(primary)
     return result
 
 def make_internal_address(extender, address):
@@ -140,6 +156,55 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(header.reserved_byte, 0)
 
 
+
+
+    def test_qdds_layout_scalars_from_real_metadata(self):
+        fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
+        expected = {
+            "QCLSRC_REFRESH2": (71, 71, 92, 93),
+            "PTFSUM_PTFSUM": (1941, 1941, 80, 81),
+            "DBUUSERS_DBUUSERS": (1, 1, 22, 23),
+            "PDPICKORG_PDPICKDEMO": (1880, 1880, 452, 453),
+        }
+
+        for label, values in expected.items():
+            with self.subTest(label=label):
+                layout = DataSpaceLayout.from_primary_segment(
+                    fixture[label]
+                )
+                self.assertEqual(
+                    (
+                        layout.entry_count,
+                        layout.force_count,
+                        layout.record_length,
+                        layout.entry_length,
+                    ),
+                    values,
+                )
+                self.assertTrue(layout.standard_fixed_layout)
+                self.assertEqual(layout.per_entry_overhead, 1)
+
+    def test_generic_data_space_record_decoder_uses_header_count(self):
+        layout = DataSpaceLayout(
+            entry_count=2,
+            force_count=2,
+            record_length=4,
+            entry_length=5,
+        )
+        stream = (
+            b"\x80" + b"DEFA"
+            + b"\x80" + b"ONE1"
+            + b"\x40" + b"TWO2"
+            + b"garbage that must not be parsed"
+        )
+
+        records = decode_data_space_records(stream, layout)
+        self.assertEqual(len(records), 3)
+        self.assertEqual(records[0].ordinal, 0)
+        self.assertEqual(records[1].rrn, 1)
+        self.assertEqual(records[1].data, b"ONE1")
+        self.assertEqual(records[2].status, 0x40)
+        self.assertEqual(records[2].data, b"TWO2")
 
     def test_standard_source_record_decoder(self):
         def entry(sequence, source_date, text, status=0x80):
