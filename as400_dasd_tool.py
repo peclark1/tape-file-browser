@@ -560,6 +560,82 @@ def cmd_ls(args):
     return _print_objects(image, inventory, args)
 
 
+
+def cmd_context_page(args):
+    image = _open(args.image)
+    _, segments, inventory = _recover_all(image)
+
+    libraries = [
+        library
+        for library in inventory.libraries
+        if library.name.upper() == args.library_name.upper()
+    ]
+    if not libraries:
+        raise ValueError(
+            f"library/context not recovered: {args.library_name.upper()}"
+        )
+    context = libraries[0]
+
+    probes = image.probe_machine_index_page(
+        context,
+        args.page,
+        element_offset=args.offset,
+        count=args.count,
+        page_size=args.page_size,
+    )
+
+    print(f"Disk:       {image.path}")
+    print(f"Context:    {context.name}")
+    print(
+        f"Segment:    VA {context.segment.virtual_address:012X}  "
+        f"LBA {context.segment.start_lba:,}  "
+        f"{context.segment.pages:,} pages"
+    )
+    print(
+        f"Logical page {args.page}  size {args.page_size:,}  "
+        f"element offset 0x{args.offset:X}"
+    )
+    print()
+    print(
+        "Offset  Raw     Kind          Details"
+    )
+    for probe in probes:
+        element = probe.element
+        if element.kind == "text":
+            details = (
+                f"length={element.text_length} "
+                f"text_off=0x{element.text_displacement:04X}"
+            )
+        elif element.kind == "node":
+            details = (
+                f"dir={element.direction} "
+                f"bit={element.bit_to_test} "
+                f"common={'yes' if element.common_text_present else 'no'} "
+                f"xor_disp=0x{element.xor_displacement:05X}"
+            )
+        else:
+            details = (
+                f"segment_index={element.segment_table_index} "
+                f"page_offset=0x{element.page_offset:04X}"
+            )
+        print(
+            f"0x{probe.offset:04X}  "
+            f"{element.raw.hex().upper()}  "
+            f"{element.kind:<13} {details}"
+        )
+
+    print()
+    print(
+        "Note: element decoding follows IBM's published release-2 "
+        "three-byte machine-index format."
+    )
+    print(
+        "The context's page-header/trunk location is still under "
+        "reverse engineering, so page/offset selection is explicit."
+    )
+    return 0
+
+
 def cmd_members(args):
     image = _open(args.image)
     _, _, inventory = _recover_all(image)
@@ -871,6 +947,37 @@ def build_parser():
         help="maximum rows to print; use 0 for all (default: 200)",
     )
     ls_parser.set_defaults(func=cmd_ls)
+
+    context_page = sub.add_parser(
+        "context-page",
+        help="decode raw three-byte machine-index elements in a library context",
+    )
+    context_page.add_argument("image")
+    context_page.add_argument("library_name")
+    context_page.add_argument(
+        "page",
+        type=int,
+        help="logical page number within the recovered context segment",
+    )
+    context_page.add_argument(
+        "--page-size",
+        type=int,
+        default=512,
+        help="logical index-page size; multiple of 512 (default: 512)",
+    )
+    context_page.add_argument(
+        "--offset",
+        type=lambda value: int(value, 0),
+        default=0,
+        help="3-byte-aligned element offset within the logical page",
+    )
+    context_page.add_argument(
+        "--count",
+        type=int,
+        default=32,
+        help="number of three-byte elements to decode (default: 32)",
+    )
+    context_page.set_defaults(func=cmd_context_page)
 
     members = sub.add_parser(
         "members",
