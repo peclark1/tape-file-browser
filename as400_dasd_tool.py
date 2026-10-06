@@ -1585,14 +1585,17 @@ def _iter_file_pattern_windows(
     after=128,
     chunk_size=4 * 1024 * 1024,
 ):
-    """Yield raw-file windows around pattern hits without loading the image."""
+    """Yield exact raw-file windows around pattern hits without loading it."""
 
-    overlap = max(len(needle) - 1, before)
-    with open(path, "rb") as handle:
+    overlap = max(0, len(needle) - 1)
+    with (
+        open(path, "rb") as scan_handle,
+        open(path, "rb") as window_handle,
+    ):
         base = 0
         carry = b""
         while True:
-            chunk = handle.read(chunk_size)
+            chunk = scan_handle.read(chunk_size)
             if not chunk:
                 break
             data = carry + chunk
@@ -1603,20 +1606,18 @@ def _iter_file_pattern_windows(
                 if hit < 0:
                     break
                 absolute = data_base + hit
-                # Hits wholly inside the carry were already emitted.
-                if absolute >= base - len(carry):
-                    start = max(0, hit - before)
-                    end = min(
-                        len(data),
-                        hit + len(needle) + after,
+                # A hit beginning in carry is new only when it crosses the
+                # current chunk boundary; otherwise the previous pass emitted
+                # it already.
+                if absolute >= base or absolute + len(needle) > base:
+                    start = max(0, absolute - before)
+                    window_handle.seek(start)
+                    window = window_handle.read(
+                        before + len(needle) + after
                     )
-                    marker_offset = hit - start
-                    yield absolute, data[start:end], marker_offset
+                    yield absolute, window, absolute - start
                 pos = hit + 1
-            if len(data) <= overlap:
-                carry = data
-            else:
-                carry = data[-overlap:]
+            carry = data[-overlap:] if overlap else b""
             base += len(chunk)
 
 
