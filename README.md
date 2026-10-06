@@ -9,7 +9,7 @@ The project separates the tape backend from three user interfaces:
 - **TUI** — `tape-tool browse`, an interactive curses text user interface
 - **GUI** — `tape-file-browser`, the GTK4 graphical desktop interface
 - **AS/400 DASD core** — `as400_dasd.py`, a read-only parser for raw 520-byte CISC DASD images
-- **AS/400 DASD CLI** — `as400-dasd`, an experimental physical/virtual structure explorer
+- **AS/400 DASD CLI/TUI** — `as400-dasd`, with scripted commands plus an interactive curses browser
 
 The core, CLI, and TUI do not require GTK or X.
 
@@ -21,7 +21,7 @@ Browsing is read-only. Conversion writes a new output image and then reopens it 
 - GUI native multi-file open dialog and per-image navigation state
 - GUI image checkboxes and full-width compare-results pane
 - Command-line interface (CLI) requiring no X/GTK libraries
-- Interactive curses text user interface (TUI) for SSH/server use
+- Interactive curses text user interfaces (TUIs) for both tape and AS/400 DASD browsing over SSH/server consoles
 - TUI file-open dialog with multi-select
 - Multiple simultaneously open tape images with an Images pane
 - Mouse or keyboard switching between open images
@@ -170,6 +170,8 @@ The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer 
 Current commands:
 
 ```bash
+as400-dasd browse disk.hda
+as400-dasd browse
 as400-dasd info disk.hda
 as400-dasd map disk.hda
 as400-dasd regions disk.hda
@@ -190,6 +192,8 @@ as400-dasd scan disk.hda --report dasd-report.txt
 
 The current milestone can:
 
+- browse a DASD image interactively in a three-pane curses TUI: libraries/views, files or MI object types, and members/objects, with a full-width content/detail pane;
+- open another image from inside the TUI, search recovered names, inspect source members, browse raw/decoded database records, and inspect MI object metadata;
 - validate exact 520-byte image geometry;
 - expose each eight-byte header separately from its 512-byte CISC storage page;
 - inspect individual sectors with hex and EBCDIC output;
@@ -220,6 +224,54 @@ Source-member contents are now working as well. The real Mark/Patrik image yield
 The member parser is independently validated against a real QGPL/QCLSRC member named `REFRESH2`. It recovers source type `CLP`, the descriptive text `Refresh PkMS demo data - new version (GE 170)`, source-change time `1998-01-03 02:31:14`, and creation time `1998-01-03 02:31:11`.
 
 Generic physical-file records are now working as well. The QDDS primary segment exposes the entry count and a cross-version fixed-entry length used by both the B10 and V2R3 images. The browser can therefore enumerate raw RRNs for non-source members and, when the MI 19/51 format object is available, decode fields. A real B10 `STAREC` format recovers `STASTAT` fields such as `STCOD`, `STNAME`, `MTD`, `YTD`, and `LYR`; the surviving records decode Missouri, Kansas, and "STATES OTHER THAN MISSOURI OR KANSAS" with their numeric statistics.
+
+### AS/400 DASD text-mode browser
+
+The interactive DASD browser uses only the Python standard-library `curses`
+module, matching the project's existing tape TUI. No Textual/GTK/X dependency
+is required.
+
+Open an image directly:
+
+```bash
+as400-dasd browse petes.hda
+```
+
+Or start with the file picker:
+
+```bash
+as400-dasd browse
+```
+
+The upper half of the terminal has three navigation panes:
+
+1. **Libraries / views** — recovered libraries plus `<ALL OBJECTS>` and
+   `<ORPHANS / MEMBER-ONLY>`.
+2. **Files / MI object types** — files for a selected library, or grouped MI
+   types in the object view.
+3. **Members / objects** — member cursors for a selected file, or individual
+   objects for a selected MI type.
+
+The lower pane displays the selected content. Standard source members are shown
+as source lines. Other QDDS members show record-layout information and either
+decoded fields or raw EBCDIC record previews. Format objects show their recovered
+field descriptions.
+
+Keys:
+
+```text
+← / → / Tab     change pane
+↑ / ↓           move selection or scroll content
+PgUp / PgDn     page through lists/content
+Home / End      first/last item or top/bottom of content
+Enter           drill into the next pane
+/               search names across recovered objects/members
+o               open another DASD image
+r               rescan the current image
+q / Esc         quit
+```
+
+The browser is completely read-only.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan.
 
