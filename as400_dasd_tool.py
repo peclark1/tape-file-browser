@@ -1082,8 +1082,9 @@ def _dlo_preview_strings(data, internal_name="", limit=3):
     """Return short printable EBCDIC runs useful while decoding DLO metadata.
 
     This deliberately does not claim that a printable run is the authoritative
-    QDLS name or path. The QUSRSYS QAOSS* search-index files are the intended
-    source for that mapping; these strings are forensic hints only.
+    QDLS name or path. IBM documents QUSRSYS QAOSS* as the search-index files
+    that track DLOs, making them a promising independent source for that
+    mapping; these strings are forensic hints only.
     """
 
     strings = _tui_ebcdic_strings(data, min_length=4)
@@ -1098,6 +1099,28 @@ def _dlo_preview_strings(data, internal_name="", limit=3):
         if limit and len(result) >= limit:
             break
     return result
+
+
+_DLO_MODEL_FILES = {
+    "QADSPDOC": ("DSPFLR document-list model", "DOCDTL"),
+    "QADSPFLR": ("DSPFLR folder-list model", "FLRDTL"),
+    "QAOSIQDL": ("QRYDOCLIB output model", "OSQDL"),
+    "QAOSIRTV": ("RTVDOC output model", "OSRTVD"),
+}
+
+
+def _dlo_model_files(inventory):
+    """Return recovered QSYS model files useful for DLO reverse engineering."""
+
+    result = []
+    for obj in inventory.in_library("QSYS"):
+        if (
+            obj.object_type == 0x19
+            and obj.object_subtype == 0x01
+            and obj.name.upper() in _DLO_MODEL_FILES
+        ):
+            result.append(obj)
+    return sorted(result, key=lambda obj: obj.name)
 
 
 def cmd_dlos(args):
@@ -1180,7 +1203,7 @@ def cmd_dlos(args):
     if qao_files:
         label = "QAO*" if args.all_qao else "QAOSS*"
         print(
-            f"Recovered QUSRSYS {label} DLO-index/support file candidates "
+            f"Recovered QUSRSYS {label} runtime DLO-index/support files "
             f"({len(qao_files):,}):"
         )
         for obj in qao_files:
@@ -1193,9 +1216,54 @@ def cmd_dlos(args):
     else:
         label = "QAO*" if args.all_qao else "QAOSS*"
         print(
-            f"No recovered QUSRSYS {label} *FILE objects were found in "
-            "this image."
+            f"No recovered QUSRSYS {label} runtime *FILE objects were found "
+            "in this image."
         )
+        print(
+            "IBM documents QAOSS* in QUSRSYS as the search-index files that "
+            "track DLOs. Their absence here may mean they were not recovered "
+            "as *FILE objects, not that the system lacked DLO metadata."
+        )
+
+    model_files = _dlo_model_files(inventory)
+    print()
+    if model_files:
+        print(
+            "Recovered QSYS DLO command model files "
+            "(definitions/templates, not the QUSRSYS runtime indexes):"
+        )
+        for obj in model_files:
+            description, expected_format = _DLO_MODEL_FILES[obj.name.upper()]
+            decoded = _resolve_format_fields(
+                image,
+                inventory,
+                "QSYS",
+                obj.name,
+            )
+            formats = ", ".join(
+                format_obj.name for format_obj, _fields in decoded
+            ) or expected_format
+            print(
+                f"  {obj.name:<10} {formats:<10} {description}"
+            )
+            if args.model_fields:
+                for format_obj, fields in decoded:
+                    print(
+                        f"    format {format_obj.name}: "
+                        + ", ".join(field.name for field in fields)
+                    )
+                if not decoded:
+                    print("    format fields not yet resolved")
+    else:
+        print("No recovered QSYS DLO command model files were found.")
+
+    print()
+    print(
+        "DLO name forms documented by IBM: SYSOBJNAM is the 10-character "
+        "internal QDOC name; the user-assigned document/folder name is up to "
+        "12 characters; DOCID is a 24-character library-assigned name. "
+        "RTVDLONAM can also return a folder path up to 63 characters."
+    )
 
     return 0
 
@@ -3542,6 +3610,14 @@ def build_parser():
         "--all-qao",
         action="store_true",
         help="list all recovered QUSRSYS QAO* files, not only QAOSS*",
+    )
+    dlos.add_argument(
+        "--model-fields",
+        action="store_true",
+        help=(
+            "show decoded MI 19/51 field names for recovered QSYS DLO "
+            "command model files"
+        ),
     )
     dlos.add_argument(
         "--limit",
