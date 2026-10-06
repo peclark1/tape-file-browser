@@ -13,8 +13,17 @@ repeatable real-image validation.
 - [x] Add `as400-dasd dlos` to inventory recovered DLOs and surface printable
       metadata hints without claiming they are authoritative QDLS names.
 - [x] Identify QUSRSYS `QAOSS*` files as the IBM-documented search indexes
-      that track DLOs; `dlos` reports recovered candidates.
-- [ ] Decode the relevant QAOSS record formats.
+      that track DLOs; `dlos` reports recovered runtime candidates when present.
+- [x] Distinguish those QUSRSYS runtime indexes from the recovered QSYS DLO
+      command model files (`QAOSIQDL`, `QAOSIRTV`, `QADSPDOC`,
+      `QADSPFLR`) and expose their recovered field definitions.
+- [x] Add `dlo-xref` to search recovered object segments for byte-level
+      references to a 10-character QDOC SYSOBJNAM without assuming structure.
+- [ ] Run the DLO model/xref probes against the V2R3 image and classify the
+      non-self matches for known objects such as `FMPV082760`,
+      `FMPV195818`, and `DPWN524712`.
+- [ ] Decode the relevant QAOSS record formats, or identify their unresolved
+      storage objects if normal library/file recovery does not expose them.
 - [ ] Map QDOC system object names (SYSOBJNAM) to user-facing DLO names.
 - [ ] Reconstruct parent/child folder relationships and complete QDLS paths.
 - [ ] Verify known examples such as PC Support folders/files against the
