@@ -914,3 +914,12 @@ The browser also supports a global name search with `/`, opening a different
 image with `o`, and rescanning the current image with `r`. All operations
 remain read-only.
 
+
+
+## Additional DLO recovery targets
+
+- Reconstruct the QDLS document/folder hierarchy from QDOC `*DOC`/`*FLR`
+  objects plus the QUSRSYS `QAO*` DLO index metadata, so internal object names
+  can be presented as user-facing folder/document paths.
+- Identify the payload-storage objects associated with binary DLOs and support
+  safe export of the original workstation-file bytes.
