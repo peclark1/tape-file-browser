@@ -11,6 +11,7 @@ from as400_dasd_tool import (
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
+    _scan_ebcdic_sysobjnam,
     _tui_library_context,
     _tui_object_type_context,
     build_parser,
