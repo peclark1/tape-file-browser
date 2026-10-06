@@ -11,6 +11,7 @@ from as400_dasd_tool import (
     _DLO_RUNTIME_INDEX_FILES,
     _dlo_export_pair,
     _dlo_filename_hint,
+    _dlo_schema_marker_evidence,
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
@@ -281,6 +282,51 @@ class DASDToolTests(unittest.TestCase):
         )
         self.assertIsNone(found_companion)
         self.assertIn("ambiguous", error)
+
+    def test_dlo_schema_marker_evidence_preserves_literal_names(self):
+        field = "WOSEDOCN".encode("cp037")
+        alias = "XOSEDOCN".encode("cp037")
+        marker = "WOSFMT14".encode("cp037")
+        related = (
+            "QAOSSS14".encode("cp037")
+            + "QAOSSI25".encode("cp037")
+            + "QAOSSI66".encode("cp037")
+            + "WOSEDNGC".encode("cp037")
+        )
+        window = (
+            b"\x00\x01"
+            + field
+            + alias
+            + marker
+            + b"\x00\xC1"
+            + related
+            + b"\x00\x21"
+        )
+        marker_offset = window.index(marker)
+        evidence = _dlo_schema_marker_evidence(
+            window,
+            marker_offset,
+            "WOSFMT14",
+        )
+        self.assertEqual(
+            evidence,
+            (
+                "WOSEDOCN",
+                (
+                    "QAOSSS14",
+                    "QAOSSI25",
+                    "QAOSSI66",
+                    "WOSEDNGC",
+                ),
+            ),
+        )
+
+    def test_dlo_schema_subcommand_defaults_to_wosfmt14(self):
+        parser = build_parser()
+        args = parser.parse_args(["dlo-schema", "marks.hda"])
+        self.assertEqual(args.command, "dlo-schema")
+        self.assertEqual(args.format_name, "WOSFMT14")
+        self.assertIsNone(args.family)
 
     def test_dlo_export_subcommand_requires_explicit_output(self):
         parser = build_parser()
