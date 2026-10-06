@@ -5,7 +5,12 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from as400_dasd import PAGE_SIZE
-from as400_dasd_tool import build_parser, main
+from as400_dasd_tool import (
+    _tui_library_context,
+    _tui_object_type_context,
+    build_parser,
+    main,
+)
 
 
 def make_header(address, order=0):
@@ -53,6 +58,18 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("QGPL TEST00", text)
 
 
+
+    def test_tui_context_describes_known_as400_roles(self):
+        qdoc = _tui_library_context("QDOC")
+        self.assertIn("QDLS", qdoc)
+        self.assertIn("not a source library", qdoc)
+
+        doc = _tui_object_type_context(0x19, 0x0E)
+        self.assertIn("document-library document", doc)
+        self.assertIn("user-facing document name may differ", doc)
+
+        member = _tui_object_type_context(0x0D, 0x50)
+        self.assertIn("member cursor", member)
 
     def test_browse_subcommand_accepts_optional_image(self):
         parser = build_parser()
