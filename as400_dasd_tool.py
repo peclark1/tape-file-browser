@@ -3267,91 +3267,127 @@ def _tui_library_context(library_name):
         "source physical *FILE members rather than in a distinct library type."
     )
 
-def _tui_context_line(state):
-    right = _tui_selected(state, "right")
-    mid = _tui_selected(state, "mid")
+def _tui_context_lines(state):
+    """Return one contextual explanation for each navigation pane.
+
+    A selection in a deeper pane must not hide the meaning of its parent
+    library or file/object-type selection. Keeping the three explanations
+    separate also mirrors the three-pane object hierarchy shown above.
+    """
+
     left = _tui_selected(state, "left")
+    mid = _tui_selected(state, "mid")
+    right = _tui_selected(state, "right")
 
-    if right is not None:
-        if right["kind"] == "member":
-            member = right["object"]
-            source_type = right.get("source_type") or ""
-            source_suffix = (
-                f"; source type {source_type}"
-                if source_type
-                else ""
-            )
-            return (
-                "Context: *MEM cursor "
-                f"{member.member_file_name}({member.member_name})"
-                f"{source_suffix}; member data is backed by QDDS/QDDSI."
-            )
-        if right["kind"] == "object":
-            obj = right["object"]
-            meaning = _tui_object_type_context(
-                obj.object_type,
-                obj.object_subtype,
-            )
-            if meaning:
-                return (
-                    f"Context: {obj.external_type_hint or obj.type_code} — "
-                    f"{meaning}."
-                )
+    if left is None:
+        left_line = "Library/view: no selection"
+    elif left["kind"] == "library":
+        left_line = (
+            f"Library/view: {left['library']} — "
+            + _tui_library_context(left["library"])
+        )
+    elif left["kind"] == "orphans-view":
+        left_line = (
+            "Library/view: <ORPHANS / MEMBER-ONLY> — objects or member "
+            "cursors whose library/context was not recovered."
+        )
+    elif left["kind"] == "search-view":
+        left_line = (
+            f"Library/view: {left['label']} — global recovered-name "
+            "search results across libraries and object classes."
+        )
+    else:
+        left_line = (
+            "Library/view: <ALL OBJECTS> — recovered AS/400 objects "
+            "grouped by MI type/subtype."
+        )
 
-    if mid is not None:
-        if mid["kind"] == "file":
-            source_types = sorted(
-                {
-                    item.get("source_type")
-                    for item in state["right_items"]
-                    if item.get("source_type")
-                }
-            )
-            if source_types:
-                types = ", ".join(source_types[:4])
-                if len(source_types) > 4:
-                    types += ", …"
-                return (
-                    f"Context: *FILE {mid['name']} has "
-                    f"{len(mid['members']):,} recovered member(s); "
-                    f"observed source type(s): {types}."
-                )
-            return (
-                f"Context: *FILE {mid['name']} has "
-                f"{len(mid['members']):,} recovered member(s); "
-                "members are separate *MEM cursors backed by QDDS/QDDSI."
-            )
-
+    if mid is None:
+        mid_line = "File/type: no selection"
+    elif mid["kind"] == "file":
+        source_types = sorted(
+            {
+                item.get("source_type")
+                for item in state["right_items"]
+                if item.get("source_type")
+            }
+        )
+        source_suffix = ""
+        if source_types:
+            shown = ", ".join(source_types[:4])
+            if len(source_types) > 4:
+                shown += ", …"
+            source_suffix = f"; source type(s): {shown}"
+        mid_line = (
+            f"File/type: *FILE {mid['name']} — "
+            f"{len(mid['members']):,} recovered member(s)"
+            f"{source_suffix}; members are separate *MEM cursors."
+        )
+    else:
         meaning = _tui_object_type_context(
-            mid["type"],
-            mid["subtype"],
+            mid.get("type", 0),
+            mid.get("subtype", 0),
+        )
+        if mid.get("objects"):
+            hint = mid["objects"][0].external_type_hint
+        else:
+            hint = ""
+        type_label = hint or (
+            f"{mid.get('type', 0):02X}/{mid.get('subtype', 0):02X}"
         )
         if meaning:
-            hint = (
-                mid["objects"][0].external_type_hint
-                if mid.get("objects")
-                else ""
+            mid_line = f"File/type: {type_label} — {meaning}."
+        else:
+            mid_line = (
+                f"File/type: {type_label} — recovered MI object group."
             )
-            type_label = hint or (
-                f"{mid['type']:02X}/{mid['subtype']:02X}"
-            )
-            return f"Context: {type_label} — {meaning}."
 
-    if left is not None:
-        if left["kind"] == "library":
-            return "Context: " + _tui_library_context(left["library"])
-        if left["kind"] == "orphans-view":
-            return (
-                "Context: objects whose library/context was not recovered "
-                "from this disk remain visible here."
-            )
-        return (
-            "Context: grouped recovered AS/400 objects; select an MI type "
-            "to see what that object class represents."
+    if right is None:
+        right_line = "Member/object: no selection"
+    elif right["kind"] == "member":
+        member = right["object"]
+        source_type = right.get("source_type") or ""
+        source_suffix = (
+            f"; source type {source_type}"
+            if source_type
+            else ""
         )
+        right_line = (
+            f"Member/object: *MEM "
+            f"{member.member_file_name}({member.member_name})"
+            f"{source_suffix}; member data is backed by QDDS/QDDSI."
+        )
+    else:
+        obj = right["object"]
+        meaning = _tui_object_type_context(
+            obj.object_type,
+            obj.object_subtype,
+        )
+        type_label = obj.external_type_hint or obj.type_code
+        if meaning:
+            right_line = (
+                f"Member/object: {obj.name}  {type_label} — {meaning}."
+            )
+        else:
+            right_line = (
+                f"Member/object: {obj.name}  {type_label} — recovered "
+                "AS/400 object."
+            )
 
-    return "Context: no selection."
+    return left_line, mid_line, right_line
 
+
+def _tui_context_line(state):
+    """Compatibility helper returning the deepest available pane context."""
+
+    return next(
+        (
+            line
+            for line in reversed(_tui_context_lines(state))
+            if not line.endswith("no selection")
+        ),
+        "Member/object: no selection",
+    )
 
 def _tui_ebcdic_strings(data, min_length=4):
     """Return printable CP037 runs separated by binary/control data."""
@@ -4105,7 +4141,7 @@ def _tui_browse(stdscr, initial_path=None):
         stdscr.erase()
         height, width = stdscr.getmaxyx()
 
-        if height < 16 or width < 72:
+        if height < 20 or width < 72:
             _tui_safe_addstr(
                 stdscr,
                 0,
@@ -4117,7 +4153,7 @@ def _tui_browse(stdscr, initial_path=None):
                 stdscr,
                 2,
                 0,
-                "Terminal is too small; resize to at least 72x16.",
+                "Terminal is too small; resize to at least 72x20.",
             )
             stdscr.refresh()
             key = stdscr.getch()
@@ -4141,7 +4177,8 @@ def _tui_browse(stdscr, initial_path=None):
         nav_height = max(7, min(18, height // 2 - 1))
         separator_y = nav_y + nav_height
         viewer_y = separator_y + 1
-        viewer_height = max(1, height - viewer_y - 4)
+        # Reserve three independent pane-context rows plus status/key rows.
+        viewer_height = max(1, height - viewer_y - 6)
 
         left_w = max(20, width // 4)
         mid_w = max(25, width // 3)
@@ -4269,14 +4306,21 @@ def _tui_browse(stdscr, initial_path=None):
                 line,
             )
 
-        context_line = _tui_context_line(state)
-        _tui_safe_addstr(
-            stdscr,
-            height - 3,
-            0,
-            context_line,
-            curses.A_DIM,
-        )
+        context_lines = _tui_context_lines(state)
+        context_rows = (height - 5, height - 4, height - 3)
+        for pane_index, (row, context_line) in enumerate(
+            zip(context_rows, context_lines)
+        ):
+            attr = curses.A_DIM
+            if state["focus"] == pane_index:
+                attr |= curses.A_BOLD
+            _tui_safe_addstr(
+                stdscr,
+                row,
+                0,
+                context_line,
+                attr,
+            )
 
         scan = state["scan"]
         status = (
