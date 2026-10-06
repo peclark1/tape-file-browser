@@ -224,6 +224,38 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(by_name["PDDLM"].digits, 9)
         self.assertEqual(by_name["PDPGM"].type_name, "CHAR")
 
+        b10_blob = b"\x00".join(
+            [
+                fixture["B10_STAREC_RECTYP"],
+                fixture["B10_STAREC_FILL1"],
+                fixture["B10_STAREC_STCOD"],
+                fixture["B10_STAREC_STNAME"],
+                fixture["B10_STAREC_MTD"],
+                fixture["B10_STAREC_YTD"],
+                fixture["B10_STAREC_LYR"],
+                fixture["B10_STAREC_FILL2"],
+                fixture["B10_STAREC_ACTCOD"],
+            ]
+        )
+        b10_fields = decode_format_fields(b10_blob, record_length=128)
+        self.assertEqual(
+            [
+                (field.name, field.type_name, field.offset, field.storage_length)
+                for field in b10_fields
+            ],
+            [
+                ("RECTYP", "CHAR", 0, 3),
+                ("FILL1", "CHAR", 3, 5),
+                ("STCOD", "CHAR", 8, 1),
+                ("STNAME", "CHAR", 9, 40),
+                ("MTD", "ZONED", 49, 5),
+                ("YTD", "ZONED", 54, 6),
+                ("LYR", "ZONED", 60, 6),
+                ("FILL2", "CHAR", 66, 61),
+                ("ACTCOD", "CHAR", 127, 1),
+            ],
+        )
+
     def test_format_field_value_decoding(self):
         fixture = load_format_field_fixture(FORMAT_FIELD_FIXTURE)
         fields = {
@@ -253,6 +285,33 @@ class DASDHeaderTests(unittest.TestCase):
 
         record[429:433] = bytes.fromhex("1234567C")
         self.assertEqual(fields["PDTCR"].decode_value(record), "1234567")
+
+        b10_fields = {
+            field.name: field
+            for field in decode_format_fields(
+                b"".join(
+                    [
+                        fixture["B10_STAREC_RECTYP"],
+                        fixture["B10_STAREC_STCOD"],
+                        fixture["B10_STAREC_STNAME"],
+                        fixture["B10_STAREC_YTD"],
+                        fixture["B10_STAREC_LYR"],
+                    ]
+                ),
+                record_length=128,
+            )
+        }
+        state_record = bytearray(b"\x40" * 128)
+        state_record[0:3] = "STA".encode("cp037")
+        state_record[8:9] = "1".encode("cp037")
+        state_record[9:49] = "MISSOURI".encode("cp037").ljust(40, b"\x40")
+        state_record[54:60] = "003896".encode("cp037")
+        state_record[60:66] = "003996".encode("cp037")
+        self.assertEqual(b10_fields["RECTYP"].decode_value(state_record), "STA")
+        self.assertEqual(b10_fields["STCOD"].decode_value(state_record), "1")
+        self.assertEqual(b10_fields["STNAME"].decode_value(state_record), "MISSOURI")
+        self.assertEqual(b10_fields["YTD"].decode_value(state_record), "3896")
+        self.assertEqual(b10_fields["LYR"].decode_value(state_record), "3996")
 
     def test_qdds_layout_scalars_from_real_metadata(self):
         fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
