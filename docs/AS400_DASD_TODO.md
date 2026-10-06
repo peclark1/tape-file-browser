@@ -22,6 +22,11 @@ repeatable real-image validation.
 - [ ] Run the DLO model/xref probes against the V2R3 image and classify the
       non-self matches for known objects such as `FMPV082760`,
       `FMPV195818`, and `DPWN524712`.
+- [ ] Locate `QAOSSS14` or its unresolved storage: IBM documents its anchor
+      record as one of the places that stores each DLO's 10-character
+      SYSOBJNAM, making it the highest-value QAOSS target.
+- [ ] Locate/identify the other documented document/folder search indexes:
+      `QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18`.
 - [ ] Decode the relevant QAOSS record formats, or identify their unresolved
       storage objects if normal library/file recovery does not expose them.
 - [ ] Map QDOC system object names (SYSOBJNAM) to user-facing DLO names.
