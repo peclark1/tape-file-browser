@@ -374,6 +374,42 @@ contexts such as `QRPG`, `QSDE`, `JHUDGINS`, `MSICKBERT`,
 `PPSIPROTO`, and `PPSITEST`. Major system contexts such as QSYS/QGPL are
 not expected to be complete on that surviving non-load-source disk.
 
+A provenance note for the B10 image is especially interesting: the recovered
+`JHUDGINS` library likely corresponds to **John Hudgins**, the father of the
+friend from whom the physical AS/400 collection came. The family ran a
+consulting/programming business in the 1980s and 1990s and reportedly used this
+AS/400 for software development. That makes `JHUDGINS` a plausible original
+user/application library rather than an IBM-supplied system context. This is
+provenance supplied by the collection owner and is kept separate from the
+on-disk structural evidence.
+
+## Context machine-index decoding: groundwork
+
+IBM's machine indexes are binary radix trees. The VMC documentation describes
+release-2 indexes as using three-byte elements, and IBM patent US4774657
+Appendix A publishes the three element formats: text elements, decision nodes,
+and page pointers.
+
+The core now decodes those documented three-byte primitives. A forensic command
+can apply the decoder to a recovered library context while we determine the
+remaining index-page header and trunk layout:
+
+```bash
+as400-dasd context-page HD60_imaged.hda QGPL 4
+as400-dasd context-page HD60_imaged.hda QGPL 4 --offset 0x0 --count 48
+as400-dasd context-page HD60_imaged.hda QGPL 0 --page-size 4096
+```
+
+This is intentionally not yet presented as a complete context-index traversal.
+IBM permits logical index pages from 512 through 32768 bytes. The next work is
+to locate the index page header/trunk inside the context object, follow page
+pointers, and reconstruct front-end-compressed keys.
+
+One practical finding is already important: QGPL's recovered segment is
+multi-extent and physically scattered. Context-index parsing must therefore use
+the recovered segment in virtual-address order, not assume physical
+contiguity. The parser's `read_segment_bytes()` path now provides that view.
+
 ## Database member cursors and member metadata
 
 The next database layer is now partially decoded.
@@ -551,8 +587,9 @@ object-to-library back-pointers are working on the real images.
 
 The next research/implementation targets are:
 
-- parse the permanent-context machine index and cross-check its
-  context -> object entries against the EPA object -> context back-pointers;
+- finish traversal of the permanent-context binary-radix machine index and
+  cross-check its context -> object entries against the EPA object -> context
+  back-pointers;
 - identify the static/permanent directory objects and parse their ASDE/extent
   descriptors directly;
 - improve permanent/temporary indicator decoding so fewer candidates require
