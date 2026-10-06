@@ -1971,6 +1971,7 @@ def _tui_rebuild_from_mid(state):
                     "kind": "member",
                     "object": member,
                     "file": selected,
+                    "source_type": source_type,
                     "label": f"{member.member_name}{suffix}",
                 }
             )
@@ -2004,6 +2005,132 @@ def _tui_selected(state, key):
     return items[index]
 
 
+_TUI_OBJECT_TYPE_CONTEXT = {
+    (0x02, 0x01): "executable program object",
+    (0x04, 0x01): "library/context object that owns named AS/400 objects",
+    (0x08, 0x01): "user profile object",
+    (0x0B, 0x90): "internal QDDS data space backing a member record stream",
+    (0x0C, 0x90): "internal QDDS index associated with member storage",
+    (0x0D, 0x50): "member cursor linking a file/member name to its storage",
+    (0x0E, 0x90): "internal index object used by file/member storage",
+    (0x19, 0x01): "file object whose members may contain source or database records",
+    (0x19, 0x02): "message queue object",
+    (0x19, 0x0E): (
+        "QDLS document-library document; the QDOC object name is internal "
+        "and the user-facing document name may differ"
+    ),
+    (0x19, 0x12): "QDLS document-library folder stored through QDOC",
+    (0x19, 0x51): "record-format metadata associated with a *FILE object",
+}
+
+
+def _tui_object_type_context(object_type, object_subtype):
+    return _TUI_OBJECT_TYPE_CONTEXT.get((object_type, object_subtype), "")
+
+
+def _tui_library_context(library_name):
+    name = (library_name or "").upper()
+    if name == "QDOC":
+        return (
+            "QDOC — QDLS/document-library backing library, not a source "
+            "library; *DOC/*FLR are internal objects behind folders and "
+            "documents (including PC Support distribution content)."
+        )
+    if name:
+        return (
+            f"{name} — AS/400 *LIB object context; source code, when "
+            "present, lives in source physical *FILE members rather than "
+            "in a distinct library type."
+        )
+    return ""
+
+
+def _tui_context_line(state):
+    right = _tui_selected(state, "right")
+    mid = _tui_selected(state, "mid")
+    left = _tui_selected(state, "left")
+
+    if right is not None:
+        if right["kind"] == "member":
+            member = right["object"]
+            source_type = right.get("source_type") or ""
+            source_suffix = (
+                f"; source type {source_type}"
+                if source_type
+                else ""
+            )
+            return (
+                "Context: *MEM cursor "
+                f"{member.member_file_name}({member.member_name})"
+                f"{source_suffix}; member data is backed by QDDS/QDDSI."
+            )
+        if right["kind"] == "object":
+            obj = right["object"]
+            meaning = _tui_object_type_context(
+                obj.object_type,
+                obj.object_subtype,
+            )
+            if meaning:
+                return (
+                    f"Context: {obj.external_type_hint or obj.type_code} — "
+                    f"{meaning}."
+                )
+
+    if mid is not None:
+        if mid["kind"] == "file":
+            source_types = sorted(
+                {
+                    item.get("source_type")
+                    for item in state["right_items"]
+                    if item.get("source_type")
+                }
+            )
+            if source_types:
+                types = ", ".join(source_types[:4])
+                if len(source_types) > 4:
+                    types += ", …"
+                return (
+                    f"Context: *FILE {mid['name']} has "
+                    f"{len(mid['members']):,} recovered member(s); "
+                    f"observed source type(s): {types}."
+                )
+            return (
+                f"Context: *FILE {mid['name']} has "
+                f"{len(mid['members']):,} recovered member(s); "
+                "members are separate *MEM cursors backed by QDDS/QDDSI."
+            )
+
+        meaning = _tui_object_type_context(
+            mid["type"],
+            mid["subtype"],
+        )
+        if meaning:
+            hint = (
+                mid["objects"][0].external_type_hint
+                if mid.get("objects")
+                else ""
+            )
+            return (
+                f"Context: {hint or f'{mid['type']:02X}/{mid['subtype']:02X}'} "
+                f"— {meaning}."
+            )
+
+    if left is not None:
+        if left["kind"] == "library":
+            return "Context: " + _tui_library_context(left["library"])
+        if left["kind"] == "orphans-view":
+            return (
+                "Context: objects whose library/context was not recovered "
+                "from this disk remain visible here."
+            )
+        return (
+            "Context: grouped recovered AS/400 objects; select an MI type "
+            "to see what that object class represents."
+        )
+
+    return "Context: no selection."
+
+
 def _tui_ebcdic_strings(data, min_length=4):
     """Return printable CP037 runs separated by binary/control data."""
 
@@ -2024,6 +2151,10 @@ def _tui_ebcdic_strings(data, min_length=4):
 
 
 def _tui_object_lines(state, obj):
+    meaning = _tui_object_type_context(
+        obj.object_type,
+        obj.object_subtype,
+    )
     lines = [
         f"Object:       {(obj.library_name or '<orphan>')}/{obj.name}",
         f"MI type:      {obj.type_code}"
@@ -2032,6 +2163,11 @@ def _tui_object_lines(state, obj):
             if obj.external_type_hint
             else ""
         ),
+    ]
+    if meaning:
+        lines.append(f"Object role:   {meaning}")
+    lines.extend(
+        [
         (
             f"Virtual addr: {obj.segment.virtual_address:012X}"
         ),
@@ -2042,7 +2178,8 @@ def _tui_object_lines(state, obj):
         ),
         f"Owner:        {obj.segment.header.owner}",
         f"EPA context:  {obj.epa.context}",
-    ]
+        ]
+    )
 
     if obj.object_type == 0x19 and obj.object_subtype == 0x51:
         try:
@@ -2722,7 +2859,7 @@ def _tui_browse(stdscr, initial_path=None):
         nav_height = max(7, min(18, height // 2 - 1))
         separator_y = nav_y + nav_height
         viewer_y = separator_y + 1
-        viewer_height = max(1, height - viewer_y - 3)
+        viewer_height = max(1, height - viewer_y - 4)
 
         left_w = max(20, width // 4)
         mid_w = max(25, width // 3)
@@ -2849,6 +2986,15 @@ def _tui_browse(stdscr, initial_path=None):
                 0,
                 line,
             )
+
+        context_line = _tui_context_line(state)
+        _tui_safe_addstr(
+            stdscr,
+            height - 3,
+            0,
+            context_line,
+            curses.A_DIM,
+        )
 
         scan = state["scan"]
         status = (
