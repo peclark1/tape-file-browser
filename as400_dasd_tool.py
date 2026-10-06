@@ -1101,6 +1101,17 @@ def _dlo_preview_strings(data, internal_name="", limit=3):
     return result
 
 
+_DLO_RUNTIME_INDEX_FILES = (
+    "QAOSSS10",
+    "QAOSSS11",
+    "QAOSSS12",
+    "QAOSSS13",
+    "QAOSSS14",
+    "QAOSSS15",
+    "QAOSSS17",
+    "QAOSSS18",
+)
+
 _DLO_MODEL_FILES = {
     "QADSPDOC": ("DSPFLR document-list model", "DOCDTL"),
     "QADSPFLR": ("DSPFLR folder-list model", "FLRDTL"),
@@ -1215,30 +1226,55 @@ def cmd_dlos(args):
         and obj.object_subtype == 0x01
         and obj.name.upper().startswith(qao_prefix)
     ]
+    exact_runtime = {
+        obj.name.upper(): obj
+        for obj in qao_files
+        if obj.name.upper() in _DLO_RUNTIME_INDEX_FILES
+    }
     print()
-    if qao_files:
+    print(
+        "IBM-documented document/folder search-index files in "
+        "QUSRSYS:"
+    )
+    for name in _DLO_RUNTIME_INDEX_FILES:
+        obj = exact_runtime.get(name)
+        if obj is None:
+            print(f"  {name:<10} not recovered as a QUSRSYS *FILE")
+        else:
+            print(
+                f"  {name:<10} recovered  "
+                f"VA {obj.segment.virtual_address:012X}  "
+                f"LBA {obj.segment.start_lba:,}  "
+                f"{obj.segment.pages:,} pages"
+            )
+
+    other_qao = [
+        obj
+        for obj in qao_files
+        if obj.name.upper() not in _DLO_RUNTIME_INDEX_FILES
+    ]
+    if other_qao:
         label = "QAO*" if args.all_qao else "QAOSS*"
+        print()
         print(
-            f"Recovered QUSRSYS {label} runtime DLO-index/support files "
-            f"({len(qao_files):,}):"
+            f"Other recovered QUSRSYS {label} support files "
+            f"({len(other_qao):,}):"
         )
-        for obj in qao_files:
+        for obj in other_qao:
             print(
                 f"  {obj.name:<10} "
                 f"VA {obj.segment.virtual_address:012X}  "
                 f"LBA {obj.segment.start_lba:,}  "
                 f"{obj.segment.pages:,} pages"
             )
-    else:
-        label = "QAO*" if args.all_qao else "QAOSS*"
+
+    if not exact_runtime:
+        print()
         print(
-            f"No recovered QUSRSYS {label} runtime *FILE objects were found "
-            "in this image."
-        )
-        print(
-            "IBM documents QAOSS* in QUSRSYS as the search-index files that "
-            "track DLOs. Their absence here may mean they were not recovered "
-            "as *FILE objects, not that the system lacked DLO metadata."
+            "None of the eight IBM-documented QAOSSS10-15/17/18 search "
+            "indexes is currently recovered as a QUSRSYS *FILE. This may "
+            "reflect unresolved object/context recovery rather than absence "
+            "from the original system."
         )
 
     model_files = _dlo_model_files(inventory)
