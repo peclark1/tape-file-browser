@@ -325,6 +325,9 @@ prompts for an output filename, validates the DOCBSS length metadata again,
 refuses to overwrite the DASD image, and asks before replacing an existing
 output file. A `*DOCBSS` object can also be selected directly and exported
 through its matching QDOC document.
+When the document metadata contains a conservative PC-style filename hint such as
+`CKPCSPTH.EXE` or `DTAQ.PKG`, the TUI offers that as the default export
+name while labeling it as a metadata hint rather than a QAOSS-verified path.
 
 For QDLS/document-library work, `as400-dasd dlos disk.hda` lists recovered
 QDOC `*DOC`/`*FLR` objects using their 10-character internal system object
