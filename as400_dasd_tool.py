@@ -1236,17 +1236,58 @@ def cmd_dlos(args):
         "IBM-documented document/folder search-index files in "
         "QUSRSYS:"
     )
+    exact_recovered_anywhere = {}
     for name in _DLO_RUNTIME_INDEX_FILES:
+        object_matches = [
+            obj
+            for obj in inventory.objects
+            if (
+                obj.object_type == 0x19
+                and obj.object_subtype == 0x01
+                and obj.name.upper() == name
+            )
+        ]
+        member_matches = inventory.members(file_name=name)
+        exact_recovered_anywhere[name] = (
+            object_matches,
+            member_matches,
+        )
+
         obj = exact_runtime.get(name)
-        if obj is None:
-            print(f"  {name:<10} not recovered as a QUSRSYS *FILE")
-        else:
+        if obj is not None:
             print(
-                f"  {name:<10} recovered  "
+                f"  {name:<10} QUSRSYS *FILE recovered  "
                 f"VA {obj.segment.virtual_address:012X}  "
                 f"LBA {obj.segment.start_lba:,}  "
                 f"{obj.segment.pages:,} pages"
             )
+            continue
+
+        if object_matches:
+            candidate = object_matches[0]
+            library = candidate.library_name or "<unresolved-context>"
+            print(
+                f"  {name:<10} *FILE object recovered in {library}  "
+                f"VA {candidate.segment.virtual_address:012X}  "
+                f"LBA {candidate.segment.start_lba:,}"
+            )
+            continue
+
+        if member_matches:
+            libraries = sorted(
+                {
+                    member.library_name or "<unresolved-context>"
+                    for member in member_matches
+                }
+            )
+            print(
+                f"  {name:<10} member-only evidence: "
+                f"{len(member_matches):,} cursor(s), context "
+                + ", ".join(libraries)
+            )
+            continue
+
+        print(f"  {name:<10} not recovered by current object/member pass")
 
     other_qao = [
         obj
@@ -1270,12 +1311,23 @@ def cmd_dlos(args):
 
     if not exact_runtime:
         print()
-        print(
-            "None of the eight IBM-documented QAOSSS10-15/17/18 search "
-            "indexes is currently recovered as a QUSRSYS *FILE. This may "
-            "reflect unresolved object/context recovery rather than absence "
-            "from the original system."
-        )
+        if any(
+            objects or members
+            for objects, members in exact_recovered_anywhere.values()
+        ):
+            print(
+                "No exact search index is assigned to QUSRSYS yet, but "
+                "the lines above show object/member evidence outside the "
+                "resolved QUSRSYS context. That is useful recovery evidence."
+            )
+        else:
+            print(
+                "None of the eight IBM-documented QAOSSS10-15/17/18 search "
+                "indexes is currently visible to the object/member pass. "
+                "This does not prove they were absent from the original "
+                "system; their directory or storage relationships may still "
+                "be unresolved."
+            )
 
     model_files = _dlo_model_files(inventory)
     print()
