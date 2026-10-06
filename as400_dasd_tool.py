@@ -1470,6 +1470,167 @@ def cmd_dlo_xref(args):
         )
     return 0
 
+def _scan_ebcdic_sysobjnam(data, encoded_targets):
+    """Return (offset, SYSOBJNAM) matches for known 10-byte EBCDIC names."""
+
+    hits = []
+    if len(data) < 10 or not encoded_targets:
+        return hits
+    for offset in range(0, len(data) - 9):
+        name = encoded_targets.get(data[offset : offset + 10])
+        if name is not None:
+            hits.append((offset, name))
+    return hits
+
+
+def cmd_dlo_index_scan(args):
+    """Correlate QDOC SYSOBJNAM values against recovered QAOSS member data."""
+
+    image = _open(args.image)
+    _, segments, inventory = _recover_all(image)
+
+    qdoc_objects = [
+        obj
+        for obj in inventory.in_library("QDOC")
+        if obj.object_type == 0x19
+        and obj.object_subtype in (0x0E, 0x12)
+        and len(obj.name) == 10
+    ]
+    encoded_targets = {
+        obj.name.upper().encode("cp037"): obj.name.upper()
+        for obj in qdoc_objects
+    }
+
+    if args.file_name:
+        index_names = [args.file_name.upper()]
+    elif args.all_indexes:
+        index_names = list(_DLO_RUNTIME_INDEX_FILES)
+    else:
+        index_names = ["QAOSSS14"]
+
+    print(f"Disk:       {image.path}")
+    print(f"QDOC names: {len(encoded_targets):,}")
+    print("Indexes:    " + ", ".join(index_names))
+    print(
+        "Method: exact 10-byte EBCDIC SYSOBJNAM correlation against recovered "
+        "QAOSS member records; no field layout is assumed."
+    )
+    print()
+
+    rows = []
+    scanned_members = 0
+    unreadable_members = 0
+
+    for index_name in index_names:
+        members = inventory.members(file_name=index_name)
+        if not members:
+            continue
+
+        for member in members:
+            scanned_members += 1
+            try:
+                storage = image.resolve_member_storage(
+                    member,
+                    inventory,
+                    segments,
+                )
+                record_set = image.read_data_space_records(storage)
+            except Exception:
+                record_set = None
+
+            if record_set is None:
+                unreadable_members += 1
+                continue
+
+            for record in record_set.records:
+                for offset, target in _scan_ebcdic_sysobjnam(
+                    record.data,
+                    encoded_targets,
+                ):
+                    start = max(0, offset - args.context)
+                    end = min(
+                        len(record.data),
+                        offset + 10 + args.context,
+                    )
+                    rows.append(
+                        (
+                            index_name,
+                            member,
+                            record,
+                            offset,
+                            target,
+                            record.data[start:end],
+                            start,
+                        )
+                    )
+                    if args.limit and len(rows) >= args.limit:
+                        break
+                if args.limit and len(rows) >= args.limit:
+                    break
+            if args.limit and len(rows) >= args.limit:
+                break
+        if args.limit and len(rows) >= args.limit:
+            break
+
+    print(f"Recovered matching member cursors: {scanned_members:,}")
+    if unreadable_members:
+        print(
+            f"Members without recoverable fixed-record QDDS data: "
+            f"{unreadable_members:,}"
+        )
+    print(f"SYSOBJNAM correlations: {len(rows):,}")
+    print()
+
+    if rows:
+        print(
+            "Index      Context      Member      RRN       Status  Off    "
+            "SYSOBJNAM   EBCDIC context"
+        )
+        for (
+            index_name,
+            member,
+            record,
+            offset,
+            target,
+            window,
+            start,
+        ) in rows:
+            library = member.library_name or "<orphan>"
+            context = ebcdic_preview(window, limit=len(window))
+            print(
+                f"{index_name:<10} "
+                f"{library:<12.12} "
+                f"{member.member_name:<10.10} "
+                f"{record.rrn:>8,}  "
+                f"0x{record.status:02X}   "
+                f"0x{offset:04X} "
+                f"{target:<10} "
+                f"{context}"
+            )
+            if args.hex_context:
+                print(
+                    f"  data context 0x{start:04X}: "
+                    + window.hex(" ").upper()
+                )
+    else:
+        print(
+            "No QDOC SYSOBJNAM values were found in the recovered record data "
+            "for the selected QAOSS member(s). This can mean the index/member "
+            "storage is not yet recovered, the record format is not an ordinary "
+            "fixed QDDS layout, or this release stores the reference elsewhere."
+        )
+
+    if "QAOSSS14" in index_names:
+        print()
+        print(
+            "IBM documents QAOSSS14 as containing an anchor record that stores "
+            "the DLO system object name. A hit here is therefore especially "
+            "useful, but field meanings still require independent validation."
+        )
+
+    return 0
+
+
 def cmd_context_page(args):
     image = _open(args.image)
     _, segments, inventory = _recover_all(image)
@@ -3880,6 +4041,49 @@ def build_parser():
         help="maximum matches to report; use 0 for all (default: 200)",
     )
     dlo_xref.set_defaults(func=cmd_dlo_xref)
+
+    dlo_index_scan = sub.add_parser(
+        "dlo-index-scan",
+        help=(
+            "correlate recovered QDOC SYSOBJNAM values against QAOSS "
+            "member records"
+        ),
+    )
+    dlo_index_scan.add_argument("image")
+    dlo_index_scan.add_argument(
+        "--file",
+        dest="file_name",
+        help=(
+            "scan one QAOSS file/member name; default is QAOSSS14, the "
+            "IBM-documented anchor-record index"
+        ),
+    )
+    dlo_index_scan.add_argument(
+        "--all-indexes",
+        action="store_true",
+        help=(
+            "scan QAOSSS10-15, QAOSSS17, and QAOSSS18 instead of only "
+            "QAOSSS14"
+        ),
+    )
+    dlo_index_scan.add_argument(
+        "--context",
+        type=int,
+        default=24,
+        help="record bytes before/after each match (default: 24)",
+    )
+    dlo_index_scan.add_argument(
+        "--hex-context",
+        action="store_true",
+        help="also print matching record context in hexadecimal",
+    )
+    dlo_index_scan.add_argument(
+        "--limit",
+        type=int,
+        default=500,
+        help="maximum correlations to report; use 0 for all (default: 500)",
+    )
+    dlo_index_scan.set_defaults(func=cmd_dlo_index_scan)
 
     context_page = sub.add_parser(
         "context-page",
