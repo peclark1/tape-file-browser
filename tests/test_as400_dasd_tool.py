@@ -8,6 +8,7 @@ from as400_dasd import PAGE_SIZE
 from as400_dasd_tool import (
     _DLO_MODEL_FILES,
     _dlo_preview_strings,
+    _find_byte_occurrences,
     _load_library_catalog,
     _tui_library_context,
     _tui_object_type_context,
@@ -144,6 +145,14 @@ class DASDToolTests(unittest.TestCase):
         )
         self.assertEqual(hints, ["CKPCSPTH.EXE", "S1011111"])
 
+    def test_find_byte_occurrences_including_overlaps(self):
+        self.assertEqual(
+            _find_byte_occurrences(b"AAAA", b"AA"),
+            [0, 1, 2],
+        )
+        self.assertEqual(_find_byte_occurrences(b"ABC", b"Z"), [])
+        self.assertEqual(_find_byte_occurrences(b"ABC", b""), [])
+
     def test_dlos_subcommand(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -162,6 +171,23 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(args.object_class, "doc")
         self.assertEqual(args.strings, 2)
         self.assertTrue(args.model_fields)
+
+        xref = parser.parse_args(
+            [
+                "dlo-xref",
+                "marks.hda",
+                "FMPV082760",
+                "--ascii",
+                "--library",
+                "QUSRSYS",
+                "--hex-context",
+            ]
+        )
+        self.assertEqual(xref.command, "dlo-xref")
+        self.assertEqual(xref.sysobjnam, "FMPV082760")
+        self.assertTrue(xref.ascii)
+        self.assertEqual(xref.library, "QUSRSYS")
+        self.assertTrue(xref.hex_context)
 
     def test_dlo_model_file_catalog(self):
         self.assertEqual(
