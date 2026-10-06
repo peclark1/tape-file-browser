@@ -19,6 +19,7 @@ from as400_dasd import (
     SectorHeader,
     SegmentGroupHeader,
     decode_data_space_records,
+    decode_format_fields,
     decode_standard_source_stream,
 )
 
@@ -28,6 +29,7 @@ P02_FIXTURE = FIXTURE_DIR / "p02_v2r3_selected.headers.rle.txt"
 OBJECT_FIXTURE = FIXTURE_DIR / "real_object_headers.txt"
 MEMBER_FIXTURE = FIXTURE_DIR / "real_member_metadata.txt"
 QDDS_LAYOUT_FIXTURE = FIXTURE_DIR / "real_qdds_layout.txt"
+FORMAT_FIELD_FIXTURE = FIXTURE_DIR / "real_format_fields.txt"
 
 
 def make_header(address, order=0, *, tail=0):
@@ -94,6 +96,16 @@ def load_qdds_layout_fixture(path):
         result[label] = bytes(primary)
     return result
 
+
+def load_format_field_fixture(path):
+    result = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        label, descriptor_hex = line.split()
+        result[label] = bytes.fromhex(descriptor_hex)
+    return result
+
 def make_internal_address(extender, address):
     return extender.to_bytes(2, "big") + address.to_bytes(6, "big")
 
@@ -158,6 +170,89 @@ class DASDHeaderTests(unittest.TestCase):
 
 
 
+
+
+    def test_real_format_field_descriptors(self):
+        fixture = load_format_field_fixture(FORMAT_FIELD_FIXTURE)
+
+        qclsrc_blob = (
+            b"\x00" * 17
+            + fixture["QCLSRC_SRCSEQ"]
+            + b"\x00" * 19
+            + fixture["QCLSRC_SRCDAT"]
+            + b"\x00" * 23
+            + fixture["QCLSRC_SRCDTA"]
+        )
+        qclsrc = decode_format_fields(qclsrc_blob, record_length=92)
+        self.assertEqual(
+            [
+                (
+                    field.name,
+                    field.type_name,
+                    field.offset,
+                    field.storage_length,
+                    field.digits,
+                    field.decimal_positions,
+                )
+                for field in qclsrc
+            ],
+            [
+                ("SRCSEQ", "ZONED", 0, 6, 6, 2),
+                ("SRCDAT", "ZONED", 6, 6, 6, 0),
+                ("SRCDTA", "CHAR", 12, 80, 0, 0),
+            ],
+        )
+
+        pd_blob = b"\x00".join(
+            [
+                fixture["PD00RC_PDCO"],
+                fixture["PD00RC_PDPCTL"],
+                fixture["PD00RC_PDTCR"],
+                fixture["PD00RC_PDDLM"],
+                fixture["PD00RC_PDPGM"],
+            ]
+        )
+        fields = decode_format_fields(pd_blob, record_length=452)
+        by_name = {field.name: field for field in fields}
+
+        self.assertEqual(by_name["PDCO"].type_name, "CHAR")
+        self.assertEqual((by_name["PDCO"].offset, by_name["PDCO"].storage_length), (0, 3))
+        self.assertEqual(by_name["PDPCTL"].type_name, "ZONED")
+        self.assertEqual((by_name["PDPCTL"].offset, by_name["PDPCTL"].digits), (6, 6))
+        self.assertEqual(by_name["PDTCR"].type_name, "PACKED")
+        self.assertEqual((by_name["PDTCR"].offset, by_name["PDTCR"].storage_length, by_name["PDTCR"].digits), (429, 4, 7))
+        self.assertEqual(by_name["PDDLM"].digits, 9)
+        self.assertEqual(by_name["PDPGM"].type_name, "CHAR")
+
+    def test_format_field_value_decoding(self):
+        fixture = load_format_field_fixture(FORMAT_FIELD_FIXTURE)
+        fields = {
+            field.name: field
+            for field in decode_format_fields(
+                b"".join(
+                    [
+                        fixture["QCLSRC_SRCSEQ"],
+                        fixture["PD00RC_PDCO"],
+                        fixture["PD00RC_PDPCTL"],
+                        fixture["PD00RC_PDTCR"],
+                    ]
+                ),
+                record_length=452,
+            )
+        }
+
+        record = bytearray(452)
+        record[0:6] = "000100".encode("cp037")
+        self.assertEqual(fields["SRCSEQ"].decode_value(record), "1.00")
+
+        record[0:3] = "ABC".encode("cp037")
+        self.assertEqual(fields["PDCO"].decode_value(record), "ABC")
+
+        record[6:12] = "001234".encode("cp037")
+        self.assertEqual(fields["PDPCTL"].decode_value(record), "1234")
+
+        record[429:433] = bytes.fromhex("1234567C")
+        self.assertEqual(fields["PDTCR"].decode_value(record), "1234567")
 
     def test_qdds_layout_scalars_from_real_metadata(self):
         fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
