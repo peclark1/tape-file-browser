@@ -31,7 +31,7 @@
       "status": "documented"
     },
     "QDOC": {
-      "description": "QDLS/document-library backing library. Folder and document objects are represented internally as *FLR and *DOC DLOs; this is not a source-code library.",
+      "description": "QDLS/document-library backing library. Folder and document objects are represented internally as *FLR and *DOC DLOs; this is not a source library.",
       "status": "documented"
     },
     "QDSNX": {
