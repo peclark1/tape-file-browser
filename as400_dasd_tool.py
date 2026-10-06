@@ -618,10 +618,11 @@ def cmd_files(args):
 
 
 def _find_member_cursor(inventory, library_name, file_name, member_name):
+    library_filter = None if library_name == "*" else library_name
     matches = [
         obj
         for obj in inventory.members(
-            library=library_name,
+            library=library_filter,
             file_name=file_name,
         )
         if obj.member_name.upper() == member_name.upper()
@@ -1114,8 +1115,9 @@ def cmd_context_page(args):
 def cmd_members(args):
     image = _open(args.image)
     _, _, inventory = _recover_all(image)
+    library_filter = None if args.library_name == "*" else args.library_name
     members = inventory.members(
-        library=args.library_name,
+        library=library_filter,
         file_name=args.file_name,
     )
 
@@ -1488,7 +1490,10 @@ def build_parser():
         help="list recovered database-file member cursors",
     )
     members.add_argument("image")
-    members.add_argument("library_name")
+    members.add_argument(
+        "library_name",
+        help="library name, or * to search recovered orphan/member cursors",
+    )
     members.add_argument(
         "file_name",
         nargs="?",
@@ -1512,7 +1517,10 @@ def build_parser():
         help="show one member cursor and its recovered QDDS/QDDSI storage",
     )
     member.add_argument("image")
-    member.add_argument("library_name")
+    member.add_argument(
+        "library_name",
+        help="library name, or * to search recovered orphan/member cursors",
+    )
     member.add_argument("file_name")
     member.add_argument("member_name")
     member.set_defaults(func=cmd_member)
@@ -1522,7 +1530,10 @@ def build_parser():
         help="list raw ordinal records from any recovered QDDS member",
     )
     records.add_argument("image")
-    records.add_argument("library_name")
+    records.add_argument(
+        "library_name",
+        help="library name, or * to search recovered orphan/member cursors",
+    )
     records.add_argument("file_name")
     records.add_argument("member_name")
     records.add_argument(
@@ -1565,7 +1576,10 @@ def build_parser():
         help="show one recovered raw record by relative record number",
     )
     record.add_argument("image")
-    record.add_argument("library_name")
+    record.add_argument(
+        "library_name",
+        help="library name, or * to search recovered orphan/member cursors",
+    )
     record.add_argument("file_name")
     record.add_argument("member_name")
     record.add_argument(
@@ -1590,7 +1604,10 @@ def build_parser():
         help="show recovered standard source records from one member",
     )
     source.add_argument("image")
-    source.add_argument("library_name")
+    source.add_argument(
+        "library_name",
+        help="library name, or * to search recovered orphan/member cursors",
+    )
     source.add_argument("file_name")
     source.add_argument("member_name")
     source.add_argument(
@@ -1611,7 +1628,10 @@ def build_parser():
         help="print source text only for one recovered source member",
     )
     cat.add_argument("image")
-    cat.add_argument("library_name")
+    cat.add_argument(
+        "library_name",
+        help="library name, or * to search recovered orphan/member cursors",
+    )
     cat.add_argument("file_name")
     cat.add_argument("member_name")
     cat.set_defaults(func=cmd_cat)
