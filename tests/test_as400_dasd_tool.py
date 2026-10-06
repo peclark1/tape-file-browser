@@ -7,6 +7,7 @@ from pathlib import Path
 from as400_dasd import PAGE_SIZE
 from as400_dasd_tool import (
     _DLO_MODEL_FILES,
+    _DLO_RUNTIME_INDEX_FILES,
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
@@ -184,10 +185,25 @@ class DASDToolTests(unittest.TestCase):
             ]
         )
         self.assertEqual(xref.command, "dlo-xref")
-        self.assertEqual(xref.sysobjnam, "FMPV082760")
+        self.assertEqual(xref.sysobjnam, ["FMPV082760"])
         self.assertTrue(xref.ascii)
         self.assertEqual(xref.library, "QUSRSYS")
         self.assertTrue(xref.hex_context)
+
+    def test_documented_dlo_runtime_index_catalog(self):
+        self.assertEqual(
+            _DLO_RUNTIME_INDEX_FILES,
+            (
+                "QAOSSS10",
+                "QAOSSS11",
+                "QAOSSS12",
+                "QAOSSS13",
+                "QAOSSS14",
+                "QAOSSS15",
+                "QAOSSS17",
+                "QAOSSS18",
+            ),
+        )
 
     def test_dlo_model_file_catalog(self):
         self.assertEqual(
