@@ -1,6 +1,7 @@
 import io
 import tempfile
 import unittest
+from types import SimpleNamespace
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from as400_dasd import PAGE_SIZE
 from as400_dasd_tool import (
     _DLO_MODEL_FILES,
     _DLO_RUNTIME_INDEX_FILES,
+    _dlo_export_pair,
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
@@ -201,6 +203,67 @@ class DASDToolTests(unittest.TestCase):
         )
         self.assertEqual(_find_byte_occurrences(b"ABC", b"Z"), [])
         self.assertEqual(_find_byte_occurrences(b"ABC", b""), [])
+
+    def test_tui_dlo_export_pair_from_qdoc_and_docbss(self):
+        doc = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x0E,
+            library_name="QDOC",
+            name="FMPV082760",
+        )
+        companion = SimpleNamespace(
+            object_type=0x06,
+            object_subtype=0xC1,
+            library_name=None,
+            name="FMPV082760F",
+        )
+        inventory = SimpleNamespace(objects=[doc, companion])
+
+        found_doc, found_companion, error = _dlo_export_pair(
+            inventory,
+            doc,
+        )
+        self.assertIs(found_doc, doc)
+        self.assertIs(found_companion, companion)
+        self.assertEqual(error, "")
+
+        found_doc, found_companion, error = _dlo_export_pair(
+            inventory,
+            companion,
+        )
+        self.assertIs(found_doc, doc)
+        self.assertIs(found_companion, companion)
+        self.assertEqual(error, "")
+
+    def test_tui_dlo_export_pair_refuses_ambiguous_companion(self):
+        doc = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x0E,
+            library_name="QDOC",
+            name="FMPV082760",
+        )
+        companion1 = SimpleNamespace(
+            object_type=0x06,
+            object_subtype=0xC1,
+            library_name=None,
+            name="FMPV082760F",
+        )
+        companion2 = SimpleNamespace(
+            object_type=0x06,
+            object_subtype=0xC1,
+            library_name=None,
+            name="FMPV082760F",
+        )
+        inventory = SimpleNamespace(
+            objects=[doc, companion1, companion2]
+        )
+
+        _found_doc, found_companion, error = _dlo_export_pair(
+            inventory,
+            doc,
+        )
+        self.assertIsNone(found_companion)
+        self.assertIn("ambiguous", error)
 
     def test_dlo_export_subcommand_requires_explicit_output(self):
         parser = build_parser()
