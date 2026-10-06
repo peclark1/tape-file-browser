@@ -569,38 +569,49 @@ def cmd_files(args):
     members = inventory.members(library=args.library_name)
     member_counts = {}
     for member in members:
-        member_counts[member.member_file_name.upper()] = (
-            member_counts.get(member.member_file_name.upper(), 0) + 1
-        )
+        name = member.member_file_name.upper()
+        member_counts[name] = member_counts.get(name, 0) + 1
 
-    files = [
-        obj
-        for obj in inventory.in_library(args.library_name)
-        if obj.object_type == 0x19 and obj.object_subtype == 0x01
-    ]
+    file_objects = {}
+    for obj in inventory.in_library(args.library_name):
+        if obj.object_type == 0x19 and obj.object_subtype == 0x01:
+            file_objects.setdefault(obj.name.upper(), obj)
+
+    # On an incomplete multi-disk system, a *FILE primary object can live on
+    # the missing disk while one or more member cursors survive here. Include
+    # those member-derived file names so the forensic file list remains useful.
+    names = sorted(set(file_objects) | set(member_counts))
     if args.name:
         wanted = args.name.upper()
-        files = [obj for obj in files if wanted in obj.name.upper()]
+        names = [name for name in names if wanted in name]
 
-    files.sort(key=lambda obj: obj.name)
-    total = len(files)
-    shown = files if not args.limit else files[: args.limit]
+    total = len(names)
+    shown = names if not args.limit else names[: args.limit]
 
     print(f"Disk: {image.path}")
     print(
-        f"Recovered *FILE objects in {args.library_name.upper()}: "
+        f"Recovered/inferred files in {args.library_name.upper()}: "
         f"{total:,}"
     )
     print()
-    print("File        Members  Virtual addr   LBA        pages")
-    for obj in shown:
-        print(
-            f"{obj.name:<10.10} "
-            f"{member_counts.get(obj.name.upper(), 0):>7,}  "
-            f"{obj.segment.virtual_address:012X} "
-            f"{obj.segment.start_lba:>9,} "
-            f"{obj.segment.pages:>6,}"
-        )
+    print("File        Members  Object       Virtual addr   LBA        pages")
+    for name in shown:
+        obj = file_objects.get(name)
+        if obj is None:
+            print(
+                f"{name:<10.10} "
+                f"{member_counts.get(name, 0):>7,}  "
+                f"{'member-only':<12} {'-':<14} {'-':>9} {'-':>6}"
+            )
+        else:
+            print(
+                f"{obj.name:<10.10} "
+                f"{member_counts.get(name, 0):>7,}  "
+                f"{'recovered':<12} "
+                f"{obj.segment.virtual_address:012X} "
+                f"{obj.segment.start_lba:>9,} "
+                f"{obj.segment.pages:>6,}"
+            )
     if len(shown) < total:
         print(f"... {total - len(shown):,} additional files omitted")
     return 0
