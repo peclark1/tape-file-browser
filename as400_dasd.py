@@ -695,6 +695,93 @@ class MemberStorage:
         return self.data_pages * PAGE_SIZE
 
 
+@dataclass(frozen=True)
+class MachineIndexElement:
+    """One three-byte release-2 System/38/AS/400 machine-index element.
+
+    IBM's published machine-index format uses three-byte elements. The high
+    bits identify text elements, decision nodes, and page pointers. Field
+    meanings below follow IBM's documented Appendix-A layout; this class does
+    not yet attempt to locate or traverse a complete context index page.
+    """
+
+    raw: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.raw) != 3:
+            raise ValueError("machine-index element must be exactly 3 bytes")
+
+    @property
+    def value(self) -> int:
+        return int.from_bytes(self.raw, "big")
+
+    @property
+    def kind(self) -> str:
+        if not (self.value & 0x800000):
+            return "text"
+        if (self.value & 0xC00000) == 0x800000:
+            return "node"
+        return "page-pointer"
+
+    @property
+    def text_length(self) -> int | None:
+        if self.kind != "text":
+            return None
+        return (self.value >> 16) & 0x7F
+
+    @property
+    def text_displacement(self) -> int | None:
+        if self.kind != "text":
+            return None
+        return self.value & 0xFFFF
+
+    @property
+    def common_text_present(self) -> bool | None:
+        if self.kind != "node":
+            return None
+        # IBM documents zero as "common text present".
+        return not bool((self.value >> 21) & 1)
+
+    @property
+    def direction(self) -> str | None:
+        if self.kind != "node":
+            return None
+        return "right" if ((self.value >> 20) & 1) else "left"
+
+    @property
+    def bit_to_test(self) -> int | None:
+        if self.kind != "node":
+            return None
+        return (self.value >> 17) & 0x7
+
+    @property
+    def xor_displacement(self) -> int | None:
+        if self.kind != "node":
+            return None
+        return self.value & 0x1FFFF
+
+    @property
+    def segment_table_index(self) -> int | None:
+        if self.kind != "page-pointer":
+            return None
+        return (self.value >> 16) & 0x3F
+
+    @property
+    def page_offset(self) -> int | None:
+        if self.kind != "page-pointer":
+            return None
+        return self.value & 0xFFFF
+
+
+@dataclass(frozen=True)
+class MachineIndexElementProbe:
+    """Decoded element at a caller-selected offset within a logical page."""
+
+    offset: int
+    element: MachineIndexElement
+
+
+
 class HeaderSnapshot:
     """Analyze an 8-bytes-per-sector metadata snapshot without page payloads."""
 
@@ -816,6 +903,59 @@ class DASDImage:
                 f"expected {expected}"
             )
         return bytes(data)
+
+    def probe_machine_index_page(
+        self,
+        context: RecoveredObject,
+        page_number: int,
+        *,
+        element_offset: int = 0,
+        count: int = 32,
+        page_size: int = PAGE_SIZE,
+    ) -> list[MachineIndexElementProbe]:
+        """Decode three-byte machine-index elements from one context page.
+
+        This is intentionally a forensic/reverse-engineering helper rather
+        than a full index traversal. IBM documents release-2 indexes as
+        three-byte elements and logical pages from 512 through 32768 bytes.
+        Until the context object's index-page header/trunk location is decoded,
+        the caller explicitly selects the page and element offset.
+        """
+
+        if (
+            context.object_type != 0x04
+            or context.object_subtype != 0x01
+        ):
+            raise ValueError("target object is not a permanent context/library")
+        if page_size < PAGE_SIZE or page_size % PAGE_SIZE:
+            raise ValueError("machine-index page size must be a multiple of 512")
+        if element_offset < 0 or element_offset >= page_size:
+            raise ValueError("element offset is outside the logical page")
+        if element_offset % 3:
+            raise ValueError("element offset must be 3-byte aligned")
+        if count < 1:
+            raise ValueError("count must be positive")
+
+        data = self.read_segment_bytes(context.segment)
+        start = page_number * page_size
+        end = start + page_size
+        if start < 0 or end > len(data):
+            raise ValueError(
+                f"logical page {page_number} is outside the context segment"
+            )
+
+        page = data[start:end]
+        probes: list[MachineIndexElementProbe] = []
+        offset = element_offset
+        while len(probes) < count and offset + 3 <= len(page):
+            probes.append(
+                MachineIndexElementProbe(
+                    offset=offset,
+                    element=MachineIndexElement(page[offset : offset + 3]),
+                )
+            )
+            offset += 3
+        return probes
 
     def read_member_info(
         self,
