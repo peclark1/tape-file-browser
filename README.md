@@ -165,7 +165,7 @@ The first image is the reference. A successful comparison verifies logical file/
 
 ## Experimental CISC AS/400 DASD explorer
 
-The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer for raw CISC AS/400 DASD images with 520-byte sectors. The first real B10/0671S15 image has now been used to validate the initial storage-header model and build a sanitized real-header regression fixture.
+The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer for raw CISC AS/400 DASD images with 520-byte sectors. The storage-header/recovery model is now independently validated against both the surviving B10/0671S15 image and a separate one-disk V2R3 image from Mark/Patrik.
 
 Current commands:
 
@@ -182,14 +182,14 @@ The current milestone can:
 - validate exact 520-byte image geometry;
 - expose each eight-byte header separately from its 512-byte CISC storage page;
 - inspect individual sectors with hex and EBCDIC output;
-- decode the evidence-backed 39-bit virtual-page identity from the first five header bytes while leaving unknown status bits unlabeled;
-- decode power-of-two extent sizes from the low nibble of header byte 5;
-- detect a repeated free-space delimiter and infer the storage-management LBA origin;
-- reconstruct free extents, allocated extent candidates, unresolved gaps, and candidate virtual chains;
-- test the documented B10 load-source shadow-log virtual address `000083000000` through reconstructed extents;
+- decode the five-byte virtual-page field into the 48-bit page-aligned virtual address while leaving unresolved indicator bits unlabeled;
+- decode power-of-two extent sizes from the low nibble of the indicators byte;
+- use IBM's preassigned large-free-space delimiter to infer device-relative record zero;
+- reconstruct explicit free extents, permanent extent candidates, reclaimable-by-recovery regions, and candidate virtual chains;
+- resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
 - write a repeatable text report for comparison between real and initialized/replacement disk images.
 
-On the surviving B10 D1 image, the current parser detects a managed-storage origin at LBA 2,112, seven 32,768-page free extents, and reconstructs 95.7% of the managed sectors as free or allocated extent candidates. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
+On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan.
 
@@ -266,7 +266,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD cases, and a sanitized real B10 regression fixture containing storage headers only. GitHub Actions runs the same suite on pushes and pull requests:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD cases, and sanitized real-header regression fixtures from both independent CISC AS/400 images. The fixtures contain no 512-byte disk payloads. GitHub Actions runs the same suite on pushes and pull requests:
 
 ```bash
 python3 -m unittest discover -s tests -v
