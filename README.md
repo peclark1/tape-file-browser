@@ -186,6 +186,8 @@ as400-dasd source disk.hda QGPL QCLSRC REFRESH2
 as400-dasd cat disk.hda QGPL QCLSRC REFRESH2
 as400-dasd fields disk.hda QGPL PDPICKORG
 as400-dasd dlos disk.hda
+as400-dasd dlos disk.hda --model-fields
+as400-dasd dlo-xref disk.hda FMPV082760
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
@@ -214,7 +216,8 @@ The current milestone can:
 - decode permanent database-member cursors (MI 0D/50), splitting the 30-byte cursor name into file/member names;
 - decode the permanent cursor member header, including source type, descriptive text, source-change timestamp, and creation timestamp;
 - resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
-- inventory QDOC `*DOC`/`*FLR` DLOs and identify recovered QUSRSYS `QAOSS*` search-index files as the next inputs for QDLS hierarchy reconstruction;
+- inventory QDOC `*DOC`/`*FLR` DLOs, report any recovered QUSRSYS `QAOSS*` runtime search indexes, and separately identify QSYS DLO command model files;
+- cross-reference a 10-character QDOC `SYSOBJNAM` byte-for-byte across recovered object segments to locate candidate index/metadata relationships without assuming their meaning;
 - write a repeatable text report for comparison between real and initialized/replacement disk images.
 
 On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
@@ -310,14 +313,25 @@ q / Esc         quit
 The browser is completely read-only.
 
 For QDLS/document-library work, `as400-dasd dlos disk.hda` lists recovered
-QDOC `*DOC`/`*FLR` objects using their internal system object names and shows
-short printable EBCDIC metadata hints. It also reports recovered QUSRSYS
-`QAOSS*` files, which IBM documents as the search-index files used to track
-DLOs. The command deliberately does **not** label printable strings as proven
-QDLS names or paths until the QAOSS structures are decoded.
+QDOC `*DOC`/`*FLR` objects using their 10-character internal system object
+names and shows short printable EBCDIC metadata hints. It reports any recovered
+QUSRSYS `QAOSS*` runtime files, which IBM documents as the search indexes
+used to track DLOs, and separately identifies QSYS model files such as
+`QAOSIQDL`, `QAOSIRTV`, `QADSPDOC`, and `QADSPFLR`. Use
+`--model-fields` to show the recovered MI 19/51 field definitions for those
+models.
 
-See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan and
-`docs/AS400_DASD_TODO.md` for the active backlog.
+`as400-dasd dlo-xref disk.hda FMPV082760` searches other recovered object
+segments for byte-level references to a QDOC `SYSOBJNAM`. This gives us a
+neutral way to locate candidate DLO indexes/metadata even if their normal
+library/file relationship has not yet been reconstructed. The tooling
+deliberately does **not** label printable strings or cross-references as proven
+QDLS paths until the relevant structures are decoded.
+
+See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan,
+`docs/AS400_DASD_TODO.md` for the active backlog, and
+`docs/AS400_QDLS_RESEARCH.md` for the current documented facts, observations,
+and QDLS experiments.
 
 ## Converting tape images
 
