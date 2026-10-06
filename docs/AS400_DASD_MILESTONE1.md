@@ -519,6 +519,17 @@ as400-dasd record  disk.hda QGPL PTFSUM PTFSUM 1
 
 The raw view preserves the entry status byte, RRN, EBCDIC preview, and hex.
 
+This has also been exercised against ordinary non-source data on the complete
+Mark/Patrik image. `PDPICKORG(PDPICKDEMO)` has 1,880 user entries, a
+452-byte payload, and a recovered `PD00RC` format with 95 fields. Its first
+records decode meaningful business/application values such as company `01`,
+division `01`, control `1001`, style `04402`, and color `CA`.
+`DBUUSERS(DBUUSERS)` has a 22-byte payload whose `GURUSERS` format
+recovers fields such as `USRNAM`, authorization flags, and a packed numeric
+field; the surviving row identifies `*PUBLIC`. These checks use the real disk
+at development time, but the record payloads are not committed to the public
+repository.
+
 ### MI 19/51 record-format objects
 
 The database record-format object has now been identified in the real images as
