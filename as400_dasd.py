@@ -424,7 +424,6 @@ class EPAHeader:
 
 
 @dataclass(frozen=True)
-@dataclass(frozen=True)
 class MemberCursorInfo:
     """Decoded member-header metadata from a permanent 0D50 cursor.
 
