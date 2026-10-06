@@ -695,6 +695,142 @@ class MemberStorage:
         return self.data_pages * PAGE_SIZE
 
 
+SOURCE_RECORD_DATA_LENGTH = 92
+SOURCE_ENTRY_LENGTH = SOURCE_RECORD_DATA_LENGTH + 1
+
+
+@dataclass(frozen=True)
+class SourceRecord:
+    """One recovered standard AS/400 source physical-file record.
+
+    The standard source record is 92 bytes: six bytes of source sequence,
+    six bytes of source date, and 80 bytes of source text. On disk the data
+    space places a one-byte entry status immediately before the record.
+    """
+
+    ordinal: int
+    status: int
+    sequence_raw: bytes
+    date_raw: bytes
+    text_raw: bytes
+
+    @property
+    def sequence(self) -> str:
+        return self.sequence_raw.decode("cp037", errors="replace")
+
+    @property
+    def sequence_display(self) -> str:
+        value = self.sequence
+        if len(value) == 6 and value.isdigit():
+            return f"{value[:4]}.{value[4:]}"
+        return value
+
+    @property
+    def source_date(self) -> str:
+        return self.date_raw.decode("cp037", errors="replace")
+
+    @property
+    def text(self) -> str:
+        return self.text_raw.decode("cp037", errors="replace").rstrip()
+
+    @property
+    def is_default_entry(self) -> bool:
+        return (
+            self.sequence == "000000"
+            and self.source_date == "000000"
+            and not self.text
+        )
+
+
+@dataclass(frozen=True)
+class SourceMemberContent:
+    """Recovered standard source records from a member data space."""
+
+    records: tuple[SourceRecord, ...]
+    default_entry_present: bool
+    data_segment_count: int
+    raw_stream_bytes: int
+
+    @property
+    def line_count(self) -> int:
+        return len(self.records)
+
+
+def decode_standard_source_stream(
+    stream: bytes,
+) -> SourceMemberContent | None:
+    """Recognize and decode the standard 92-byte AS/400 source record format.
+
+    IBM documents data-space entries as status byte + fields, with the initial
+    entry being a default entry. Standard source physical files use 92 data
+    bytes: 6 source-sequence bytes, 6 source-date bytes, and 80 source-text
+    bytes. Requiring a valid default entry makes this deliberately conservative
+    so arbitrary 93-byte database records are not mislabeled as source code.
+    """
+
+    candidates: list[SourceRecord] = []
+    for offset in range(0, len(stream) - SOURCE_ENTRY_LENGTH + 1, SOURCE_ENTRY_LENGTH):
+        entry = stream[offset : offset + SOURCE_ENTRY_LENGTH]
+        status = entry[0]
+        record = entry[1:]
+        sequence_raw = record[0:6]
+        date_raw = record[6:12]
+        text_raw = record[12:92]
+
+        try:
+            sequence = sequence_raw.decode("cp037")
+            source_date = date_raw.decode("cp037")
+            text = text_raw.decode("cp037")
+        except UnicodeDecodeError:
+            continue
+
+        # Real valid source entries observed on both images have the high status
+        # bit set. Other status bits are preserved but not interpreted yet.
+        if not (status & 0x80):
+            continue
+        if not (sequence.isdigit() and source_date.isdigit()):
+            continue
+        printable = sum(character.isprintable() for character in text)
+        if printable < 72:
+            continue
+
+        candidates.append(
+            SourceRecord(
+                ordinal=offset // SOURCE_ENTRY_LENGTH,
+                status=status,
+                sequence_raw=sequence_raw,
+                date_raw=date_raw,
+                text_raw=text_raw,
+            )
+        )
+
+    default = next(
+        (
+            record
+            for record in candidates
+            if record.ordinal == 0 and record.is_default_entry
+        ),
+        None,
+    )
+    if default is None:
+        return None
+
+    records = tuple(
+        record
+        for record in candidates
+        if not record.is_default_entry
+    )
+    if not records:
+        return None
+
+    return SourceMemberContent(
+        records=records,
+        default_entry_present=True,
+        data_segment_count=0,
+        raw_stream_bytes=len(stream),
+    )
+
+
 @dataclass(frozen=True)
 class MachineIndexElement:
     """One three-byte release-2 System/38/AS/400 machine-index element.
@@ -1096,6 +1232,63 @@ class DASDImage:
             data_space=data_space,
             data_index=data_index,
             data_segments=tuple(owned),
+        )
+
+    def read_data_space_entry_stream(
+        self,
+        storage: MemberStorage,
+    ) -> tuple[bytes, tuple[RecoveredSegment, ...]]:
+        """Return the logical entry stream from recovered QDDS data segments.
+
+        IBM documents the third and subsequent data-space segment groups as
+        containing entries strung end-to-end, with 32-byte segment-group
+        headers excluded from the logical addressing space. Real source members
+        on both images use segment type 03B4 for these data groups.
+        """
+
+        data_segments = tuple(
+            sorted(
+                (
+                    segment
+                    for segment in storage.data_segments
+                    if segment.header.segment_type == 0x03B4
+                ),
+                key=lambda segment: (
+                    segment.virtual_address,
+                    segment.start_lba,
+                ),
+            )
+        )
+        if not data_segments:
+            return b"", ()
+
+        stream = bytearray()
+        for segment in data_segments:
+            data = self.read_segment_bytes(segment)
+            if len(data) < SEGMENT_HEADER_SIZE:
+                continue
+            stream.extend(data[SEGMENT_HEADER_SIZE:])
+        return bytes(stream), data_segments
+
+    def read_source_member(
+        self,
+        storage: MemberStorage,
+    ) -> SourceMemberContent | None:
+        """Decode a standard source physical-file member when recognized."""
+
+        stream, data_segments = self.read_data_space_entry_stream(storage)
+        if not stream:
+            return None
+
+        decoded = decode_standard_source_stream(stream)
+        if decoded is None:
+            return None
+
+        return SourceMemberContent(
+            records=decoded.records,
+            default_entry_present=decoded.default_entry_present,
+            data_segment_count=len(data_segments),
+            raw_stream_bytes=decoded.raw_stream_bytes,
         )
 
     def recover_segments(
