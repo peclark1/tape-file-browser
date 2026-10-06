@@ -9,6 +9,7 @@ from as400_dasd import (
     SECTOR_SIZE,
     DASDImage,
     DataSpaceLayout,
+    DocumentByteStringInfo,
     EPAHeader,
     Extent,
     HeaderSnapshot,
@@ -399,6 +400,24 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(records[1].data, b"ONE1")
         self.assertEqual(records[2].status, 0x40)
         self.assertEqual(records[2].data, b"TWO2")
+
+    def test_docbss_observed_length_layout(self):
+        data = bytearray(PAGE_SIZE * 3)
+        data[0x106:0x108] = (424).to_bytes(2, "big")
+        data[0x10A:0x10C] = (512).to_bytes(2, "big")
+        data[0x112:0x114] = (424).to_bytes(2, "big")
+
+        info = DocumentByteStringInfo.from_primary_segment(bytes(data))
+        self.assertEqual(info.payload_length, 424)
+        self.assertEqual(info.allocated_length, 512)
+        self.assertTrue(info.duplicate_length_matches)
+        info.validate_for_export(len(data))
+
+        broken = bytearray(data)
+        broken[0x112:0x114] = (423).to_bytes(2, "big")
+        bad = DocumentByteStringInfo.from_primary_segment(bytes(broken))
+        with self.assertRaises(ValueError):
+            bad.validate_for_export(len(broken))
 
     def test_standard_source_record_decoder(self):
         def entry(sequence, source_date, text, status=0x80):
