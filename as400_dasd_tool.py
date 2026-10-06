@@ -566,52 +566,91 @@ def cmd_files(args):
     image = _open(args.image)
     _, _, inventory = _recover_all(image)
 
-    members = inventory.members(library=args.library_name)
+    wildcard = args.library_name == "*"
+    library_filter = None if wildcard else args.library_name
+    members = inventory.members(library=library_filter)
+
+    # Key by (library, file) in wildcard mode so same-named files in different
+    # libraries do not collapse together. Unresolved contexts remain visible as
+    # <orphan>, which is important on incomplete multi-disk captures.
     member_counts = {}
     for member in members:
-        name = member.member_file_name.upper()
-        member_counts[name] = member_counts.get(name, 0) + 1
+        library = member.library_name or "<orphan>"
+        key = (
+            library.upper() if wildcard else args.library_name.upper(),
+            member.member_file_name.upper(),
+        )
+        member_counts[key] = member_counts.get(key, 0) + 1
 
     file_objects = {}
-    for obj in inventory.in_library(args.library_name):
-        if obj.object_type == 0x19 and obj.object_subtype == 0x01:
-            file_objects.setdefault(obj.name.upper(), obj)
+    objects = (
+        inventory.objects
+        if wildcard
+        else inventory.in_library(args.library_name)
+    )
+    for obj in objects:
+        if obj.object_type != 0x19 or obj.object_subtype != 0x01:
+            continue
+        if not wildcard and (obj.library_name or "").upper() != args.library_name.upper():
+            continue
+        library = obj.library_name or "<orphan>"
+        key = (
+            library.upper() if wildcard else args.library_name.upper(),
+            obj.name.upper(),
+        )
+        file_objects.setdefault(key, obj)
 
-    # On an incomplete multi-disk system, a *FILE primary object can live on
-    # the missing disk while one or more member cursors survive here. Include
-    # those member-derived file names so the forensic file list remains useful.
-    names = sorted(set(file_objects) | set(member_counts))
+    keys = sorted(set(file_objects) | set(member_counts))
     if args.name:
         wanted = args.name.upper()
-        names = [name for name in names if wanted in name]
+        keys = [key for key in keys if wanted in key[1]]
 
-    total = len(names)
-    shown = names if not args.limit else names[: args.limit]
+    total = len(keys)
+    shown = keys if not args.limit else keys[: args.limit]
 
     print(f"Disk: {image.path}")
-    print(
-        f"Recovered/inferred files in {args.library_name.upper()}: "
-        f"{total:,}"
-    )
-    print()
-    print("File        Members  Object       Virtual addr   LBA        pages")
-    for name in shown:
-        obj = file_objects.get(name)
+    if wildcard:
+        print(
+            f"Recovered/inferred files across all contexts: {total:,}"
+        )
+        print()
+        print(
+            "Library      File        Members  Object       "
+            "Virtual addr   LBA        pages"
+        )
+    else:
+        print(
+            f"Recovered/inferred files in {args.library_name.upper()}: "
+            f"{total:,}"
+        )
+        print()
+        print("File        Members  Object       Virtual addr   LBA        pages")
+
+    for key in shown:
+        library, name = key
+        obj = file_objects.get(key)
+        member_count = member_counts.get(key, 0)
+        if wildcard:
+            prefix = f"{library:<12.12} {name:<10.10} "
+        else:
+            prefix = f"{name:<10.10} "
+
         if obj is None:
             print(
-                f"{name:<10.10} "
-                f"{member_counts.get(name, 0):>7,}  "
-                f"{'member-only':<12} {'-':<14} {'-':>9} {'-':>6}"
+                prefix
+                + f"{member_count:>7,}  "
+                + f"{'member-only':<12} {'-':<14} {'-':>9} {'-':>6}"
             )
         else:
             print(
-                f"{obj.name:<10.10} "
-                f"{member_counts.get(name, 0):>7,}  "
-                f"{'recovered':<12} "
-                f"{obj.segment.virtual_address:012X} "
-                f"{obj.segment.start_lba:>9,} "
-                f"{obj.segment.pages:>6,}"
+                prefix
+                + f"{member_count:>7,}  "
+                + f"{'recovered':<12} "
+                + f"{obj.segment.virtual_address:012X} "
+                + f"{obj.segment.start_lba:>9,} "
+                + f"{obj.segment.pages:>6,}"
             )
+
     if len(shown) < total:
         print(f"... {total - len(shown):,} additional files omitted")
     return 0
@@ -1430,7 +1469,10 @@ def build_parser():
         help="list recovered *FILE objects in one library",
     )
     files.add_argument("image")
-    files.add_argument("library_name")
+    files.add_argument(
+        "library_name",
+        help="library name, or * to include all known and orphaned contexts",
+    )
     files.add_argument("--name", help="file-name substring")
     files.add_argument(
         "--limit",
