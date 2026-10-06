@@ -64,6 +64,18 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("QDLS", qdoc)
         self.assertIn("not a source library", qdoc)
 
+        qgpl = _tui_library_context("QGPL")
+        self.assertIn("General Purpose Library", qgpl)
+        self.assertIn("default current library", qgpl)
+
+        qiws = _tui_library_context("QIWS")
+        self.assertIn("PC Support/400", qiws)
+        self.assertIn("shared-folder", qiws)
+
+        qnu400 = _tui_library_context("QNU400")
+        self.assertIn("tentative", qnu400)
+        self.assertIn("Neural Network Utility/400", qnu400)
+
         doc = _tui_object_type_context(0x19, 0x0E)
         self.assertIn("document-library document", doc)
         self.assertIn("user-facing document name may differ", doc)
