@@ -17,6 +17,16 @@ Library Services (QDLS) metadata.
 - `RTVDLONAM` can return a folder path up to 63 characters.
 - IBM documents a set of database search-index files in `QUSRSYS` whose names
   begin with `QAOSS`; these files track the system's DLOs.
+- IBM recovery documentation names the document/folder search-index files
+  explicitly: `QAOSSS10` through `QAOSSS15`, plus `QAOSSS17` and
+  `QAOSSS18`.
+- IBM support documents a particularly strong structural clue: the DLO system
+  object name is stored in the document header, document profile, the
+  **"anchor record" in QUSRSYS/QAOSSS14**, and the entry in the parent folder
+  that points to the document. `RCLDLO` synchronizes these copies.
+- IBM support documents `QAOSSS18` as the file used to track documents that
+  are checked in/out; its first eight bytes are the document's LADN and can be
+  given to `DSPDLONAM DLO(*LADNTSP)`.
 - Other `QAO*` files in `QUSRSYS` support distribution and text-search
   functions.
 
@@ -26,6 +36,9 @@ IBM references:
 - https://www.ibm.com/support/pages/document-library-objects-dlo-information
 - https://www.ibm.com/docs/en/i/7.5.0?topic=r-retrieve-document-library-object-name
 - https://www.ibm.com/docs/en/i/7.6.0?topic=d-display-document-library-object-name
+- https://www.ibm.com/docs/en/i/7.4.0?topic=changes-task-6-applying-journaled-qaosdiajrn-journal
+- https://www.ibm.com/support/pages/where-system-name-stored-dlo
+- https://www.ibm.com/support/pages/node/640501
 
 ## Important distinction: QUSRSYS runtime indexes vs QSYS model files
 
@@ -115,15 +128,19 @@ meaning of the surrounding bytes.
 
 1. Run `dlos --model-fields` on the V2R3 image and record the recovered field
    names/offsets for `OSQDL`, `DOCDTL`, `FLRDTL`, and `OSRTVD`.
-2. Run `dlo-xref` for known QDOC objects, beginning with
+2. Run one batched `dlo-xref` for known QDOC objects, beginning with
    `FMPV082760`, `FMPV195818`, and `DPWN524712`.
-3. Classify every non-self match by library/object type. A repeated cluster in
+3. Give special attention to any object containing references to many distinct
+   SYSOBJNAM values. IBM identifies `QAOSSS14` as containing an "anchor
+   record" with the DLO system name, so a dense cluster of these references is
+   a strong candidate for an unresolved QAOSSS14 data/index object.
+4. Classify every non-self match by library/object type. A repeated cluster in
    one unidentified data/index file may expose the missing QAOSS structure even
    if the file's normal context/name relationship is not yet recovered.
-4. When a candidate database member is identified, use the existing
+5. When a candidate database member is identified, use the existing
    QDDS/member/format decoder to recover its fixed records and field
    definitions.
-5. Cross-check any proposed SYSOBJNAM -> DLO-name/folder mapping against more
+6. Cross-check any proposed SYSOBJNAM -> DLO-name/folder mapping against more
    than one object before promoting it from hypothesis to decoded structure.
-6. Once parent folder identifiers are understood, reconstruct full QDLS paths
+7. Once parent folder identifiers are understood, reconstruct full QDLS paths
    and expose them in the TUI while retaining SYSOBJNAM as forensic metadata.
