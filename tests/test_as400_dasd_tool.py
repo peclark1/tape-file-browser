@@ -16,6 +16,7 @@ from as400_dasd_tool import (
     _find_byte_occurrences,
     _load_library_catalog,
     _scan_ebcdic_sysobjnam,
+    _tui_context_lines,
     _tui_library_context,
     _tui_object_type_context,
     build_parser,
@@ -95,6 +96,48 @@ class DASDToolTests(unittest.TestCase):
         docbss = _tui_object_type_context(0x06, 0xC1)
         self.assertIn("*DOCBSS", docbss)
         self.assertIn("Document byte string space", docbss)
+
+    def test_tui_keeps_context_for_library_file_and_member_visible(self):
+        member = SimpleNamespace(
+            member_file_name="QCLSRC",
+            member_name="REFRESH2",
+        )
+        state = {
+            "left_items": [
+                {
+                    "kind": "library",
+                    "library": "QGPL",
+                    "label": "QGPL",
+                }
+            ],
+            "left_index": 0,
+            "mid_items": [
+                {
+                    "kind": "file",
+                    "name": "QCLSRC",
+                    "members": [member],
+                    "label": "QCLSRC",
+                }
+            ],
+            "mid_index": 0,
+            "right_items": [
+                {
+                    "kind": "member",
+                    "object": member,
+                    "source_type": "CLP",
+                    "label": "REFRESH2",
+                }
+            ],
+            "right_index": 0,
+        }
+
+        library_line, file_line, member_line = _tui_context_lines(state)
+        self.assertIn("QGPL", library_line)
+        self.assertIn("General Purpose Library", library_line)
+        self.assertIn("QCLSRC", file_line)
+        self.assertIn("*FILE", file_line)
+        self.assertIn("REFRESH2", member_line)
+        self.assertIn("*MEM", member_line)
 
     def test_library_catalog_covers_recovered_mark_p02_libraries(self):
         catalog = _load_library_catalog()
