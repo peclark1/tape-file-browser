@@ -6,6 +6,7 @@ from pathlib import Path
 
 from as400_dasd import PAGE_SIZE
 from as400_dasd_tool import (
+    _dlo_preview_strings,
     _load_library_catalog,
     _tui_library_context,
     _tui_object_type_context,
@@ -126,6 +127,31 @@ class DASDToolTests(unittest.TestCase):
                 catalog["QGPL"]["description"],
                 "Custom QGPL note",
             )
+
+    def test_dlo_preview_strings_are_forensic_hints(self):
+        data = (
+            "FMPV082760".encode("cp037")
+            + b"\x00\x01"
+            + "CKPCSPTH.EXE".encode("cp037")
+            + b"\x00"
+            + "S1011111".encode("cp037")
+        )
+        hints = _dlo_preview_strings(
+            data,
+            internal_name="FMPV082760",
+            limit=2,
+        )
+        self.assertEqual(hints, ["CKPCSPTH.EXE", "S1011111"])
+
+    def test_dlos_subcommand(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            ["dlos", "marks.hda", "--class", "doc", "--strings", "2"]
+        )
+        self.assertEqual(args.command, "dlos")
+        self.assertEqual(args.image, "marks.hda")
+        self.assertEqual(args.object_class, "doc")
+        self.assertEqual(args.strings, 2)
 
     def test_browse_subcommand_accepts_optional_image(self):
         parser = build_parser()
