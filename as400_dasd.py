@@ -424,6 +424,70 @@ class EPAHeader:
 
 
 @dataclass(frozen=True)
+@dataclass(frozen=True)
+class MemberCursorInfo:
+    """Decoded member-header metadata from a permanent 0D50 cursor.
+
+    IBM MI documentation places the cursor associated space at the YYSGHDR
+    SPACE address. A four-byte offset at associated-space +4 locates the
+    member header. The header begins with five system pointers, followed by
+    status, descriptive text, source type, and source/create timestamps.
+    """
+
+    associated_space_offset: int
+    member_header_offset: int
+    status: bytes
+    text_raw: bytes
+    member_type_raw: bytes
+    source_change_raw: bytes
+    create_raw: bytes
+
+    @staticmethod
+    def _decode_text(raw: bytes) -> str:
+        return raw.decode("cp037", errors="replace").rstrip(" \x00")
+
+    @staticmethod
+    def _decode_timestamp(raw: bytes) -> str:
+        value = raw.decode("cp037", errors="replace").strip(" \x00")
+        if len(value) != 13 or not value.isdigit():
+            return value
+        century = int(value[0])
+        year = 1900 + century * 100 + int(value[1:3])
+        month = int(value[3:5])
+        day = int(value[5:7])
+        hour = int(value[7:9])
+        minute = int(value[9:11])
+        second = int(value[11:13])
+        if not (
+            1 <= month <= 12
+            and 1 <= day <= 31
+            and 0 <= hour <= 23
+            and 0 <= minute <= 59
+            and 0 <= second <= 59
+        ):
+            return value
+        return (
+            f"{year:04d}-{month:02d}-{day:02d} "
+            f"{hour:02d}:{minute:02d}:{second:02d}"
+        )
+
+    @property
+    def text(self) -> str:
+        return self._decode_text(self.text_raw)
+
+    @property
+    def member_type(self) -> str:
+        return self._decode_text(self.member_type_raw)
+
+    @property
+    def source_change(self) -> str:
+        return self._decode_timestamp(self.source_change_raw)
+
+    @property
+    def created(self) -> str:
+        return self._decode_timestamp(self.create_raw)
+
+
 class RecoveredObject:
     segment: RecoveredSegment
     epa: EPAHeader
@@ -659,6 +723,85 @@ class DASDImage:
                 if raw[HEADER_SIZE:] != b"\x00" * PAGE_SIZE:
                     nonzero += 1
         return nonzero
+
+    def read_segment_bytes(
+        self,
+        segment: RecoveredSegment,
+    ) -> bytes:
+        """Read a recovered virtual segment in virtual-address order."""
+
+        data = bytearray()
+        with open(self.path, "rb") as handle:
+            for extent in segment.extents:
+                for page_index in range(extent.pages):
+                    lba = extent.start_lba + page_index
+                    handle.seek(lba * SECTOR_SIZE + HEADER_SIZE)
+                    page = handle.read(PAGE_SIZE)
+                    if len(page) != PAGE_SIZE:
+                        raise ValueError(
+                            f"short page read at LBA {lba}"
+                        )
+                    data.extend(page)
+
+        expected = segment.pages * PAGE_SIZE
+        if len(data) != expected:
+            raise ValueError(
+                f"segment read returned {len(data)} bytes; "
+                f"expected {expected}"
+            )
+        return bytes(data)
+
+    def read_member_info(
+        self,
+        obj: RecoveredObject,
+    ) -> MemberCursorInfo | None:
+        """Decode the permanent cursor's associated-space member header."""
+
+        if not obj.is_member_cursor:
+            return None
+
+        segment = obj.segment
+        data = self.read_segment_bytes(segment)
+
+        if (
+            segment.header.space.extender
+            != segment.header.owner.extender
+        ):
+            return None
+
+        space_offset = (
+            segment.header.space.address
+            - segment.virtual_address
+        )
+        if space_offset < 0 or space_offset + 8 > len(data):
+            return None
+
+        relative = int.from_bytes(
+            data[space_offset + 4 : space_offset + 8],
+            "big",
+        )
+        member_header = space_offset + relative
+
+        # Five 16-byte system pointers precede the documented scalar fields.
+        minimum_end = member_header + 0xB4
+        if relative == 0 or minimum_end > len(data):
+            return None
+
+        return MemberCursorInfo(
+            associated_space_offset=space_offset,
+            member_header_offset=member_header,
+            status=data[member_header + 0x50 : member_header + 0x52],
+            text_raw=data[member_header + 0x54 : member_header + 0x86],
+            member_type_raw=data[
+                member_header + 0x86 : member_header + 0x90
+            ],
+            source_change_raw=data[
+                member_header + 0x9A : member_header + 0xA7
+            ],
+            create_raw=data[
+                member_header + 0xA7 : member_header + 0xB4
+            ],
+        )
 
     def recover_segments(
         self,
