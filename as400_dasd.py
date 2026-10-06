@@ -697,75 +697,98 @@ class MemberStorage:
 
 QDDS_ENTRY_COUNT_OFFSET = 0x11A
 QDDS_FORCE_COUNT_OFFSET = 0x11E
-QDDS_RECORD_LENGTH_OFFSET = 0x1E4
-QDDS_ENTRY_LENGTH_OFFSET = 0x1EC
-QDDS_LAYOUT_MIN_SIZE = QDDS_ENTRY_LENGTH_OFFSET + 2
+
+# This four-byte entry-length field is present in both the early B10 image and
+# the independent V2R3 image, so use it as the architecture-level value.
+QDDS_ENTRY_LENGTH_OFFSET = 0x13C
+QDDS_LAYOUT_MIN_SIZE = QDDS_ENTRY_LENGTH_OFFSET + 4
+
+# The V2R3 image also carries later/duplicate scalar fields. They are useful as
+# corroboration for ordinary fixed records, but are zero on the older B10 and
+# differ on a handful of special system data spaces. Do not require them.
+QDDS_V2_RECORD_LENGTH_OFFSET = 0x1E4
+QDDS_V2_ENTRY_LENGTH_OFFSET = 0x1EC
+QDDS_V2_LAYOUT_MIN_SIZE = QDDS_V2_ENTRY_LENGTH_OFFSET + 2
 
 
 @dataclass(frozen=True)
 class DataSpaceLayout:
     """Scalar record-layout fields recovered from a QDDS primary segment.
 
-    The offsets below were identified on the independent V2R3 image and are
-    consistent across standard source files and ordinary database members.
-    IBM's VMC documentation independently identifies the corresponding data
-    space-header concepts: entry count, force count, and entry length.
+    The entry count and force count are present in both real CISC images. The
+    common four-byte entry length at +0x13C is likewise present in both the B10
+    and V2R3 layouts. IBM documents one status byte separating data-space
+    entries, so the fixed-record payload is entry_length - 1 bytes.
 
-    entry_count excludes the ordinal-zero default entry. entry_length includes
-    the one-byte entry status and, for normal fixed-length members, equals
-    record_length + 1.
+    V2R3 also exposes duplicate/later length fields near +0x1E4. Those agree
+    with the common layout for ordinary fixed database/source members but are
+    absent on B10 and disagree on a few special system objects. They are kept as
+    hints rather than used as the authoritative layout.
     """
 
     entry_count: int
     force_count: int
     record_length: int
     entry_length: int
+    v2_record_length_hint: int = 0
+    v2_entry_length_hint: int = 0
 
     @classmethod
     def from_primary_segment(cls, data: bytes) -> "DataSpaceLayout":
         if len(data) < QDDS_LAYOUT_MIN_SIZE:
             raise ValueError("QDDS primary segment is too short for layout scalars")
 
-        layout = cls(
-            entry_count=int.from_bytes(
-                data[
-                    QDDS_ENTRY_COUNT_OFFSET :
-                    QDDS_ENTRY_COUNT_OFFSET + 4
-                ],
-                "big",
-            ),
-            force_count=int.from_bytes(
-                data[
-                    QDDS_FORCE_COUNT_OFFSET :
-                    QDDS_FORCE_COUNT_OFFSET + 4
-                ],
-                "big",
-            ),
-            record_length=int.from_bytes(
-                data[
-                    QDDS_RECORD_LENGTH_OFFSET :
-                    QDDS_RECORD_LENGTH_OFFSET + 4
-                ],
-                "big",
-            ),
-            entry_length=int.from_bytes(
-                data[
-                    QDDS_ENTRY_LENGTH_OFFSET :
-                    QDDS_ENTRY_LENGTH_OFFSET + 2
-                ],
-                "big",
-            ),
+        entry_count = int.from_bytes(
+            data[
+                QDDS_ENTRY_COUNT_OFFSET :
+                QDDS_ENTRY_COUNT_OFFSET + 4
+            ],
+            "big",
+        )
+        force_count = int.from_bytes(
+            data[
+                QDDS_FORCE_COUNT_OFFSET :
+                QDDS_FORCE_COUNT_OFFSET + 4
+            ],
+            "big",
+        )
+        entry_length = int.from_bytes(
+            data[
+                QDDS_ENTRY_LENGTH_OFFSET :
+                QDDS_ENTRY_LENGTH_OFFSET + 4
+            ],
+            "big",
         )
 
-        if layout.record_length <= 0:
-            raise ValueError("QDDS record length is zero")
-        if layout.entry_length <= 0:
-            raise ValueError("QDDS entry length is zero")
-        if layout.entry_length < layout.record_length + 1:
-            raise ValueError(
-                "QDDS entry length is shorter than status + record data"
+        if entry_length <= 1:
+            raise ValueError("QDDS entry length is zero or too small")
+
+        v2_record_length_hint = 0
+        v2_entry_length_hint = 0
+        if len(data) >= QDDS_V2_LAYOUT_MIN_SIZE:
+            v2_record_length_hint = int.from_bytes(
+                data[
+                    QDDS_V2_RECORD_LENGTH_OFFSET :
+                    QDDS_V2_RECORD_LENGTH_OFFSET + 4
+                ],
+                "big",
             )
-        return layout
+            v2_entry_length_hint = int.from_bytes(
+                data[
+                    QDDS_V2_ENTRY_LENGTH_OFFSET :
+                    QDDS_V2_ENTRY_LENGTH_OFFSET + 2
+                ],
+                "big",
+            )
+
+        return cls(
+            entry_count=entry_count,
+            force_count=force_count,
+            record_length=entry_length - 1,
+            entry_length=entry_length,
+            v2_record_length_hint=v2_record_length_hint,
+            v2_entry_length_hint=v2_entry_length_hint,
+        )
 
     @property
     def expected_entries_with_default(self) -> int:
@@ -776,8 +799,31 @@ class DataSpaceLayout:
         return self.entry_length - self.record_length
 
     @property
+    def v2_hints_present(self) -> bool:
+        return bool(
+            self.v2_record_length_hint
+            or self.v2_entry_length_hint
+        )
+
+    @property
+    def v2_hints_match(self) -> bool:
+        if not self.v2_hints_present:
+            return True
+        return (
+            self.v2_record_length_hint == self.record_length
+            and self.v2_entry_length_hint == self.entry_length
+        )
+
+    @property
     def standard_fixed_layout(self) -> bool:
-        return self.entry_length == self.record_length + 1
+        # IBM's data-space description gives one status byte between entries.
+        # A mismatch in the optional V2R3 duplicate fields marks a special
+        # layout and should be surfaced, but it does not change the common
+        # entry-length boundary used to recover raw ordinal entries.
+        return (
+            self.per_entry_overhead == 1
+            and self.v2_hints_match
+        )
 
 
 @dataclass(frozen=True)
