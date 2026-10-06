@@ -473,6 +473,140 @@ surviving disk, which is consistent with single-level storage having scattered
 parts across the missing load-source disk. The parser reports those as
 incomplete rather than fabricating records.
 
+## Generic physical-file records and record formats
+
+The browser can now recover fixed-length data-space records from non-source
+physical-file members as well as source members.
+
+The QDDS primary segment contains scalar values used by the data-space access
+path. Across both real CISC images, the following fields have been reproduced:
+
+```text
++0x11A  4 bytes  user-entry count
++0x11E  4 bytes  force count
++0x13C  4 bytes  fixed data-space entry length
+```
+
+The ordinal-zero default entry is in addition to the user-entry count. For the
+normal fixed-length members examined so far, each entry is one status byte
+followed by the record payload, so:
+
+```text
+record_length = entry_length - 1
+```
+
+The independent V2R3 image also contains duplicate/later length scalars near
++0x1E4/+0x1EC. They corroborate ordinary fixed records but are absent on the
+older B10 and disagree for a handful of special system data spaces, so the
+cross-version +0x13C field is used as the authoritative boundary.
+
+Real examples:
+
+```text
+QGPL/QCLSRC(REFRESH2)          71 records   92-byte payload / 93-byte entry
+QGPL/PTFSUM(PTFSUM)          1941 records   80-byte payload / 81-byte entry
+DBUUSERS(DBUUSERS)              1 record     22-byte payload / 23-byte entry
+PDPICKORG(PDPICKDEMO)         1880 records  452-byte payload / 453-byte entry
+B10 QLBLSRC(PROTO)             107 records   92-byte payload / 93-byte entry
+```
+
+New commands expose these records even before their field schema is known:
+
+```bash
+as400-dasd records disk.hda QGPL PTFSUM PTFSUM
+as400-dasd record  disk.hda QGPL PTFSUM PTFSUM 1
+```
+
+The raw view preserves the entry status byte, RRN, EBCDIC preview, and hex.
+
+### MI 19/51 record-format objects
+
+The database record-format object has now been identified in the real images as
+MI type/subtype `19/51`. Its EPA name is the record-format name.
+
+The repeated field descriptions contain a stable prefix that exposes:
+
+- field name and reference name;
+- field type;
+- record offset;
+- storage length;
+- digit count;
+- decimal positions.
+
+Observed and independently verified type codes include:
+
+```text
+02  zoned decimal
+03  packed decimal
+04  character
+```
+
+For the standard QCLSRC record format this reconstructs:
+
+```text
+SRCSEQ   ZONED  offset  0  length  6  digits 6  decimals 2
+SRCDAT   ZONED  offset  6  length  6  digits 6  decimals 0
+SRCDTA   CHAR   offset 12  length 80
+```
+
+A larger Mark/Patrik format, `PD00RC`, additionally validates packed-decimal
+fields such as a 7-digit value stored in four packed bytes.
+
+The CLI therefore supports:
+
+```bash
+as400-dasd fields  disk.hda QGPL PDPICKORG
+as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
+as400-dasd record  disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
+```
+
+Automatic format selection searches the recovered *FILE FCB for names of
+surviving 19/51 format objects. `--format NAME` can be used when the FCB is
+missing/ambiguous but the format object survives.
+
+### First structured user-database decode from the surviving B10
+
+The surviving B10 contains a `STAREC` 19/51 format object and the
+`STASTAT(STASTAT)` QDDS/member data even though its original library context
+and *FILE primary object do not appear to survive on this disk.
+
+The recovered 128-byte format contains:
+
+```text
+RECTYP  CHAR    off   0 len  3
+FILL1   CHAR    off   3 len  5
+STCOD   CHAR    off   8 len  1
+STNAME  CHAR    off   9 len 40
+MTD     ZONED   off  49 len  5
+YTD     ZONED   off  54 len  6
+LYR     ZONED   off  60 len  6
+FILL2   CHAR    off  66 len 61
+ACTCOD  CHAR    off 127 len  1
+```
+
+The three surviving records decode as:
+
+```text
+RRN 1  STCOD=1  STNAME=MISSOURI
+       MTD=0  YTD=3896  LYR=3996
+
+RRN 2  STCOD=2  STNAME=KANSAS
+       MTD=0  YTD=190   LYR=188
+
+RRN 3  STCOD=3  STNAME=STATES OTHER THAN MISSOURI OR KANSAS
+       MTD=0  YTD=26    LYR=20
+```
+
+This is the first demonstrated structured decode of a non-source user database
+from the raw surviving B10 disk.
+
+For incomplete disk sets, member-oriented commands accept `*` as the library
+name so orphaned member cursors can still be addressed:
+
+```bash
+as400-dasd records disk.hda '*' STASTAT STASTAT --decoded --format STAREC
+```
+
 ## Context machine-index decoding: groundwork
 
 IBM's machine indexes are binary radix trees. The VMC documentation describes
@@ -693,16 +827,17 @@ The next research/implementation targets are:
   descriptors directly;
 - improve permanent/temporary indicator decoding so fewer candidates require
   structural corroboration;
-- continue following permanent member cursors into data-space/data-space-index
-  relationships for non-source files;
-- decode `*FILE` format objects and field descriptions;
-- generalize the now-working source-record reader into arbitrary physical-file
-  record extraction and typed field decoding;
+- decode additional MI 19/51 field types beyond the currently verified
+  character/zoned/packed cases;
+- refine FCB -> format resolution for logical and multiple-format files;
+- decode data-space entry-status semantics (active/deleted/other states);
+- follow QDDSI/keyed indexes so records can also be presented in keyed order;
 - integrate these read-only structures into the GTK/TUI browser after the CLI
   model is stable.
 
-The immediate next milestone is therefore **context-index verification followed
-by physical-file/member decoding**.
+The immediate next milestone is now **broader typed database decoding and
+keyed/indexed-file support**, while context-index traversal continues as an
+independent directory cross-check.
 
 ## Safety
 
