@@ -258,15 +258,38 @@ decoded fields or raw EBCDIC record previews. Format objects show their recovere
 field descriptions.
 
 A contextual information line above the normal status line explains the selected
-library, file, member, or MI object type as you browse. The library notes are
-researched from period IBM documentation where possible: for example QGPL is
-identified as the General Purpose Library, QIWS as the PC Support/400 host/server
-library, and QDOC as the QDLS/document-library backing library rather than a
-source library. Tentative identifications remain explicitly labeled as such instead
-of being presented as fact. The browser also explains *DOC/*FLR objects and the
+library, file, member, or MI object type as you browse. Library descriptions are
+loaded from the editable `as400_libraries.json` catalog rather than being hard
+coded in the TUI. The catalog is seeded with every library currently recovered in
+the Mark-P02 file/member inventory, plus several common system libraries such as
+QDOC, QUSRSYS, QHLPSYS, and QTEMP. Descriptions are researched from period IBM
+documentation where possible, and entries whose purpose is not yet proven are
+marked as inferred or research-pending in the JSON metadata.
+
+For example, QGPL is identified as the General Purpose Library, QIWS as the
+PC Support/400/host-server library, QMU400 as the OS/400 System/36 Migration
+Assistant library, and QDOC as the QDLS/document-library backing library rather
+than a source library. The browser also explains *DOC/*FLR objects and the
 QDDS/QDDSI/member relationship. The object detail view repeats known roles so
 the recovered structure is useful as an AS/400 learning aid as well as a forensic
 browser.
+
+When installed, the base catalog is copied to:
+
+```text
+~/.local/share/tape-file-browser/as400_libraries.json
+```
+
+An optional user override can be placed at:
+
+```text
+~/.config/tape-file-browser/as400_libraries.json
+```
+
+Only the entries being added or changed need to be present in the override file;
+they are merged over the base catalog. Set `AS400_DASD_LIBRARY_CONFIG` to use
+an additional catalog file with the highest priority. Running directly from a
+source checkout also reads the repository copy beside `as400_dasd_tool.py`.
 
 Keys:
 
