@@ -178,8 +178,13 @@ as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
 as400-dasd ls disk.hda QGPL --type 19/01
-as400-dasd members disk.hda QGPL
+as400-dasd files disk.hda QGPL
 as400-dasd members disk.hda QGPL QCLSRC --long
+as400-dasd source disk.hda QGPL QCLSRC REFRESH2
+as400-dasd cat disk.hda QGPL QCLSRC REFRESH2
+as400-dasd fields disk.hda QGPL PDPICKORG
+as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
+as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
 ```
 
@@ -198,6 +203,9 @@ The current milestone can:
 - list real `*FILE` objects and recovered members inside a library;
 - follow member cursors to QDDS/QDDSI storage;
 - decode standard 92-byte AS/400 source physical-file records and print their source text;
+- recover generic fixed-length QDDS ordinal records using the data-space entry count and entry length;
+- identify MI 19/51 record-format objects and recover field names, record offsets, storage lengths, digits, decimal positions, and observed character/zoned/packed types;
+- decode recovered database records through those field definitions when a format object survives;
 - decode permanent database-member cursors (MI 0D/50), splitting the 30-byte cursor name into file/member names;
 - decode the permanent cursor member header, including source type, descriptive text, source-change timestamp, and creation timestamp;
 - resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
@@ -210,6 +218,8 @@ The second pass currently recovers about 12.7k segment groups from the surviving
 Source-member contents are now working as well. The real Mark/Patrik image yields readable CL, RPG, DDS, and COBOL source from recovered QDDS data spaces. On the surviving B10 disk, `PPSITEST/QLBLSRC(PROTO)` recovers 107 source lines. The recovered source identifies its author as `JT HUDGINS`, providing a strong preservation/provenance link to the machine's original consulting/programming use. Recovered source itself is not committed to the public repository.
 
 The member parser is independently validated against a real QGPL/QCLSRC member named `REFRESH2`. It recovers source type `CLP`, the descriptive text `Refresh PkMS demo data - new version (GE 170)`, source-change time `1998-01-03 02:31:14`, and creation time `1998-01-03 02:31:11`.
+
+Generic physical-file records are now working as well. The QDDS primary segment exposes the entry count and a cross-version fixed-entry length used by both the B10 and V2R3 images. The browser can therefore enumerate raw RRNs for non-source members and, when the MI 19/51 format object is available, decode fields. A real B10 `STAREC` format recovers `STASTAT` fields such as `STCOD`, `STNAME`, `MTD`, `YTD`, and `LYR`; the surviving records decode Missouri, Kansas, and "STATES OTHER THAN MISSOURI OR KANSAS" with their numeric statistics.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan.
 
@@ -286,7 +296,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD/segment/object cases, sanitized real extent-header fixtures from both independent CISC AS/400 images, and selected 128-byte real segment/EPA metadata for QSYS, QGPL, QCLSRC, and a B10 program object. The fixtures contain no database/member record payloads. GitHub Actions runs the same suite on pushes and pull requests:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD/segment/object cases, sanitized real extent-header fixtures from both independent CISC AS/400 images, and selected real segment/EPA metadata, sanitized QDDS count/length scalars, and sanitized MI 19/51 field-descriptor prefixes from both real images. The fixtures contain no database/member record payloads or recovered source code. GitHub Actions runs the same suite on pushes and pull requests:
 
 ```bash
 python3 -m unittest discover -s tests -v
