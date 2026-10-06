@@ -118,18 +118,45 @@ class DASDToolTests(unittest.TestCase):
         }
         self.assertTrue(recovered.issubset(catalog))
 
-    def test_library_catalog_can_be_overridden(self):
+    def test_library_catalog_has_categories_and_evidence_status(self):
+        catalog = _load_library_catalog()
+        self.assertEqual(catalog["QGPL"]["category"], "Core System")
+        self.assertEqual(catalog["QGPL"]["status"], "documented")
+        self.assertEqual(catalog["QFNTCPL"]["category"], "Printing & Graphics")
+        self.assertEqual(catalog["QSDE"]["status"], "research-pending")
+        self.assertEqual(catalog["QSYSV2R2M0"]["status"], "inferred")
+
+        qgpl = _tui_library_context("QGPL")
+        self.assertIn("[Core System]", qgpl)
+
+        qsde = _tui_library_context("QSDE")
+        self.assertIn("Unresolved", qsde)
+        self.assertIn("research-pending", qsde)
+
+    def test_library_catalog_can_be_overridden_by_field(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "libraries.json"
-            path.write_text(
+            base = Path(directory) / "base.json"
+            override = Path(directory) / "override.json"
+            base.write_text(
+                (
+                    '{"libraries":{"QGPL":{'
+                    '"description":"Base QGPL note",'
+                    '"category":"Core System",'
+                    '"status":"documented"}}}'
+                ),
+                encoding="utf-8",
+            )
+            override.write_text(
                 '{"libraries":{"QGPL":{"description":"Custom QGPL note"}}}',
                 encoding="utf-8",
             )
-            catalog = _load_library_catalog([path])
+            catalog = _load_library_catalog([base, override])
             self.assertEqual(
                 catalog["QGPL"]["description"],
                 "Custom QGPL note",
             )
+            self.assertEqual(catalog["QGPL"]["category"], "Core System")
+            self.assertEqual(catalog["QGPL"]["status"], "documented")
 
     def test_scan_ebcdic_sysobjnam_matches_exact_ten_byte_names(self):
         targets = {
