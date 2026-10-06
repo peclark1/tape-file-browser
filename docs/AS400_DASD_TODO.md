@@ -27,8 +27,12 @@ repeatable real-image validation.
       SYSOBJNAM, making it the highest-value QAOSS target.
 - [ ] Locate/identify the other documented document/folder search indexes:
       `QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18`.
-- [ ] Decode the relevant QAOSS record formats, or identify their unresolved
-      storage objects if normal library/file recovery does not expose them.
+- [x] Add a raw `dlo-schema` evidence scanner for `WOSFMTxx` /
+      `QAOSS*` associations, including the observed `QAOSSS14` and
+      `QAOSSY14` families, without guessing abbreviation meanings.
+- [ ] Decode the binary descriptor fields and the relevant QAOSS record
+      formats, or identify their unresolved storage objects if normal
+      library/file recovery does not expose them.
 - [ ] Map QDOC system object names (SYSOBJNAM) to user-facing DLO names.
 - [ ] Reconstruct parent/child folder relationships and complete QDLS paths.
 - [ ] Verify known examples such as PC Support folders/files against the
