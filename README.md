@@ -270,8 +270,10 @@ loaded from the editable `as400_libraries.json` catalog rather than being hard
 coded in the TUI. The catalog is seeded with every library currently recovered in
 the Mark-P02 file/member inventory, plus several common system libraries such as
 QDOC, QUSRSYS, QHLPSYS, and QTEMP. Descriptions are researched from period IBM
-documentation where possible, and entries whose purpose is not yet proven are
-marked as inferred or research-pending in the JSON metadata.
+documentation where possible. Each catalog entry also carries a functional
+`category` and an evidence `status` (`documented`, `inferred`, or
+`research-pending`). The TUI prefixes library context with the category and
+shows the evidence status when the meaning is not yet documented.
 
 For example, QGPL is identified as the General Purpose Library, QIWS as the
 PC Support/400/host-server library, QMU400 as the OS/400 System/36 Migration
@@ -293,10 +295,12 @@ An optional user override can be placed at:
 ~/.config/tape-file-browser/as400_libraries.json
 ```
 
-Only the entries being added or changed need to be present in the override file;
-they are merged over the base catalog. Set `AS400_DASD_LIBRARY_CONFIG` to use
-an additional catalog file with the highest priority. Running directly from a
-source checkout also reads the repository copy beside `as400_dasd_tool.py`.
+Only the entries or fields being added or changed need to be present in the
+override file; fields are merged over the base catalog so changing a description
+does not discard its category or evidence status. Set
+`AS400_DASD_LIBRARY_CONFIG` to use an additional catalog file with the highest
+priority. Running directly from a source checkout also reads the repository copy
+beside `as400_dasd_tool.py`.
 
 Keys:
 
