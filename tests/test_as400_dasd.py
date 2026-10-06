@@ -17,6 +17,7 @@ from as400_dasd import (
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
+    decode_standard_source_stream,
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
@@ -138,6 +139,42 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(header.extent_pages, 32)
         self.assertEqual(header.reserved_byte, 0)
 
+
+
+    def test_standard_source_record_decoder(self):
+        def entry(sequence, source_date, text, status=0x80):
+            payload = (
+                sequence.encode("cp037")
+                + source_date.encode("cp037")
+                + text.encode("cp037").ljust(80, b"\x40")
+            )
+            self.assertEqual(len(payload), 92)
+            return bytes([status]) + payload
+
+        stream = b"".join(
+            [
+                entry("000000", "000000", ""),
+                entry("000100", "941225", "       IDENTIFICATION DIVISION."),
+                entry("000200", "941228", "          PROGRAM-ID. TEST."),
+                b"\x00" * 93,
+            ]
+        )
+
+        decoded = decode_standard_source_stream(stream)
+        self.assertIsNotNone(decoded)
+        self.assertTrue(decoded.default_entry_present)
+        self.assertEqual(decoded.line_count, 2)
+        self.assertEqual(decoded.records[0].sequence, "000100")
+        self.assertEqual(decoded.records[0].sequence_display, "0001.00")
+        self.assertEqual(decoded.records[0].source_date, "941225")
+        self.assertEqual(
+            decoded.records[0].text,
+            "       IDENTIFICATION DIVISION.",
+        )
+        self.assertEqual(
+            decoded.records[1].text,
+            "          PROGRAM-ID. TEST.",
+        )
 
     def test_machine_index_element_formats(self):
         # IBM Appendix-A release-2 format uses three-byte elements.
