@@ -11,6 +11,7 @@ from as400_dasd import (
     EPAHeader,
     Extent,
     HeaderSnapshot,
+    MachineIndexElement,
     RecoveredObject,
     RecoveredSegment,
     ScanResult,
