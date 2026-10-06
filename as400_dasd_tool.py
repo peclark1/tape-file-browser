@@ -1357,6 +1357,1557 @@ def cmd_scan(args):
     return 0
 
 
+
+DASD_IMAGE_SUFFIXES = {
+    ".hda",
+    ".img",
+    ".dsk",
+    ".raw",
+    ".bin",
+}
+
+
+def _tui_clip(text, width):
+    if width <= 0:
+        return ""
+    text = str(text)
+    if len(text) <= width:
+        return text
+    if width == 1:
+        return "…"
+    return text[: width - 1] + "…"
+
+
+def _tui_safe_addstr(screen, y, x, text, attr=0):
+    height, width = screen.getmaxyx()
+    if y < 0 or y >= height or x < 0 or x >= width:
+        return
+    available = width - x
+    if available <= 0:
+        return
+    try:
+        screen.addstr(y, x, _tui_clip(text, available), attr)
+    except Exception:
+        # Some curses implementations reject a write to the final cell.
+        pass
+
+
+def _tui_list_start(count, selected, visible):
+    if count <= 0 or visible <= 0:
+        return 0
+    selected = max(0, min(selected, count - 1))
+    start = max(0, selected - visible // 2)
+    return min(start, max(0, count - visible))
+
+
+def _tui_draw_list(
+    screen,
+    title,
+    items,
+    selected,
+    x,
+    y,
+    width,
+    height,
+    focused,
+):
+    import curses
+
+    heading_attr = curses.A_BOLD | (
+        curses.A_REVERSE if focused else 0
+    )
+    _tui_safe_addstr(
+        screen,
+        y,
+        x,
+        title.ljust(max(0, width - 1)),
+        heading_attr,
+    )
+
+    visible = max(0, height - 1)
+    if visible <= 0:
+        return 0
+
+    if not items:
+        _tui_safe_addstr(
+            screen,
+            y + 1,
+            x,
+            "(empty)",
+            curses.A_DIM,
+        )
+        return 0
+
+    selected = max(0, min(selected, len(items) - 1))
+    start = _tui_list_start(len(items), selected, visible)
+    for row, item_index in enumerate(
+        range(start, min(len(items), start + visible))
+    ):
+        prefix = "> " if item_index == selected else "  "
+        attr = curses.A_REVERSE if item_index == selected else 0
+        _tui_safe_addstr(
+            screen,
+            y + 1 + row,
+            x,
+            prefix + items[item_index]["label"],
+            attr,
+        )
+    return start
+
+
+def _tui_picker_entries(directory):
+    directory = Path(directory).resolve()
+    directories = []
+    files = []
+
+    try:
+        entries = list(directory.iterdir())
+    except OSError:
+        return []
+
+    for entry in entries:
+        try:
+            if entry.is_dir():
+                if not entry.name.startswith("."):
+                    directories.append(entry)
+            elif (
+                entry.is_file()
+                and entry.suffix.lower() in DASD_IMAGE_SUFFIXES
+            ):
+                files.append(entry)
+        except OSError:
+            continue
+
+    directories.sort(key=lambda item: item.name.lower())
+    files.sort(key=lambda item: item.name.lower())
+
+    result = []
+    if directory.parent != directory:
+        result.append((directory.parent, True))
+    result.extend((entry, True) for entry in directories)
+    result.extend((entry, False) for entry in files)
+    return result
+
+
+def _tui_file_picker(stdscr, start_dir):
+    """Single-file curses picker for raw DASD images."""
+    import curses
+
+    directory = Path(start_dir).expanduser()
+    if not directory.is_dir():
+        directory = Path.cwd()
+    directory = directory.resolve()
+    selected = 0
+    status = ""
+
+    while True:
+        entries = _tui_picker_entries(directory)
+        if entries:
+            selected = max(0, min(selected, len(entries) - 1))
+        else:
+            selected = 0
+
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+        _tui_safe_addstr(
+            stdscr,
+            0,
+            0,
+            " Open AS/400 DASD image ",
+            curses.A_BOLD | curses.A_REVERSE,
+        )
+        _tui_safe_addstr(
+            stdscr,
+            1,
+            0,
+            f"Directory: {directory}",
+            curses.A_BOLD,
+        )
+
+        list_y = 3
+        visible = max(1, height - 7)
+        start = _tui_list_start(
+            len(entries),
+            selected,
+            visible,
+        )
+
+        if not entries:
+            _tui_safe_addstr(
+                stdscr,
+                list_y,
+                2,
+                "(no .hda/.img/.dsk/.raw/.bin images or subdirectories)",
+            )
+        else:
+            for row, idx in enumerate(
+                range(
+                    start,
+                    min(len(entries), start + visible),
+                )
+            ):
+                path, is_dir = entries[idx]
+                is_parent = (
+                    is_dir
+                    and path == directory.parent
+                    and path != directory
+                )
+                if is_parent:
+                    label = "<DIR> ../"
+                elif is_dir:
+                    label = f"<DIR> {path.name}/"
+                else:
+                    label = path.name
+                attr = (
+                    curses.A_REVERSE
+                    if idx == selected
+                    else 0
+                )
+                _tui_safe_addstr(
+                    stdscr,
+                    list_y + row,
+                    0,
+                    label,
+                    attr,
+                )
+
+        _tui_safe_addstr(
+            stdscr,
+            height - 3,
+            0,
+            status,
+            curses.A_DIM,
+        )
+        _tui_safe_addstr(
+            stdscr,
+            height - 2,
+            0,
+            "Enter: open  Backspace: parent",
+        )
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            "↑/↓ PgUp/PgDn Home/End: navigate   Esc/q: cancel",
+            curses.A_REVERSE,
+        )
+        stdscr.refresh()
+
+        key = stdscr.getch()
+
+        if key in (27, ord("q"), ord("Q")):
+            return None
+        if key in (curses.KEY_BACKSPACE, 127, 8):
+            parent = directory.parent
+            if parent != directory:
+                directory = parent
+                selected = 0
+                status = ""
+            continue
+        if key == curses.KEY_UP:
+            selected = max(0, selected - 1)
+            continue
+        if key == curses.KEY_DOWN:
+            selected = min(
+                max(0, len(entries) - 1),
+                selected + 1,
+            )
+            continue
+        if key == curses.KEY_PPAGE:
+            selected = max(0, selected - visible)
+            continue
+        if key == curses.KEY_NPAGE:
+            selected = min(
+                max(0, len(entries) - 1),
+                selected + visible,
+            )
+            continue
+        if key == curses.KEY_HOME:
+            selected = 0
+            continue
+        if key == curses.KEY_END:
+            selected = max(0, len(entries) - 1)
+            continue
+
+        if not entries:
+            continue
+
+        path, is_dir = entries[selected]
+        if key in (10, 13, curses.KEY_ENTER):
+            if is_dir:
+                directory = path.resolve()
+                selected = 0
+                status = ""
+                continue
+            return str(path.resolve())
+
+
+def _tui_loading_screen(stdscr, path, stage):
+    import curses
+
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    title = " AS/400 CISC DASD Browser "
+    _tui_safe_addstr(
+        stdscr,
+        0,
+        0,
+        title,
+        curses.A_BOLD | curses.A_REVERSE,
+    )
+    _tui_safe_addstr(
+        stdscr,
+        2,
+        2,
+        f"Image: {path}",
+        curses.A_BOLD,
+    )
+    _tui_safe_addstr(stdscr, 4, 2, stage)
+    _tui_safe_addstr(
+        stdscr,
+        6,
+        2,
+        "Read-only: the disk image will not be modified.",
+        curses.A_DIM,
+    )
+    stdscr.refresh()
+
+
+def _tui_build_state(stdscr, path):
+    path = os.path.realpath(
+        os.path.abspath(os.path.expanduser(str(path)))
+    )
+
+    _tui_loading_screen(
+        stdscr,
+        path,
+        "Opening image and validating 520-byte geometry…",
+    )
+    image = _open(path)
+
+    _tui_loading_screen(
+        stdscr,
+        path,
+        "Pass 1/3: scanning storage headers and reconstructing extents…",
+    )
+    scan = image.scan()
+
+    _tui_loading_screen(
+        stdscr,
+        path,
+        "Pass 2/3: reconstructing permanent segment groups…",
+    )
+    segments = image.recover_segments(scan)
+
+    _tui_loading_screen(
+        stdscr,
+        path,
+        "Pass 3/3: recovering EPA objects, libraries, files, and members…",
+    )
+    inventory = image.recover_objects(scan, segments)
+
+    state = {
+        "image": image,
+        "scan": scan,
+        "segments": segments,
+        "inventory": inventory,
+        "left_index": 0,
+        "mid_index": 0,
+        "right_index": 0,
+        "focus": 0,
+        "viewer_scroll": 0,
+        "viewer_cache": {},
+        "left_items": [],
+        "mid_items": [],
+        "right_items": [],
+        "status": "",
+    }
+    _tui_build_left_items(state)
+    _tui_rebuild_from_left(state)
+    return state
+
+
+def _tui_build_left_items(state):
+    inventory = state["inventory"]
+    library_counts = {}
+    for obj in inventory.objects:
+        if obj.library_name:
+            library_counts[obj.library_name.upper()] = (
+                library_counts.get(obj.library_name.upper(), 0) + 1
+            )
+
+    items = [
+        {
+            "kind": "objects-view",
+            "label": f"<ALL OBJECTS>  {len(inventory.objects):,}",
+        },
+        {
+            "kind": "orphans-view",
+            "label": "<ORPHANS / MEMBER-ONLY>",
+        },
+    ]
+
+    for library in inventory.libraries:
+        count = library_counts.get(library.name.upper(), 0)
+        items.append(
+            {
+                "kind": "library",
+                "label": f"{library.name}  {count:,}",
+                "library": library.name,
+                "object": library,
+            }
+        )
+    state["left_items"] = items
+
+
+def _tui_file_items(state, library_name):
+    inventory = state["inventory"]
+    orphan_mode = library_name is None
+
+    if orphan_mode:
+        members = [
+            obj
+            for obj in inventory.members()
+            if obj.library_name is None
+        ]
+        file_objects = [
+            obj
+            for obj in inventory.objects
+            if (
+                obj.library_name is None
+                and obj.object_type == 0x19
+                and obj.object_subtype == 0x01
+            )
+        ]
+    else:
+        members = inventory.members(library=library_name)
+        file_objects = [
+            obj
+            for obj in inventory.in_library(library_name)
+            if (
+                obj.object_type == 0x19
+                and obj.object_subtype == 0x01
+            )
+        ]
+
+    member_map = {}
+    for member in members:
+        member_map.setdefault(
+            member.member_file_name.upper(),
+            [],
+        ).append(member)
+
+    object_map = {}
+    for obj in file_objects:
+        object_map.setdefault(obj.name.upper(), obj)
+
+    names = sorted(set(member_map) | set(object_map))
+    result = []
+    for name in names:
+        file_obj = object_map.get(name)
+        file_members = sorted(
+            member_map.get(name, []),
+            key=lambda obj: (
+                obj.member_name,
+                obj.segment.virtual_address,
+            ),
+        )
+        marker = (
+            "recovered"
+            if file_obj is not None
+            else "member-only"
+        )
+        result.append(
+            {
+                "kind": "file",
+                "name": name,
+                "library": library_name,
+                "object": file_obj,
+                "members": file_members,
+                "label": (
+                    f"{name:<10}  "
+                    f"{len(file_members):>4}  "
+                    f"{marker}"
+                ),
+            }
+        )
+    return result
+
+
+def _tui_object_type_items(state):
+    inventory = state["inventory"]
+    groups = {}
+    for obj in inventory.objects:
+        key = (obj.object_type, obj.object_subtype)
+        groups.setdefault(key, []).append(obj)
+
+    result = []
+    for key in sorted(groups):
+        objects = sorted(
+            groups[key],
+            key=lambda obj: (
+                obj.library_name or "",
+                obj.name,
+                obj.segment.virtual_address,
+            ),
+        )
+        sample = objects[0]
+        hint = sample.external_type_hint or ""
+        suffix = f" {hint}" if hint else ""
+        result.append(
+            {
+                "kind": "object-type",
+                "type": key[0],
+                "subtype": key[1],
+                "objects": objects,
+                "label": (
+                    f"{key[0]:02X}/{key[1]:02X}"
+                    f"{suffix:<10}  {len(objects):,}"
+                ),
+            }
+        )
+    return result
+
+
+def _tui_rebuild_from_left(state):
+    left_items = state["left_items"]
+    if not left_items:
+        state["mid_items"] = []
+        state["right_items"] = []
+        return
+
+    state["left_index"] = max(
+        0,
+        min(state["left_index"], len(left_items) - 1),
+    )
+    selected = left_items[state["left_index"]]
+
+    if selected["kind"] == "library":
+        state["mid_items"] = _tui_file_items(
+            state,
+            selected["library"],
+        )
+    elif selected["kind"] == "orphans-view":
+        state["mid_items"] = _tui_file_items(
+            state,
+            None,
+        )
+    else:
+        state["mid_items"] = _tui_object_type_items(state)
+
+    state["mid_index"] = 0
+    state["right_index"] = 0
+    state["viewer_scroll"] = 0
+    _tui_rebuild_from_mid(state)
+
+
+def _tui_rebuild_from_mid(state):
+    mid_items = state["mid_items"]
+    if not mid_items:
+        state["right_items"] = []
+        return
+
+    state["mid_index"] = max(
+        0,
+        min(state["mid_index"], len(mid_items) - 1),
+    )
+    selected = mid_items[state["mid_index"]]
+
+    if selected["kind"] == "file":
+        result = []
+        for member in selected["members"]:
+            info = state["image"].read_member_info(member)
+            source_type = (
+                info.member_type if info is not None else ""
+            )
+            suffix = f"  {source_type}" if source_type else ""
+            result.append(
+                {
+                    "kind": "member",
+                    "object": member,
+                    "file": selected,
+                    "label": f"{member.member_name}{suffix}",
+                }
+            )
+        state["right_items"] = result
+    else:
+        result = []
+        for obj in selected["objects"]:
+            library = obj.library_name or "<orphan>"
+            hint = obj.external_type_hint or obj.type_code
+            result.append(
+                {
+                    "kind": "object",
+                    "object": obj,
+                    "label": (
+                        f"{library}/{obj.name}  {hint}"
+                    ),
+                }
+            )
+        state["right_items"] = result
+
+    state["right_index"] = 0
+    state["viewer_scroll"] = 0
+
+
+def _tui_selected(state, key):
+    items = state[key + "_items"]
+    index = state[key + "_index"]
+    if not items:
+        return None
+    index = max(0, min(index, len(items) - 1))
+    return items[index]
+
+
+def _tui_object_lines(state, obj):
+    lines = [
+        f"Object:       {(obj.library_name or '<orphan>')}/{obj.name}",
+        f"MI type:      {obj.type_code}"
+        + (
+            f"  {obj.external_type_hint}"
+            if obj.external_type_hint
+            else ""
+        ),
+        (
+            f"Virtual addr: {obj.segment.virtual_address:012X}"
+        ),
+        f"Physical LBA: {obj.segment.start_lba:,}",
+        f"Pages:        {obj.segment.pages:,}",
+        (
+            f"Segment type: {obj.segment.header.segment_type:04X}"
+        ),
+        f"Owner:        {obj.segment.header.owner}",
+        f"EPA context:  {obj.epa.context}",
+    ]
+
+    if obj.object_type == 0x19 and obj.object_subtype == 0x51:
+        try:
+            fields = state["image"].read_format_fields(obj)
+        except Exception as exc:
+            fields = ()
+            lines.extend(["", f"Format decode error: {exc}"])
+        if fields:
+            lines.extend(
+                [
+                    "",
+                    f"Record format fields ({len(fields):,})",
+                    "Off   Len   Type        Digits Dec  Field",
+                ]
+            )
+            for field in fields:
+                lines.append(
+                    f"{field.offset:>4}  "
+                    f"{field.storage_length:>4}  "
+                    f"{field.type_name:<10} "
+                    f"{field.digits:>6} "
+                    f"{field.decimal_positions:>3}  "
+                    f"{field.name}"
+                )
+
+    if obj.object_type == 0x19 and obj.object_subtype == 0x01:
+        members = state["inventory"].members(
+            library=obj.library_name,
+            file_name=obj.name,
+        )
+        lines.extend(
+            [
+                "",
+                f"Recovered members: {len(members):,}",
+            ]
+        )
+        try:
+            formats = state["image"].resolve_file_formats(
+                obj,
+                state["inventory"],
+            )
+        except Exception:
+            formats = []
+        if formats:
+            lines.append(
+                "Formats: "
+                + ", ".join(format_obj.name for format_obj in formats)
+            )
+
+    return lines
+
+
+def _tui_file_lines(state, file_item):
+    library = file_item["library"] or "<orphan>"
+    file_obj = file_item["object"]
+    members = file_item["members"]
+
+    lines = [
+        f"File:    {library}/{file_item['name']}",
+        f"Members: {len(members):,}",
+        (
+            "Object:  recovered"
+            if file_obj is not None
+            else "Object:  member-only (primary *FILE not recovered)"
+        ),
+    ]
+
+    if file_obj is not None:
+        lines.extend(
+            [
+                f"MI type: {file_obj.type_code}  {file_obj.external_type_hint}",
+                (
+                    f"VA:      "
+                    f"{file_obj.segment.virtual_address:012X}"
+                ),
+                f"LBA:     {file_obj.segment.start_lba:,}",
+            ]
+        )
+        try:
+            formats = state["image"].resolve_file_formats(
+                file_obj,
+                state["inventory"],
+            )
+        except Exception:
+            formats = []
+        if formats:
+            lines.append(
+                "Format:  "
+                + ", ".join(format_obj.name for format_obj in formats)
+            )
+
+    if members:
+        lines.extend(["", "Members"])
+        for member in members[:200]:
+            info = state["image"].read_member_info(member)
+            type_text = (
+                info.member_type if info is not None else ""
+            )
+            lines.append(
+                f"  {member.member_name:<10} {type_text:<10} "
+                f"VA {member.segment.virtual_address:012X}"
+            )
+        if len(members) > 200:
+            lines.append(
+                f"  ... {len(members) - 200:,} additional members"
+            )
+    return lines
+
+
+def _tui_member_lines(state, member_item):
+    image = state["image"]
+    inventory = state["inventory"]
+    segments = state["segments"]
+    member = member_item["object"]
+    file_item = member_item["file"]
+    library = member.library_name or "<orphan>"
+
+    lines = [
+        (
+            f"Member:       {library}/"
+            f"{member.member_file_name}({member.member_name})"
+        ),
+        f"Cursor MI:    {member.type_code}",
+        (
+            f"Virtual addr: {member.segment.virtual_address:012X}"
+        ),
+        f"Physical LBA: {member.segment.start_lba:,}",
+    ]
+
+    info = image.read_member_info(member)
+    if info is not None:
+        lines.extend(
+            [
+                f"Source type:  {info.member_type or '-'}",
+                f"Changed:      {info.source_change or '-'}",
+                f"Created:      {info.created or '-'}",
+                f"Text:         {info.text or '-'}",
+            ]
+        )
+
+    try:
+        storage = image.resolve_member_storage(
+            member,
+            inventory,
+            segments,
+        )
+    except Exception as exc:
+        lines.extend(["", f"Storage resolution error: {exc}"])
+        return lines
+
+    lines.extend(
+        [
+            "",
+            "Recovered storage",
+            (
+                "  QDDS:  "
+                + (
+                    f"VA {storage.data_space.segment.virtual_address:012X}"
+                    if storage.data_space is not None
+                    else "not recovered"
+                )
+            ),
+            (
+                "  QDDSI: "
+                + (
+                    f"VA {storage.data_index.segment.virtual_address:012X}"
+                    if storage.data_index is not None
+                    else "not recovered"
+                )
+            ),
+            (
+                f"  Data segments: {len(storage.data_segments):,} "
+                f"({storage.data_bytes:,} bytes)"
+            ),
+        ]
+    )
+
+    try:
+        source = image.read_source_member(storage)
+    except Exception as exc:
+        source = None
+        lines.extend(["", f"Source decode error: {exc}"])
+
+    if source is not None:
+        lines.extend(
+            [
+                "",
+                (
+                    f"Source records: {source.line_count:,} "
+                    f"from {source.data_segment_count:,} data segment(s)"
+                ),
+                "",
+                "Seq      Date    Source",
+            ]
+        )
+        for record in source.records:
+            lines.append(
+                f"{record.sequence_display:<8} "
+                f"{record.source_date:<6} "
+                f"{record.text}"
+            )
+        return lines
+
+    try:
+        record_set = image.read_data_space_records(storage)
+    except Exception as exc:
+        record_set = None
+        lines.extend(["", f"Record decode error: {exc}"])
+
+    if record_set is None:
+        lines.extend(
+            [
+                "",
+                "No recoverable source or fixed-length QDDS records.",
+            ]
+        )
+        return lines
+
+    layout = record_set.layout
+    lines.extend(
+        [
+            "",
+            "Database records",
+            f"  User entries:  {layout.entry_count:,}",
+            f"  Record length: {layout.record_length:,}",
+            f"  Entry length:  {layout.entry_length:,}",
+            (
+                f"  Recovered:     {len(record_set.records):,}/"
+                f"{layout.expected_entries_with_default:,} "
+                f"({'complete' if record_set.complete else 'partial'})"
+            ),
+        ]
+    )
+
+    decoded_formats = []
+    if member.library_name:
+        try:
+            decoded_formats = _resolve_format_fields(
+                image,
+                inventory,
+                member.library_name,
+                member.member_file_name,
+                record_length=layout.record_length,
+            )
+        except Exception:
+            decoded_formats = []
+
+    records = record_set.user_records
+    if decoded_formats:
+        format_obj, fields = decoded_formats[0]
+        lines.extend(
+            [
+                f"  Format:        {format_obj.name}",
+                f"  Fields:        {len(fields):,}",
+                "",
+                "Decoded records (first 50)",
+            ]
+        )
+        for record in records[:50]:
+            lines.append(
+                f"RRN {record.rrn:,}  status 0x{record.status:02X}"
+            )
+            for field in fields:
+                value = field.decode_value(record.data)
+                if value:
+                    lines.append(
+                        f"  {field.name:<10} {value}"
+                    )
+            lines.append("")
+        if len(records) > 50:
+            lines.append(
+                f"... {len(records) - 50:,} additional records; "
+                "use as400-dasd records for the full listing."
+            )
+    else:
+        lines.extend(
+            [
+                "",
+                "Raw record preview (first 100)",
+            ]
+        )
+        for record in records[:100]:
+            lines.append(
+                f"RRN {record.rrn:>8,}  "
+                f"0x{record.status:02X}  "
+                f"{record.ebcdic_preview}"
+            )
+        if len(records) > 100:
+            lines.append(
+                f"... {len(records) - 100:,} additional records; "
+                "use as400-dasd records for the full listing."
+            )
+
+    return lines
+
+
+def _tui_viewer_lines(state):
+    right = _tui_selected(state, "right")
+    mid = _tui_selected(state, "mid")
+    left = _tui_selected(state, "left")
+
+    if right is not None:
+        if right["kind"] == "member":
+            key = (
+                "member",
+                right["object"].segment.virtual_address,
+            )
+            if key not in state["viewer_cache"]:
+                state["viewer_cache"][key] = _tui_member_lines(
+                    state,
+                    right,
+                )
+            return state["viewer_cache"][key]
+        if right["kind"] == "object":
+            key = (
+                "object",
+                right["object"].segment.virtual_address,
+            )
+            if key not in state["viewer_cache"]:
+                state["viewer_cache"][key] = _tui_object_lines(
+                    state,
+                    right["object"],
+                )
+            return state["viewer_cache"][key]
+
+    if mid is not None:
+        if mid["kind"] == "file":
+            key = (
+                "file",
+                mid["library"],
+                mid["name"],
+            )
+            if key not in state["viewer_cache"]:
+                state["viewer_cache"][key] = _tui_file_lines(
+                    state,
+                    mid,
+                )
+            return state["viewer_cache"][key]
+
+        return [
+            f"Object type: {mid['type']:02X}/{mid['subtype']:02X}",
+            f"Recovered objects: {len(mid['objects']):,}",
+            "",
+            "Select an object in the right pane to inspect it.",
+        ]
+
+    if left is not None:
+        if left["kind"] == "library":
+            objects = state["inventory"].in_library(
+                left["library"]
+            )
+            files = [
+                obj
+                for obj in objects
+                if (
+                    obj.object_type == 0x19
+                    and obj.object_subtype == 0x01
+                )
+            ]
+            members = state["inventory"].members(
+                library=left["library"]
+            )
+            return [
+                f"Library: {left['library']}",
+                f"Recovered objects: {len(objects):,}",
+                f"Recovered *FILE objects: {len(files):,}",
+                f"Recovered members: {len(members):,}",
+                "",
+                "Select a file in the middle pane.",
+            ]
+
+        if left["kind"] == "orphans-view":
+            orphans = [
+                obj
+                for obj in state["inventory"].objects
+                if obj.library_name is None
+            ]
+            members = [
+                obj
+                for obj in state["inventory"].members()
+                if obj.library_name is None
+            ]
+            return [
+                "Orphans / member-only recovery",
+                "",
+                (
+                    "These objects or member cursors survived without "
+                    "a recovered library context on this disk."
+                ),
+                f"Orphaned objects: {len(orphans):,}",
+                f"Orphaned members: {len(members):,}",
+                "",
+                "This view is especially useful on an incomplete multi-disk system.",
+            ]
+
+        return [
+            "All recovered objects",
+            "",
+            (
+                f"EPA objects: "
+                f"{len(state['inventory'].objects):,}"
+            ),
+            "",
+            "Select an MI object type in the middle pane.",
+        ]
+
+    return ["No selection."]
+
+
+def _tui_prompt_search(stdscr, state):
+    import curses
+
+    height, width = stdscr.getmaxyx()
+    prompt = "Search object/member/file name: "
+    curses.echo()
+    try:
+        curses.curs_set(1)
+    except curses.error:
+        pass
+    try:
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            " " * max(0, width - 1),
+        )
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            prompt,
+            curses.A_REVERSE,
+        )
+        stdscr.refresh()
+        raw = stdscr.getstr(
+            height - 1,
+            min(len(prompt), max(0, width - 2)),
+            max(1, width - len(prompt) - 2),
+        )
+    finally:
+        curses.noecho()
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+
+    query = raw.decode(errors="replace").strip()
+    if not query:
+        return
+
+    wanted = query.upper()
+    matches = []
+    for obj in state["inventory"].objects:
+        haystack = " ".join(
+            [
+                obj.library_name or "",
+                obj.name,
+                obj.member_file_name,
+                obj.member_name,
+                obj.external_type_hint,
+                obj.type_code,
+            ]
+        ).upper()
+        if wanted in haystack:
+            matches.append(obj)
+
+    matches.sort(
+        key=lambda obj: (
+            obj.library_name or "",
+            obj.name,
+            obj.segment.virtual_address,
+        )
+    )
+
+    state["left_items"].insert(
+        0,
+        {
+            "kind": "search-view",
+            "label": f"<SEARCH {query}>  {len(matches):,}",
+            "objects": matches,
+        },
+    )
+    state["left_index"] = 0
+    state["mid_items"] = [
+        {
+            "kind": "search-group",
+            "label": f"Results  {len(matches):,}",
+            "objects": matches,
+            "type": 0,
+            "subtype": 0,
+        }
+    ]
+    state["mid_index"] = 0
+    state["right_items"] = [
+        {
+            "kind": "object",
+            "object": obj,
+            "label": (
+                f"{obj.library_name or '<orphan>'}/"
+                f"{obj.member_file_name + '(' + obj.member_name + ')' if obj.is_member_cursor else obj.name}"
+                f"  {obj.external_type_hint or obj.type_code}"
+            ),
+        }
+        for obj in matches
+    ]
+    state["right_index"] = 0
+    state["focus"] = 2
+    state["viewer_scroll"] = 0
+    state["status"] = (
+        f"Search '{query}': {len(matches):,} match(es)"
+    )
+
+
+def _tui_rebuild_search_safe_from_left(state):
+    selected = _tui_selected(state, "left")
+    if selected and selected["kind"] == "search-view":
+        matches = selected["objects"]
+        state["mid_items"] = [
+            {
+                "kind": "search-group",
+                "label": f"Results  {len(matches):,}",
+                "objects": matches,
+                "type": 0,
+                "subtype": 0,
+            }
+        ]
+        state["right_items"] = [
+            {
+                "kind": "object",
+                "object": obj,
+                "label": (
+                    f"{obj.library_name or '<orphan>'}/"
+                    f"{obj.member_file_name + '(' + obj.member_name + ')' if obj.is_member_cursor else obj.name}"
+                    f"  {obj.external_type_hint or obj.type_code}"
+                ),
+            }
+            for obj in matches
+        ]
+        state["mid_index"] = 0
+        state["right_index"] = 0
+        state["viewer_scroll"] = 0
+        return
+    _tui_rebuild_from_left(state)
+
+
+def _tui_browse(stdscr, initial_path=None):
+    import curses
+
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+    stdscr.keypad(True)
+
+    state = None
+    current_dir = Path.cwd()
+
+    if initial_path:
+        try:
+            state = _tui_build_state(stdscr, initial_path)
+            current_dir = Path(initial_path).expanduser().resolve().parent
+        except (OSError, ValueError) as exc:
+            _tui_safe_addstr(
+                stdscr,
+                8,
+                2,
+                f"Could not open image: {exc}",
+                curses.A_BOLD,
+            )
+            _tui_safe_addstr(
+                stdscr,
+                10,
+                2,
+                "Press any key to choose another image.",
+            )
+            stdscr.refresh()
+            stdscr.getch()
+
+    while state is None:
+        picked = _tui_file_picker(stdscr, current_dir)
+        if picked is None:
+            return
+        try:
+            state = _tui_build_state(stdscr, picked)
+            current_dir = Path(picked).parent
+        except (OSError, ValueError) as exc:
+            stdscr.erase()
+            _tui_safe_addstr(
+                stdscr,
+                1,
+                1,
+                f"Could not open {picked}",
+                curses.A_BOLD,
+            )
+            _tui_safe_addstr(stdscr, 3, 1, str(exc))
+            _tui_safe_addstr(
+                stdscr,
+                5,
+                1,
+                "Press any key to return to the file picker.",
+            )
+            stdscr.refresh()
+            stdscr.getch()
+
+    while True:
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+
+        if height < 16 or width < 72:
+            _tui_safe_addstr(
+                stdscr,
+                0,
+                0,
+                "AS/400 DASD Browser",
+                curses.A_BOLD,
+            )
+            _tui_safe_addstr(
+                stdscr,
+                2,
+                0,
+                "Terminal is too small; resize to at least 72x16.",
+            )
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key in (27, ord("q"), ord("Q")):
+                return
+            continue
+
+        title = (
+            " AS/400 CISC DASD Browser — "
+            f"{os.path.basename(state['image'].path)} "
+        )
+        _tui_safe_addstr(
+            stdscr,
+            0,
+            0,
+            title,
+            curses.A_BOLD | curses.A_REVERSE,
+        )
+
+        nav_y = 2
+        nav_height = max(7, min(18, height // 2 - 1))
+        separator_y = nav_y + nav_height
+        viewer_y = separator_y + 1
+        viewer_height = max(1, height - viewer_y - 3)
+
+        left_w = max(20, width // 4)
+        mid_w = max(25, width // 3)
+        if left_w + mid_w > width - 25:
+            mid_w = max(20, width - left_w - 25)
+        right_x = left_w + mid_w + 2
+        right_w = max(1, width - right_x)
+
+        for y in range(nav_y, separator_y):
+            _tui_safe_addstr(
+                stdscr,
+                y,
+                left_w,
+                "│",
+                curses.A_DIM,
+            )
+            _tui_safe_addstr(
+                stdscr,
+                y,
+                left_w + mid_w + 1,
+                "│",
+                curses.A_DIM,
+            )
+        for x in range(width):
+            _tui_safe_addstr(
+                stdscr,
+                separator_y,
+                x,
+                "─",
+                curses.A_DIM,
+            )
+
+        left_labels = state["left_items"]
+        mid_labels = state["mid_items"]
+        right_labels = state["right_items"]
+
+        left_title = "Libraries / views"
+        left = _tui_selected(state, "left")
+        if left and left["kind"] in (
+            "library",
+            "orphans-view",
+        ):
+            mid_title = "Files  [members / object]"
+        elif left and left["kind"] == "search-view":
+            mid_title = "Search"
+        else:
+            mid_title = "MI object types"
+
+        mid = _tui_selected(state, "mid")
+        if mid and mid["kind"] == "file":
+            right_title = "Members"
+        else:
+            right_title = "Objects"
+
+        _tui_draw_list(
+            stdscr,
+            left_title,
+            left_labels,
+            state["left_index"],
+            0,
+            nav_y,
+            left_w,
+            nav_height,
+            state["focus"] == 0,
+        )
+        _tui_draw_list(
+            stdscr,
+            mid_title,
+            mid_labels,
+            state["mid_index"],
+            left_w + 1,
+            nav_y,
+            mid_w,
+            nav_height,
+            state["focus"] == 1,
+        )
+        _tui_draw_list(
+            stdscr,
+            right_title,
+            right_labels,
+            state["right_index"],
+            right_x,
+            nav_y,
+            right_w,
+            nav_height,
+            state["focus"] == 2,
+        )
+
+        viewer_heading = "Content / details"
+        heading_attr = curses.A_BOLD | (
+            curses.A_REVERSE
+            if state["focus"] == 3
+            else 0
+        )
+        _tui_safe_addstr(
+            stdscr,
+            viewer_y,
+            0,
+            viewer_heading.ljust(max(0, width - 1)),
+            heading_attr,
+        )
+
+        try:
+            viewer_lines = _tui_viewer_lines(state)
+        except Exception as exc:
+            viewer_lines = [
+                "Could not build content view:",
+                str(exc),
+            ]
+
+        visible_viewer = max(0, viewer_height - 1)
+        max_scroll = max(0, len(viewer_lines) - visible_viewer)
+        state["viewer_scroll"] = max(
+            0,
+            min(state["viewer_scroll"], max_scroll),
+        )
+        start = state["viewer_scroll"]
+        for row, line in enumerate(
+            viewer_lines[start : start + visible_viewer]
+        ):
+            _tui_safe_addstr(
+                stdscr,
+                viewer_y + 1 + row,
+                0,
+                line,
+            )
+
+        scan = state["scan"]
+        status = (
+            state["status"]
+            or (
+                f"{state['image'].sector_count:,} sectors • "
+                f"{len(state['segments'].segments):,} segments • "
+                f"{len(state['inventory'].objects):,} objects • "
+                f"{len(state['inventory'].libraries):,} libraries • "
+                f"relative record zero LBA "
+                f"{scan.origin.lba if scan.origin else 'unknown'}"
+            )
+        )
+        _tui_safe_addstr(
+            stdscr,
+            height - 2,
+            0,
+            status,
+            curses.A_DIM,
+        )
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            (
+                "←/→/Tab pane  ↑/↓ PgUp/PgDn navigate/scroll  "
+                "Enter drill in  / search  o open  r rescan  q quit"
+            ),
+            curses.A_REVERSE,
+        )
+        stdscr.refresh()
+
+        key = stdscr.getch()
+        state["status"] = ""
+
+        if key in (27, ord("q"), ord("Q")):
+            return
+
+        if key in (ord("o"), ord("O")):
+            picked = _tui_file_picker(stdscr, current_dir)
+            if picked:
+                try:
+                    state = _tui_build_state(stdscr, picked)
+                    current_dir = Path(picked).parent
+                except (OSError, ValueError) as exc:
+                    state["status"] = f"Open failed: {exc}"
+            continue
+
+        if key in (ord("r"), ord("R")):
+            path = state["image"].path
+            try:
+                state = _tui_build_state(stdscr, path)
+            except (OSError, ValueError) as exc:
+                state["status"] = f"Rescan failed: {exc}"
+            continue
+
+        if key == ord("/"):
+            _tui_prompt_search(stdscr, state)
+            continue
+
+        if key in (9, curses.KEY_RIGHT):
+            state["focus"] = min(3, state["focus"] + 1)
+            continue
+        if key == curses.KEY_LEFT:
+            state["focus"] = max(0, state["focus"] - 1)
+            continue
+
+        if key in (10, 13, curses.KEY_ENTER):
+            if state["focus"] < 3:
+                state["focus"] += 1
+            continue
+
+        if state["focus"] == 3:
+            page = max(1, visible_viewer - 2)
+            if key == curses.KEY_UP:
+                state["viewer_scroll"] = max(
+                    0,
+                    state["viewer_scroll"] - 1,
+                )
+            elif key == curses.KEY_DOWN:
+                state["viewer_scroll"] = min(
+                    max_scroll,
+                    state["viewer_scroll"] + 1,
+                )
+            elif key == curses.KEY_PPAGE:
+                state["viewer_scroll"] = max(
+                    0,
+                    state["viewer_scroll"] - page,
+                )
+            elif key == curses.KEY_NPAGE:
+                state["viewer_scroll"] = min(
+                    max_scroll,
+                    state["viewer_scroll"] + page,
+                )
+            elif key == curses.KEY_HOME:
+                state["viewer_scroll"] = 0
+            elif key == curses.KEY_END:
+                state["viewer_scroll"] = max_scroll
+            continue
+
+        pane_key = (
+            "left"
+            if state["focus"] == 0
+            else "mid"
+            if state["focus"] == 1
+            else "right"
+        )
+        items = state[pane_key + "_items"]
+        index_key = pane_key + "_index"
+        index = state[index_key]
+        visible = max(1, nav_height - 1)
+
+        new_index = index
+        if key == curses.KEY_UP:
+            new_index = max(0, index - 1)
+        elif key == curses.KEY_DOWN:
+            new_index = min(
+                max(0, len(items) - 1),
+                index + 1,
+            )
+        elif key == curses.KEY_PPAGE:
+            new_index = max(0, index - visible)
+        elif key == curses.KEY_NPAGE:
+            new_index = min(
+                max(0, len(items) - 1),
+                index + visible,
+            )
+        elif key == curses.KEY_HOME:
+            new_index = 0
+        elif key == curses.KEY_END:
+            new_index = max(0, len(items) - 1)
+        else:
+            continue
+
+        if new_index != index:
+            state[index_key] = new_index
+            state["viewer_scroll"] = 0
+            if pane_key == "left":
+                _tui_rebuild_search_safe_from_left(state)
+            elif pane_key == "mid":
+                _tui_rebuild_from_mid(state)
+
+
+def cmd_browse(args):
+    try:
+        import curses
+    except ImportError:
+        raise ValueError(
+            "the curses module is not available in this Python installation"
+        )
+
+    initial = args.image
+    curses.wrapper(
+        lambda stdscr: _tui_browse(stdscr, initial)
+    )
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="as400-dasd",
@@ -1365,6 +2916,17 @@ def build_parser():
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    browse = sub.add_parser(
+        "browse",
+        help="interactive curses browser for libraries, files, members, objects, and contents",
+    )
+    browse.add_argument(
+        "image",
+        nargs="?",
+        help="raw 520-byte DASD image; omit to use the file picker",
+    )
+    browse.set_defaults(func=cmd_browse)
 
     info = sub.add_parser("info", help="show image geometry without a full scan")
     info.add_argument("images", nargs="+")
