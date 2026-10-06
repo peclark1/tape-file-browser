@@ -383,6 +383,90 @@ user/application library rather than an IBM-supplied system context. This is
 provenance supplied by the collection owner and is kept separate from the
 on-disk structural evidence.
 
+
+## Source-member contents: working
+
+The browser can now go beyond file/member metadata and recover the contents of
+standard AS/400 source physical-file members.
+
+IBM documents data-space entries as a one-byte status followed by the entry
+fields, with the third and subsequent data-space segment groups forming one
+logical entry stream with the 32-byte segment-group headers omitted. The real
+source members examined here use the standard 92-byte source record payload:
+
+```text
+1 byte    data-space entry status
+6 bytes   source sequence
+6 bytes   source date
+80 bytes  source text
+--------------------------------
+93 bytes  on-disk data-space entry
+```
+
+The parser reconstructs the recovered QDDS data segment groups in virtual
+address order, removes each segment-group header, verifies the default source
+entry, and decodes valid 93-byte entries.
+
+New CLI commands:
+
+```bash
+as400-dasd files   disk.hda QGPL
+as400-dasd members disk.hda QGPL QCLSRC
+as400-dasd source  disk.hda QGPL QCLSRC REFRESH2
+as400-dasd cat     disk.hda QGPL QCLSRC REFRESH2
+```
+
+`source` shows sequence/date plus the source text. `cat` emits only the
+80-byte source-text field, which is convenient for saving recovered source to a
+normal text file.
+
+This was validated directly against both uploaded real images.
+
+### Mark/Patrik V2R3 image
+
+`QGPL/QCLSRC(REFRESH2)` resolves through:
+
+```text
+0D50 member cursor
+  -> 0B90 QDDS data space
+  -> recovered 03B4 data segment group(s)
+  -> 93-byte source entries
+```
+
+The parser recovers 71 source lines from the member. The first data-space entry
+is the documented default entry and is omitted from normal source output.
+
+Additional real source members tested successfully include:
+
+```text
+QGPL/QRPGSRC(PROOF)
+QGPL/QDDSSRC(QDSIGNON)
+QGPL/QCBLSRC(VERIFY)
+```
+
+The same 93-byte entry model produces readable RPG, DDS, and COBOL source.
+
+### Surviving B10 disk
+
+Most importantly for preservation, the surviving B10 disk contains at least one
+complete user source member that can now be recovered:
+
+```text
+PPSITEST/QLBLSRC(PROTO)
+  107 source lines recovered
+```
+
+The source identifies its author as `JT HUDGINS` and declares the target
+computer as `IBM-AS400`. This strongly supports the collection provenance that
+the system was used by the Hudgins consulting/programming business. The source
+itself is **not** committed to this public repository; only the parser and
+synthetic regression coverage are stored here.
+
+Some other B10 source-member data segments are only partially present on the
+surviving disk, which is consistent with single-level storage having scattered
+parts across the missing load-source disk. The parser reports those as
+incomplete rather than fabricating records.
+
 ## Context machine-index decoding: groundwork
 
 IBM's machine indexes are binary radix trees. The VMC documentation describes
@@ -515,13 +599,22 @@ as400-dasd segments disk.hda
 as400-dasd segments disk.hda --primary-only
 ```
 
-### Recovered libraries and objects
+### Recovered libraries, files, and objects
 
 ```bash
 as400-dasd libraries disk.hda
+as400-dasd files disk.hda QGPL
 as400-dasd objects disk.hda
 as400-dasd ls disk.hda QGPL
 as400-dasd ls disk.hda QGPL --type 19/01
+```
+
+### Source member contents
+
+```bash
+as400-dasd members disk.hda QGPL QCLSRC
+as400-dasd source disk.hda QGPL QCLSRC REFRESH2
+as400-dasd cat disk.hda QGPL QCLSRC REFRESH2
 ```
 
 ### One-sector inspection
@@ -594,10 +687,11 @@ The next research/implementation targets are:
   descriptors directly;
 - improve permanent/temporary indicator decoding so fewer candidates require
   structural corroboration;
-- follow permanent member cursors into their data-space/data-space-index
-  relationships;
+- continue following permanent member cursors into data-space/data-space-index
+  relationships for non-source files;
 - decode `*FILE` format objects and field descriptions;
-- expose database field definitions and ultimately physical-file records;
+- generalize the now-working source-record reader into arbitrary physical-file
+  record extraction and typed field decoding;
 - integrate these read-only structures into the GTK/TUI browser after the CLI
   model is stable.
 
