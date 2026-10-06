@@ -86,9 +86,10 @@ def load_qdds_layout_fixture(path):
     for line in path.read_text().splitlines():
         if not line or line.startswith("#"):
             continue
-        label, counts_hex, layout_hex = line.split()
+        label, counts_hex, common_entry_hex, layout_hex = line.split()
         primary = bytearray(0x1EE)
         primary[0x118:0x126] = bytes.fromhex(counts_hex)
+        primary[0x13C:0x140] = bytes.fromhex(common_entry_hex)
         primary[0x1E0:0x1F0] = bytes.fromhex(layout_hex)
         result[label] = bytes(primary)
     return result
@@ -165,6 +166,7 @@ class DASDHeaderTests(unittest.TestCase):
             "PTFSUM_PTFSUM": (1941, 1941, 80, 81),
             "DBUUSERS_DBUUSERS": (1, 1, 22, 23),
             "PDPICKORG_PDPICKDEMO": (1880, 1880, 452, 453),
+            "B10_QLBLSRC_PROTO": (107, 107, 92, 93),
         }
 
         for label, values in expected.items():
@@ -183,6 +185,27 @@ class DASDHeaderTests(unittest.TestCase):
                 )
                 self.assertTrue(layout.standard_fixed_layout)
                 self.assertEqual(layout.per_entry_overhead, 1)
+                if label.startswith("B10_"):
+                    self.assertFalse(layout.v2_hints_present)
+                else:
+                    self.assertTrue(layout.v2_hints_present)
+                    self.assertTrue(layout.v2_hints_match)
+
+
+    def test_qdds_special_v2_hint_mismatch_is_flagged(self):
+        primary = bytearray(0x1EE)
+        primary[0x11A:0x11E] = (10).to_bytes(4, "big")
+        primary[0x11E:0x122] = (10).to_bytes(4, "big")
+        primary[0x13C:0x140] = (1648).to_bytes(4, "big")
+        primary[0x1E4:0x1E8] = (11387).to_bytes(4, "big")
+        primary[0x1EC:0x1EE] = (1648).to_bytes(2, "big")
+
+        layout = DataSpaceLayout.from_primary_segment(bytes(primary))
+        self.assertEqual(layout.entry_length, 1648)
+        self.assertEqual(layout.record_length, 1647)
+        self.assertTrue(layout.v2_hints_present)
+        self.assertFalse(layout.v2_hints_match)
+        self.assertFalse(layout.standard_fixed_layout)
 
     def test_generic_data_space_record_decoder_uses_header_count(self):
         layout = DataSpaceLayout(
