@@ -458,6 +458,7 @@ class RecoveredObject:
             (0x0D, 0x50): "*MEM",
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
+            (0x19, 0x02): "*MSGQ",
         }
         return known.get(
             (self.object_type, self.object_subtype),
