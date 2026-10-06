@@ -1181,6 +1181,20 @@ def cmd_dlos(args):
     total = len(dlos)
     shown = dlos if not args.limit else dlos[: args.limit]
 
+    # IBM's MI type table identifies 06/C1 as *DOCBSS (Document byte string
+    # space). On the real V2R3 image, binary-looking FMPV documents have a
+    # companion named SYSOBJNAM + "F". Treat that name relationship as an
+    # observed association, not yet as a proven byte-export layout.
+    docbss_by_name = {}
+    for candidate in inventory.objects:
+        if (
+            candidate.object_type == 0x06
+            and candidate.object_subtype == 0xC1
+        ):
+            docbss_by_name.setdefault(candidate.name.upper(), []).append(
+                candidate
+            )
+
     print(f"Disk: {image.path}")
     print(f"Recovered QDOC DLO objects: {total:,}")
     print(
@@ -1189,7 +1203,7 @@ def cmd_dlos(args):
     )
     print()
     print(
-        "Class  SYSOBJNAM                       Virtual addr   "
+        "Class  SYSOBJNAM   DOCBSS  Virtual addr   "
         "LBA        pages  printable metadata hints"
     )
 
@@ -1207,8 +1221,11 @@ def cmd_dlos(args):
             except Exception:
                 hints = []
         preview = " | ".join(hints) if hints else "-"
+        docbss_name = (obj.name.upper() + "F") if len(obj.name) == 10 else ""
+        docbss_matches = docbss_by_name.get(docbss_name, [])
+        docbss_status = "yes" if docbss_matches else "-"
         print(
-            f"{label:<6} {obj.name:<30.30} "
+            f"{label:<6} {obj.name:<10.10} {docbss_status:^6} "
             f"{obj.segment.virtual_address:012X} "
             f"{obj.segment.start_lba:>9,} "
             f"{obj.segment.pages:>6,}  "
@@ -1217,6 +1234,23 @@ def cmd_dlos(args):
 
     if len(shown) < total:
         print(f"... {total - len(shown):,} additional DLO objects omitted")
+
+    companion_count = sum(
+        1
+        for obj in dlos
+        if len(obj.name) == 10
+        and docbss_by_name.get(obj.name.upper() + "F")
+    )
+    print()
+    print(
+        f"Observed SYSOBJNAM+'F' *DOCBSS companions: "
+        f"{companion_count:,} of {len(dlos):,} recovered DLOs."
+    )
+    print(
+        "IBM documents MI 06/C1 as *DOCBSS (Document byte string space). "
+        "The name pairing is observed on this image; payload boundaries and "
+        "safe export still require validation."
+    )
 
     qao_prefix = "QAO" if args.all_qao else "QAOSS"
     qao_files = [
@@ -2562,6 +2596,11 @@ def _tui_selected(state, key):
 _TUI_OBJECT_TYPE_CONTEXT = {
     (0x02, 0x01): "executable program object",
     (0x04, 0x01): "library/context object that owns named AS/400 objects",
+    (0x06, 0xC1): (
+        "IBM *DOCBSS Document byte string space used by Document Library "
+        "Services; a same-named QDOC document may reference its workstation "
+        "byte content through this internal object"
+    ),
     (0x08, 0x01): "user profile object",
     (0x0B, 0x90): "internal QDDS data space backing a member record stream",
     (0x0C, 0x90): "internal QDDS index associated with member storage",
