@@ -72,6 +72,12 @@ class InternalAddress:
     def __str__(self) -> str:
         return f"{self.extender:04X}:{self.address:012X}"
 
+    def to_bytes(self) -> bytes:
+        return (
+            self.extender.to_bytes(2, "big")
+            + self.address.to_bytes(6, "big")
+        )
+
 
 @dataclass(frozen=True)
 class SectorHeader:
@@ -882,21 +888,50 @@ class DASDImage:
         if not member.is_member_cursor:
             raise ValueError("object is not a 0D50 member cursor")
 
+        # QDDS/QDDSI are internal components and do not necessarily carry
+        # the library context back-pointer used by the external *FILE/*MEM
+        # objects. Match the exact 30-byte file/member name first.
         qdds = inventory.matching_objects(
-            library=member.library_name,
             name_raw=member.epa.name_raw,
             object_type=0x0B,
             object_subtype=0x90,
         )
         qddsi = inventory.matching_objects(
-            library=member.library_name,
             name_raw=member.epa.name_raw,
             object_type=0x0C,
             object_subtype=0x90,
         )
 
-        data_space = qdds[0] if qdds else None
-        data_index = qddsi[0] if qddsi else None
+        # Prefer the same pointer extender as the cursor. On the real V2R3
+        # image the cursor also contains the QDDS internal address in its
+        # associated data, which provides a stronger disambiguator when the
+        # same file/member name exists in multiple libraries.
+        cursor_bytes = self.read_segment_bytes(member.segment)
+        cursor_extender = member.segment.header.owner.extender
+
+        def choose(objects: list[RecoveredObject]) -> RecoveredObject | None:
+            if not objects:
+                return None
+            same_extender = [
+                obj
+                for obj in objects
+                if obj.segment.header.owner.extender == cursor_extender
+            ]
+            pool = same_extender or objects
+            pointed = []
+            for obj in pool:
+                address = InternalAddress(
+                    obj.segment.header.owner.extender,
+                    obj.segment.virtual_address,
+                ).to_bytes()
+                if address in cursor_bytes:
+                    pointed.append(obj)
+            if len(pointed) == 1:
+                return pointed[0]
+            return pool[0]
+
+        data_space = choose(qdds)
+        data_index = choose(qddsi)
         owned: list[RecoveredSegment] = []
 
         if data_space is not None:
