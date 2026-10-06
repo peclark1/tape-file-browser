@@ -2656,11 +2656,23 @@ def _load_library_catalog(paths=None):
             else:
                 continue
 
-            description = entry.get("description")
+            # Merge fields rather than replacing the whole entry so a user
+            # override can change only description/category/status while
+            # retaining the remaining base-catalog metadata.
+            merged = dict(catalog.get(name, {}))
+            merged.update(entry)
+
+            description = merged.get("description")
             if not isinstance(description, str) or not description.strip():
                 continue
-            entry["description"] = description.strip()
-            catalog[name] = entry
+            merged["description"] = description.strip()
+
+            for key in ("category", "status"):
+                value = merged.get(key)
+                if isinstance(value, str):
+                    merged[key] = value.strip()
+
+            catalog[name] = merged
 
     return catalog
 
@@ -2679,7 +2691,23 @@ def _tui_library_context(library_name):
 
     entry = _get_library_catalog().get(name)
     if entry is not None:
-        return entry["description"]
+        description = entry["description"]
+        category = entry.get("category")
+        status = entry.get("status")
+
+        labels = []
+        if isinstance(category, str) and category.strip():
+            labels.append(category.strip())
+        if (
+            isinstance(status, str)
+            and status.strip()
+            and status.strip() != "documented"
+        ):
+            labels.append(status.strip())
+
+        if labels:
+            return f"[{' · '.join(labels)}] {description}"
+        return description
 
     return (
         f"{name} — AS/400 *LIB object context; purpose is not yet in the "
