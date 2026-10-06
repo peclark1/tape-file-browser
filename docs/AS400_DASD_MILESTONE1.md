@@ -536,10 +536,15 @@ The repeated field descriptions contain a stable prefix that exposes:
 Observed and independently verified type codes include:
 
 ```text
+00  binary integer
 02  zoned decimal
 03  packed decimal
 04  character
 ```
+
+The binary case is independently corroborated by IBM's documented System/38
+key-conversion rules, which treat binary fields as signed two's-complement
+values.
 
 For the standard QCLSRC record format this reconstructs:
 
