@@ -5,7 +5,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from as400_dasd import PAGE_SIZE
-from as400_dasd_tool import main
+from as400_dasd_tool import build_parser, main
 
 
 def make_header(address, order=0):
@@ -51,6 +51,19 @@ class DASDToolTests(unittest.TestCase):
                 "virtual byte address:     0x000000100000", text
             )
             self.assertIn("QGPL TEST00", text)
+
+
+
+    def test_browse_subcommand_accepts_optional_image(self):
+        parser = build_parser()
+
+        args = parser.parse_args(["browse"])
+        self.assertEqual(args.command, "browse")
+        self.assertIsNone(args.image)
+
+        args = parser.parse_args(["browse", "marks.hda"])
+        self.assertEqual(args.command, "browse")
+        self.assertEqual(args.image, "marks.hda")
 
     def test_bad_image_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
