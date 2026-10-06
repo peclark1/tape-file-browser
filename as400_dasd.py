@@ -844,6 +844,7 @@ class FormatField:
     @property
     def type_name(self) -> str:
         return {
+            0x00: "BINARY",
             0x02: "ZONED",
             0x03: "PACKED",
             0x04: "CHAR",
@@ -878,6 +879,19 @@ class FormatField:
 
         if self.type_code == 0x04:
             return raw.decode("cp037", errors="replace").rstrip()
+
+        if self.type_code == 0x00:
+            # System/38 binary numeric fields use signed two's-complement
+            # representation. Apply declared decimal positions after converting
+            # the big-endian integer.
+            value = int.from_bytes(raw, "big", signed=True)
+            negative = value < 0
+            digits = str(abs(value))
+            return self._format_decimal(
+                digits,
+                negative,
+                self.decimal_positions,
+            )
 
         if self.type_code == 0x02:
             # Zoned decimal: one digit per byte. The low nibble is the digit;
