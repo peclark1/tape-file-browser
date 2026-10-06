@@ -195,7 +195,9 @@ The current milestone can:
 - perform the second directory-recovery pass and reconstruct multi-extent segment groups;
 - parse common EPA object headers from recovered primary segments;
 - recover permanent contexts/libraries and assign objects to them through EPA context back-pointers;
-- list real library contents such as QGPL files from an offline disk image;
+- list real `*FILE` objects and recovered members inside a library;
+- follow member cursors to QDDS/QDDSI storage;
+- decode standard 92-byte AS/400 source physical-file records and print their source text;
 - decode permanent database-member cursors (MI 0D/50), splitting the 30-byte cursor name into file/member names;
 - decode the permanent cursor member header, including source type, descriptive text, source-change timestamp, and creation timestamp;
 - resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
@@ -204,6 +206,8 @@ The current milestone can:
 On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
 
 The second pass currently recovers about 12.7k segment groups from the surviving B10 disk and 43k from the independent V2R3 disk. On the latter it identifies roughly 31.5k EPA objects and 40 permanent contexts/libraries, including QSYS, QGPL, QUSRSYS, and QSYS2. QGPL can already be browsed offline; recovered `19/01` objects include QCLSRC, QCMDSRC, QDDSSRC, and other files. Library membership currently comes from the object's EPA context back-pointer; parsing the context machine index is the next independent cross-check.
+
+Source-member contents are now working as well. The real Mark/Patrik image yields readable CL, RPG, DDS, and COBOL source from recovered QDDS data spaces. On the surviving B10 disk, `PPSITEST/QLBLSRC(PROTO)` recovers 107 source lines. The recovered source identifies its author as `JT HUDGINS`, providing a strong preservation/provenance link to the machine's original consulting/programming use. Recovered source itself is not committed to the public repository.
 
 The member parser is independently validated against a real QGPL/QCLSRC member named `REFRESH2`. It recovers source type `CLP`, the descriptive text `Refresh PkMS demo data - new version (GE 170)`, source-change time `1998-01-03 02:31:14`, and creation time `1998-01-03 02:31:11`.
 
