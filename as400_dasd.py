@@ -455,11 +455,40 @@ class RecoveredObject:
             (0x02, 0x01): "*PGM",
             (0x04, 0x01): "*LIB",
             (0x08, 0x01): "*USRPRF",
+            (0x0D, 0x50): "*MEM",
+            (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
         }
         return known.get(
             (self.object_type, self.object_subtype),
             "",
+        )
+
+    @property
+    def is_member_cursor(self) -> bool:
+        return (
+            self.object_type == 0x0D
+            and self.object_subtype == 0x50
+        )
+
+    @property
+    def member_file_name(self) -> str:
+        if not self.is_member_cursor:
+            return ""
+        return (
+            self.epa.name_raw[:10]
+            .decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def member_name(self) -> str:
+        if not self.is_member_cursor:
+            return ""
+        return (
+            self.epa.name_raw[10:20]
+            .decode("cp037", errors="replace")
+            .rstrip(" \x00")
         )
 
 
@@ -496,6 +525,40 @@ class ObjectInventory:
                 obj.object_type,
                 obj.object_subtype,
                 obj.name,
+                obj.segment.virtual_address,
+            ),
+        )
+
+    def members(
+        self,
+        *,
+        library: str | None = None,
+        file_name: str | None = None,
+    ) -> list[RecoveredObject]:
+        library_wanted = library.upper() if library else None
+        file_wanted = file_name.upper() if file_name else None
+        result = []
+        for obj in self.objects:
+            if not obj.is_member_cursor:
+                continue
+            if (
+                library_wanted is not None
+                and (obj.library_name or "").upper() != library_wanted
+            ):
+                continue
+            if (
+                file_wanted is not None
+                and obj.member_file_name.upper() != file_wanted
+            ):
+                continue
+            result.append(obj)
+
+        return sorted(
+            result,
+            key=lambda obj: (
+                obj.library_name or "",
+                obj.member_file_name,
+                obj.member_name,
                 obj.segment.virtual_address,
             ),
         )
