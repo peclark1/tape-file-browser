@@ -137,6 +137,40 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(header.extent_pages, 32)
         self.assertEqual(header.reserved_byte, 0)
 
+
+    def test_machine_index_element_formats(self):
+        # IBM Appendix-A release-2 format uses three-byte elements.
+        text = MachineIndexElement(bytes.fromhex("051234"))
+        self.assertEqual(text.kind, "text")
+        self.assertEqual(text.text_length, 5)
+        self.assertEqual(text.text_displacement, 0x1234)
+
+        # type=10, common-text bit=0, direction=1, bit-to-test=3,
+        # xor displacement=0x01234
+        node_value = (
+            (0b10 << 22)
+            | (0 << 21)
+            | (1 << 20)
+            | (3 << 17)
+            | 0x1234
+        )
+        node = MachineIndexElement(node_value.to_bytes(3, "big"))
+        self.assertEqual(node.kind, "node")
+        self.assertTrue(node.common_text_present)
+        self.assertEqual(node.direction, "right")
+        self.assertEqual(node.bit_to_test, 3)
+        self.assertEqual(node.xor_displacement, 0x1234)
+
+        page_value = (
+            (0b11 << 22)
+            | (0x15 << 16)
+            | 0x2345
+        )
+        page = MachineIndexElement(page_value.to_bytes(3, "big"))
+        self.assertEqual(page.kind, "page-pointer")
+        self.assertEqual(page.segment_table_index, 0x15)
+        self.assertEqual(page.page_offset, 0x2345)
+
     def test_geometry_and_sector_read(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sample.hda"
