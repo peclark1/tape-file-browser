@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -1834,6 +1835,50 @@ def _tui_file_items(state, library_name):
     return result
 
 
+def _tui_library_items(state, library_name):
+    """Files plus non-file object groups for one recovered library."""
+
+    inventory = state["inventory"]
+    result = _tui_file_items(state, library_name)
+
+    groups = {}
+    for obj in inventory.in_library(library_name):
+        # Files and members already have the normal file/member navigation.
+        if (
+            (obj.object_type == 0x19 and obj.object_subtype == 0x01)
+            or obj.is_member_cursor
+        ):
+            continue
+        key = (obj.object_type, obj.object_subtype)
+        groups.setdefault(key, []).append(obj)
+
+    for key in sorted(groups):
+        objects = sorted(
+            groups[key],
+            key=lambda obj: (
+                obj.name,
+                obj.segment.virtual_address,
+            ),
+        )
+        sample = objects[0]
+        hint = sample.external_type_hint or ""
+        suffix = f" {hint}" if hint else ""
+        result.append(
+            {
+                "kind": "library-object-type",
+                "type": key[0],
+                "subtype": key[1],
+                "objects": objects,
+                "label": (
+                    f"[objects] {key[0]:02X}/{key[1]:02X}"
+                    f"{suffix:<10}  {len(objects):,}"
+                ),
+            }
+        )
+
+    return result
+
+
 def _tui_object_type_items(state):
     inventory = state["inventory"]
     groups = {}
@@ -1883,7 +1928,7 @@ def _tui_rebuild_from_left(state):
     selected = left_items[state["left_index"]]
 
     if selected["kind"] == "library":
-        state["mid_items"] = _tui_file_items(
+        state["mid_items"] = _tui_library_items(
             state,
             selected["library"],
         )
@@ -1959,6 +2004,25 @@ def _tui_selected(state, key):
     return items[index]
 
 
+def _tui_ebcdic_strings(data, min_length=4):
+    """Return printable CP037 runs separated by binary/control data."""
+
+    decoded = data.decode("cp037", errors="replace")
+    runs = re.findall(r"[ -~]{" + str(min_length) + r",}", decoded)
+
+    result = []
+    previous = None
+    for run in runs:
+        text = run.strip()
+        if not text:
+            continue
+        if text == previous:
+            continue
+        result.append(text)
+        previous = text
+    return result
+
+
 def _tui_object_lines(state, obj):
     lines = [
         f"Object:       {(obj.library_name or '<orphan>')}/{obj.name}",
@@ -2027,6 +2091,41 @@ def _tui_object_lines(state, obj):
                 "Formats: "
                 + ", ".join(format_obj.name for format_obj in formats)
             )
+
+    if (
+        obj.library_name == "QDOC"
+        and (obj.object_type, obj.object_subtype)
+        in {(0x19, 0x0E), (0x19, 0x12)}
+    ):
+        try:
+            data = state["image"].read_segment_bytes(obj.segment)
+            strings = _tui_ebcdic_strings(data)
+        except Exception as exc:
+            strings = []
+            lines.extend(["", f"DLO preview error: {exc}"])
+
+        if strings:
+            label = (
+                "Document"
+                if obj.object_subtype == 0x0E
+                else "Folder"
+            )
+            lines.extend(
+                [
+                    "",
+                    f"{label} library object preview",
+                    (
+                        "The QDOC name above is the internal system object "
+                        "name; DLO/user-facing names may appear below."
+                    ),
+                    "",
+                ]
+            )
+            lines.extend(strings[:300])
+            if len(strings) > 300:
+                lines.append(
+                    f"... {len(strings) - 300:,} additional strings omitted"
+                )
 
     return lines
 
@@ -2666,7 +2765,7 @@ def _tui_browse(stdscr, initial_path=None):
             "library",
             "orphans-view",
         ):
-            mid_title = "Files  [members / object]"
+            mid_title = "Files / object types"
         elif left and left["kind"] == "search-view":
             mid_title = "Search"
         else:
