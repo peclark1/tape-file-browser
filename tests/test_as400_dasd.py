@@ -11,6 +11,8 @@ from as400_dasd import (
     EPAHeader,
     Extent,
     HeaderSnapshot,
+    RecoveredObject,
+    RecoveredSegment,
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
@@ -20,6 +22,7 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures"
 B10_FIXTURE = FIXTURE_DIR / "b10_d1_first232064.headers.rle.txt"
 P02_FIXTURE = FIXTURE_DIR / "p02_v2r3_selected.headers.rle.txt"
 OBJECT_FIXTURE = FIXTURE_DIR / "real_object_headers.txt"
+MEMBER_FIXTURE = FIXTURE_DIR / "real_member_metadata.txt"
 
 
 def make_header(address, order=0, *, tail=0):
@@ -60,6 +63,16 @@ def load_object_fixture(path):
             continue
         label, lba_text, hex_data = line.split()
         result[label] = (int(lba_text), bytes.fromhex(hex_data))
+    return result
+
+
+def load_offset_fixture(path):
+    result = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        label, offset_text, hex_data = line.split()
+        result[label] = (int(offset_text, 0), bytes.fromhex(hex_data))
     return result
 
 def make_internal_address(extender, address):
@@ -393,6 +406,65 @@ class DASDHeaderTests(unittest.TestCase):
                 label,
             )
             self.assertEqual(epa.name, name, label)
+
+    def test_real_member_header_metadata(self):
+        object_fixture = load_object_fixture(OBJECT_FIXTURE)
+        member_fixture = load_offset_fixture(MEMBER_FIXTURE)
+
+        _, first_page_meta = object_fixture["MARK_QCLSRC_REFRESH2"]
+        page_data = bytearray(5 * PAGE_SIZE)
+        page_data[: len(first_page_meta)] = first_page_meta
+
+        for _, (offset, raw) in member_fixture.items():
+            page_data[offset : offset + len(raw)] = raw
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "real-member-meta.hda"
+            with open(path, "wb") as handle:
+                for page_index in range(5):
+                    start = page_index * PAGE_SIZE
+                    handle.write(make_header(0x00F3C2000000 + start))
+                    handle.write(page_data[start : start + PAGE_SIZE])
+
+            extent = Extent(
+                start_lba=0,
+                pages=5,
+                kind="permanent-candidate",
+                header=make_header(0x00F3C2000000),
+                virtual_address=0x00F3C2000000,
+            )
+            segment_header = SegmentGroupHeader.from_bytes(
+                first_page_meta[:32]
+            )
+            segment = RecoveredSegment(
+                start_extent=extent,
+                extents=(extent,),
+                header=segment_header,
+            )
+            epa = EPAHeader.from_bytes(first_page_meta[32:])
+            obj = RecoveredObject(
+                segment=segment,
+                epa=epa,
+                library_name="QGPL",
+            )
+
+            info = DASDImage(path).read_member_info(obj)
+            self.assertIsNotNone(info)
+            self.assertEqual(info.associated_space_offset, 0x440)
+            self.assertEqual(info.member_header_offset, 0x8D0)
+            self.assertEqual(
+                info.text,
+                "Refresh PkMS demo data - new version (GE 170)",
+            )
+            self.assertEqual(info.member_type, "CLP")
+            self.assertEqual(
+                info.source_change,
+                "1998-01-03 02:31:14",
+            )
+            self.assertEqual(
+                info.created,
+                "1998-01-03 02:31:11",
+            )
 
     def test_member_cursor_properties_and_inventory_filter(self):
         with tempfile.TemporaryDirectory() as directory:
