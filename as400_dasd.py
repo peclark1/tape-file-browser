@@ -687,6 +687,70 @@ class ObjectInventory:
 
 
 @dataclass(frozen=True)
+class DocumentByteStringInfo:
+    """Observed V2R3 *DOCBSS byte-stream layout.
+
+    IBM documents MI type/subtype 06/C1 as *DOCBSS (Document byte string
+    space). On the real V2R3 image, the first page of ordinary DOCBSS objects
+    contains a 16-bit byte length at +0x106 and a duplicate at +0x112. The
+    workstation byte stream begins on the following 512-byte page. A 16-bit
+    allocation length at +0x10A is normally a 512-byte multiple.
+
+    The offsets are real-image observations, not claimed IBM documentation.
+    Safe extraction requires the duplicated lengths to agree and the declared
+    bytes to fit inside the recovered segment.
+    """
+
+    payload_length: int
+    allocated_length: int
+    duplicate_payload_length: int
+    payload_offset: int = PAGE_SIZE
+
+    @classmethod
+    def from_primary_segment(cls, data: bytes) -> "DocumentByteStringInfo":
+        if len(data) < 0x114:
+            raise ValueError(
+                "DOCBSS primary segment is too short for observed length fields"
+            )
+        return cls(
+            payload_length=int.from_bytes(data[0x106:0x108], "big"),
+            allocated_length=int.from_bytes(data[0x10A:0x10C], "big"),
+            duplicate_payload_length=int.from_bytes(
+                data[0x112:0x114],
+                "big",
+            ),
+        )
+
+    @property
+    def duplicate_length_matches(self) -> bool:
+        return self.payload_length == self.duplicate_payload_length
+
+    def validate_for_export(self, segment_bytes: int) -> None:
+        if not self.duplicate_length_matches:
+            raise ValueError(
+                "DOCBSS duplicate payload lengths disagree "
+                f"({self.payload_length} != "
+                f"{self.duplicate_payload_length})"
+            )
+        end = self.payload_offset + self.payload_length
+        if end > segment_bytes:
+            raise ValueError(
+                f"DOCBSS payload length {self.payload_length} exceeds "
+                f"recovered segment capacity {max(0, segment_bytes - self.payload_offset)}"
+            )
+        if self.allocated_length:
+            if self.allocated_length % PAGE_SIZE:
+                raise ValueError(
+                    "DOCBSS allocation length is not a 512-byte multiple"
+                )
+            if self.payload_length > self.allocated_length:
+                raise ValueError(
+                    f"DOCBSS payload length {self.payload_length} exceeds "
+                    f"declared allocation {self.allocated_length}"
+                )
+
+
+@dataclass(frozen=True)
 class MemberStorage:
     """Recovered storage objects associated with one database member cursor."""
 
@@ -1444,6 +1508,25 @@ class DASDImage:
                 f"expected {expected}"
             )
         return bytes(data)
+
+    def read_document_byte_string(
+        self,
+        obj: RecoveredObject,
+    ) -> tuple[DocumentByteStringInfo, bytes]:
+        """Read a conservatively validated IBM *DOCBSS workstation byte stream."""
+
+        if (
+            obj.object_type != 0x06
+            or obj.object_subtype != 0xC1
+        ):
+            raise ValueError("target object is not IBM *DOCBSS (MI 06/C1)")
+
+        data = self.read_segment_bytes(obj.segment)
+        info = DocumentByteStringInfo.from_primary_segment(data)
+        info.validate_for_export(len(data))
+        start = info.payload_offset
+        end = start + info.payload_length
+        return info, data[start:end]
 
     def probe_machine_index_page(
         self,
