@@ -654,12 +654,128 @@ def _recover_member_storage(
         inventory,
         segments,
     )
-    return member, matches, storage
+    return member, matches, storage, inventory
+
+
+def _resolve_format_fields(
+    image,
+    inventory,
+    library_name,
+    file_name,
+    *,
+    record_length=None,
+    format_name=None,
+):
+    """Resolve one or more MI 19/51 format objects for a recovered *FILE."""
+
+    if format_name:
+        formats = [
+            obj
+            for obj in inventory.objects
+            if (
+                obj.object_type == 0x19
+                and obj.object_subtype == 0x51
+                and obj.name.upper() == format_name.upper()
+            )
+        ]
+    else:
+        file_objects = [
+            obj
+            for obj in inventory.in_library(library_name)
+            if (
+                obj.object_type == 0x19
+                and obj.object_subtype == 0x01
+                and obj.name.upper() == file_name.upper()
+            )
+        ]
+        formats = []
+        for file_obj in file_objects:
+            formats.extend(image.resolve_file_formats(file_obj, inventory))
+
+    decoded = []
+    seen = set()
+    for format_obj in formats:
+        key = (
+            format_obj.segment.header.owner.extender,
+            format_obj.segment.virtual_address,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        fields = image.read_format_fields(
+            format_obj,
+            record_length=record_length,
+        )
+        if fields:
+            decoded.append((format_obj, fields))
+
+    if record_length is not None and len(decoded) > 1:
+        # Physical files normally have one applicable format. Prefer the one
+        # whose described fields cover the greatest portion of the member's
+        # fixed record without exceeding it.
+        decoded.sort(
+            key=lambda item: (
+                max(
+                    (
+                        field.offset + field.storage_length
+                        for field in item[1]
+                    ),
+                    default=0,
+                ),
+                len(item[1]),
+            ),
+            reverse=True,
+        )
+
+    return decoded
+
+
+def cmd_fields(args):
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+    decoded = _resolve_format_fields(
+        image,
+        inventory,
+        args.library_name,
+        args.file_name,
+        format_name=args.format_name,
+    )
+    if not decoded:
+        raise ValueError(
+            f"no recovered format/field descriptions for "
+            f"{args.library_name.upper()}/{args.file_name.upper()}"
+        )
+
+    print(f"Disk: {image.path}")
+    print(
+        f"File: {args.library_name.upper()}/{args.file_name.upper()}"
+    )
+    for index, (format_obj, fields) in enumerate(decoded):
+        if index:
+            print()
+        print(
+            f"Format: {format_obj.name}  MI {format_obj.type_code}  "
+            f"VA {format_obj.segment.virtual_address:012X}  "
+            f"{len(fields):,} fields"
+        )
+        print(
+            "Offset  Length  Type       Digits  Dec  Field"
+        )
+        for field in fields:
+            print(
+                f"{field.offset:>6,}  "
+                f"{field.storage_length:>6,}  "
+                f"{field.type_name:<10} "
+                f"{field.digits:>6,}  "
+                f"{field.decimal_positions:>3,}  "
+                f"{field.name}"
+            )
+    return 0
 
 
 def cmd_records(args):
     image = _open(args.image)
-    member, matches, storage = _recover_member_storage(
+    member, matches, storage, inventory = _recover_member_storage(
         image,
         args.library_name,
         args.file_name,
@@ -674,6 +790,22 @@ def cmd_records(args):
         )
 
     layout = record_set.layout
+    decoded_formats = []
+    if args.decoded:
+        decoded_formats = _resolve_format_fields(
+            image,
+            inventory,
+            args.library_name,
+            args.file_name,
+            record_length=layout.record_length,
+            format_name=args.format_name,
+        )
+        if not decoded_formats:
+            raise ValueError(
+                f"no recovered record format for decoded display of "
+                f"{args.library_name.upper()}/{args.file_name.upper()}"
+            )
+
     print(f"Disk:          {image.path}")
     print(
         f"Member:        {(member.library_name or args.library_name)}/"
@@ -713,21 +845,40 @@ def cmd_records(args):
     shown = records if not args.limit else records[: args.limit]
 
     print()
-    print("RRN       Status  EBCDIC preview")
-    for record in shown:
-        preview = record.ebcdic_preview
-        if args.preview and len(preview) > args.preview:
-            preview = preview[: args.preview] + "..."
+    if args.decoded:
+        format_obj, fields = decoded_formats[0]
         print(
-            f"{record.rrn:>8,}  0x{record.status:02X}    {preview}"
+            f"Decoded format: {format_obj.name} "
+            f"({len(fields):,} fields)"
         )
-        if args.hex_bytes:
-            amount = min(args.hex_bytes, len(record.data))
+        print()
+        for record in shown:
+            values = []
+            for field in fields:
+                value = field.decode_value(record.data)
+                if args.preview and len(value) > args.preview:
+                    value = value[: args.preview] + "..."
+                values.append(f"{field.name}={value}")
             print(
-                "          hex: "
-                + record.data[:amount].hex(" ").upper()
-                + (" ..." if amount < len(record.data) else "")
+                f"RRN {record.rrn:>8,}  status 0x{record.status:02X}  "
+                + " | ".join(values)
             )
+    else:
+        print("RRN       Status  EBCDIC preview")
+        for record in shown:
+            preview = record.ebcdic_preview
+            if args.preview and len(preview) > args.preview:
+                preview = preview[: args.preview] + "..."
+            print(
+                f"{record.rrn:>8,}  0x{record.status:02X}    {preview}"
+            )
+            if args.hex_bytes:
+                amount = min(args.hex_bytes, len(record.data))
+                print(
+                    "          hex: "
+                    + record.data[:amount].hex(" ").upper()
+                    + (" ..." if amount < len(record.data) else "")
+                )
 
     if len(shown) < total:
         print(f"... {total - len(shown):,} additional records omitted")
@@ -736,7 +887,7 @@ def cmd_records(args):
 
 def cmd_record(args):
     image = _open(args.image)
-    member, matches, storage = _recover_member_storage(
+    member, matches, storage, inventory = _recover_member_storage(
         image,
         args.library_name,
         args.file_name,
@@ -781,6 +932,31 @@ def cmd_record(args):
     print()
     print("Hex:")
     print(format_hex(record.data))
+
+    if args.decoded:
+        decoded_formats = _resolve_format_fields(
+            image,
+            inventory,
+            args.library_name,
+            args.file_name,
+            record_length=record_set.layout.record_length,
+            format_name=args.format_name,
+        )
+        if not decoded_formats:
+            raise ValueError(
+                f"no recovered record format for decoded display of "
+                f"{args.library_name.upper()}/{args.file_name.upper()}"
+            )
+        format_obj, fields = decoded_formats[0]
+        print()
+        print(f"Decoded fields ({format_obj.name}):")
+        for field in fields:
+            print(
+                f"  {field.name:<10} "
+                f"[{field.type_name:<10} "
+                f"off {field.offset:>4} len {field.storage_length:>4}] "
+                f"{field.decode_value(record.data)}"
+            )
     return 0
 
 
@@ -1262,6 +1438,20 @@ def build_parser():
     )
     files.set_defaults(func=cmd_files)
 
+    fields = sub.add_parser(
+        "fields",
+        help="list decoded field descriptions for a recovered *FILE format",
+    )
+    fields.add_argument("image")
+    fields.add_argument("library_name")
+    fields.add_argument("file_name")
+    fields.add_argument(
+        "--format",
+        dest="format_name",
+        help="explicit MI 19/51 format name when automatic FCB matching is ambiguous",
+    )
+    fields.set_defaults(func=cmd_fields)
+
     context_page = sub.add_parser(
         "context-page",
         help="decode raw three-byte machine-index elements in a library context",
@@ -1358,6 +1548,16 @@ def build_parser():
         default=50,
         help="maximum records to print; use 0 for all (default: 50)",
     )
+    records.add_argument(
+        "--decoded",
+        action="store_true",
+        help="decode each record through the recovered MI 19/51 format",
+    )
+    records.add_argument(
+        "--format",
+        dest="format_name",
+        help="explicit format name for --decoded",
+    )
     records.set_defaults(func=cmd_records)
 
     record = sub.add_parser(
@@ -1372,6 +1572,16 @@ def build_parser():
         "rrn",
         type=int,
         help="relative record number; 0 selects the default entry",
+    )
+    record.add_argument(
+        "--decoded",
+        action="store_true",
+        help="decode record fields through the recovered MI 19/51 format",
+    )
+    record.add_argument(
+        "--format",
+        dest="format_name",
+        help="explicit format name for --decoded",
     )
     record.set_defaults(func=cmd_record)
 
