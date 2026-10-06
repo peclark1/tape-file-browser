@@ -585,18 +585,27 @@ def cmd_members(args):
         )
     print()
     print(
-        "Library      File       Member      "
-        "Virtual addr   LBA        pages"
+        "Library      File       Member      Type       "
+        "Source changed       Virtual addr   LBA"
     )
     for obj in shown:
+        info = image.read_member_info(obj)
+        member_type = info.member_type if info is not None else ""
+        changed = info.source_change if info is not None else ""
         print(
             f"{(obj.library_name or '-'):<12} "
             f"{obj.member_file_name:<10.10} "
             f"{obj.member_name:<10.10} "
+            f"{member_type:<10.10} "
+            f"{changed:<20.20} "
             f"{obj.segment.virtual_address:012X} "
-            f"{obj.segment.start_lba:>9,} "
-            f"{obj.segment.pages:>6,}"
+            f"{obj.segment.start_lba:>9,}"
         )
+        if args.long and info is not None:
+            print(
+                f"  created: {info.created or '-'}"
+                f"  text: {info.text or '-'}"
+            )
     if len(shown) < total:
         print(
             f"... {total - len(shown):,} "
@@ -783,6 +792,11 @@ def build_parser():
         type=int,
         default=200,
         help="maximum rows to print; use 0 for all (default: 200)",
+    )
+    members.add_argument(
+        "--long",
+        action="store_true",
+        help="also show member creation timestamp and descriptive text",
     )
     members.set_defaults(func=cmd_members)
 
