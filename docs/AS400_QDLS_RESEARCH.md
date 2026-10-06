@@ -29,6 +29,10 @@ Library Services (QDLS) metadata.
   given to `DSPDLONAM DLO(*LADNTSP)`.
 - Other `QAO*` files in `QUSRSYS` support distribution and text-search
   functions.
+- IBM's MI object-type table identifies type/subtype `06/C1` as
+  `*DOCBSS`, **Document byte string space**, a Document Library Services
+  internal object class.
+
 
 IBM references:
 
@@ -39,6 +43,9 @@ IBM references:
 - https://www.ibm.com/docs/en/i/7.4.0?topic=changes-task-6-applying-journaled-qaosdiajrn-journal
 - https://www.ibm.com/support/pages/where-system-name-stored-dlo
 - https://www.ibm.com/support/pages/node/640501
+- IBM System i Application Programming Interface (API) Concepts, MI object-type
+  table (lists `*DOCBSS` as `06C1`).
+
 
 ## Important distinction: QUSRSYS runtime indexes vs QSYS model files
 
@@ -96,9 +103,29 @@ Examples already observed during this project include:
 - `FMPV195818` with printable metadata including `DTAQ.PKG`.
 - `DPWN524712` previously correlated to the user-facing DLO
   `BULLETIN/BULLET1.RFT`.
+- Direct inspection of the complete V2R3 image independently reconfirmed that
+  correlation: the `DPWN524712` object is followed in its recovered storage
+  region by `BULLET1.RFT`, document text, and a document error-log entry that
+  explicitly names document `BULLET1.RFT` and folder `BULLETIN`.
+- The same image contains MI `06/C1` objects named `FMPV082760F` and
+  `FMPV195818F`. IBM names this type `*DOCBSS` (Document byte string
+  space). Their base names exactly match QDOC documents `FMPV082760` and
+  `FMPV195818`; nearby DLO metadata names `CKPCSPTH.EXE` and
+  `DTAQ.PKG`, respectively.
+- No `DPWN524712F` companion was found in the same raw-image check. That is
+  consistent with the possibility that RFT/Office documents and workstation
+  byte-stream documents use different backing forms, but the distinction is
+  still a hypothesis rather than a decoded rule.
+- The V2R3 image also contains a dense IBM metadata/schema region naming
+  `WOSFMT10` through `WOSFMT18` alongside `QAOSSS10` through
+  `QAOSSS18`. Entries associated with `WOSFMT14/QAOSSS14` include field-like
+  names such as `WOSEDOCN`, `WOSEDOCT`, `WOSESYSC`, `WOSEOWNR`, and
+  others. This is strong structural evidence for the runtime DLO-index formats,
+  but the binary descriptor layout is not decoded yet.
 
-Printable strings inside a QDOC object are **hints**, not yet authoritative path
-metadata. The correlation must be independently reconstructed.
+Printable strings inside a QDOC object are **hints**, not automatically
+authoritative path metadata. The `DPWN524712` case is stronger because the
+document's own error-log text explicitly supplies both document and folder names.
 
 ## Current tooling
 
@@ -110,6 +137,9 @@ metadata. The correlation must be independently reconstructed.
 - reports recovered `QUSRSYS/QAOSS*` runtime indexes when available;
 - separately reports the recovered QSYS DLO command model files;
 - with `--model-fields`, decodes their recovered MI 19/51 field definitions.
+- reports same-base `*DOCBSS` companions when a recovered `06/C1`
+  object named `SYSOBJNAM+"F"` is present.
+
 
 `as400-dasd dlo-xref IMAGE SYSOBJNAM`
 
@@ -126,20 +156,17 @@ meaning of the surrounding bytes.
 
 ## Next experiments
 
-1. Run `dlos --model-fields` on the V2R3 image and record the recovered field
-   names/offsets for `OSQDL`, `DOCDTL`, `FLRDTL`, and `OSRTVD`.
-2. Run one batched `dlo-xref` for known QDOC objects, beginning with
-   `FMPV082760`, `FMPV195818`, and `DPWN524712`.
-3. Give special attention to any object containing references to many distinct
-   SYSOBJNAM values. IBM identifies `QAOSSS14` as containing an "anchor
-   record" with the DLO system name, so a dense cluster of these references is
-   a strong candidate for an unresolved QAOSSS14 data/index object.
-4. Classify every non-self match by library/object type. A repeated cluster in
-   one unidentified data/index file may expose the missing QAOSS structure even
-   if the file's normal context/name relationship is not yet recovered.
-5. When a candidate database member is identified, use the existing
-   QDDS/member/format decoder to recover its fixed records and field
-   definitions.
+1. Decode the repeated binary descriptor structure in the V2R3
+   `WOSFMT14/QAOSSS14` schema region and determine the field ordering/length
+   metadata without assigning semantics beyond the embedded IBM names.
+2. Use `dlo-index-scan` and raw-image cross-checks to locate actual
+   `QAOSSS14` anchor records containing known SYSOBJNAM values.
+3. Determine how a QDOC `*DOC` references its same-base `*DOCBSS` object
+   and where the workstation byte stream begins/ends inside that object.
+4. Validate the `*DOCBSS` relationship across many documents before adding
+   export support.
+5. Reconstruct the parent-folder reference using the independently known
+   `DPWN524712 -> BULLETIN/BULLET1.RFT` example.
 6. Cross-check any proposed SYSOBJNAM -> DLO-name/folder mapping against more
    than one object before promoting it from hypothesis to decoded structure.
 7. Once parent folder identifiers are understood, reconstruct full QDLS paths
