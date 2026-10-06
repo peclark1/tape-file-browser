@@ -122,6 +122,16 @@ Examples already observed during this project include:
   names such as `WOSEDOCN`, `WOSEDOCT`, `WOSESYSC`, `WOSEOWNR`, and
   others. This is strong structural evidence for the runtime DLO-index formats,
   but the binary descriptor layout is not decoded yet.
+- The same V2R3 image also contains a parallel `QAOSSY14` descriptor family
+  tied to `WOSFMT14`, with `QAOSSGxx` related identifiers where the
+  `QAOSSS14` family uses `QAOSSIxx`. The suffix distinction is not yet
+  interpreted; both are recorded as observations only.
+- Exact field-like identifiers repeatedly associated with `WOSFMT14` include
+  `WOSEDOCD`, `WOSEDOCT`, `WOSESYSC`, `WOSEDOCN`, `WOSESLVL`,
+  `WOSEFILD`, `WOSECRTD`, `WOSELCDT`, `WOSEINTS`, `WOSEFDOC`,
+  `WOSEPLDN`, `WOSEWIPI`, `WOSEIXDT`, `WOSEOCDT`, and
+  `WOSEOWNR`. Their abbreviations are deliberately left unexpanded until an
+  IBM definition or independent structural proof is found.
 - A full-image scan found 1,987 printable MI `06/C1` objects. For 1,972
   of them, a conservative ordinary layout passes all current checks: the
   16-bit values at +0x106 and +0x112 agree, the declared payload fits after the
@@ -166,6 +176,15 @@ document's own error-log text explicitly supplies both document and folder names
 The xref scanner is intentionally structural: finding the same SYSOBJNAM in a
 database/index object is evidence of a relationship without assuming the
 meaning of the surrounding bytes.
+
+`as400-dasd dlo-schema IMAGE`
+
+- scans raw DASD bytes for exact `WOSFMTxx` markers in a streaming pass;
+- extracts the adjacent literal 8-character IBM field identifier and contiguous
+  `QAOSS*`/`WOS*` identifiers;
+- can isolate a family such as `QAOSSS14` or `QAOSSY14`;
+- reports only literal associations and does not assign meanings to unknown
+  abbreviations or binary descriptor fields.
 
 `as400-dasd dlo-export IMAGE SYSOBJNAM OUTPUT`
 
