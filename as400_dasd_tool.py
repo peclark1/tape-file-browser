@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -2028,72 +2029,110 @@ def _tui_object_type_context(object_type, object_subtype):
     return _TUI_OBJECT_TYPE_CONTEXT.get((object_type, object_subtype), "")
 
 
-# Concise library-role notes drawn from IBM AS/400 manuals and the
-# contemporary PC Support/Client Access documentation used by this project.
-# Keep uncertain identifications explicitly marked instead of promoting a
-# plausible acronym expansion to a fact.
-_TUI_LIBRARY_CONTEXT = {
-    "QSYS": (
-        "QSYS — system library: OS/400 and the root directory for AS/400 "
-        "library objects; many special system objects live here."
-    ),
-    "QUSRSYS": (
-        "QUSRSYS — IBM-supplied user/system-data library; commonly holds "
-        "user-profile message queues and system-maintained user data."
-    ),
-    "QHLPSYS": (
-        "QHLPSYS — system help library containing IBM help panels and "
-        "search-index information."
-    ),
-    "QGPL": (
-        "QGPL — General Purpose Library; IBM-shipped home for miscellaneous "
-        "system/user objects and the default current library when none is set."
-    ),
-    "QSPL": (
-        "QSPL — Spooling Library; database files here support reports and "
-        "other spooled output waiting to print."
-    ),
-    "QDOC": (
-        "QDOC — QDLS/document-library backing library, not a source library; "
-        "folders/documents are represented by *FLR/*DOC DLOs."
-    ),
-    "QTEMP": (
-        "QTEMP — private per-job temporary library; created when the job "
-        "starts and deleted, with its objects, when the job ends."
-    ),
-    "QIWS": (
-        "QIWS — PC Support/400 host/server library; contains shared-folder, "
-        "transfer, virtual-print, messaging, and remote-SQL server programs."
-    ),
-    "QPDA": (
-        "QPDA — product library for IBM application-development tooling/PDM "
-        "(Program Development Manager)."
-    ),
-    "QRPG": (
-        "QRPG — RPG/400 product library containing compiler/support objects "
-        "for the RPG/400 licensed program."
-    ),
-    "QNU400": (
-        "QNU400 — tentative: likely related to IBM Neural Network Utility/400; "
-        "the product is documented for this era, but this library-name mapping "
-        "has not yet been independently verified."
-    ),
-}
+# Library descriptions live in an editable JSON catalog rather than in the
+# browser code. The repository ships a base catalog; installed copies use the
+# XDG data directory, while an optional XDG config file and environment
+# override can add or replace entries without modifying the installed file.
+_TUI_LIBRARY_CATALOG_CACHE = None
+
+
+def _tui_library_catalog_paths():
+    paths = []
+
+    data_home = os.environ.get("XDG_DATA_HOME")
+    if data_home:
+        data_dir = Path(data_home)
+    else:
+        data_dir = Path.home() / ".local" / "share"
+    paths.append(
+        data_dir / "tape-file-browser" / "as400_libraries.json"
+    )
+
+    # When running directly from a source checkout, keep the catalog beside
+    # this script so a git checkout is immediately self-contained.
+    paths.append(Path(__file__).resolve().with_name("as400_libraries.json"))
+
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    if config_home:
+        config_dir = Path(config_home)
+    else:
+        config_dir = Path.home() / ".config"
+    paths.append(
+        config_dir / "tape-file-browser" / "as400_libraries.json"
+    )
+
+    override = os.environ.get("AS400_DASD_LIBRARY_CONFIG")
+    if override:
+        paths.append(Path(override).expanduser())
+
+    # Preserve priority while avoiding duplicate reads when source/data paths
+    # happen to resolve to the same file.
+    result = []
+    seen = set()
+    for path in paths:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            result.append(path)
+    return result
+
+
+def _load_library_catalog(paths=None):
+    catalog = {}
+    for path in paths or _tui_library_catalog_paths():
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except (OSError, ValueError, TypeError):
+            continue
+
+        entries = (
+            payload.get("libraries", payload)
+            if isinstance(payload, dict)
+            else {}
+        )
+        if not isinstance(entries, dict):
+            continue
+
+        for raw_name, raw_entry in entries.items():
+            name = str(raw_name).upper()
+            if isinstance(raw_entry, str):
+                entry = {"description": raw_entry}
+            elif isinstance(raw_entry, dict):
+                entry = dict(raw_entry)
+            else:
+                continue
+
+            description = entry.get("description")
+            if not isinstance(description, str) or not description.strip():
+                continue
+            entry["description"] = description.strip()
+            catalog[name] = entry
+
+    return catalog
+
+
+def _get_library_catalog():
+    global _TUI_LIBRARY_CATALOG_CACHE
+    if _TUI_LIBRARY_CATALOG_CACHE is None:
+        _TUI_LIBRARY_CATALOG_CACHE = _load_library_catalog()
+    return _TUI_LIBRARY_CATALOG_CACHE
 
 
 def _tui_library_context(library_name):
     name = (library_name or "").upper()
     if not name:
         return ""
-    known = _TUI_LIBRARY_CONTEXT.get(name)
-    if known:
-        return known
-    return (
-        f"{name} — AS/400 *LIB object context; source code, when present, "
-        "lives in source physical *FILE members rather than in a distinct "
-        "library type."
-    )
 
+    entry = _get_library_catalog().get(name)
+    if entry is not None:
+        return entry["description"]
+
+    return (
+        f"{name} — AS/400 *LIB object context; purpose is not yet in the "
+        "library-description catalog. Source code, when present, lives in "
+        "source physical *FILE members rather than in a distinct library type."
+    )
 
 def _tui_context_line(state):
     right = _tui_selected(state, "right")
