@@ -1321,21 +1321,24 @@ def cmd_dlos(args):
 
 
 def cmd_dlo_xref(args):
-    """Find byte-level references to a QDOC SYSOBJNAM in recovered objects."""
+    """Find byte-level references to one or more QDOC SYSOBJNAM values."""
 
     image = _open(args.image)
     _, _, inventory = _recover_all(image)
 
-    target = args.sysobjnam.upper()
-    if len(target) != 10:
+    targets = [value.upper() for value in args.sysobjnam]
+    invalid = [target for target in targets if len(target) != 10]
+    if invalid:
         raise ValueError(
-            "SYSOBJNAM must be exactly 10 characters; IBM DLO system object "
-            "names are 10-character internal names"
+            "each SYSOBJNAM must be exactly 10 characters; invalid: "
+            + ", ".join(invalid)
         )
 
-    needles = [("EBCDIC", target.encode("cp037"))]
-    if args.ascii:
-        needles.append(("ASCII", target.encode("ascii")))
+    needles = []
+    for target in targets:
+        needles.append((target, "EBCDIC", target.encode("cp037")))
+        if args.ascii:
+            needles.append((target, "ASCII", target.encode("ascii")))
 
     objects = inventory.objects
     if args.library:
@@ -1349,17 +1352,17 @@ def cmd_dlo_xref(args):
     matches = []
     errors = 0
     for obj in objects:
-        if not args.include_self and obj.name.upper() == target:
-            continue
         try:
             data = image.read_segment_bytes(obj.segment)
         except Exception:
             errors += 1
             continue
 
-        for encoding, needle in needles:
+        for target, encoding, needle in needles:
+            if not args.include_self and obj.name.upper() == target:
+                continue
             for offset in _find_byte_occurrences(data, needle):
-                matches.append((obj, offset, encoding, data))
+                matches.append((target, obj, offset, encoding, data))
                 if args.limit and len(matches) >= args.limit:
                     break
             if args.limit and len(matches) >= args.limit:
@@ -1368,7 +1371,7 @@ def cmd_dlo_xref(args):
             break
 
     print(f"Disk:       {image.path}")
-    print(f"SYSOBJNAM:  {target}")
+    print(f"SYSOBJNAM:  {', '.join(targets)}")
     scope = args.library.upper() if args.library else "all recovered objects"
     print(f"Scope:      {scope}")
     print(f"Matches:    {len(matches):,}")
@@ -1376,13 +1379,14 @@ def cmd_dlo_xref(args):
         print(f"Read errors: {errors:,} object segment(s)")
     print()
     print(
-        "Library      MI    Hint     Object                         "
+        "Target      Library      MI    Hint     Object                         "
         "Virtual addr   Offset    Encoding"
     )
 
-    for obj, offset, encoding, data in matches:
+    for target, obj, offset, encoding, data in matches:
         library = obj.library_name or "<orphan>"
         print(
+            f"{target:<10} "
             f"{library:<12.12} {obj.type_code:<5} "
             f"{(obj.external_type_hint or '-'): <8.8} "
             f"{obj.name:<30.30} "
@@ -1409,11 +1413,10 @@ def cmd_dlo_xref(args):
     if not matches:
         print(
             "No references were found. Try --include-self to verify the "
-            "object's own header, --ascii for PC-side payload strings, or "
+            "objects' own headers, --ascii for PC-side payload strings, or "
             "omit --library to broaden the scan."
         )
     return 0
-
 
 def cmd_context_page(args):
     image = _open(args.image)
@@ -3782,7 +3785,14 @@ def build_parser():
         ),
     )
     dlo_xref.add_argument("image")
-    dlo_xref.add_argument("sysobjnam")
+    dlo_xref.add_argument(
+        "sysobjnam",
+        nargs="+",
+        help=(
+            "one or more 10-character QDOC internal system object names; "
+            "multiple names are scanned in one recovery pass"
+        ),
+    )
     dlo_xref.add_argument(
         "--library",
         help=(
