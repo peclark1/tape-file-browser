@@ -524,6 +524,9 @@ class RecoveredObject:
         known = {
             (0x02, 0x01): "*PGM",
             (0x04, 0x01): "*LIB",
+            # IBM's MI object-type tables name 06/C1 *DOCBSS:
+            # Document byte string space, used by Document Library Services.
+            (0x06, 0xC1): "*DOCBSS",
             (0x08, 0x01): "*USRPRF",
             (0x0B, 0x90): "*QDDS",
             (0x0C, 0x90): "*QDDSI",
