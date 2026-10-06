@@ -270,6 +270,118 @@ So the documented 64-KB load-source structure is visible at exactly the
 documented virtual address. This is the strongest independent validation so far
 of the virtual-address decoding.
 
+
+## Second recovery pass: segment groups
+
+The second IBM recovery pass is now implemented. Permanent extent candidates
+are processed in virtual-address order. The first page of a plausible segment
+group supplies the segment-group header and total page count; subsequent extents
+must begin exactly at the next expected virtual address until the declared
+segment length is satisfied.
+
+On the two full real images the current implementation recovers:
+
+```text
+Surviving B10 D1
+  recovered segment groups:  12,712
+  primary/self segments:       9,330
+  secondary segments:          3,382
+  unrecovered candidates:      5,557
+
+Mark/Patrik V2R3
+  recovered segment groups:  43,095
+  primary/self segments:      31,654
+  secondary segments:         11,441
+  unrecovered candidates:      1,526
+```
+
+The independent image is especially useful because most secondary segment
+headers point back to a recovered primary segment on the same disk. The B10
+surviving disk resolves far fewer such owner links, which is consistent with
+important primary storage having lived on its missing load-source disk.
+
+The segment-group parser currently exposes the 32-byte YYSGHDR fields needed
+for recovery:
+
+```text
+16-bit segment type
+16-bit segment size in pages
+flag/domain fields
+8-byte owning-object address
+8-byte space address
+```
+
+Unknown flag meanings remain unlabeled.
+
+## EPA object discovery and libraries
+
+For recovered primary segments, the parser now reads the common EPA object
+header immediately following YYSGHDR. It extracts the MI object type/subtype,
+30-byte EBCDIC object name, context pointer, and object-space pointer.
+
+This is enough to recover real permanent contexts/libraries and to assign many
+objects to them using each object's EPA context back-pointer.
+
+On the Mark/Patrik image the current pass recovers approximately:
+
+```text
+EPA object identities:             31,533
+permanent contexts/libraries:           40
+objects assigned to known context: 21,531
+```
+
+Recovered libraries include `QSYS`, `QGPL`, `QUSRSYS`, `QSYS2`,
+`QSRV`, `QPFRDATA`, `QRECOVERY`, `QSYS38`, `QUSRTOOL`, `QDOC`,
+`QSPL`, and others.
+
+Examples:
+
+```text
+QSYS     VA 000233000000  LBA 76,024
+QGPL     VA 000274000000  LBA 76,968
+QUSRSYS  VA 000283000000  LBA 77,144
+QSYS2    VA 00028C000000  LBA 77,272
+```
+
+The object-to-library relationship is not inferred from name proximity. For
+example, the recovered `QCLSRC` object has MI type/subtype `19/01` and an EPA
+context pointer of:
+
+```text
+0001:000274000000
+```
+
+which points exactly to the recovered QGPL context at virtual address
+`000274000000`.
+
+That means the CLI can now perform the first genuinely AS/400-like offline
+directory operation:
+
+```bash
+as400-dasd libraries HD60_imaged.hda
+as400-dasd ls HD60_imaged.hda QGPL
+as400-dasd ls HD60_imaged.hda QGPL --type 19/01
+as400-dasd objects HD60_imaged.hda --name QCLSRC
+```
+
+Representative QGPL `19/01` objects recovered from the real image include
+`QCLSRC`, `QCMDSRC`, `QDDSSRC`, `QDKTSRC`, `QFMTSRC`, `QFTNSRC`,
+and other files.
+
+The B10 surviving image also produces real EPA objects and permanent contexts.
+Examples include the program-like `QOOADGPM` object (MI `02/01`) and library
+contexts such as `QRPG`, `QSDE`, `JHUDGINS`, `MSICKBERT`,
+`PPSIPROTO`, and `PPSITEST`. Major system contexts such as QSYS/QGPL are
+not expected to be complete on that surviving non-load-source disk.
+
+### Important limitation
+
+Library membership is currently reconstructed from the EPA **object -> context**
+back-pointer. We have not yet parsed the context's machine-index entries in the
+opposite direction. Parsing that index will provide an excellent independent
+cross-check and should identify objects whose context relationship is currently
+unresolved.
+
 ## Meaning of "reclaimable"
 
 The CLI deliberately uses the phrase `reclaimable-by-recovery`, not simply
@@ -309,6 +421,22 @@ as400-dasd regions disk.hda
 as400-dasd regions disk.hda --no-reclaimable
 ```
 
+### Recovered segment groups
+
+```bash
+as400-dasd segments disk.hda
+as400-dasd segments disk.hda --primary-only
+```
+
+### Recovered libraries and objects
+
+```bash
+as400-dasd libraries disk.hda
+as400-dasd objects disk.hda
+as400-dasd ls disk.hda QGPL
+as400-dasd ls disk.hda QGPL --type 19/01
+```
+
 ### One-sector inspection
 
 ```bash
@@ -330,9 +458,11 @@ All DASD commands are read-only.
 
 No full user disk image is stored in the repository.
 
-CI uses compact sanitized metadata fixtures containing only selected real
-eight-byte sector headers and their original LBA positions. No 512-byte page
-payloads are included.
+CI uses compact sanitized metadata fixtures. The extent fixtures contain only
+selected real eight-byte sector headers and their original LBA positions. A
+second small fixture contains only 128 bytes of selected first-page metadata
+(YYSGHDR plus the beginning of the EPA header) for QSYS, QGPL, QCLSRC, and a
+B10 program object. No database/member record payloads are included.
 
 ### B10 fixture
 
@@ -364,20 +494,26 @@ python3 -m unittest discover -s tests -v
 
 ## Next layer
 
-Milestone 1 now has independent evidence for the physical recovery model.
+The project has now crossed from a DASD recovery map into offline AS/400 object
+browsing: segment groups, EPA object names, permanent contexts/libraries, and
+object-to-library back-pointers are working on the real images.
 
 The next research/implementation targets are:
 
-- distinguish permanent/temporary indicator bits directly rather than relying on
-  second-page corroboration for multi-page extents;
-- reconstruct the second-pass permanent segments from candidate extents;
-- locate the static directory and permanent directory;
-- parse ASDEs and extent descriptors;
-- connect virtual segments to MI objects;
-- locate contexts/libraries;
-- enumerate OS/400 objects and eventually database-file members and records.
+- parse the permanent-context machine index and cross-check its
+  context -> object entries against the EPA object -> context back-pointers;
+- identify the static/permanent directory objects and parse their ASDE/extent
+  descriptors directly;
+- improve permanent/temporary indicator decoding so fewer candidates require
+  structural corroboration;
+- decode `*FILE` object-specific structures, members/cursors, format objects,
+  and data spaces;
+- expose database field definitions and ultimately physical-file records;
+- integrate these read-only structures into the GTK/TUI browser after the CLI
+  model is stable.
 
-That is the path from a DASD recovery map to the eventual disk browser.
+The immediate next milestone is therefore **context-index verification followed
+by physical-file/member decoding**.
 
 ## Safety
 
