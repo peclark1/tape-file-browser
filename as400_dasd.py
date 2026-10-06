@@ -487,6 +487,7 @@ class MemberCursorInfo:
         return self._decode_timestamp(self.create_raw)
 
 
+@dataclass(frozen=True)
 class RecoveredObject:
     segment: RecoveredSegment
     epa: EPAHeader
