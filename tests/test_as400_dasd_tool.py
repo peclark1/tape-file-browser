@@ -10,6 +10,7 @@ from as400_dasd_tool import (
     _DLO_MODEL_FILES,
     _DLO_RUNTIME_INDEX_FILES,
     _dlo_export_pair,
+    _dlo_filename_hint,
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
@@ -179,6 +180,22 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(
             _scan_ebcdic_sysobjnam(data, targets),
             [(2, "FMPV082760"), (14, "DPWN524712")],
+        )
+
+    def test_dlo_filename_hint_requires_simple_pc_style_name(self):
+        self.assertEqual(
+            _dlo_filename_hint(
+                ["S1011111", "CKPCSPTH.EXE", "other text"]
+            ),
+            "CKPCSPTH.EXE",
+        )
+        self.assertEqual(
+            _dlo_filename_hint(["BULLETIN/BULLET1.RFT"]),
+            "",
+        )
+        self.assertEqual(
+            _dlo_filename_hint(["no extension here"]),
+            "",
         )
 
     def test_dlo_preview_strings_are_forensic_hints(self):
