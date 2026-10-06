@@ -258,11 +258,15 @@ decoded fields or raw EBCDIC record previews. Format objects show their recovere
 field descriptions.
 
 A contextual information line above the normal status line explains the selected
-library, file, member, or MI object type as you browse. For example, it identifies
-QDOC as the QDLS/document-library backing library (rather than a source library),
-explains *DOC/*FLR objects, and describes the QDDS/QDDSI/member relationship.
-The object detail view repeats known MI object roles so the recovered structure is
-useful as an AS/400 learning aid as well as a forensic browser.
+library, file, member, or MI object type as you browse. The library notes are
+researched from period IBM documentation where possible: for example QGPL is
+identified as the General Purpose Library, QIWS as the PC Support/400 host/server
+library, and QDOC as the QDLS/document-library backing library rather than a
+source library. Tentative identifications remain explicitly labeled as such instead
+of being presented as fact. The browser also explains *DOC/*FLR objects and the
+QDDS/QDDSI/member relationship. The object detail view repeats known roles so
+the recovered structure is useful as an AS/400 learning aid as well as a forensic
+browser.
 
 Keys:
 
