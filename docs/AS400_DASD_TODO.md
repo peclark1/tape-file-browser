@@ -36,9 +36,13 @@ repeatable real-image validation.
 - [x] Identify MI `06/C1` as IBM `*DOCBSS` (Document byte string space)
       and correlate `FMPV082760F` / `FMPV195818F` companions with their
       same-base QDOC documents on the real V2R3 image.
-- [ ] Determine the `*DOCBSS` payload boundaries/header semantics and
-      distinguish actual workstation bytes from DLO bookkeeping.
-- [ ] Add safe read-only export of original workstation-file bytes.
+- [x] Decode the ordinary V2R3 `*DOCBSS` payload boundary: one 512-byte
+      metadata page followed by the workstation byte stream, with observed
+      duplicate 16-bit payload-length fields at +0x106/+0x112.
+- [x] Add conservative read-only `dlo-export` for `*DOCBSS` objects whose
+      duplicated lengths agree and fit the recovered segment/allocation.
+- [ ] Decode the small set of large/extended `*DOCBSS` variants that fail the
+      conservative ordinary-layout checks before treating export as universal.
 
 ## Permanent-context directory cross-check
 
