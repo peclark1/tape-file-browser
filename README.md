@@ -188,6 +188,7 @@ as400-dasd fields disk.hda QGPL PDPICKORG
 as400-dasd dlos disk.hda
 as400-dasd dlos disk.hda --model-fields
 as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
+as400-dasd dlo-index-scan disk.hda
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
@@ -218,6 +219,7 @@ The current milestone can:
 - resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
 - inventory QDOC `*DOC`/`*FLR` DLOs, report any recovered QUSRSYS `QAOSS*` runtime search indexes, and separately identify QSYS DLO command model files;
 - cross-reference a 10-character QDOC `SYSOBJNAM` byte-for-byte across recovered object segments to locate candidate index/metadata relationships without assuming their meaning;
+- correlate every recovered QDOC `SYSOBJNAM` against recovered QAOSS member records, defaulting to the IBM-documented `QAOSSS14` anchor index;
 - write a repeatable text report for comparison between real and initialized/replacement disk images.
 
 On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
@@ -330,6 +332,14 @@ object name, so objects containing many such references are especially useful
 candidates even when their normal library/file relationship has not yet been
 reconstructed. The tooling deliberately does **not** label printable strings or
 cross-references as proven QDLS paths until the relevant structures are decoded.
+
+`as400-dasd dlo-index-scan disk.hda` takes the next conservative step by
+correlating all recovered QDOC 10-character SYSOBJNAM values against recovered
+QAOSS member records. It defaults to `QAOSSS14`, because IBM explicitly
+documents an anchor record there that stores the DLO system object name. The
+scan uses exact 10-byte EBCDIC matches and makes no assumptions about field
+offsets or record semantics. Use `--all-indexes` to probe the documented
+`QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18` set in one pass.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan,
 `docs/AS400_DASD_TODO.md` for the active backlog, and
