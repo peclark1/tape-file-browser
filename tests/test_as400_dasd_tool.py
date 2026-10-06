@@ -88,6 +88,10 @@ class DASDToolTests(unittest.TestCase):
         member = _tui_object_type_context(0x0D, 0x50)
         self.assertIn("member cursor", member)
 
+        docbss = _tui_object_type_context(0x06, 0xC1)
+        self.assertIn("*DOCBSS", docbss)
+        self.assertIn("Document byte string space", docbss)
+
     def test_library_catalog_covers_recovered_mark_p02_libraries(self):
         catalog = _load_library_catalog()
         recovered = {
