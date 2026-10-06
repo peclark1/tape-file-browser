@@ -635,6 +635,155 @@ def _find_member_cursor(inventory, library_name, file_name, member_name):
     return matches[0], matches
 
 
+
+def _recover_member_storage(
+    image,
+    library_name,
+    file_name,
+    member_name,
+):
+    scan, segments, inventory = _recover_all(image)
+    member, matches = _find_member_cursor(
+        inventory,
+        library_name,
+        file_name,
+        member_name,
+    )
+    storage = image.resolve_member_storage(
+        member,
+        inventory,
+        segments,
+    )
+    return member, matches, storage
+
+
+def cmd_records(args):
+    image = _open(args.image)
+    member, matches, storage = _recover_member_storage(
+        image,
+        args.library_name,
+        args.file_name,
+        args.member_name,
+    )
+    record_set = image.read_data_space_records(storage)
+    if record_set is None:
+        raise ValueError(
+            f"data-space records were not recovered for "
+            f"{args.library_name.upper()}/{args.file_name.upper()}"
+            f"({args.member_name.upper()})"
+        )
+
+    layout = record_set.layout
+    print(f"Disk:          {image.path}")
+    print(
+        f"Member:        {(member.library_name or args.library_name)}/"
+        f"{member.member_file_name}({member.member_name})"
+    )
+    print(f"Entry count:   {layout.entry_count:,} user records")
+    print(f"Force count:   {layout.force_count:,}")
+    print(f"Record length: {layout.record_length:,} bytes")
+    print(f"Entry length:  {layout.entry_length:,} bytes")
+    print(
+        f"Recovered:     {len(record_set.records):,}/"
+        f"{layout.expected_entries_with_default:,} entries "
+        f"({'complete' if record_set.complete else 'partial'})"
+    )
+    print(
+        f"Data segments: {record_set.data_segment_count:,}  "
+        f"logical stream {record_set.raw_stream_bytes:,} bytes"
+    )
+    if len(matches) > 1:
+        print(
+            f"Note:          {len(matches):,} matching cursors were "
+            "recovered; showing the first by virtual address."
+        )
+    if not layout.standard_fixed_layout:
+        print(
+            f"Note:          {layout.per_entry_overhead:,} bytes of "
+            "per-entry status/overhead precede or follow record data; "
+            "only the first record-length bytes after status are shown."
+        )
+
+    records = (
+        record_set.records
+        if args.include_default
+        else record_set.user_records
+    )
+    total = len(records)
+    shown = records if not args.limit else records[: args.limit]
+
+    print()
+    print("RRN       Status  EBCDIC preview")
+    for record in shown:
+        preview = record.ebcdic_preview
+        if args.preview and len(preview) > args.preview:
+            preview = preview[: args.preview] + "..."
+        print(
+            f"{record.rrn:>8,}  0x{record.status:02X}    {preview}"
+        )
+        if args.hex_bytes:
+            amount = min(args.hex_bytes, len(record.data))
+            print(
+                "          hex: "
+                + record.data[:amount].hex(" ").upper()
+                + (" ..." if amount < len(record.data) else "")
+            )
+
+    if len(shown) < total:
+        print(f"... {total - len(shown):,} additional records omitted")
+    return 0
+
+
+def cmd_record(args):
+    image = _open(args.image)
+    member, matches, storage = _recover_member_storage(
+        image,
+        args.library_name,
+        args.file_name,
+        args.member_name,
+    )
+    record_set = image.read_data_space_records(storage)
+    if record_set is None:
+        raise ValueError(
+            f"data-space records were not recovered for "
+            f"{args.library_name.upper()}/{args.file_name.upper()}"
+            f"({args.member_name.upper()})"
+        )
+
+    wanted = [
+        record
+        for record in record_set.records
+        if record.rrn == args.rrn
+    ]
+    if not wanted:
+        raise ValueError(
+            f"RRN {args.rrn} is outside recovered range "
+            f"0..{len(record_set.records) - 1}"
+        )
+    record = wanted[0]
+
+    print(f"Disk:    {image.path}")
+    print(
+        f"Member:  {(member.library_name or args.library_name)}/"
+        f"{member.member_file_name}({member.member_name})"
+    )
+    print(f"RRN:     {record.rrn:,}")
+    print(f"Status:  0x{record.status:02X}")
+    print(f"Length:  {len(record.data):,} bytes")
+    if record.extra_raw:
+        print(
+            f"Extra:   {len(record.extra_raw):,} per-entry bytes: "
+            f"{record.extra_raw.hex(' ').upper()}"
+        )
+    print()
+    print("EBCDIC:")
+    print(record.ebcdic_preview)
+    print()
+    print("Hex:")
+    print(format_hex(record.data))
+    return 0
+
+
 def cmd_source(args):
     image = _open(args.image)
     scan, segments, inventory = _recover_all(image)
@@ -1177,6 +1326,54 @@ def build_parser():
     member.add_argument("file_name")
     member.add_argument("member_name")
     member.set_defaults(func=cmd_member)
+
+    records = sub.add_parser(
+        "records",
+        help="list raw ordinal records from any recovered QDDS member",
+    )
+    records.add_argument("image")
+    records.add_argument("library_name")
+    records.add_argument("file_name")
+    records.add_argument("member_name")
+    records.add_argument(
+        "--include-default",
+        action="store_true",
+        help="include ordinal-zero default entry",
+    )
+    records.add_argument(
+        "--preview",
+        type=int,
+        default=96,
+        help="maximum EBCDIC preview characters per row (default: 96)",
+    )
+    records.add_argument(
+        "--hex-bytes",
+        type=int,
+        default=0,
+        help="also print the first N bytes of each record in hex",
+    )
+    records.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="maximum records to print; use 0 for all (default: 50)",
+    )
+    records.set_defaults(func=cmd_records)
+
+    record = sub.add_parser(
+        "record",
+        help="show one recovered raw record by relative record number",
+    )
+    record.add_argument("image")
+    record.add_argument("library_name")
+    record.add_argument("file_name")
+    record.add_argument("member_name")
+    record.add_argument(
+        "rrn",
+        type=int,
+        help="relative record number; 0 selects the default entry",
+    )
+    record.set_defaults(func=cmd_record)
 
     source = sub.add_parser(
         "source",
