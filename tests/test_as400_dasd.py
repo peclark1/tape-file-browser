@@ -354,6 +354,123 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual((epa.object_type, epa.object_subtype), (0x02, 0x01))
         self.assertEqual(epa.name, "QOOADGPM")
 
+    def test_real_member_cursor_name_and_qgpl_backpointer(self):
+        fixture = load_object_fixture(OBJECT_FIXTURE)
+        lba, raw = fixture["MARK_QCLSRC_REFRESH2"]
+        self.assertEqual(lba, 1668664)
+
+        segment = SegmentGroupHeader.from_bytes(raw[:32])
+        epa = EPAHeader.from_bytes(raw[32:])
+        self.assertEqual(segment.segment_type, 0x0199)
+        self.assertEqual(segment.size_pages, 5)
+        self.assertEqual((epa.object_type, epa.object_subtype), (0x0D, 0x50))
+        self.assertEqual(
+            epa.name_raw[:10].decode("cp037").rstrip(" "),
+            "QCLSRC",
+        )
+        self.assertEqual(
+            epa.name_raw[10:20].decode("cp037").rstrip(" "),
+            "REFRESH2",
+        )
+        self.assertEqual(epa.context.extender, 1)
+        self.assertEqual(epa.context.address, 0x000274000000)
+
+    def test_real_jhudgins_provenance_objects(self):
+        fixture = load_object_fixture(OBJECT_FIXTURE)
+
+        expected = {
+            "B10_JHUDGINS_USRPRF": ((0x08, 0x01), "JHUDGINS"),
+            "B10_JHUDGINS_LIB": ((0x04, 0x01), "JHUDGINS"),
+            "B10_JHUDGINS_QDIDX": ((0x0E, 0x90), "JHUDGINS"),
+            "B10_JHUDGINS_1902": ((0x19, 0x02), "JHUDGINS"),
+        }
+        for label, (type_pair, name) in expected.items():
+            _, raw = fixture[label]
+            epa = EPAHeader.from_bytes(raw[32:])
+            self.assertEqual(
+                (epa.object_type, epa.object_subtype),
+                type_pair,
+                label,
+            )
+            self.assertEqual(epa.name, name, label)
+
+    def test_member_cursor_properties_and_inventory_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "members.hda"
+            qgpl_va = 0x000000100000
+            member_va = 0x000000200000
+
+            write_image(
+                path,
+                [
+                    (
+                        make_header(qgpl_va),
+                        make_segment_page(
+                            qgpl_va,
+                            segment_type=0x0190,
+                            object_type=0x04,
+                            object_subtype=0x01,
+                            name="QGPL",
+                            context_extender=0,
+                            context_address=0x0000000D000000,
+                        ),
+                    ),
+                    (
+                        make_header(member_va),
+                        make_segment_page(
+                            member_va,
+                            segment_type=0x0199,
+                            object_type=0x0D,
+                            object_subtype=0x50,
+                            name="QCLSRC    REFRESH2",
+                            context_extender=1,
+                            context_address=qgpl_va,
+                        ),
+                    ),
+                ],
+            )
+
+            scan = ScanResult(
+                path=str(path),
+                sector_count=2,
+                zero_headers=0,
+                ff_headers=0,
+                other_headers=2,
+                zero_payloads=0,
+                reserved_nonzero_headers=0,
+                origin=None,
+                permanent_candidates=[
+                    Extent(
+                        start_lba=0,
+                        pages=1,
+                        kind="permanent-candidate",
+                        header=make_header(qgpl_va),
+                        virtual_address=qgpl_va,
+                    ),
+                    Extent(
+                        start_lba=1,
+                        pages=1,
+                        kind="permanent-candidate",
+                        header=make_header(member_va),
+                        virtual_address=member_va,
+                    ),
+                ],
+            )
+
+            image = DASDImage(path)
+            segments = image.recover_segments(scan)
+            inventory = image.recover_objects(scan, segments)
+            members = inventory.members(
+                library="QGPL",
+                file_name="QCLSRC",
+            )
+            self.assertEqual(len(members), 1)
+            member = members[0]
+            self.assertTrue(member.is_member_cursor)
+            self.assertEqual(member.external_type_hint, "*MEM")
+            self.assertEqual(member.member_file_name, "QCLSRC")
+            self.assertEqual(member.member_name, "REFRESH2")
+
 
 if __name__ == "__main__":
     unittest.main()
