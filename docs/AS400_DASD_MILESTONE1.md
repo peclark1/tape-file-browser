@@ -407,6 +407,12 @@ The parser reconstructs the recovered QDDS data segment groups in virtual
 address order, removes each segment-group header, verifies the default source
 entry, and decodes valid 93-byte entries.
 
+The `files` command also unions recovered `*FILE` objects with file names
+inferred from surviving member cursors. This matters on the B10 because a file's
+primary object can reside on the missing load-source disk while member cursors
+and even complete member data survive on the remaining disk; those entries are
+reported as `member-only` rather than omitted.
+
 New CLI commands:
 
 ```bash
