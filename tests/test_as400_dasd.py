@@ -8,7 +8,9 @@ from as400_dasd import (
     PAGE_SIZE,
     SECTOR_SIZE,
     DASDImage,
+    Extent,
     HeaderSnapshot,
+    ScanResult,
     SectorHeader,
 )
 
@@ -45,6 +47,52 @@ def load_rle_fixture(path):
         expected_start += count
     return b"".join(chunks)
 
+
+
+def make_internal_address(extender, address):
+    return extender.to_bytes(2, "big") + address.to_bytes(6, "big")
+
+
+def make_segment_page(
+    virtual_address,
+    *,
+    segment_type,
+    object_type,
+    object_subtype,
+    name,
+    context_extender,
+    context_address,
+    owner_extender=1,
+):
+    page = bytearray(PAGE_SIZE)
+
+    # 32-byte YYSGHDR
+    page[0:2] = segment_type.to_bytes(2, "big")
+    page[2:4] = (1).to_bytes(2, "big")
+    page[4] = 0
+    page[5] = 1
+    page[6:8] = (0x8000).to_bytes(2, "big")
+    page[8:16] = make_internal_address(
+        owner_extender, virtual_address
+    )
+    page[24:32] = make_internal_address(
+        owner_extender, virtual_address + 0x100
+    )
+
+    # Common EPA header at +0x20.
+    epa = memoryview(page)[32:]
+    epa[0] = 0x80
+    epa[1] = 0
+    epa[2] = object_type
+    epa[3] = object_subtype
+    epa[4:34] = name.encode("cp037").ljust(30, b"\x40")
+    epa[0x48:0x50] = make_internal_address(
+        context_extender, context_address
+    )
+    epa[0x50:0x58] = make_internal_address(
+        owner_extender, virtual_address
+    )
+    return bytes(page)
 
 def write_image(path, sectors):
     with open(path, "wb") as handle:
@@ -157,6 +205,90 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(shadow.start_lba, 147520)
         self.assertEqual(shadow.pages, 256)
         self.assertEqual(shadow.virtual_address, 0x000083000000)
+
+
+    def test_second_pass_recovers_objects_and_library_backpointer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "objects.hda"
+            qgpl_va = 0x000000100000
+            qclsrc_va = 0x000000200000
+
+            write_image(
+                path,
+                [
+                    (
+                        make_header(qgpl_va),
+                        make_segment_page(
+                            qgpl_va,
+                            segment_type=0x0190,
+                            object_type=0x04,
+                            object_subtype=0x01,
+                            name="QGPL",
+                            context_extender=0,
+                            context_address=0x0000000D000000,
+                        ),
+                    ),
+                    (
+                        make_header(qclsrc_va),
+                        make_segment_page(
+                            qclsrc_va,
+                            segment_type=0x0180,
+                            object_type=0x19,
+                            object_subtype=0x01,
+                            name="QCLSRC",
+                            context_extender=1,
+                            context_address=qgpl_va,
+                        ),
+                    ),
+                ],
+            )
+
+            scan = ScanResult(
+                path=str(path),
+                sector_count=2,
+                zero_headers=0,
+                ff_headers=0,
+                other_headers=2,
+                zero_payloads=0,
+                reserved_nonzero_headers=0,
+                origin=None,
+                permanent_candidates=[
+                    Extent(
+                        start_lba=0,
+                        pages=1,
+                        kind="permanent-candidate",
+                        header=make_header(qgpl_va),
+                        virtual_address=qgpl_va,
+                    ),
+                    Extent(
+                        start_lba=1,
+                        pages=1,
+                        kind="permanent-candidate",
+                        header=make_header(qclsrc_va),
+                        virtual_address=qclsrc_va,
+                    ),
+                ],
+            )
+
+            image = DASDImage(path)
+            segments = image.recover_segments(scan)
+            self.assertEqual(len(segments.segments), 2)
+            self.assertEqual(len(segments.primary_segments), 2)
+            self.assertFalse(segments.unrecovered_candidates)
+
+            inventory = image.recover_objects(scan, segments)
+            self.assertEqual(
+                [library.name for library in inventory.libraries],
+                ["QGPL"],
+            )
+            qgpl_objects = inventory.in_library("QGPL")
+            self.assertEqual(len(qgpl_objects), 1)
+            self.assertEqual(qgpl_objects[0].name, "QCLSRC")
+            self.assertEqual(qgpl_objects[0].type_code, "19/01")
+            self.assertEqual(
+                qgpl_objects[0].external_type_hint,
+                "*FILE",
+            )
 
 
 if __name__ == "__main__":
