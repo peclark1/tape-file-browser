@@ -936,7 +936,7 @@ def decode_format_fields(
     result: list[FormatField] = []
     seen: set[tuple[str, int, int, int]] = set()
 
-    for pos in range(0, max(0, len(data) - 34)):
+    for pos in range(0, max(0, len(data) - 34) + 1):
         if pos + 34 > len(data):
             break
 
