@@ -189,6 +189,7 @@ as400-dasd dlos disk.hda
 as400-dasd dlos disk.hda --model-fields
 as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
 as400-dasd dlo-index-scan disk.hda
+as400-dasd dlo-schema disk.hda --family QAOSSS14
 as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
@@ -364,6 +365,14 @@ documents an anchor record there that stores the DLO system object name. The
 scan uses exact 10-byte EBCDIC matches and makes no assumptions about field
 offsets or record semantics. Use `--all-indexes` to probe the documented
 `QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18` set in one pass.
+
+`as400-dasd dlo-schema disk.hda` scans the raw image for literal IBM
+`WOSFMTxx` metadata associations without loading the whole DASD image into
+memory. It defaults to `WOSFMT14` and reports the nearby 8-character field
+identifier plus concatenated `QAOSS*`/`WOS*` identifiers exactly as stored.
+Use `--family QAOSSS14` or `--family QAOSSY14` to isolate one observed
+descriptor family. The command intentionally does not expand the abbreviations
+or infer field semantics from their names.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan,
 `docs/AS400_DASD_TODO.md` for the active backlog, and
