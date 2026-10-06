@@ -257,6 +257,13 @@ as source lines. Other QDDS members show record-layout information and either
 decoded fields or raw EBCDIC record previews. Format objects show their recovered
 field descriptions.
 
+A contextual information line above the normal status line explains the selected
+library, file, member, or MI object type as you browse. For example, it identifies
+QDOC as the QDLS/document-library backing library (rather than a source library),
+explains *DOC/*FLR objects, and describes the QDDS/QDDSI/member relationship.
+The object detail view repeats known MI object roles so the recovered structure is
+useful as an AS/400 learning aid as well as a forensic browser.
+
 Keys:
 
 ```text
