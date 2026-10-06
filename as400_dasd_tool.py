@@ -2685,6 +2685,216 @@ def _tui_selected(state, key):
     return items[index]
 
 
+def _dlo_export_pair(inventory, obj):
+    """Return a unique (QDOC *DOC, *DOCBSS) pair for a selected object.
+
+    Selection may be either the QDOC document or its observed same-base
+    SYSOBJNAM+"F" IBM *DOCBSS companion. The name relationship is an
+    observed V2R3 convention; byte extraction is separately validated by
+    DASDImage.read_document_byte_string().
+    """
+
+    if obj is None:
+        return None, None, "no object selected"
+
+    doc = None
+    companion = None
+
+    if (
+        obj.object_type == 0x19
+        and obj.object_subtype == 0x0E
+        and (obj.library_name or "").upper() == "QDOC"
+    ):
+        doc = obj
+        companion_name = obj.name.upper() + "F"
+        companions = [
+            candidate
+            for candidate in inventory.objects
+            if (
+                candidate.object_type == 0x06
+                and candidate.object_subtype == 0xC1
+                and candidate.name.upper() == companion_name
+            )
+        ]
+        if not companions:
+            return doc, None, (
+                f"no recovered *DOCBSS companion named {companion_name}"
+            )
+        if len(companions) != 1:
+            return doc, None, (
+                f"{len(companions)} *DOCBSS companions named "
+                f"{companion_name}; export is ambiguous"
+            )
+        companion = companions[0]
+        return doc, companion, ""
+
+    if obj.object_type == 0x06 and obj.object_subtype == 0xC1:
+        name = obj.name.upper()
+        if not name.endswith("F") or len(name) < 2:
+            return None, obj, (
+                "selected *DOCBSS does not use the observed SYSOBJNAM+'F' "
+                "name form"
+            )
+        sysobjnam = name[:-1]
+        docs = [
+            candidate
+            for candidate in inventory.objects
+            if (
+                candidate.object_type == 0x19
+                and candidate.object_subtype == 0x0E
+                and (candidate.library_name or "").upper() == "QDOC"
+                and candidate.name.upper() == sysobjnam
+            )
+        ]
+        if not docs:
+            return None, obj, (
+                f"no recovered QDOC *DOC named {sysobjnam}"
+            )
+        if len(docs) != 1:
+            return None, obj, (
+                f"{len(docs)} QDOC *DOC objects named {sysobjnam}; "
+                "export is ambiguous"
+            )
+        return docs[0], obj, ""
+
+    return None, None, (
+        "export applies to a QDOC *DOC or its IBM *DOCBSS companion"
+    )
+
+
+def _tui_dlo_export_selection(state):
+    right = _tui_selected(state, "right")
+    if right is None or right.get("kind") != "object":
+        return None, None, "select a QDOC document or *DOCBSS object first"
+    return _dlo_export_pair(
+        state["inventory"],
+        right["object"],
+    )
+
+
+def _tui_prompt_text(stdscr, prompt, default=""):
+    import curses
+
+    height, width = stdscr.getmaxyx()
+    suffix = f" [{default}]" if default else ""
+    label = prompt + suffix + ": "
+
+    curses.echo()
+    try:
+        curses.curs_set(1)
+    except curses.error:
+        pass
+    try:
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            " " * max(0, width - 1),
+        )
+        shown = label[-max(1, width - 2):]
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            shown,
+            curses.A_REVERSE,
+        )
+        stdscr.refresh()
+        start_x = min(len(shown), max(0, width - 2))
+        raw = stdscr.getstr(
+            height - 1,
+            start_x,
+            max(1, width - start_x - 1),
+        )
+    finally:
+        curses.noecho()
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+
+    value = raw.decode(errors="replace").strip()
+    return value or default
+
+
+def _tui_confirm(stdscr, prompt):
+    import curses
+
+    height, width = stdscr.getmaxyx()
+    label = prompt + " [y/N] "
+    _tui_safe_addstr(
+        stdscr,
+        height - 1,
+        0,
+        " " * max(0, width - 1),
+    )
+    _tui_safe_addstr(
+        stdscr,
+        height - 1,
+        0,
+        label,
+        curses.A_REVERSE,
+    )
+    stdscr.refresh()
+    key = stdscr.getch()
+    return key in (ord("y"), ord("Y"))
+
+
+def _tui_export_selected_dlo(stdscr, state, current_dir):
+    doc, companion, error = _tui_dlo_export_selection(state)
+    if error:
+        state["status"] = "Export unavailable: " + error
+        return
+
+    try:
+        info, payload = state["image"].read_document_byte_string(
+            companion
+        )
+    except (OSError, ValueError) as exc:
+        state["status"] = f"Export validation failed: {exc}"
+        return
+
+    default_name = f"{doc.name}.bin"
+    entered = _tui_prompt_text(
+        stdscr,
+        "Export workstation bytes to",
+        default_name,
+    )
+    if not entered:
+        state["status"] = "Export cancelled"
+        return
+
+    output = Path(entered).expanduser()
+    if not output.is_absolute():
+        output = Path(current_dir) / output
+    output = output.resolve()
+
+    image_path = Path(state["image"].path).resolve()
+    if output == image_path:
+        state["status"] = "Export refused: output path is the DASD image"
+        return
+
+    if output.exists():
+        if not _tui_confirm(
+            stdscr,
+            f"Replace {output.name}?",
+        ):
+            state["status"] = "Export cancelled; existing file left unchanged"
+            return
+
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(payload)
+    except OSError as exc:
+        state["status"] = f"Export failed: {exc}"
+        return
+
+    state["status"] = (
+        f"Exported {len(payload):,} bytes from {doc.name}/"
+        f"{companion.name} to {output}"
+    )
+
+
 _TUI_OBJECT_TYPE_CONTEXT = {
     (0x02, 0x01): "executable program object",
     (0x04, 0x01): "library/context object that owns named AS/400 objects",
@@ -2981,6 +3191,46 @@ def _tui_object_lines(state, obj):
         f"EPA context:  {obj.epa.context}",
         ]
     )
+
+    if (
+        (
+            obj.object_type == 0x19
+            and obj.object_subtype == 0x0E
+            and (obj.library_name or "").upper() == "QDOC"
+        )
+        or (
+            obj.object_type == 0x06
+            and obj.object_subtype == 0xC1
+        )
+    ):
+        doc, companion, export_error = _dlo_export_pair(
+            state["inventory"],
+            obj,
+        )
+        lines.append("")
+        if companion is not None and not export_error:
+            try:
+                info, _payload = state["image"].read_document_byte_string(
+                    companion
+                )
+                lines.extend(
+                    [
+                        "DLO export:    available (press e)",
+                        f"QDOC document: {doc.name}",
+                        f"DOCBSS:        {companion.name}",
+                        f"Payload bytes: {info.payload_length:,}",
+                        (
+                            f"Allocation:    "
+                            f"{info.allocated_length:,} bytes"
+                        ),
+                    ]
+                )
+            except (OSError, ValueError) as exc:
+                lines.append(
+                    f"DLO export:    validation failed: {exc}"
+                )
+        else:
+            lines.append(f"DLO export:    unavailable: {export_error}")
 
     if obj.object_type == 0x19 and obj.object_subtype == 0x51:
         try:
@@ -3823,7 +4073,7 @@ def _tui_browse(stdscr, initial_path=None):
             0,
             (
                 "←/→/Tab pane  ↑/↓ PgUp/PgDn navigate/scroll  "
-                "Enter drill in  / search  o open  r rescan  q quit"
+                "Enter drill  / search  e export DLO  o open  r rescan  q quit"
             ),
             curses.A_REVERSE,
         )
@@ -3834,6 +4084,14 @@ def _tui_browse(stdscr, initial_path=None):
 
         if key in (27, ord("q"), ord("Q")):
             return
+
+        if key in (ord("e"), ord("E")):
+            _tui_export_selected_dlo(
+                stdscr,
+                state,
+                current_dir,
+            )
+            continue
 
         if key in (ord("o"), ord("O")):
             picked = _tui_file_picker(stdscr, current_dir)
