@@ -614,6 +614,102 @@ def cmd_members(args):
     return 0
 
 
+def cmd_member(args):
+    image = _open(args.image)
+    scan, segments, inventory = _recover_all(image)
+
+    candidates = [
+        obj
+        for obj in inventory.members(
+            library=args.library_name,
+            file_name=args.file_name,
+        )
+        if obj.member_name.upper() == args.member_name.upper()
+    ]
+    if not candidates:
+        raise ValueError(
+            f"member not recovered: "
+            f"{args.library_name.upper()}/"
+            f"{args.file_name.upper()}("
+            f"{args.member_name.upper()})"
+        )
+
+    member = candidates[0]
+    info = image.read_member_info(member)
+    storage = image.resolve_member_storage(
+        member,
+        inventory,
+        segments,
+    )
+
+    print(f"Disk:        {image.path}")
+    print(
+        f"Member:      {(member.library_name or args.library_name)}/"
+        f"{member.member_file_name}({member.member_name})"
+    )
+    print(f"Cursor MI:   {member.type_code} {member.external_type_hint}")
+    print(
+        f"Cursor:      VA {member.segment.virtual_address:012X}  "
+        f"LBA {member.segment.start_lba:,}  "
+        f"{member.segment.pages:,} pages"
+    )
+
+    if len(candidates) > 1:
+        print(
+            f"Note:        {len(candidates):,} matching cursor objects "
+            "were recovered; showing the first by virtual address."
+        )
+
+    if info is not None:
+        print(f"Source type: {info.member_type or '-'}")
+        print(f"Changed:     {info.source_change or '-'}")
+        print(f"Created:     {info.created or '-'}")
+        print(f"Text:        {info.text or '-'}")
+        print(
+            f"Member hdr:  associated +0x"
+            f"{info.associated_space_offset:X}, "
+            f"header +0x{info.member_header_offset:X}"
+        )
+
+    print()
+    print("Member storage")
+    if storage.data_space is None:
+        print("  QDDS data space: not recovered")
+    else:
+        qdds = storage.data_space
+        print(
+            f"  QDDS data space: VA {qdds.segment.virtual_address:012X}  "
+            f"LBA {qdds.segment.start_lba:,}  "
+            f"primary {qdds.segment.pages:,} pages"
+        )
+        print(
+            f"  Owned segments:  {len(storage.data_segments):,}  "
+            f"{storage.data_pages:,} pages / "
+            f"{storage.data_bytes:,} bytes"
+        )
+        for segment in storage.data_segments:
+            role = "primary" if segment.is_primary else "secondary"
+            print(
+                f"    {segment.virtual_address:012X}  "
+                f"LBA {segment.start_lba:>9,}  "
+                f"{segment.pages:>6,} pages  "
+                f"type {segment.header.segment_type:04X}  "
+                f"{role}"
+            )
+
+    if storage.data_index is None:
+        print("  QDDSI index:     not recovered / not present")
+    else:
+        index = storage.data_index
+        print(
+            f"  QDDSI index:     VA {index.segment.virtual_address:012X}  "
+            f"LBA {index.segment.start_lba:,}  "
+            f"{index.segment.pages:,} pages"
+        )
+
+    return 0
+
+
 def cmd_scan(args):
     sections = [
         "AS/400 CISC DASD scan report",
@@ -799,6 +895,16 @@ def build_parser():
         help="also show member creation timestamp and descriptive text",
     )
     members.set_defaults(func=cmd_members)
+
+    member = sub.add_parser(
+        "member",
+        help="show one member cursor and its recovered QDDS/QDDSI storage",
+    )
+    member.add_argument("image")
+    member.add_argument("library_name")
+    member.add_argument("file_name")
+    member.add_argument("member_name")
+    member.set_defaults(func=cmd_member)
 
     scan = sub.add_parser("scan", help="produce a detailed structure report")
     scan.add_argument("images", nargs="+")
