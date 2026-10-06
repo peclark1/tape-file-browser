@@ -6,6 +6,7 @@ from pathlib import Path
 
 from as400_dasd import PAGE_SIZE
 from as400_dasd_tool import (
+    _DLO_MODEL_FILES,
     _dlo_preview_strings,
     _load_library_catalog,
     _tui_library_context,
@@ -146,12 +147,31 @@ class DASDToolTests(unittest.TestCase):
     def test_dlos_subcommand(self):
         parser = build_parser()
         args = parser.parse_args(
-            ["dlos", "marks.hda", "--class", "doc", "--strings", "2"]
+            [
+                "dlos",
+                "marks.hda",
+                "--class",
+                "doc",
+                "--strings",
+                "2",
+                "--model-fields",
+            ]
         )
         self.assertEqual(args.command, "dlos")
         self.assertEqual(args.image, "marks.hda")
         self.assertEqual(args.object_class, "doc")
         self.assertEqual(args.strings, 2)
+        self.assertTrue(args.model_fields)
+
+    def test_dlo_model_file_catalog(self):
+        self.assertEqual(
+            _DLO_MODEL_FILES["QAOSIQDL"],
+            ("QRYDOCLIB output model", "OSQDL"),
+        )
+        self.assertEqual(
+            _DLO_MODEL_FILES["QADSPFLR"],
+            ("DSPFLR folder-list model", "FLRDTL"),
+        )
 
     def test_browse_subcommand_accepts_optional_image(self):
         parser = build_parser()
