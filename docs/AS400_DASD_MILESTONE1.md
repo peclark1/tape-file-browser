@@ -11,8 +11,11 @@ The important design rule is to keep **documented facts** separate from
 size. We do not yet have a sufficiently validated byte/bit definition of the
 entire eight-byte storage-management header to hard-code it as authoritative.
 
-The first executable milestone therefore performs evidence-driven structure
-analysis and reports confidence explicitly.
+The first real B10 image has now been analyzed. That changed the milestone from
+a generic header-pattern experiment into an evidence-backed extent
+reconstructor. Unknown flag bits are still reported conservatively, but the
+virtual-page and extent-size interpretation is now checked against real
+power-of-two extent boundaries and the documented storage-recovery behavior.
 
 ## Confirmed physical model
 
@@ -43,40 +46,58 @@ management directories, extents, and scatter-loaded objects.
 That makes the sector header the most useful starting point for an offline
 browser.
 
-## Current header strategy
+## Header interpretation validated on the B10 image
 
-Direct 9404 documentation describes a six-byte virtual storage address, but the
-exact placement and bit allocation inside the eight-byte DASD header still needs
-validation on a real B10 image.
+The uploaded `HD60_520_D1_IMAGE_PASS2.hda` is exactly 616,392 x 520-byte
+sectors. Its headers reveal a consistent structure:
 
-Milestone 1 therefore evaluates candidate layouts instead of asserting one:
+- the first five bytes act as a 39-bit virtual page identity plus one low status
+  bit; shifting the 39-bit page number by nine reconstructs the 512-byte-aligned
+  virtual byte address;
+- the low nibble of byte 5 behaves as an extent-size exponent:
+  `extent_pages = 1 << order`;
+- byte 6 is zero in every one of the 616,392 headers in this image, matching the
+  documented reserved field;
+- the low five bits of byte 7 are retained as pointer field C; the remaining
+  control-bit semantics are not yet named.
 
-- six-byte windows beginning at header byte 0, 1, or 2;
-- big-endian and little-endian interpretations;
-- address increments of 1 (page-number interpretation);
-- address increments of 512 bytes (byte-address interpretation).
+For example:
 
-For each candidate, the scanner measures how often adjacent physical sectors
-advance by the expected stride.
+```text
+LBA 231488  00 A1 C3 01 00 05 00 00  -> VA 00A1C3010000, 32 pages
+LBA 231489  00 A1 C3 01 02 05 00 00  -> VA 00A1C3010200
+LBA 231520  00 A1 C3 01 40 04 00 00  -> VA 00A1C3014000, 16 pages
+```
 
-The strongest candidate is reported as a **header hypothesis**, never as a
-confirmed decoded field.
+The second header advances exactly one 512-byte page, while the extent order
+matches the power-of-two physical allocation.
 
 ## Region reconstruction
 
-Once a candidate layout is selected, the scanner identifies:
+The scanner now detects the storage-management origin by looking for a repeated
+power-of-two free-space delimiter pattern rather than hard-coding a B10 LBA.
 
-- consecutive all-zero headers;
-- consecutive all-FF headers;
-- long physical runs whose inferred address advances by the selected stride;
-- remaining unclassified areas.
+On the surviving B10 disk it finds:
 
-A sequential address run is only emitted when at least four consecutive sectors
-match by default. The threshold is configurable with `--min-run`.
+```text
+managed origin:       LBA 2,112
+delimiter header:     00 00 FC 00 00 0F 00 00
+delimiter extent:     32,768 pages
+delimiter repeats:    7
+```
 
-The terms `zero-header`, `ff-header`, `address-run`, and `unclassified`
-are intentionally descriptive. Milestone 1 does **not** equate zero headers with
-free space or address runs with a particular IBM object type.
+Those seven extents cover LBA 2,112 through 231,487. The first allocated extent
+then begins at LBA 231,488. Alignment is evaluated relative to the detected
+storage-management origin.
+
+For allocated extents larger than one page, the first two headers must agree on
+extent order and the second virtual address must equal the first plus 512 bytes.
+This mirrors IBM's documented recovery use of the first pages of an extent.
+
+On the full B10 image the current reconstruction recognizes 587,748 of 614,280
+managed sectors (95.7%), comprising 229,376 free pages and 358,372 pages in
+29,198 allocated extent candidates. The remaining 26,532 sectors are retained
+as unresolved regions rather than guessed.
 
 ## Multi-disk behavior
 
@@ -104,11 +125,11 @@ load-source disk at virtual address:
 0000 8300 0000
 ```
 
-The current scanner automatically searches for `0x000083000000` using its best
-header hypothesis and reports any matching LBA.
-
-Finding that address at the beginning of a coherent 64-KB region would be a
-strong validation signal for the selected header interpretation.
+The scanner resolves `0x000083000000` through reconstructed extents. It is not
+present on the surviving D1 image, which is consistent with this not being the
+load-source disk. A one-disk P02/load-source image would be especially valuable
+as an independent check of both the header interpretation and this known
+address.
 
 ## Commands
 
@@ -128,14 +149,13 @@ No full scan is required. This verifies file size, sector count, and the fixed
 as400-dasd map disk5.hda disk6.hda
 ```
 
-Reports header classes, the strongest address hypothesis, confidence, longest
-sequential runs, the B10 validation anchor, and a multi-disk overview.
-
-Useful development options:
+Reports the detected managed-storage origin, free-space delimiter extents,
+allocated extent candidates, unresolved regions, extent-size distribution,
+largest candidate virtual chains, the B10 validation anchor, and largest
+physical extents.
 
 ```bash
-as400-dasd map disk5.hda --limit 100000
-as400-dasd map disk5.hda --min-run 8 --top 25
+as400-dasd map disk5.hda --top 25
 ```
 
 ### Physical regions
@@ -202,31 +222,33 @@ as400-dasd map DISK.hda --top 30
 as400-dasd scan DISK.hda --max-regions 500 --report DISK-dasd-report.txt
 ```
 
-Then inspect:
+The surviving B10 D1 image has completed this validation step. The next
+high-value comparison is an independent CISC image, especially the one-disk P02
+image from Mark/Patrik. If the same page-address, extent-order, and delimiter
+rules hold there, we can treat this as architecture-level behavior rather than a
+B10-specific fit.
 
-1. which six-byte header candidate wins;
-2. whether the winning model has a high sequential ratio;
-3. whether the same model wins independently on both disks;
-4. whether `000083000000` resolves on the load-source image;
-5. the longest sequential address runs and their alignment;
-6. transition sectors immediately before/after those runs;
-7. EBCDIC/hex contents at candidate structure boundaries.
-
-If the header hypothesis is strongly validated, the next implementation step is
-to replace the heuristic address decoder with the documented/tested field
-layout and begin recovery-style extent reconstruction.
+The implementation step after that is to identify the permanent/static
+directories and associate reconstructed virtual chains with machine objects.
 
 ## Testing
 
-Synthetic tests currently verify:
+Regression tests now include a sanitized real B10 fixture containing only the
+eight-byte storage headers for the first 240,000 sectors. The 512-byte page
+payloads are not included.
 
-- exact 520-byte geometry;
-- sector reads and bounds;
-- rejection of malformed image sizes;
-- selection of a synthetic six-byte big-endian / 512-byte-stride address model;
-- separation of sequential runs by zero-header gaps;
-- lookup of the known B10 validation address under a selected layout;
-- CLI output for `info`, `map`, `regions`, and `sector`.
+That compact fixture verifies:
+
+- the managed-storage origin at LBA 2,112;
+- delimiter header `0000fc00000f0000`;
+- seven 32,768-page free extents;
+- byte 6 reserved-field behavior;
+- 434 allocated extent candidates covering 7,872 pages in the captured window;
+- the first 32-page and 16-page extent addresses and boundaries.
+
+Synthetic tests continue to cover geometry, malformed images, sector reads, and
+CLI header display. GitHub Actions runs the complete tape + DASD unit-test suite
+on pushes and pull requests.
 
 Run all project tests with:
 
