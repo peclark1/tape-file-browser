@@ -6,6 +6,7 @@ from pathlib import Path
 
 from as400_dasd import PAGE_SIZE
 from as400_dasd_tool import (
+    _load_library_catalog,
     _tui_library_context,
     _tui_object_type_context,
     build_parser,
@@ -72,9 +73,8 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("PC Support/400", qiws)
         self.assertIn("shared-folder", qiws)
 
-        qnu400 = _tui_library_context("QNU400")
-        self.assertIn("tentative", qnu400)
-        self.assertIn("Neural Network Utility/400", qnu400)
+        qmu400 = _tui_library_context("QMU400")
+        self.assertIn("System/36 Migration Assistant", qmu400)
 
         doc = _tui_object_type_context(0x19, 0x0E)
         self.assertIn("document-library document", doc)
@@ -82,6 +82,50 @@ class DASDToolTests(unittest.TestCase):
 
         member = _tui_object_type_context(0x0D, 0x50)
         self.assertIn("member cursor", member)
+
+    def test_library_catalog_covers_recovered_mark_p02_libraries(self):
+        catalog = _load_library_catalog()
+        recovered = {
+            "#CGULIB",
+            "#DBULIB",
+            "#DFULIB",
+            "#DSULIB",
+            "#LIBRARY",
+            "#SDALIB",
+            "#SEULIB",
+            "QDSNX",
+            "QGPL",
+            "QIWS",
+            "QIWS2D",
+            "QIWS2S",
+            "QIWSFD",
+            "QIWSFS",
+            "QIWSPD",
+            "QIWSPS",
+            "QIWSTL",
+            "QMGU",
+            "QMU400",
+            "QPFRDATA",
+            "QQALIB",
+            "QSDE",
+            "QSPL",
+            "QSSP",
+            "QSYS",
+        }
+        self.assertTrue(recovered.issubset(catalog))
+
+    def test_library_catalog_can_be_overridden(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "libraries.json"
+            path.write_text(
+                '{"libraries":{"QGPL":{"description":"Custom QGPL note"}}}',
+                encoding="utf-8",
+            )
+            catalog = _load_library_catalog([path])
+            self.assertEqual(
+                catalog["QGPL"]["description"],
+                "Custom QGPL note",
+            )
 
     def test_browse_subcommand_accepts_optional_image(self):
         parser = build_parser()
