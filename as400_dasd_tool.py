@@ -2110,10 +2110,10 @@ def _tui_context_line(state):
                 if mid.get("objects")
                 else ""
             )
-            return (
-                f"Context: {hint or f'{mid['type']:02X}/{mid['subtype']:02X}'} "
-                f"— {meaning}."
+            type_label = hint or (
+                f"{mid['type']:02X}/{mid['subtype']:02X}"
             )
+            return f"Context: {type_label} — {meaning}."
 
     if left is not None:
         if left["kind"] == "library":
