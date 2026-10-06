@@ -1078,6 +1078,22 @@ def cmd_cat(args):
     return cmd_source(args)
 
 
+_DLO_FILENAME_HINT_RE = re.compile(
+    r"^[A-Za-z0-9!#$%&'()@^_{}~+-]{1,64}"
+    r"\.[A-Za-z0-9!#$%&'()@^_{}~+-]{1,16}$"
+)
+
+
+def _dlo_filename_hint(strings):
+    """Return a conservative PC-style filename hint from printable metadata."""
+
+    for value in strings:
+        candidate = value.strip()
+        if _DLO_FILENAME_HINT_RE.fullmatch(candidate):
+            return candidate
+    return ""
+
+
 def _dlo_preview_strings(data, internal_name="", limit=3):
     """Return short printable EBCDIC runs useful while decoding DLO metadata.
 
@@ -2855,6 +2871,20 @@ def _tui_export_selected_dlo(stdscr, state, current_dir):
         return
 
     default_name = f"{doc.name}.bin"
+    try:
+        doc_data = state["image"].read_segment_bytes(doc.segment)
+        filename_hint = _dlo_filename_hint(
+            _dlo_preview_strings(
+                doc_data,
+                internal_name=doc.name,
+                limit=20,
+            )
+        )
+    except (OSError, ValueError):
+        filename_hint = ""
+    if filename_hint:
+        default_name = filename_hint
+
     entered = _tui_prompt_text(
         stdscr,
         "Export workstation bytes to",
@@ -3225,6 +3255,25 @@ def _tui_object_lines(state, obj):
                         ),
                     ]
                 )
+                try:
+                    doc_data = state["image"].read_segment_bytes(
+                        doc.segment
+                    )
+                    filename_hint = _dlo_filename_hint(
+                        _dlo_preview_strings(
+                            doc_data,
+                            internal_name=doc.name,
+                            limit=20,
+                        )
+                    )
+                except (OSError, ValueError):
+                    filename_hint = ""
+                if filename_hint:
+                    lines.append(
+                        "Filename hint:  "
+                        f"{filename_hint} "
+                        "(QDOC metadata; not yet QAOSS-verified)"
+                    )
             except (OSError, ValueError) as exc:
                 lines.append(
                     f"DLO export:    validation failed: {exc}"
