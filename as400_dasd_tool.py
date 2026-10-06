@@ -2033,8 +2033,8 @@ def _tui_library_context(library_name):
     if name == "QDOC":
         return (
             "QDOC — QDLS/document-library backing library, not a source "
-            "library; *DOC/*FLR are internal objects behind folders and "
-            "documents (including PC Support distribution content)."
+            "library; *DOC/*FLR are internal DLOs. Investigating: folder "
+            "hierarchy such as QIWSFLR/PC Support."
         )
     if name:
         return (
