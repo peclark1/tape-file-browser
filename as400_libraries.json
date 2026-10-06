@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "_comment": "AS/400 library descriptions used by the DASD browser. Entries may be expanded or corrected as additional IBM documentation and recovered systems are studied.",
+  "libraries": {
+    "#CGULIB": {
+      "description": "IBM System/36 Environment compatibility library; IBM lists it among the special System/36 # libraries. Exact CGU component purpose is still being researched.",
+      "status": "documented-family"
+    },
+    "#DBULIB": {
+      "description": "Recovered library containing DBU-named objects and source. Exact product or application ownership has not yet been identified.",
+      "status": "research-pending"
+    },
+    "#DFULIB": {
+      "description": "IBM System/36 Environment Data File Utility compatibility library.",
+      "status": "documented"
+    },
+    "#DSULIB": {
+      "description": "IBM System/36 Environment compatibility library. Exact DSU component expansion is still being researched.",
+      "status": "documented-family"
+    },
+    "#LIBRARY": {
+      "description": "System/36 Environment library created by the system and used with QSSP for System/36-compatible files and procedures.",
+      "status": "documented"
+    },
+    "#SDALIB": {
+      "description": "IBM System/36 Environment Screen Design Aid compatibility library.",
+      "status": "documented"
+    },
+    "#SEULIB": {
+      "description": "IBM System/36 Environment Source Entry Utility compatibility library.",
+      "status": "documented"
+    },
+    "QDOC": {
+      "description": "QDLS/document-library backing library. Folder and document objects are represented internally as *FLR and *DOC DLOs; this is not a source-code library.",
+      "status": "documented"
+    },
+    "QDSNX": {
+      "description": "IBM-supplied user-data library used for transferring files between the AS/400 and an IBM mainframe.",
+      "status": "documented"
+    },
+    "QGPL": {
+      "description": "General Purpose Library. IBM-supplied home for miscellaneous system/user objects and the default current library when a job has no explicit current library.",
+      "status": "documented"
+    },
+    "QHLPSYS": {
+      "description": "System help library containing IBM online-help text and related information.",
+      "status": "documented"
+    },
+    "QIWS": {
+      "description": "PC Support/400 host/server library; later OS/400 documentation identifies it as the Host Servers option. It supports PC connectivity functions such as shared folders and file transfer.",
+      "status": "documented"
+    },
+    "QIWS2D": {
+      "description": "Client Access/400 for OS/2 DBCS support library.",
+      "status": "documented"
+    },
+    "QIWS2S": {
+      "description": "Client Access/400 for OS/2 SBCS support library.",
+      "status": "documented"
+    },
+    "QIWSFD": {
+      "description": "Client Access/400 for DOS support library paired with QIWSFS. The D suffix appears to identify the DBCS variant; exact wording is still being verified.",
+      "status": "inferred"
+    },
+    "QIWSFS": {
+      "description": "Client Access/400 for DOS SBCS support library.",
+      "status": "documented"
+    },
+    "QIWSPD": {
+      "description": "Client Access/400 Extended DOS DBCS support library.",
+      "status": "documented"
+    },
+    "QIWSPS": {
+      "description": "Client Access/400 Extended DOS SBCS support library.",
+      "status": "documented"
+    },
+    "QIWSTL": {
+      "description": "PC Support/Client Access tools library; IBM installation tables map the QIWSTOOL component to library QIWSTL.",
+      "status": "documented"
+    },
+    "QMGU": {
+      "description": "OS/400 System/36 and System/38 Migration library (operating-system migration support).",
+      "status": "documented"
+    },
+    "QMU400": {
+      "description": "OS/400 System/36 Migration Assistant library (OS/400 option 11 in later licensed-program listings).",
+      "status": "documented"
+    },
+    "QPDA": {
+      "description": "IBM application-development tooling library used by PDM and related development functions.",
+      "status": "documented"
+    },
+    "QPFRDATA": {
+      "description": "IBM-supplied performance-data library used to store performance monitor and Performance Tools collection data.",
+      "status": "documented"
+    },
+    "QQALIB": {
+      "description": "IBM Q & A support/model-data library; IBM command documentation identifies QAQA model database files here.",
+      "status": "documented"
+    },
+    "QRPG": {
+      "description": "RPG/400 licensed-program library containing compiler and support objects.",
+      "status": "documented"
+    },
+    "QSDE": {
+      "description": "Recovered IBM-style library containing QAEB-named files. Exact product/component purpose has not yet been identified.",
+      "status": "research-pending"
+    },
+    "QSPL": {
+      "description": "Spooling Library; contains files and internal objects supporting printer output and spooled files.",
+      "status": "documented"
+    },
+    "QSSP": {
+      "description": "OS/400 System/36 Environment library. SSP means System Support Program, the System/36 operating environment emulated by OS/400.",
+      "status": "documented"
+    },
+    "QSYS": {
+      "description": "Primary OS/400 system library containing operating-system commands, programs, device descriptions, and other core system objects.",
+      "status": "documented"
+    },
+    "QTEMP": {
+      "description": "Private per-job temporary library. It is created for each job and deleted, along with its objects, when that job ends.",
+      "status": "documented"
+    },
+    "QUSRSYS": {
+      "description": "IBM-supplied system library for user-related and system-maintained data such as message queues and distribution information.",
+      "status": "documented"
+    }
+  }
+}
