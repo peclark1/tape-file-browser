@@ -79,6 +79,11 @@ repeatable real-image validation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
 - [x] Seed the catalog with every library recovered in the current Mark-P02
       file/member inventory, marking uncertain entries explicitly.
+- [x] Add functional subsystem categories and documented/inferred/research-pending
+      evidence status to the library catalog, and expose that context in the TUI.
+- [ ] Resolve the remaining uncertain library identities, especially `#DBULIB`,
+      `QSDE`, and the exact role of `QSYSV2R2M0`, before promoting them to
+      documented status.
 - [ ] Move MI object-type descriptions to a similarly editable/researchable
       catalog if the list grows enough to justify it.
 - [ ] Show reconstructed QDLS paths in the TUI once QAOSS decoding is proven.
