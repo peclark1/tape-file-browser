@@ -71,7 +71,7 @@ class DASDToolTests(unittest.TestCase):
 
         qiws = _tui_library_context("QIWS")
         self.assertIn("PC Support/400", qiws)
-        self.assertIn("shared-folder", qiws)
+        self.assertIn("file transfer", qiws)
 
         qmu400 = _tui_library_context("QMU400")
         self.assertIn("System/36 Migration Assistant", qmu400)
