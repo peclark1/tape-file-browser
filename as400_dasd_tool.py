@@ -560,6 +560,51 @@ def cmd_ls(args):
     return _print_objects(image, inventory, args)
 
 
+def cmd_members(args):
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+    members = inventory.members(
+        library=args.library_name,
+        file_name=args.file_name,
+    )
+
+    total = len(members)
+    shown = members if not args.limit else members[: args.limit]
+
+    print(f"Disk: {image.path}")
+    if args.file_name:
+        print(
+            f"Recovered members in "
+            f"{args.library_name.upper()}/{args.file_name.upper()}: "
+            f"{total:,}"
+        )
+    else:
+        print(
+            f"Recovered member cursors in "
+            f"{args.library_name.upper()}: {total:,}"
+        )
+    print()
+    print(
+        "Library      File       Member      "
+        "Virtual addr   LBA        pages"
+    )
+    for obj in shown:
+        print(
+            f"{(obj.library_name or '-'):<12} "
+            f"{obj.member_file_name:<10.10} "
+            f"{obj.member_name:<10.10} "
+            f"{obj.segment.virtual_address:012X} "
+            f"{obj.segment.start_lba:>9,} "
+            f"{obj.segment.pages:>6,}"
+        )
+    if len(shown) < total:
+        print(
+            f"... {total - len(shown):,} "
+            "additional matching members omitted"
+        )
+    return 0
+
+
 def cmd_scan(args):
     sections = [
         "AS/400 CISC DASD scan report",
@@ -721,6 +766,25 @@ def build_parser():
         help="maximum rows to print; use 0 for all (default: 200)",
     )
     ls_parser.set_defaults(func=cmd_ls)
+
+    members = sub.add_parser(
+        "members",
+        help="list recovered database-file member cursors",
+    )
+    members.add_argument("image")
+    members.add_argument("library_name")
+    members.add_argument(
+        "file_name",
+        nargs="?",
+        help="optional database file name",
+    )
+    members.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum rows to print; use 0 for all (default: 200)",
+    )
+    members.set_defaults(func=cmd_members)
 
     scan = sub.add_parser("scan", help="produce a detailed structure report")
     scan.add_argument("images", nargs="+")
