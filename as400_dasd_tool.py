@@ -2028,21 +2028,71 @@ def _tui_object_type_context(object_type, object_subtype):
     return _TUI_OBJECT_TYPE_CONTEXT.get((object_type, object_subtype), "")
 
 
+# Concise library-role notes drawn from IBM AS/400 manuals and the
+# contemporary PC Support/Client Access documentation used by this project.
+# Keep uncertain identifications explicitly marked instead of promoting a
+# plausible acronym expansion to a fact.
+_TUI_LIBRARY_CONTEXT = {
+    "QSYS": (
+        "QSYS — system library: OS/400 and the root directory for AS/400 "
+        "library objects; many special system objects live here."
+    ),
+    "QUSRSYS": (
+        "QUSRSYS — IBM-supplied user/system-data library; commonly holds "
+        "user-profile message queues and system-maintained user data."
+    ),
+    "QHLPSYS": (
+        "QHLPSYS — system help library containing IBM help panels and "
+        "search-index information."
+    ),
+    "QGPL": (
+        "QGPL — General Purpose Library; IBM-shipped home for miscellaneous "
+        "system/user objects and the default current library when none is set."
+    ),
+    "QSPL": (
+        "QSPL — Spooling Library; database files here support reports and "
+        "other spooled output waiting to print."
+    ),
+    "QDOC": (
+        "QDOC — QDLS/document-library backing library, not a source library; "
+        "folders/documents are represented by *FLR/*DOC DLOs."
+    ),
+    "QTEMP": (
+        "QTEMP — private per-job temporary library; created when the job "
+        "starts and deleted, with its objects, when the job ends."
+    ),
+    "QIWS": (
+        "QIWS — PC Support/400 host/server library; contains shared-folder, "
+        "transfer, virtual-print, messaging, and remote-SQL server programs."
+    ),
+    "QPDA": (
+        "QPDA — product library for IBM application-development tooling/PDM "
+        "(Program Development Manager)."
+    ),
+    "QRPG": (
+        "QRPG — RPG/400 product library containing compiler/support objects "
+        "for the RPG/400 licensed program."
+    ),
+    "QNU400": (
+        "QNU400 — tentative: likely related to IBM Neural Network Utility/400; "
+        "the product is documented for this era, but this library-name mapping "
+        "has not yet been independently verified."
+    ),
+}
+
+
 def _tui_library_context(library_name):
     name = (library_name or "").upper()
-    if name == "QDOC":
-        return (
-            "QDOC — QDLS/document-library backing library, not a source "
-            "library; QDLS is a folder/document hierarchy backed by *FLR/"
-            "*DOC DLOs. Investigating: QIWSFLR/PC Support parentage."
-        )
-    if name:
-        return (
-            f"{name} — AS/400 *LIB object context; source code, when "
-            "present, lives in source physical *FILE members rather than "
-            "in a distinct library type."
-        )
-    return ""
+    if not name:
+        return ""
+    known = _TUI_LIBRARY_CONTEXT.get(name)
+    if known:
+        return known
+    return (
+        f"{name} — AS/400 *LIB object context; source code, when present, "
+        "lives in source physical *FILE members rather than in a distinct "
+        "library type."
+    )
 
 
 def _tui_context_line(state):
@@ -2579,11 +2629,12 @@ def _tui_viewer_lines(state):
             )
             return [
                 f"Library: {left['library']}",
+                "Role:    " + _tui_library_context(left["library"]),
                 f"Recovered objects: {len(objects):,}",
                 f"Recovered *FILE objects: {len(files):,}",
                 f"Recovered members: {len(members):,}",
                 "",
-                "Select a file in the middle pane.",
+                "Select a file or object type in the middle pane.",
             ]
 
         if left["kind"] == "orphans-view":
