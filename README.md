@@ -1,6 +1,6 @@
 # Tape File Browser
 
-Tools for browsing, inspecting, comparing, and converting SIMH and AWS tape images, written for IBM System/36 and AS/400 archival work.
+Tools for browsing, inspecting, comparing, and converting SIMH and AWS tape images, plus an experimental read-only CISC AS/400 DASD structure explorer, written for IBM System/36 and AS/400 archival work.
 
 The project separates the tape backend from three user interfaces:
 
@@ -8,6 +8,8 @@ The project separates the tape backend from three user interfaces:
 - **CLI** — `tape-tool` subcommands for scripted/server use
 - **TUI** — `tape-tool browse`, an interactive curses text user interface
 - **GUI** — `tape-file-browser`, the GTK4 graphical desktop interface
+- **AS/400 DASD core** — `as400_dasd.py`, a read-only parser for raw 520-byte CISC DASD images
+- **AS/400 DASD CLI** — `as400-dasd`, an experimental physical/virtual structure explorer
 
 The core, CLI, and TUI do not require GTK or X.
 
@@ -66,8 +68,10 @@ The normal installer installs the GTK4 GUI plus the CLI/TUI tools:
 ```text
 ~/.local/bin/tape-file-browser
 ~/.local/bin/tape-tool
+~/.local/bin/as400-dasd
 ~/.local/bin/tape_formats.py
 ~/.local/bin/tape_text.py
+~/.local/bin/as400_dasd.py
 ```
 
 and installs a desktop launcher as:
@@ -88,7 +92,7 @@ For a server with no X/GTK libraries, install the text-mode interfaces only:
 bash install.sh --text-mode
 ```
 
-That installs the CLI, TUI, and shared parser/converter modules and skips the GTK application, desktop launcher, and GNOME integration. `--headless` remains accepted as a compatibility alias for `--text-mode`.
+That installs the tape CLI/TUI, the experimental `as400-dasd` CLI, and their shared parser modules while skipping the GTK application, desktop launcher, and GNOME integration. `--headless` remains accepted as a compatibility alias for `--text-mode`.
 
 ## Screenshots
 
@@ -158,6 +162,36 @@ tape-tool compare original.tap copy1.aws copy2.tap
 ```
 
 The first image is the reference. A successful comparison verifies logical file/tape-mark structure, every record length, and every record payload for each additional image.
+
+## Experimental CISC AS/400 DASD explorer
+
+The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer for raw CISC AS/400 DASD images with 520-byte sectors. It intentionally distinguishes confirmed physical facts from still-unvalidated interpretations of the eight-byte storage-management header.
+
+Current commands:
+
+```bash
+as400-dasd info disk5.hda
+as400-dasd map disk5.hda disk6.hda
+as400-dasd regions disk5.hda --only-runs
+as400-dasd sector disk5.hda 12345
+as400-dasd scan disk5.hda disk6.hda --report dasd-report.txt
+```
+
+The current milestone can:
+
+- validate exact 520-byte image geometry;
+- expose each eight-byte header separately from its 512-byte CISC storage page;
+- inspect individual sectors with hex and EBCDIC output;
+- compare candidate six-byte virtual-address placements and byte orders without pretending the header bit layout is already known;
+- detect long physical runs whose candidate virtual addresses advance consistently;
+- summarize zero-header, all-FF-header, unclassified, and sequential-address regions;
+- compare the inferred header model and virtual coverage across multiple images;
+- test the documented B10 load-source shadow-log virtual address `000083000000` as a validation anchor;
+- write a repeatable text report for comparison between real and initialized/replacement disk images.
+
+The address-header interpretation is deliberately labeled as a **hypothesis** until we can run the scanner against a real B10 image and match IBM's exact header-field definitions. The parser never writes to the image.
+
+See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan.
 
 ## Converting tape images
 
@@ -232,7 +266,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, and the headless command-line tools:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, and synthetic CISC AS/400 DASD geometry/header/region cases:
 
 ```bash
 python3 -m unittest discover -s tests -v
