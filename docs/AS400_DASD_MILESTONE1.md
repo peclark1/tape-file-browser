@@ -234,8 +234,9 @@ directories and associate reconstructed virtual chains with machine objects.
 ## Testing
 
 Regression tests now include a sanitized real B10 fixture containing only the
-eight-byte storage headers for the first 240,000 sectors. The 512-byte page
-payloads are not included.
+eight-byte storage-header runs for the first 232,064 sectors. It is stored as a
+small human-readable run-length-encoded text file; the 512-byte page payloads
+are not included.
 
 That compact fixture verifies:
 
@@ -243,7 +244,7 @@ That compact fixture verifies:
 - delimiter header `0000fc00000f0000`;
 - seven 32,768-page free extents;
 - byte 6 reserved-field behavior;
-- 434 allocated extent candidates covering 7,872 pages in the captured window;
+- 31 allocated extent candidates covering 574 pages in the captured window;
 - the first 32-page and 16-page extent addresses and boundaries.
 
 Synthetic tests continue to cover geometry, malformed images, sector reads, and
