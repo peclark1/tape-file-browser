@@ -312,12 +312,19 @@ PgUp / PgDn     page through lists/content
 Home / End      first/last item or top/bottom of content
 Enter           drill into the next pane
 /               search names across recovered objects/members
+e               export selected QDOC document / *DOCBSS workstation bytes
 o               open another DASD image
 r               rescan the current image
 q / Esc         quit
 ```
 
-The browser is completely read-only.
+The browser is completely read-only with respect to the DASD image. When a
+selected QDOC `*DOC` has a unique, validated same-base `*DOCBSS` companion,
+the detail pane shows **DLO export: available (press e)**. Pressing `e`
+prompts for an output filename, validates the DOCBSS length metadata again,
+refuses to overwrite the DASD image, and asks before replacing an existing
+output file. A `*DOCBSS` object can also be selected directly and exported
+through its matching QDOC document.
 
 For QDLS/document-library work, `as400-dasd dlos disk.hda` lists recovered
 QDOC `*DOC`/`*FLR` objects using their 10-character internal system object
