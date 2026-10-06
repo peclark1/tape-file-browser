@@ -531,6 +531,7 @@ class RecoveredObject:
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
             (0x19, 0x02): "*MSGQ",
+            (0x19, 0x51): "*FORMAT",
         }
         return known.get(
             (self.object_type, self.object_subtype),
@@ -824,6 +825,177 @@ class DataSpaceLayout:
             self.per_entry_overhead == 1
             and self.v2_hints_match
         )
+
+
+@dataclass(frozen=True)
+class FormatField:
+    """One database record-format field recovered from a 19/51 format object."""
+
+    marker: int
+    name: str
+    reference_name: str
+    type_code: int
+    flags: int
+    offset: int
+    storage_length: int
+    digits: int
+    decimal_positions: int
+
+    @property
+    def type_name(self) -> str:
+        return {
+            0x02: "ZONED",
+            0x03: "PACKED",
+            0x04: "CHAR",
+        }.get(self.type_code, f"TYPE-{self.type_code:02X}")
+
+    def raw_value(self, record: bytes) -> bytes:
+        end = self.offset + self.storage_length
+        if self.offset < 0 or end > len(record):
+            return b""
+        return record[self.offset:end]
+
+    @staticmethod
+    def _format_decimal(digits: str, negative: bool, decimal_positions: int) -> str:
+        if not digits:
+            digits = "0"
+        digits = digits.lstrip("0") or "0"
+        if decimal_positions:
+            digits = digits.rjust(decimal_positions + 1, "0")
+            digits = (
+                digits[:-decimal_positions]
+                + "."
+                + digits[-decimal_positions:]
+            )
+        if negative and digits != "0":
+            digits = "-" + digits
+        return digits
+
+    def decode_value(self, record: bytes) -> str:
+        raw = self.raw_value(record)
+        if len(raw) != self.storage_length:
+            return "<outside-record>"
+
+        if self.type_code == 0x04:
+            return raw.decode("cp037", errors="replace").rstrip()
+
+        if self.type_code == 0x02:
+            # Zoned decimal: one digit per byte. The low nibble is the digit;
+            # the high nibble of the final byte carries the sign.
+            digits = "".join(str(byte & 0x0F) for byte in raw)
+            sign = (raw[-1] >> 4) & 0x0F if raw else 0x0F
+            negative = sign in (0x0B, 0x0D)
+            return self._format_decimal(
+                digits,
+                negative,
+                self.decimal_positions,
+            )
+
+        if self.type_code == 0x03:
+            # Packed decimal: two nibbles per byte, final nibble is sign.
+            nibbles = []
+            for byte in raw:
+                nibbles.extend([(byte >> 4) & 0x0F, byte & 0x0F])
+            if not nibbles:
+                return ""
+            sign = nibbles.pop()
+            if any(nibble > 9 for nibble in nibbles):
+                return raw.hex().upper()
+            digits = "".join(str(nibble) for nibble in nibbles)
+            negative = sign in (0x0B, 0x0D)
+            return self._format_decimal(
+                digits,
+                negative,
+                self.decimal_positions,
+            )
+
+        return raw.hex().upper()
+
+
+def decode_format_fields(
+    data: bytes,
+    *,
+    record_length: int | None = None,
+) -> tuple[FormatField, ...]:
+    """Recover repeated field-description structures from a 19/51 format.
+
+    Real CISC format objects from both images use a variable-length descriptor
+    whose stable prefix is:
+      marker byte
+      10-byte field name
+      10-byte reference name
+      0x00, type, flags
+      duplicated 16-bit record offset
+      16-bit storage length
+      16-bit digit count
+      16-bit decimal-position count
+
+    Descriptors are found structurally rather than by assuming a fixed stride.
+    """
+
+    result: list[FormatField] = []
+    seen: set[tuple[str, int, int, int]] = set()
+
+    for pos in range(0, max(0, len(data) - 34)):
+        if pos + 34 > len(data):
+            break
+
+        name_raw = data[pos + 1 : pos + 11]
+        reference_raw = data[pos + 11 : pos + 21]
+        if name_raw != reference_raw:
+            continue
+
+        try:
+            name = name_raw.decode("cp037").rstrip()
+            reference_name = reference_raw.decode("cp037").rstrip()
+        except UnicodeDecodeError:
+            continue
+
+        if not name or not all(32 <= ord(character) <= 126 for character in name):
+            continue
+
+        meta = data[pos + 21 : pos + 34]
+        if len(meta) < 13:
+            continue
+        if meta[0] != 0 or meta[2] != 0x03:
+            continue
+
+        offset_a = int.from_bytes(meta[3:5], "big")
+        offset_b = int.from_bytes(meta[5:7], "big")
+        if offset_a != offset_b:
+            continue
+
+        storage_length = int.from_bytes(meta[7:9], "big")
+        digits = int.from_bytes(meta[9:11], "big")
+        decimal_positions = int.from_bytes(meta[11:13], "big")
+        if storage_length <= 0:
+            continue
+        if record_length is not None and (
+            offset_a + storage_length > record_length
+        ):
+            continue
+
+        type_code = meta[1]
+        key = (name, offset_a, storage_length, type_code)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        result.append(
+            FormatField(
+                marker=data[pos],
+                name=name,
+                reference_name=reference_name,
+                type_code=type_code,
+                flags=meta[2],
+                offset=offset_a,
+                storage_length=storage_length,
+                digits=digits,
+                decimal_positions=decimal_positions,
+            )
+        )
+
+    return tuple(sorted(result, key=lambda field: (field.offset, field.name)))
 
 
 @dataclass(frozen=True)
@@ -1303,6 +1475,77 @@ class DASDImage:
             )
             offset += 3
         return probes
+
+    def resolve_file_formats(
+        self,
+        file_obj: RecoveredObject,
+        inventory: ObjectInventory,
+    ) -> list[RecoveredObject]:
+        """Find format objects referenced by a recovered *FILE FCB.
+
+        A physical/logical file's FCB carries the record-format name(s). Rather
+        than hard-code one FCB offset, search the recovered FCB segment for the
+        10-byte padded names of recovered MI 19/51 format objects. This handles
+        both simple source files and larger keyed file FCB layouts.
+        """
+
+        if (
+            file_obj.object_type != 0x19
+            or file_obj.object_subtype != 0x01
+        ):
+            raise ValueError("target object is not an MI 19/01 *FILE")
+
+        file_data = self.read_segment_bytes(file_obj.segment)
+        formats = [
+            obj
+            for obj in inventory.objects
+            if obj.object_type == 0x19 and obj.object_subtype == 0x51
+        ]
+
+        matches: list[RecoveredObject] = []
+        seen: set[tuple[int, int]] = set()
+        for format_obj in formats:
+            name10 = format_obj.epa.name_raw[:10]
+            if not name10.strip(b"\x40\x00"):
+                continue
+            if name10 not in file_data:
+                continue
+            key = (
+                format_obj.segment.header.owner.extender,
+                format_obj.segment.virtual_address,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            matches.append(format_obj)
+
+        return sorted(
+            matches,
+            key=lambda obj: (
+                obj.name,
+                obj.segment.virtual_address,
+                obj.segment.start_lba,
+            ),
+        )
+
+    def read_format_fields(
+        self,
+        format_obj: RecoveredObject,
+        *,
+        record_length: int | None = None,
+    ) -> tuple[FormatField, ...]:
+        """Decode field descriptions from an MI 19/51 format object."""
+
+        if (
+            format_obj.object_type != 0x19
+            or format_obj.object_subtype != 0x51
+        ):
+            raise ValueError("target object is not an MI 19/51 format")
+        data = self.read_segment_bytes(format_obj.segment)
+        return decode_format_fields(
+            data,
+            record_length=record_length,
+        )
 
     def read_member_info(
         self,
