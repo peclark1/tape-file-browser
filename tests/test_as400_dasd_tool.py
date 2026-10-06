@@ -202,6 +202,21 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(_find_byte_occurrences(b"ABC", b"Z"), [])
         self.assertEqual(_find_byte_occurrences(b"ABC", b""), [])
 
+    def test_dlo_export_subcommand_requires_explicit_output(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "dlo-export",
+                "marks.hda",
+                "FMPV082760",
+                "CKPCSPTH.EXE",
+            ]
+        )
+        self.assertEqual(args.command, "dlo-export")
+        self.assertEqual(args.sysobjnam, "FMPV082760")
+        self.assertEqual(args.output, "CKPCSPTH.EXE")
+        self.assertFalse(args.force)
+
     def test_dlo_index_scan_subcommand_defaults_to_anchor_index(self):
         parser = build_parser()
         args = parser.parse_args(["dlo-index-scan", "marks.hda"])
