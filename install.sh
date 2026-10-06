@@ -103,6 +103,7 @@ if ${TEXT_MODE_ONLY}; then
     echo "Tape CLI: tape-tool --help"
     echo "Tape TUI: tape-tool browse"
     echo "DASD CLI: as400-dasd --help"
+    echo "DASD TUI: as400-dasd browse"
 else
     echo "GTK4 GUI:      ${BIN_PATH}"
     echo "Launcher:      ${DESKTOP_PATH}"
