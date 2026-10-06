@@ -918,8 +918,24 @@ remain read-only.
 
 ## Additional DLO recovery targets
 
-- Reconstruct the QDLS document/folder hierarchy from QDOC `*DOC`/`*FLR`
-  objects plus the QUSRSYS `QAO*` DLO index metadata, so internal object names
-  can be presented as user-facing folder/document paths.
+IBM documents the actual DLO search-index files as `QUSRSYS/QAOSS*`. These
+must be distinguished from the DLO-related `QSYS` model/output files such as
+`QAOSIQDL`, `QAOSIRTV`, `QADSPDOC`, and `QADSPFLR`.
+
+The explorer now inventories QDOC `*DOC`/`*FLR` objects with `dlos`,
+reports any recovered QUSRSYS `QAOSS*` runtime files, decodes the QSYS model
+formats when available, and can byte-search for a 10-character QDOC SYSOBJNAM
+with `dlo-xref`. The latter is intended to locate metadata/index
+cross-references without prematurely assigning field meanings.
+
+Remaining targets:
+
+- Reconstruct the QDLS document/folder hierarchy so internal QDOC system
+  object names can be presented as user-facing folder/document paths.
+- Decode the relevant QAOSS records, or identify their unresolved storage
+  objects if the current object-to-context pass does not expose them normally.
+- Cross-check the reconstructed mapping against known real-image DLO examples.
 - Identify the payload-storage objects associated with binary DLOs and support
   safe export of the original workstation-file bytes.
+
+See `AS400_QDLS_RESEARCH.md` for the evidence log and current experiments.
