@@ -4,9 +4,12 @@
 
 The physical facts are deliberately kept separate from interpretations that are
 still being validated. A CISC sector is 520 bytes: an eight-byte storage-
-management header followed by a 512-byte page. Real 9404/B10 data shows that
-those headers are sufficient to recover a surprisingly large portion of the
-physical/virtual extent map.
+management header followed by a 512-byte page.
+
+The current implementation follows IBM's documented System/38 directory-
+recovery model: find relative record zero, recognize aligned large-free-space
+delimiter extents, collect aligned permanent-extent candidates, and treat all
+remaining sectors as reclaimable during directory recovery.
 
 Nothing in this module writes to a DASD image.
 """
@@ -24,6 +27,14 @@ HEADER_SIZE = 8
 PAGE_SIZE = 512
 ZERO_HEADER = b"\x00" * HEADER_SIZE
 FF_HEADER = b"\xff" * HEADER_SIZE
+
+# The same preassigned large-free-space delimiter is present in both the B10
+# surviving disk and the independent single-disk V2R3 image.  IBM's System/38
+# VMC documentation describes exactly this kind of preassigned virtual address
+# on the first page of large unallocated extents.
+FREE_SPACE_DELIMITER = bytes.fromhex("0000fc00000f0000")
+
+# 9404 Service Guide: 64-KB shadow error log on the load-source disk.
 KNOWN_B10_SHADOW_LOG_VADDR = 0x000083000000
 
 
@@ -31,13 +42,18 @@ KNOWN_B10_SHADOW_LOG_VADDR = 0x000083000000
 class SectorHeader:
     """Decoded view of an eight-byte CISC storage-management header.
 
-    IBM documentation describes a 39-bit virtual page identity in the header.
-    The real B10 image strongly supports the first 40 bits being that 39-bit
-    value plus one low-order status bit. The low-nibble extent-order decoding
-    is likewise supported by aligned 1..32768-page extents in the real image.
+    IBM documents the first five bytes as the virtual page address, followed by
+    an indicators byte, one reserved byte, and a byte locating the first
+    Machine Interface pointer in the page.
 
-    The semantics of the status bit and several flag bits remain intentionally
-    unnamed until we have firmer documentation or another independent image.
+    Real-image evidence from two independent CISC AS/400 images shows:
+      * the five-byte virtual-page field is the high five bytes of the
+        48-bit page-aligned virtual address, so append one zero byte;
+      * the low nibble of the indicators byte is log2(extent pages);
+      * byte 6 is zero in every header examined so far.
+
+    Other indicator/control bits remain intentionally unnamed until their
+    semantics are independently documented or validated.
     """
 
     raw: bytes
@@ -55,22 +71,19 @@ class SectorHeader:
         return self.raw == FF_HEADER
 
     @property
-    def page_word(self) -> int:
+    def virtual_page_prefix(self) -> int:
         return int.from_bytes(self.raw[0:5], "big")
 
     @property
-    def virtual_page_number(self) -> int:
-        # 40 stored bits -> 39 page-address bits + one low status bit.
-        return self.page_word >> 1
-
-    @property
-    def page_word_low_flag(self) -> int:
-        return self.page_word & 1
-
-    @property
     def virtual_address(self) -> int:
-        # CISC pages are 512 bytes, so restore the nine byte-offset bits.
-        return self.virtual_page_number << 9
+        return self.virtual_page_prefix << 8
+
+    @property
+    def page_aligned(self) -> bool:
+        # A 512-byte CISC page requires bit 8 of the byte address to be zero.
+        # Because the low byte is omitted from the five-byte header field, that
+        # means the low bit of the stored prefix must be zero.
+        return (self.virtual_page_prefix & 1) == 0
 
     @property
     def extent_order(self) -> int:
@@ -81,7 +94,7 @@ class SectorHeader:
         return 1 << self.extent_order
 
     @property
-    def extent_flag_bits(self) -> int:
+    def indicator_flags(self) -> int:
         return self.raw[5] & 0xF0
 
     @property
@@ -94,8 +107,8 @@ class SectorHeader:
 
     @property
     def pointer_field_c(self) -> int:
-        # IBM VMC documentation identifies the final five header bits as
-        # field C when the pointer indicator is active.
+        # IBM VMC documentation describes the final five bits as field C when
+        # the pointer indicator is active.
         return self.raw[7] & 0x1F
 
 
@@ -113,16 +126,19 @@ class Sector:
 @dataclass(frozen=True)
 class OriginCandidate:
     lba: int
-    header: bytes
-    extent_order: int
+    delimiter_header: bytes
     extent_pages: int
-    repeats: int
+    delimiter_occurrences: tuple[int, ...]
+    supporting_large_extents: int
 
     @property
     def confidence(self) -> str:
-        if self.repeats >= 5 and self.extent_order >= 12:
+        if (
+            len(self.delimiter_occurrences) >= 2
+            or self.supporting_large_extents >= 4
+        ):
             return "VERY HIGH"
-        if self.repeats >= 3:
+        if self.delimiter_occurrences and self.supporting_large_extents >= 1:
             return "HIGH"
         return "MEDIUM"
 
@@ -134,6 +150,7 @@ class Extent:
     kind: str
     header: bytes
     virtual_address: int | None = None
+    validation: str = ""
 
     @property
     def end_lba(self) -> int:
@@ -155,7 +172,6 @@ class Region:
     kind: str
     start_lba: int
     end_lba: int
-    virtual_address: int | None = None
 
     @property
     def sector_count(self) -> int:
@@ -193,9 +209,9 @@ class ScanResult:
     zero_payloads: int | None
     reserved_nonzero_headers: int
     origin: OriginCandidate | None
-    free_extents: list[Extent] = field(default_factory=list)
-    allocated_extents: list[Extent] = field(default_factory=list)
-    gaps: list[Region] = field(default_factory=list)
+    free_delimiter_extents: list[Extent] = field(default_factory=list)
+    permanent_candidates: list[Extent] = field(default_factory=list)
+    reclaimable_regions: list[Region] = field(default_factory=list)
     virtual_chains: list[VirtualChain] = field(default_factory=list)
 
     @property
@@ -205,33 +221,33 @@ class ScanResult:
         return self.sector_count - self.origin.lba
 
     @property
-    def free_pages(self) -> int:
-        return sum(extent.pages for extent in self.free_extents)
+    def explicit_free_pages(self) -> int:
+        return sum(extent.pages for extent in self.free_delimiter_extents)
 
     @property
-    def allocated_pages(self) -> int:
-        return sum(extent.pages for extent in self.allocated_extents)
+    def permanent_candidate_pages(self) -> int:
+        return sum(extent.pages for extent in self.permanent_candidates)
 
     @property
-    def recognized_pages(self) -> int:
-        return self.free_pages + self.allocated_pages
+    def reclaimable_pages(self) -> int:
+        return sum(region.sector_count for region in self.reclaimable_regions)
 
     @property
-    def unresolved_pages(self) -> int:
-        return sum(region.sector_count for region in self.gaps)
+    def structured_pages(self) -> int:
+        return self.explicit_free_pages + self.permanent_candidate_pages
 
     @property
-    def recognized_ratio(self) -> float:
+    def structured_ratio(self) -> float:
         if not self.managed_sectors:
             return 0.0
-        return self.recognized_pages / self.managed_sectors
+        return self.structured_pages / self.managed_sectors
 
     @property
     def extent_size_histogram(self) -> Counter:
-        return Counter(extent.pages for extent in self.allocated_extents)
+        return Counter(extent.pages for extent in self.permanent_candidates)
 
     def resolve_virtual(self, address: int) -> Extent | None:
-        for extent in self.allocated_extents:
+        for extent in self.permanent_candidates:
             if extent.virtual_address is None:
                 continue
             if extent.virtual_address <= address <= extent.virtual_end:
@@ -248,16 +264,6 @@ class HeaderSnapshot:
         self.name = name
         self._headers = header_bytes
         self.sector_count = len(header_bytes) // HEADER_SIZE
-
-    def header_bytes(self, lba: int) -> bytes:
-        if lba < 0 or lba >= self.sector_count:
-            raise ValueError(f"LBA {lba} outside 0..{self.sector_count - 1}")
-        offset = lba * HEADER_SIZE
-        return self._headers[offset : offset + HEADER_SIZE]
-
-    def iter_header_bytes(self) -> Iterator[bytes]:
-        for offset in range(0, len(self._headers), HEADER_SIZE):
-            yield self._headers[offset : offset + HEADER_SIZE]
 
     def scan(self) -> ScanResult:
         return analyze_headers(
@@ -326,66 +332,133 @@ class DASDImage:
             zero_payloads=zero_payloads,
         )
 
+    def count_nonzero_payloads(self, start_lba: int, count: int) -> int:
+        if start_lba < 0 or start_lba >= self.sector_count:
+            raise ValueError(
+                f"LBA {start_lba} is outside image range "
+                f"0..{self.sector_count - 1}"
+            )
+        count = min(count, self.sector_count - start_lba)
+        nonzero = 0
+        with open(self.path, "rb") as handle:
+            handle.seek(start_lba * SECTOR_SIZE)
+            for _ in range(count):
+                raw = handle.read(SECTOR_SIZE)
+                if len(raw) != SECTOR_SIZE:
+                    break
+                if raw[HEADER_SIZE:] != b"\x00" * PAGE_SIZE:
+                    nonzero += 1
+        return nonzero
+
 
 def _header_at(header_bytes: bytes, lba: int) -> bytes:
     start = lba * HEADER_SIZE
     return header_bytes[start : start + HEADER_SIZE]
 
 
-def detect_storage_origin(header_bytes: bytes) -> OriginCandidate | None:
-    """Find the strongest repeated, power-of-two-aligned delimiter pattern.
+def _second_page_valid(
+    header_bytes: bytes,
+    *,
+    lba: int,
+    header: SectorHeader,
+    sector_count: int,
+) -> bool:
+    if header.extent_pages == 1:
+        return True
+    if lba + 1 >= sector_count:
+        return False
 
-    The System/38 recovery description says large free extents are represented by
-    a preassigned virtual-address delimiter. On the real B10 disk a distinctive
-    order-15 header repeats every 32768 sectors seven times. We search for the
-    same architectural pattern instead of hard-coding that LBA or byte string.
-    """
+    second_raw = _header_at(header_bytes, lba + 1)
+    if second_raw in (ZERO_HEADER, FF_HEADER):
+        return False
 
-    count = len(header_bytes) // HEADER_SIZE
-    candidates: list[OriginCandidate] = []
-
-    for lba in range(count):
-        raw = _header_at(header_bytes, lba)
-        if raw in (ZERO_HEADER, FF_HEADER):
-            continue
-        header = SectorHeader(raw)
-        if header.extent_order < 8:
-            continue
-        span = header.extent_pages
-        if lba + 2 * span >= count:
-            continue
-        if _header_at(header_bytes, lba + span) != raw:
-            continue
-        if _header_at(header_bytes, lba + 2 * span) != raw:
-            continue
-        repeats = 3
-        while lba + repeats * span < count:
-            if _header_at(header_bytes, lba + repeats * span) != raw:
-                break
-            repeats += 1
-        candidates.append(
-            OriginCandidate(
-                lba=lba,
-                header=raw,
-                extent_order=header.extent_order,
-                extent_pages=span,
-                repeats=repeats,
-            )
-        )
-
-    if not candidates:
-        return None
-    return max(
-        candidates,
-        key=lambda candidate: (
-            candidate.repeats,
-            candidate.extent_order,
-            -candidate.lba,
-        ),
+    second = SectorHeader(second_raw)
+    return (
+        second.page_aligned
+        and second.extent_order == header.extent_order
+        and second.virtual_address == header.virtual_address + PAGE_SIZE
     )
 
 
-def _valid_extent_start(
+def _count_supporting_large_extents(
+    header_bytes: bytes,
+    *,
+    origin: int,
+    min_pages: int = 128,
+) -> int:
+    sector_count = len(header_bytes) // HEADER_SIZE
+    support = 0
+
+    for lba in range(origin, sector_count):
+        raw = _header_at(header_bytes, lba)
+        if raw in (ZERO_HEADER, FF_HEADER, FREE_SPACE_DELIMITER):
+            continue
+
+        header = SectorHeader(raw)
+        pages = header.extent_pages
+        if (
+            pages < min_pages
+            or not header.page_aligned
+            or lba + pages > sector_count
+            or (lba - origin) % pages
+        ):
+            continue
+
+        if _second_page_valid(
+            header_bytes,
+            lba=lba,
+            header=header,
+            sector_count=sector_count,
+        ):
+            support += 1
+
+    return support
+
+
+def detect_storage_origin(header_bytes: bytes) -> OriginCandidate | None:
+    """Infer relative-record zero from IBM's large-free-space delimiter.
+
+    Directory recovery uses relative record numbers, not raw image LBAs.  The
+    same order-15 preassigned free-space delimiter appears in both independent
+    CISC images.  Its physical LBA modulo 32768 directly reveals the relative
+    record zero offset:
+      B10 surviving disk -> 2112
+      one-disk V2R3 image -> 64
+
+    Multiple occurrences must agree on the same residue.  Large independently
+    validated extents are counted as additional confidence evidence.
+    """
+
+    sector_count = len(header_bytes) // HEADER_SIZE
+    delimiter = SectorHeader(FREE_SPACE_DELIMITER)
+    span = delimiter.extent_pages
+
+    occurrences = [
+        lba
+        for lba in range(sector_count)
+        if _header_at(header_bytes, lba) == FREE_SPACE_DELIMITER
+    ]
+    if not occurrences:
+        return None
+
+    residue_counts = Counter(lba % span for lba in occurrences)
+    residue, _ = residue_counts.most_common(1)[0]
+    matching = tuple(lba for lba in occurrences if lba % span == residue)
+    support = _count_supporting_large_extents(
+        header_bytes,
+        origin=residue,
+    )
+
+    return OriginCandidate(
+        lba=residue,
+        delimiter_header=FREE_SPACE_DELIMITER,
+        extent_pages=span,
+        delimiter_occurrences=matching,
+        supporting_large_extents=support,
+    )
+
+
+def _permanent_extent_candidate(
     header_bytes: bytes,
     *,
     lba: int,
@@ -393,45 +466,58 @@ def _valid_extent_start(
     sector_count: int,
 ) -> Extent | None:
     raw = _header_at(header_bytes, lba)
-    if raw in (ZERO_HEADER, FF_HEADER):
-        return None
-    header = SectorHeader(raw)
-    pages = header.extent_pages
-    if lba + pages > sector_count:
-        return None
-    if (lba - origin) % pages:
+    if raw in (ZERO_HEADER, FF_HEADER, FREE_SPACE_DELIMITER):
         return None
 
-    address = header.virtual_address
-    if pages > 1:
-        second_raw = _header_at(header_bytes, lba + 1)
-        if second_raw in (ZERO_HEADER, FF_HEADER):
-            return None
-        second = SectorHeader(second_raw)
-        if second.extent_order != header.extent_order:
-            return None
-        if second.virtual_address != address + PAGE_SIZE:
-            return None
+    header = SectorHeader(raw)
+    pages = header.extent_pages
+    if (
+        not header.page_aligned
+        or lba + pages > sector_count
+        or (lba - origin) % pages
+    ):
+        return None
+
+    if pages == 1:
+        # There is no second page available for the independent validation IBM
+        # describes for multi-page extents. Keep these, but mark the weaker
+        # evidence level so later stages can treat them conservatively.
+        return Extent(
+            start_lba=lba,
+            pages=pages,
+            kind="permanent-candidate",
+            header=raw,
+            virtual_address=header.virtual_address,
+            validation="single-page/aligned",
+        )
+
+    if not _second_page_valid(
+        header_bytes,
+        lba=lba,
+        header=header,
+        sector_count=sector_count,
+    ):
+        return None
 
     return Extent(
         start_lba=lba,
         pages=pages,
-        kind="allocated-candidate",
+        kind="permanent-candidate",
         header=raw,
-        virtual_address=address,
+        virtual_address=header.virtual_address,
+        validation="aligned + second-page",
     )
 
 
 def _build_virtual_chains(extents: list[Extent]) -> list[VirtualChain]:
-    """Group extents with directly adjoining virtual address ranges.
-
-    These are deliberately called candidate chains rather than object segments:
-    duplicate/overlapping address metadata may need a more sophisticated second
-    pass once permanent-directory formats are decoded.
-    """
+    """Group candidate extents whose virtual ranges directly adjoin."""
 
     ordered = sorted(
-        (extent for extent in extents if extent.virtual_address is not None),
+        (
+            extent
+            for extent in extents
+            if extent.virtual_address is not None
+        ),
         key=lambda extent: (extent.virtual_address, extent.start_lba),
     )
     chains: list[VirtualChain] = []
@@ -462,7 +548,11 @@ def analyze_headers(
         raise ValueError("header data size is not divisible by 8")
 
     sector_count = len(header_bytes) // HEADER_SIZE
-    zero_headers = ff_headers = other_headers = reserved_nonzero = 0
+    zero_headers = 0
+    ff_headers = 0
+    other_headers = 0
+    reserved_nonzero = 0
+
     for lba in range(sector_count):
         raw = _header_at(header_bytes, lba)
         if raw == ZERO_HEADER:
@@ -489,56 +579,69 @@ def analyze_headers(
         return result
 
     free_extents: list[Extent] = []
-    allocated_extents: list[Extent] = []
+    permanent_extents: list[Extent] = []
+    reclaimable: list[Region] = []
+    reclaim_start: int | None = None
     lba = origin.lba
+
+    def flush_reclaim(end_lba: int) -> None:
+        nonlocal reclaim_start
+        if reclaim_start is not None and end_lba >= reclaim_start:
+            reclaimable.append(
+                Region(
+                    "reclaimable-by-recovery",
+                    reclaim_start,
+                    end_lba,
+                )
+            )
+        reclaim_start = None
 
     while lba < sector_count:
         raw = _header_at(header_bytes, lba)
-        header = SectorHeader(raw)
 
-        if raw == origin.header:
+        if raw == FREE_SPACE_DELIMITER:
+            header = SectorHeader(raw)
             pages = header.extent_pages
-            if (lba - origin.lba) % pages == 0 and lba + pages <= sector_count:
+            if (
+                (lba - origin.lba) % pages == 0
+                and lba + pages <= sector_count
+            ):
+                flush_reclaim(lba - 1)
                 free_extents.append(
                     Extent(
                         start_lba=lba,
                         pages=pages,
-                        kind="free-delimiter",
+                        kind="large-free-delimiter",
                         header=raw,
                         virtual_address=None,
+                        validation="aligned delimiter",
                     )
                 )
                 lba += pages
                 continue
 
-        candidate = _valid_extent_start(
+        candidate = _permanent_extent_candidate(
             header_bytes,
             lba=lba,
             origin=origin.lba,
             sector_count=sector_count,
         )
         if candidate is not None:
-            allocated_extents.append(candidate)
+            flush_reclaim(lba - 1)
+            permanent_extents.append(candidate)
             lba += candidate.pages
             continue
+
+        if reclaim_start is None:
+            reclaim_start = lba
         lba += 1
 
-    recognized = sorted(
-        [*free_extents, *allocated_extents], key=lambda extent: extent.start_lba
-    )
-    gaps: list[Region] = []
-    cursor = origin.lba
-    for extent in recognized:
-        if extent.start_lba > cursor:
-            gaps.append(Region("unresolved", cursor, extent.start_lba - 1))
-        cursor = max(cursor, extent.end_lba + 1)
-    if cursor < sector_count:
-        gaps.append(Region("unresolved", cursor, sector_count - 1))
+    flush_reclaim(sector_count - 1)
 
-    result.free_extents = free_extents
-    result.allocated_extents = allocated_extents
-    result.gaps = gaps
-    result.virtual_chains = _build_virtual_chains(allocated_extents)
+    result.free_delimiter_extents = free_extents
+    result.permanent_candidates = permanent_extents
+    result.reclaimable_regions = reclaimable
+    result.virtual_chains = _build_virtual_chains(permanent_extents)
     return result
 
 
