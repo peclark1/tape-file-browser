@@ -122,6 +122,19 @@ Examples already observed during this project include:
   names such as `WOSEDOCN`, `WOSEDOCT`, `WOSESYSC`, `WOSEOWNR`, and
   others. This is strong structural evidence for the runtime DLO-index formats,
   but the binary descriptor layout is not decoded yet.
+- A full-image scan found 1,987 printable MI `06/C1` objects. For 1,972
+  of them, a conservative ordinary layout passes all current checks: the
+  16-bit values at +0x106 and +0x112 agree, the declared payload fits after the
+  first 512-byte page, and the nonzero allocation value at +0x10A is a
+  512-byte multiple large enough for the payload. Fifteen objects need separate
+  study rather than being forced through this layout.
+- Two known PC Support examples independently validate the ordinary layout.
+  `FMPV082760F` declares 2,688 payload bytes; the next page begins with an
+  `MZ` DOS executable header and the DOS header itself also describes a
+  2,688-byte file. `FMPV195818F` declares 424 bytes; the next page begins
+  `PKGF\r\n` and contains the expected Data Queue package member list.
+  This is strong evidence that the byte stream begins exactly one page after
+  the DOCBSS metadata for these ordinary objects.
 
 Printable strings inside a QDOC object are **hints**, not automatically
 authoritative path metadata. The `DPWN524712` case is stronger because the
@@ -153,6 +166,16 @@ document's own error-log text explicitly supplies both document and folder names
 The xref scanner is intentionally structural: finding the same SYSOBJNAM in a
 database/index object is evidence of a relationship without assuming the
 meaning of the surrounding bytes.
+
+`as400-dasd dlo-export IMAGE SYSOBJNAM OUTPUT`
+
+- finds a recovered QDOC `*DOC` and a unique same-base `SYSOBJNAM+"F"`
+  `*DOCBSS`;
+- validates the duplicated observed length fields before extracting anything;
+- reads exactly the declared byte count beginning after the first DOCBSS page;
+- refuses ambiguous companions, invalid lengths, or accidental overwrite of an
+  existing output unless `--force` is requested;
+- never writes to the DASD image.
 
 ## Next experiments
 
