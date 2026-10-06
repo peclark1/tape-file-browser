@@ -1233,8 +1233,8 @@ def cmd_dlos(args):
     }
     print()
     print(
-        "IBM-documented document/folder search-index files in "
-        "QUSRSYS:"
+        "Document/folder search-index names explicitly documented by "
+        "later IBM recovery guides (validate on this CISC image):"
     )
     exact_recovered_anywhere = {}
     for name in _DLO_RUNTIME_INDEX_FILES:
