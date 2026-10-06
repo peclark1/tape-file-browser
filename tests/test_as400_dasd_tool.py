@@ -131,6 +131,22 @@ class DASDToolTests(unittest.TestCase):
                 "Custom QGPL note",
             )
 
+    def test_scan_ebcdic_sysobjnam_matches_exact_ten_byte_names(self):
+        targets = {
+            "FMPV082760".encode("cp037"): "FMPV082760",
+            "DPWN524712".encode("cp037"): "DPWN524712",
+        }
+        data = (
+            b"\x00\x01"
+            + "FMPV082760".encode("cp037")
+            + b"\x02\x03"
+            + "DPWN524712".encode("cp037")
+        )
+        self.assertEqual(
+            _scan_ebcdic_sysobjnam(data, targets),
+            [(2, "FMPV082760"), (14, "DPWN524712")],
+        )
+
     def test_dlo_preview_strings_are_forensic_hints(self):
         data = (
             "FMPV082760".encode("cp037")
@@ -153,6 +169,14 @@ class DASDToolTests(unittest.TestCase):
         )
         self.assertEqual(_find_byte_occurrences(b"ABC", b"Z"), [])
         self.assertEqual(_find_byte_occurrences(b"ABC", b""), [])
+
+    def test_dlo_index_scan_subcommand_defaults_to_anchor_index(self):
+        parser = build_parser()
+        args = parser.parse_args(["dlo-index-scan", "marks.hda"])
+        self.assertEqual(args.command, "dlo-index-scan")
+        self.assertIsNone(args.file_name)
+        self.assertFalse(args.all_indexes)
+        self.assertEqual(args.context, 24)
 
     def test_dlos_subcommand(self):
         parser = build_parser()
