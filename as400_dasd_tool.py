@@ -561,6 +561,145 @@ def cmd_ls(args):
 
 
 
+
+def cmd_files(args):
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+
+    members = inventory.members(library=args.library_name)
+    member_counts = {}
+    for member in members:
+        member_counts[member.member_file_name.upper()] = (
+            member_counts.get(member.member_file_name.upper(), 0) + 1
+        )
+
+    files = [
+        obj
+        for obj in inventory.in_library(args.library_name)
+        if obj.object_type == 0x19 and obj.object_subtype == 0x01
+    ]
+    if args.name:
+        wanted = args.name.upper()
+        files = [obj for obj in files if wanted in obj.name.upper()]
+
+    files.sort(key=lambda obj: obj.name)
+    total = len(files)
+    shown = files if not args.limit else files[: args.limit]
+
+    print(f"Disk: {image.path}")
+    print(
+        f"Recovered *FILE objects in {args.library_name.upper()}: "
+        f"{total:,}"
+    )
+    print()
+    print("File        Members  Virtual addr   LBA        pages")
+    for obj in shown:
+        print(
+            f"{obj.name:<10.10} "
+            f"{member_counts.get(obj.name.upper(), 0):>7,}  "
+            f"{obj.segment.virtual_address:012X} "
+            f"{obj.segment.start_lba:>9,} "
+            f"{obj.segment.pages:>6,}"
+        )
+    if len(shown) < total:
+        print(f"... {total - len(shown):,} additional files omitted")
+    return 0
+
+
+def _find_member_cursor(inventory, library_name, file_name, member_name):
+    matches = [
+        obj
+        for obj in inventory.members(
+            library=library_name,
+            file_name=file_name,
+        )
+        if obj.member_name.upper() == member_name.upper()
+    ]
+    if not matches:
+        raise ValueError(
+            f"member not recovered: "
+            f"{library_name.upper()}/{file_name.upper()}"
+            f"({member_name.upper()})"
+        )
+    return matches[0], matches
+
+
+def cmd_source(args):
+    image = _open(args.image)
+    scan, segments, inventory = _recover_all(image)
+    member, matches = _find_member_cursor(
+        inventory,
+        args.library_name,
+        args.file_name,
+        args.member_name,
+    )
+    storage = image.resolve_member_storage(
+        member,
+        inventory,
+        segments,
+    )
+    content = image.read_source_member(storage)
+    if content is None:
+        raise ValueError(
+            f"standard source records were not recovered for "
+            f"{args.library_name.upper()}/{args.file_name.upper()}"
+            f"({args.member_name.upper()}); the member may be a non-source "
+            "file or its QDDS data segment may be incomplete"
+        )
+
+    info = image.read_member_info(member)
+
+    if not args.text_only:
+        print(f"Disk:        {image.path}")
+        print(
+            f"Member:      {(member.library_name or args.library_name)}/"
+            f"{member.member_file_name}({member.member_name})"
+        )
+        if info is not None:
+            print(f"Source type: {info.member_type or '-'}")
+            print(f"Changed:     {info.source_change or '-'}")
+            print(f"Created:     {info.created or '-'}")
+            print(f"Text:        {info.text or '-'}")
+        print(
+            f"Records:     {content.line_count:,} source lines from "
+            f"{content.data_segment_count:,} recovered data segment(s)"
+        )
+        if len(matches) > 1:
+            print(
+                f"Note:        {len(matches):,} matching cursors were "
+                "recovered; showing the first by virtual address."
+            )
+        print()
+        print("Seq      Date    Source")
+
+    records = content.records
+    if args.limit:
+        records = records[: args.limit]
+
+    for record in records:
+        if args.text_only:
+            print(record.text)
+        else:
+            print(
+                f"{record.sequence_display:<8} "
+                f"{record.source_date:<6} "
+                f"{record.text}"
+            )
+
+    if args.limit and len(content.records) > len(records) and not args.text_only:
+        print(
+            f"... {len(content.records) - len(records):,} "
+            "additional source lines omitted"
+        )
+    return 0
+
+
+def cmd_cat(args):
+    args.text_only = True
+    args.limit = 0
+    return cmd_source(args)
+
+
 def cmd_context_page(args):
     image = _open(args.image)
     _, segments, inventory = _recover_all(image)
@@ -948,6 +1087,21 @@ def build_parser():
     )
     ls_parser.set_defaults(func=cmd_ls)
 
+    files = sub.add_parser(
+        "files",
+        help="list recovered *FILE objects in one library",
+    )
+    files.add_argument("image")
+    files.add_argument("library_name")
+    files.add_argument("--name", help="file-name substring")
+    files.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum rows to print; use 0 for all (default: 200)",
+    )
+    files.set_defaults(func=cmd_files)
+
     context_page = sub.add_parser(
         "context-page",
         help="decode raw three-byte machine-index elements in a library context",
@@ -1012,6 +1166,37 @@ def build_parser():
     member.add_argument("file_name")
     member.add_argument("member_name")
     member.set_defaults(func=cmd_member)
+
+    source = sub.add_parser(
+        "source",
+        help="show recovered standard source records from one member",
+    )
+    source.add_argument("image")
+    source.add_argument("library_name")
+    source.add_argument("file_name")
+    source.add_argument("member_name")
+    source.add_argument(
+        "--text-only",
+        action="store_true",
+        help="print only the 80-byte source text field",
+    )
+    source.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="maximum source lines to print; 0 means all",
+    )
+    source.set_defaults(func=cmd_source)
+
+    cat = sub.add_parser(
+        "cat",
+        help="print source text only for one recovered source member",
+    )
+    cat.add_argument("image")
+    cat.add_argument("library_name")
+    cat.add_argument("file_name")
+    cat.add_argument("member_name")
+    cat.set_defaults(func=cmd_cat)
 
     scan = sub.add_parser("scan", help="produce a detailed structure report")
     scan.add_argument("images", nargs="+")
