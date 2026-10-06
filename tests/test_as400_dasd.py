@@ -1,5 +1,3 @@
-import base64
-import gzip
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,7 +14,7 @@ from as400_dasd import (
 FIXTURE = (
     Path(__file__).parent
     / "fixtures"
-    / "b10_d1_first240k.headers.gz.b64"
+    / "b10_d1_first232064.headers.rle.txt"
 )
 
 
@@ -27,6 +25,27 @@ def make_header(address, order=0, *, low_flag=0, tail=0):
         page_word.to_bytes(5, "big")
         + bytes([order & 0x0F, 0, tail])
     )
+
+
+def load_rle_fixture(path):
+    chunks = []
+    expected_start = 0
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        start_text, count_text, hex_header = line.split()
+        start = int(start_text)
+        count = int(count_text)
+        if start != expected_start:
+            raise ValueError(
+                f"fixture gap/overlap at {start}, expected {expected_start}"
+            )
+        header = bytes.fromhex(hex_header)
+        if len(header) != HEADER_SIZE:
+            raise ValueError("fixture header is not 8 bytes")
+        chunks.append(header * count)
+        expected_start += count
+    return b"".join(chunks)
 
 
 def write_image(path, sectors):
@@ -69,12 +88,11 @@ class DASDHeaderTests(unittest.TestCase):
                 DASDImage(path)
 
     def test_real_b10_header_fixture(self):
-        compressed = base64.b64decode(FIXTURE.read_text().strip())
-        raw = gzip.decompress(compressed)
-        self.assertEqual(len(raw), 240000 * HEADER_SIZE)
+        raw = load_rle_fixture(FIXTURE)
+        self.assertEqual(len(raw), 232064 * HEADER_SIZE)
 
         result = HeaderSnapshot(
-            raw, name="B10 D1 first 240K headers"
+            raw, name="B10 D1 first 232064 headers"
         ).scan()
 
         self.assertIsNotNone(result.origin)
@@ -88,8 +106,8 @@ class DASDHeaderTests(unittest.TestCase):
 
         self.assertEqual(len(result.free_extents), 7)
         self.assertEqual(result.free_pages, 229376)
-        self.assertEqual(len(result.allocated_extents), 434)
-        self.assertEqual(result.allocated_pages, 7872)
+        self.assertEqual(len(result.allocated_extents), 31)
+        self.assertEqual(result.allocated_pages, 574)
 
         first = result.allocated_extents[0]
         self.assertEqual(first.start_lba, 231488)
