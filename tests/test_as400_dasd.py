@@ -223,6 +223,15 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual((by_name["PDTCR"].offset, by_name["PDTCR"].storage_length, by_name["PDTCR"].digits), (429, 4, 7))
         self.assertEqual(by_name["PDDLM"].digits, 9)
         self.assertEqual(by_name["PDPGM"].type_name, "CHAR")
+        gmb = decode_format_fields(
+            fixture["GMBREC_GNO"],
+            record_length=4,
+        )
+        self.assertEqual(len(gmb), 1)
+        self.assertEqual(gmb[0].name, "GNO")
+        self.assertEqual(gmb[0].type_name, "BINARY")
+        self.assertEqual((gmb[0].offset, gmb[0].storage_length), (0, 4))
+        self.assertEqual(gmb[0].digits, 9)
 
         b10_blob = b"\x00".join(
             [
@@ -285,6 +294,14 @@ class DASDHeaderTests(unittest.TestCase):
 
         record[429:433] = bytes.fromhex("1234567C")
         self.assertEqual(fields["PDTCR"].decode_value(record), "1234567")
+        binary_field = decode_format_fields(
+            fixture["GMBREC_GNO"],
+            record_length=4,
+        )[0]
+        binary_record = (123456).to_bytes(4, "big", signed=True)
+        self.assertEqual(binary_field.decode_value(binary_record), "123456")
+        negative_record = (-123).to_bytes(4, "big", signed=True)
+        self.assertEqual(binary_field.decode_value(negative_record), "-123")
 
         b10_fields = {
             field.name: field
