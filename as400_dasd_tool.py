@@ -241,7 +241,11 @@ def cmd_map(args):
             print()
         image = _open(path)
         result = image.scan()
-        print("\n".join(_analysis_lines(image, result, top=args.top)))
+        segments = image.recover_segments(result)
+        inventory = image.recover_objects(result, segments)
+        lines = _analysis_lines(image, result, top=args.top)
+        lines.extend(_second_pass_lines(segments, inventory))
+        print("\n".join(lines))
     return 0
 
 
@@ -327,6 +331,235 @@ def cmd_sector(args):
     return 0
 
 
+
+def _recover_all(image):
+    scan = image.scan()
+    segments = image.recover_segments(scan)
+    inventory = image.recover_objects(scan, segments)
+    return scan, segments, inventory
+
+
+def _second_pass_lines(segments, inventory):
+    primary_keys = {
+        (
+            segment.header.owner.extender,
+            segment.virtual_address,
+        )
+        for segment in segments.primary_segments
+    }
+    resolved_secondary = sum(
+        1
+        for segment in segments.secondary_segments
+        if segment.owner_key in primary_keys
+    )
+    return [
+        "",
+        "  Second recovery pass / object discovery",
+        (
+            f"    recovered segments:     "
+            f"{len(segments.segments):,}"
+        ),
+        (
+            f"    primary segments:       "
+            f"{len(segments.primary_segments):,}"
+        ),
+        (
+            f"    secondary segments:     "
+            f"{len(segments.secondary_segments):,}"
+        ),
+        (
+            f"    secondary owner links:  "
+            f"{resolved_secondary:,}/"
+            f"{len(segments.secondary_segments):,} resolved on this image"
+        ),
+        (
+            f"    unrecovered candidates: "
+            f"{len(segments.unrecovered_candidates):,}"
+        ),
+        f"    EPA objects:            {len(inventory.objects):,}",
+        f"    permanent contexts:     {len(inventory.libraries):,}",
+        (
+            f"    objects assigned to a known context: "
+            f"{len(inventory.assigned_objects):,}"
+        ),
+    ]
+
+
+def _parse_type_filter(value):
+    if value is None:
+        return None
+    cleaned = value.upper().replace("0X", "").replace("/", "").replace(":", "")
+    if len(cleaned) == 2:
+        return int(cleaned, 16), None
+    if len(cleaned) == 4:
+        return int(cleaned[:2], 16), int(cleaned[2:], 16)
+    raise ValueError(
+        "type must be two hex digits (for example 19) or type/subtype "
+        "(for example 19/01)"
+    )
+
+
+def _object_matches(obj, args):
+    if getattr(args, "library", None):
+        if (obj.library_name or "").upper() != args.library.upper():
+            return False
+    if getattr(args, "name", None):
+        if args.name.upper() not in obj.name.upper():
+            return False
+    type_filter = _parse_type_filter(getattr(args, "type", None))
+    if type_filter is not None:
+        obj_type, obj_subtype = type_filter
+        if obj.object_type != obj_type:
+            return False
+        if obj_subtype is not None and obj.object_subtype != obj_subtype:
+            return False
+    return True
+
+
+def _object_line(obj):
+    library = obj.library_name or "-"
+    hint = obj.external_type_hint or "-"
+    return (
+        f"{library:<12} {obj.type_code:<5} {hint:<8} "
+        f"{obj.name:<30.30} "
+        f"{obj.segment.virtual_address:012X} "
+        f"{obj.segment.start_lba:>9,} "
+        f"{obj.segment.pages:>6,}"
+    )
+
+
+def cmd_segments(args):
+    image = _open(args.image)
+    scan = image.scan()
+    recovered = image.recover_segments(scan)
+
+    segments = recovered.segments
+    if args.primary_only:
+        segments = recovered.primary_segments
+    if args.type is not None:
+        wanted = int(args.type.replace("0x", ""), 16)
+        segments = [
+            segment
+            for segment in segments
+            if segment.header.segment_type == wanted
+        ]
+
+    segments = sorted(
+        segments,
+        key=lambda segment: (
+            segment.virtual_address,
+            segment.start_lba,
+        ),
+    )
+
+    print(f"Disk: {image.path}")
+    print(f"Permanent extent candidates: {len(scan.permanent_candidates):,}")
+    print(f"Recovered segment groups:    {len(recovered.segments):,}")
+    print(f"Primary segment groups:      {len(recovered.primary_segments):,}")
+    print(f"Secondary segment groups:    {len(recovered.secondary_segments):,}")
+    print(f"Unrecovered candidates:      {len(recovered.unrecovered_candidates):,}")
+    print()
+    print(
+        "Virtual addr   LBA        pages  extents  type  "
+        "owner                    role"
+    )
+
+    if args.limit:
+        segments = segments[: args.limit]
+    for segment in segments:
+        role = "primary" if segment.is_primary else "secondary"
+        print(
+            f"{segment.virtual_address:012X} "
+            f"{segment.start_lba:>9,} "
+            f"{segment.pages:>6,} "
+            f"{len(segment.extents):>7,} "
+            f"{segment.header.segment_type:04X}  "
+            f"{str(segment.header.owner):<24} "
+            f"{role}"
+        )
+    return 0
+
+
+def cmd_libraries(args):
+    image = _open(args.image)
+    _, segments, inventory = _recover_all(image)
+    counts = {}
+    for obj in inventory.assigned_objects:
+        if obj.library_name is not None:
+            counts[obj.library_name] = counts.get(obj.library_name, 0) + 1
+
+    libraries = inventory.libraries
+    if args.name:
+        wanted = args.name.upper()
+        libraries = [
+            library
+            for library in libraries
+            if wanted in library.name.upper()
+        ]
+
+    print(f"Disk: {image.path}")
+    print(
+        f"Recovered {len(inventory.libraries):,} permanent contexts "
+        f"from {len(segments.segments):,} segment groups."
+    )
+    print()
+    print("Library       objects  virtual addr   LBA        pages")
+    for library in libraries:
+        print(
+            f"{library.name:<12} "
+            f"{counts.get(library.name, 0):>7,}  "
+            f"{library.segment.virtual_address:012X} "
+            f"{library.segment.start_lba:>9,} "
+            f"{library.segment.pages:>6,}"
+        )
+    return 0
+
+
+def _print_objects(image, inventory, args):
+    objects = [
+        obj for obj in inventory.objects if _object_matches(obj, args)
+    ]
+    objects.sort(
+        key=lambda obj: (
+            obj.library_name or "",
+            obj.object_type,
+            obj.object_subtype,
+            obj.name,
+            obj.segment.virtual_address,
+        )
+    )
+
+    total = len(objects)
+    shown = objects if not args.limit else objects[: args.limit]
+
+    print(f"Disk: {image.path}")
+    print(f"Matching objects: {total:,}")
+    print()
+    print(
+        "Library      MI    Hint     Name                           "
+        "Virtual addr   LBA        pages"
+    )
+    for obj in shown:
+        print(_object_line(obj))
+    if len(shown) < total:
+        print(f"... {total - len(shown):,} additional matching objects omitted")
+    return 0
+
+
+def cmd_objects(args):
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+    return _print_objects(image, inventory, args)
+
+
+def cmd_ls(args):
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+    # Reuse the objects formatter with the positional library name.
+    args.library = args.library_name
+    return _print_objects(image, inventory, args)
+
+
 def cmd_scan(args):
     sections = [
         "AS/400 CISC DASD scan report",
@@ -339,7 +572,10 @@ def cmd_scan(args):
             sections.append("")
         image = _open(path)
         result = image.scan()
+        segments = image.recover_segments(result)
+        inventory = image.recover_objects(result, segments)
         sections.extend(_analysis_lines(image, result, top=args.top))
+        sections.extend(_second_pass_lines(segments, inventory))
         sections.extend(["", "  Physical recovery map"])
 
         combined = [
@@ -417,6 +653,74 @@ def build_parser():
     sector.add_argument("--preview", type=int, default=128)
     sector.add_argument("--hex-bytes", type=int, default=256)
     sector.set_defaults(func=cmd_sector)
+
+    segments = sub.add_parser(
+        "segments",
+        help="perform the second recovery pass and list segment groups",
+    )
+    segments.add_argument("image")
+    segments.add_argument(
+        "--primary-only",
+        action="store_true",
+        help="show only base/primary object segments",
+    )
+    segments.add_argument(
+        "--type",
+        help="filter 16-bit segment type as hex, for example 0190",
+    )
+    segments.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="maximum rows to print; use 0 for all (default: 100)",
+    )
+    segments.set_defaults(func=cmd_segments)
+
+    libraries = sub.add_parser(
+        "libraries",
+        help="list recovered permanent contexts/libraries",
+    )
+    libraries.add_argument("image")
+    libraries.add_argument("--name", help="substring filter")
+    libraries.set_defaults(func=cmd_libraries)
+
+    objects = sub.add_parser(
+        "objects",
+        help="list recovered EPA objects",
+    )
+    objects.add_argument("image")
+    objects.add_argument("--library", help="restrict to a recovered library")
+    objects.add_argument("--name", help="object-name substring")
+    objects.add_argument(
+        "--type",
+        help="MI type or type/subtype in hex, for example 19 or 19/01",
+    )
+    objects.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum rows to print; use 0 for all (default: 200)",
+    )
+    objects.set_defaults(func=cmd_objects)
+
+    ls_parser = sub.add_parser(
+        "ls",
+        help="list recovered objects in one library",
+    )
+    ls_parser.add_argument("image")
+    ls_parser.add_argument("library_name")
+    ls_parser.add_argument("--name", help="object-name substring")
+    ls_parser.add_argument(
+        "--type",
+        help="MI type or type/subtype in hex, for example 19/01",
+    )
+    ls_parser.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum rows to print; use 0 for all (default: 200)",
+    )
+    ls_parser.set_defaults(func=cmd_ls)
 
     scan = sub.add_parser("scan", help="produce a detailed structure report")
     scan.add_argument("images", nargs="+")
