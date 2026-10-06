@@ -19,9 +19,9 @@ repeatable real-image validation.
       `QADSPFLR`) and expose their recovered field definitions.
 - [x] Add `dlo-xref` to search recovered object segments for byte-level
       references to a 10-character QDOC SYSOBJNAM without assuming structure.
-- [ ] Run the DLO model/xref probes against the V2R3 image and classify the
-      non-self matches for known objects such as `FMPV082760`,
-      `FMPV195818`, and `DPWN524712`.
+- [x] Run direct V2R3-image probes for known objects such as
+      `FMPV082760`, `FMPV195818`, and `DPWN524712`; preserve the
+      resulting correlations in the QDLS research notes.
 - [ ] Locate `QAOSSS14` or its unresolved storage: IBM documents its anchor
       record as one of the places that stores each DLO's 10-character
       SYSOBJNAM, making it the highest-value QAOSS target.
@@ -33,7 +33,11 @@ repeatable real-image validation.
 - [ ] Reconstruct parent/child folder relationships and complete QDLS paths.
 - [ ] Verify known examples such as PC Support folders/files against the
       reconstructed hierarchy.
-- [ ] Identify binary DLO payload-storage objects.
+- [x] Identify MI `06/C1` as IBM `*DOCBSS` (Document byte string space)
+      and correlate `FMPV082760F` / `FMPV195818F` companions with their
+      same-base QDOC documents on the real V2R3 image.
+- [ ] Determine the `*DOCBSS` payload boundaries/header semantics and
+      distinguish actual workstation bytes from DLO bookkeeping.
 - [ ] Add safe read-only export of original workstation-file bytes.
 
 ## Permanent-context directory cross-check
