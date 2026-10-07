@@ -464,6 +464,40 @@ class DASDHeaderTests(unittest.TestCase):
         )
         self.assertEqual(traversal.entries[0].ordinal_hint, 1)
 
+    def test_qddsi_multi_dkey_uniform_populated_rows_traversal(self):
+        data, _layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 DA 10 26 "
+            "86 00 1C 60 00 00 "
+            "40 40 40 40 40 40 40 40 40 40 00 00 00 01 "
+            "00 10 1B 00 10 25 0C 10 0E 02",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(data)
+        primary[0x11E:0x120] = (2).to_bytes(2, "big")
+        first = memoryview(primary)[0x400:0x440]
+        first[0x10:0x14] = (1).to_bytes(4, "big")
+        second = memoryview(primary)[0x440:0x480]
+        second[0:8] = make_internal_address(1, 0x001000000000)
+        second[0x10:0x14] = (1).to_bytes(4, "big")
+        second[0x18:0x1A] = (0).to_bytes(2, "big")
+        second[0x1A:0x1C] = (10).to_bytes(2, "big")
+        second[0x1C:0x1E] = (14).to_bytes(2, "big")
+
+        layout = DataSpaceIndexLayout.from_primary_segment(
+            bytes(primary),
+            virtual_address=0x001000000000,
+        )
+        traversal = decode_data_space_index_root(bytes(primary), layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.expected_entries, 2)
+        self.assertEqual(traversal.entry_count, 2)
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [1, 2],
+        )
+
     def test_qddsi_multi_dkey_all_empty_is_complete(self):
         data, _layout = make_qddsi_root_fixture(
             "",
