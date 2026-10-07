@@ -6,7 +6,35 @@ repeatable real-image validation.
 
 ## Current priority
 
-### Permanent-context directory reconstruction
+### Database / QDDSI and keyed-file reconstruction
+
+The permanent-context work has reached a strong evidence checkpoint and is
+parked below rather than being allowed to monopolize the broader DASD browser.
+The next agreed priority is database/QDDSI and keyed-file reconstruction. Apply
+the same documentation-first method before naming on-disk fields; see
+`docs/AS400_QDDSI_RESEARCH.md`.
+
+- [x] Inventory the existing backend: member cursors (0D/50) already resolve
+      same-named QDDS (0B/90) data spaces and optional QDDSI (0C/90) index
+      objects; decoded QDDS records and MI 19/51 formats are already available.
+- [x] Record the operational distinction supported by the available IBM
+      documentation: database records and access paths are separate enough for
+      access paths to be journaled and rebuilt independently. Treat the later
+      V4-era documentation as semantic corroboration, not proof of the V2R3
+      QDDSI byte layout.
+- [ ] Choose one small real V2R3 member with a recovered QDDSI object and one
+      known keyed database file, preferably with decoded format/records.
+- [ ] Inventory the QDDSI primary/owned segments, pointer relationships, and
+      printable/key-field evidence before assigning internal field names.
+- [ ] Locate period database/DDS or VLIC documentation for data-space-index
+      key specifications and access-path storage. The currently indexed manual
+      set does not yet provide a direct QDDSI physical-layout description.
+- [ ] Reconstruct enough of one QDDSI to emit record references in keyed order,
+      then cross-check those references against the member's decoded QDDS RRNs.
+- [ ] Surface documented access-path/key context and recovered keyed-order
+      evidence in the TUI while retaining a raw fallback for undecoded indexes.
+
+### Permanent-context directory reconstruction — parked checkpoint
 
 The next architectural milestone is to reconstruct each permanent
 context/library's own directory and use it as an independent
@@ -93,12 +121,17 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Rank page-origin candidates by phase-coherent suffix coverage before
       exact-start count, and teach `context-page` to accept a nonzero logical
       page `--origin` plus any three-byte element phase.
-- [ ] Probe PPSITEST's 512-byte candidate at origin `0x1E0`, phase 2,
-      especially logical pages 3 and 4 containing the observed key tails.
-      Inspect the actual text-element lengths/displacements before attempting
-      node or page-pointer traversal. After this focused validation, pause the
-      context-index deep dive and return to the next broader DASD/TUI refinement
-      area unless the bytes provide a decisive traversal breakthrough.
+- [x] Probe PPSITEST's 512-byte candidate at origin `0x1E0`, phase 2.
+      The real page-3 stream contains `4A0085` at element offset `0xCB`
+      (text length 74, displacement `0x85`), exactly targeting the recovered
+      `FUNDDEF` key-tail location. Additional phase-2 elements cover the
+      `ACCTDEF` tail, and page 4 contains `7C0002` at offset `0x20`
+      (length 124, displacement `0x02`) covering the `PROTO` tail at
+      `0x5B`. Preserve 512/origin-0x1E0/phase-2 as a strongly supported
+      PPSITEST working model, not yet a full page/trunk decoder.
+- [ ] Resume context traversal later by identifying the page header/root-node
+      boundary and following one node/page-pointer path. The evidence is now
+      strong enough to park this work without losing the foothold.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
