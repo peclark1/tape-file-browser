@@ -181,22 +181,32 @@ Examples already observed during this project include:
   This is strong evidence that the byte stream begins exactly one page after
   the DOCBSS metadata for these ordinary objects.
 
-- QAOSSS14 now provides an independent mapping from QDOC objects to DLO names.
-  For `FMPV082760`, exactly one QAOSSS14 record's 8-byte `WOSEFILD` value
-  occurs in the QDOC object: RRN 695. Its `WOSEFDOC` field is
-  `CKPCSPTH.EXE`; its `WOSEPLDN` value uniquely matches RRN 677, whose
-  short name is `QIWSFLR` and whose parent value is zero. This reconstructs
-  **`/QDLS/QIWSFLR/CKPCSPTH.EXE`**.
-- The same method maps `FMPV195818` uniquely to QAOSSS14 RRN 313 and then
-  to parent RRN 283, reconstructing
-  **`/QDLS/QIWSFL2/DTAQ.PKG`**.
+- QAOSSS14 now provides an independent mapping from QDOC objects to anchor
+  records. For `FMPV082760`, the matching RRN is 695. Its
+  `WOSEFDOC` field is `CKPCSPTH.EXE`; its `WOSEPLDN` value uniquely
+  matches the **leading 8-byte key** of RRN 677, whose short name is
+  `QIWSFLR` and whose parent is zero. In this PC Support case the anchor
+  components independently agree with the known user-facing QDLS names,
+  yielding **`QIWSFLR/CKPCSPTH.EXE`**.
+- The same method maps `FMPV195818` uniquely to RRN 313 and then to the
+  leading key of parent RRN 283, yielding **`QIWSFL2/DTAQ.PKG`**. Again,
+  those components are independently consistent with the known PC Support
+  folder/file naming.
 - `DPWN524712` uniquely correlates to QAOSSS14 RRN 1871. Its 44-byte
   `WOSEDOCN` value is `AS/400 Office Training Information`, while its
-  12-byte `WOSEFDOC` value is `BULLET1.RFT`. The same parent key is used
-  by the adjacent BULLET2/BULLET3 records but does not currently resolve to a
-  QAOSSS14 record. Independently, the QDOC document's own error-log text names
-  folder `BULLETIN`, so the known BULLETIN relationship remains corroborating
-  evidence rather than a fabricated QAOSSS14 parent.
+  12-byte `WOSEFDOC` value is `BULLET1.RFT`. Its `WOSEPLDN` value
+  matches the **leading key** of RRN 1870. RRN 1870 is a root folder anchor
+  with short name `QGFSWOF1` and long text
+  `The Bulletin Board folder for SWO users`. Its leading key and
+  `WOSEFILD` differ, which proves parent traversal cannot universally use
+  `WOSEFILD`. Independently, the QDOC document's own error-log text names
+  the user-facing folder `BULLETIN`; therefore `QGFSWOF1` must not be
+  silently relabeled as the QDLS folder name.
+- Across all 1,885 recovered QAOSSS14 user records, 1,870 have a nonzero
+  parent key. **1,867** of those resolve uniquely through another record's
+  leading key. Only RRNs 1883-1885 remain unresolved by this rule. Fourteen
+  records have a leading key different from `WOSEFILD`; the BULLET/SWO
+  examples are among them.
 - These examples also show that `WOSEDOCN` is not simply "the filename":
   it can contain a longer document title, while `WOSEFDOC` carries the
   12-character short component in the examples decoded so far.
@@ -237,10 +247,11 @@ meaning of the surrounding bytes.
 - loads the recovered 193-byte QAOSSS14 anchor records;
 - correlates a QDOC object when its QAOSSS14 `WOSEFILD` key occurs uniquely
   in that object's recovered bytes;
-- follows unique `WOSEPLDN -> WOSEFILD` links to reconstruct complete or
-  partial QDLS paths;
-- prints the internal SYSOBJNAM, QAOSSS14 RRN, short name, and path without
-  discarding the forensic internal identity.
+- follows unique `WOSEPLDN -> leading-record-key` links to reconstruct a
+  complete or partial **QAOSSS14 anchor hierarchy**;
+- prints the internal SYSOBJNAM, QAOSSS14 RRN, short name, and anchor
+  hierarchy without claiming every anchor component is the user-facing QDLS
+  folder name.
 
 `as400-dasd dlo-schema IMAGE`
 
@@ -266,17 +277,20 @@ meaning of the surrounding bytes.
 1. Apply the same direct recovery approach to `QAOSSS10`-`QAOSSS13`,
    `QAOSSS15`, `QAOSSS17`, and `QAOSSS18`, preserving each recovered
    WOSFMT descriptor before assigning semantics.
-2. Investigate the unresolved parent key shared by the BULLET1/BULLET2/BULLET3
-   QAOSSS14 records and determine whether its folder record lives in another
-   QAOSS structure or a currently unrecovered entry.
-3. Determine which QAOSSS14 field or related structure carries IBM's
+2. Investigate the remaining unresolved QAOSSS14 parent key used by RRNs
+   1883-1885; all other nonzero parent links currently resolve through leading
+   record keys.
+3. Determine where the user-facing folder name differs from the QAOSSS14
+   anchor short name (for example `BULLETIN` versus `QGFSWOF1`) and which
+   QAOSS/QDOC structure carries that mapping.
+4. Determine which QAOSSS14 field or related structure carries IBM's
    documented DLO system object name; the V2R3 QDOC correlation currently uses
    the observed binary `WOSEFILD` key rather than pretending a plain EBCDIC
    SYSOBJNAM is present in the 193-byte record.
-4. Validate QAOSSS14 path reconstruction over a larger random sample of QDOC
+5. Validate QAOSSS14 anchor reconstruction over a larger random sample of QDOC
    documents and folders, including non-PC-Support content.
-5. Decode the fifteen extended/non-ordinary `*DOCBSS` layouts before
+6. Decode the fifteen extended/non-ordinary `*DOCBSS` layouts before
    broadening export beyond the conservatively validated ordinary form.
-6. Once the remaining parent-link cases are understood, add optional recursive
+7. Once the user-facing-folder mapping is understood, add optional recursive
    export that mirrors the recovered QDLS directory tree while continuing to
    preserve internal SYSOBJNAM metadata.
