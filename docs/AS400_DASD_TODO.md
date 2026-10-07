@@ -6,7 +6,27 @@ repeatable real-image validation.
 
 ## Current priority
 
-### QDLS / document-library reconstruction
+### Permanent-context directory reconstruction
+
+The next architectural milestone is to reconstruct each permanent
+context/library's own directory and use it as an independent
+`context -> object` view. Before decoding a structure, survey the available
+period documentation for its purpose, terminology, and externally visible
+behavior; keep documented facts separate from real-image observations and
+hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
+`docs/AS400_CONTEXT_DIRECTORY_RESEARCH.md`.
+
+- [x] Survey the current manual set for object/library, single-level-storage,
+      and storage-directory terminology. Record the important distinction
+      between the storage-management **permanent directory** (virtual-address
+      to DASD mapping) and a permanent **context/library machine index**
+      (object namespace).
+- [ ] Locate the strongest IBM MI/System/38 documentation available for the
+      context machine-index page header/trunk, key representation, page
+      pointers, and context operations before assigning names to additional
+      on-disk fields.
+
+### QDLS / document-library reconstruction (follow-up cleanup)
 
 - [x] Recognize QDOC `19/0E` as `*DOC` and `19/12` as `*FLR`.
 - [x] Add TUI context explaining QDOC versus ordinary source/database libraries.
