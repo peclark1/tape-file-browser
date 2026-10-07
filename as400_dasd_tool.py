@@ -1751,6 +1751,56 @@ def _dlo_schema_marker_evidence(window, marker_offset, format_name):
     return field, tuple(related)
 
 
+def _dlo_schema_descriptor_layout(window, marker_offset, format_name):
+    """Return field/related identifiers plus observed 1-based offset/length."""
+
+    evidence = _dlo_schema_marker_evidence(
+        window,
+        marker_offset,
+        format_name,
+    )
+    if evidence is None:
+        return None
+    field, related = evidence
+
+    marker = format_name.encode("cp037")
+    tail_start = marker_offset + len(marker)
+    first = None
+    for delta in range(0, 8):
+        pos = tail_start + delta
+        token = window[pos : pos + 8]
+        if len(token) != 8:
+            break
+        text = token.decode("cp037", errors="replace")
+        if re.fullmatch(r"QAOSS[A-Z0-9]{3}", text):
+            first = pos
+            break
+    if first is None:
+        return None
+
+    pos = first
+    while pos + 8 <= len(window):
+        text = window[pos : pos + 8].decode(
+            "cp037",
+            errors="replace",
+        )
+        if (
+            re.fullmatch(r"[A-Z][A-Z0-9]{7}", text)
+            and text.startswith(("QAOSS", "WOS"))
+        ):
+            pos += 8
+            continue
+        break
+
+    if pos + 4 > len(window):
+        return None
+    offset_one = int.from_bytes(window[pos : pos + 2], "big")
+    length = int.from_bytes(window[pos + 2 : pos + 4], "big")
+    if offset_one <= 0 or length <= 0:
+        return None
+    return field, related, offset_one, length
+
+
 def _iter_file_pattern_windows(
     path,
     needle,
@@ -1808,18 +1858,19 @@ def cmd_dlo_schema(args):
     needle = format_name.encode("cp037")
     counts = {}
     first_offsets = {}
+    layouts = {}
     for absolute, window, marker_offset in _iter_file_pattern_windows(
         image.path,
         needle,
     ):
-        evidence = _dlo_schema_marker_evidence(
+        evidence = _dlo_schema_descriptor_layout(
             window,
             marker_offset,
             format_name,
         )
         if evidence is None:
             continue
-        field, related = evidence
+        field, related, offset_one, length = evidence
         if args.family:
             family = args.family.upper()
             if not related or related[0] != family:
@@ -1827,6 +1878,9 @@ def cmd_dlo_schema(args):
         key = (field, related)
         counts[key] = counts.get(key, 0) + 1
         first_offsets.setdefault(key, absolute)
+        layout_counts = layouts.setdefault(key, {})
+        layout_key = (offset_one, length)
+        layout_counts[layout_key] = layout_counts.get(layout_key, 0) + 1
 
     rows = sorted(
         counts,
@@ -1844,16 +1898,30 @@ def cmd_dlo_schema(args):
     print(f"Evidence:   {sum(counts.values()):,} marker association(s)")
     print()
     print(
-        "Field      Primary     Related identifiers                    "
+        "Field      Off  Len  Primary     Related identifiers          "
         "Count  First raw offset"
     )
     for field, related in rows:
+        key = (field, related)
         primary = related[0] if related else "-"
         extras = " ".join(related[1:]) or "-"
+        layout_counts = layouts.get(key, {})
+        if layout_counts:
+            (offset_one, field_length), layout_count = max(
+                layout_counts.items(),
+                key=lambda item: item[1],
+            )
+            marker = "" if layout_count == counts[key] else "?"
+            offset_text = f"{offset_one}{marker}"
+            length_text = f"{field_length}{marker}"
+        else:
+            offset_text = "-"
+            length_text = "-"
         print(
-            f"{field:<10} {primary:<11} {extras:<38.38} "
-            f"{counts[(field, related)]:>5,}  "
-            f"0x{first_offsets[(field, related)]:09X}"
+            f"{field:<10} {offset_text:>4} {length_text:>4} "
+            f"{primary:<11} {extras:<30.30} "
+            f"{counts[key]:>5,}  "
+            f"0x{first_offsets[key]:09X}"
         )
 
     if not rows:
@@ -1862,9 +1930,11 @@ def cmd_dlo_schema(args):
         print()
         print(
             "These are literal identifier relationships recovered from IBM "
-            "metadata near the format marker. The command intentionally does "
-            "not expand abbreviations or assign field semantics from names "
-            "alone."
+            "metadata near the format marker. Off/Len are the repeated "
+            "big-endian descriptor values immediately following the related "
+            "identifiers; on QAOSSS14 they reproduce the 193-byte record "
+            "layout as 1-based field offsets and lengths. A '?' marks mixed "
+            "evidence. The command does not expand unknown abbreviations."
         )
     return 0
 
