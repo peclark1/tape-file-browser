@@ -3226,19 +3226,30 @@ def _tui_export_selected_dlo(stdscr, state, current_dir):
         return
 
     default_name = f"{doc.name}.bin"
-    try:
-        doc_data = state["image"].read_segment_bytes(doc.segment)
-        filename_hint = _dlo_filename_hint(
-            _dlo_preview_strings(
-                doc_data,
-                internal_name=doc.name,
-                limit=20,
+
+    # Prefer the QAOSSS14 12-byte short-name field when the selected QDOC
+    # object has a unique binary-key correlation. Fall back to the older
+    # printable-metadata hint if anchor reconstruction is unavailable.
+    anchor_info = _tui_dlo_anchor_info(state, doc)
+    anchor_name = ""
+    if anchor_info and anchor_info.get("record") is not None:
+        anchor_name = anchor_info["record"].short_name
+    if anchor_name and _DLO_FILENAME_HINT_RE.fullmatch(anchor_name):
+        default_name = anchor_name
+    else:
+        try:
+            doc_data = state["image"].read_segment_bytes(doc.segment)
+            filename_hint = _dlo_filename_hint(
+                _dlo_preview_strings(
+                    doc_data,
+                    internal_name=doc.name,
+                    limit=20,
+                )
             )
-        )
-    except (OSError, ValueError):
-        filename_hint = ""
-    if filename_hint:
-        default_name = filename_hint
+        except (OSError, ValueError):
+            filename_hint = ""
+        if filename_hint:
+            default_name = filename_hint
 
     entered = _tui_prompt_text(
         stdscr,
@@ -3441,6 +3452,59 @@ def _tui_library_context(library_name):
         "source physical *FILE members rather than in a distinct library type."
     )
 
+def _tui_qaosss14_cache(state):
+    cache = state.setdefault("qaosss14_cache", {})
+    if "records" not in cache:
+        member, record_set, records = _load_qaosss14_anchor_records(
+            state["image"],
+            state["inventory"],
+            state["segments"],
+        )
+        cache["member"] = member
+        cache["record_set"] = record_set
+        cache["records"] = records
+        cache["key_index"] = _qaosss14_key_index(records)
+        cache["objects"] = {}
+    return cache
+
+
+def _tui_dlo_anchor_info(state, obj):
+    if obj is None:
+        return None
+
+    doc = obj
+    if obj.object_type == 0x06 and obj.object_subtype == 0xC1:
+        matched_doc, _companion, error = _dlo_export_pair(
+            state["inventory"],
+            obj,
+        )
+        if error or matched_doc is None:
+            return None
+        doc = matched_doc
+
+    if not (
+        doc.object_type == 0x19
+        and doc.object_subtype == 0x0E
+        and (doc.library_name or "").upper() == "QDOC"
+    ):
+        return None
+
+    cache = _tui_qaosss14_cache(state)
+    object_cache = cache["objects"]
+    key = doc.segment.virtual_address
+    if key not in object_cache:
+        info = _qaosss14_object_info(
+            state["image"],
+            doc,
+            cache["records"],
+            key_index=cache["key_index"],
+        )
+        info["doc"] = doc
+        info["member"] = cache["member"]
+        object_cache[key] = info
+    return object_cache[key]
+
+
 def _tui_context_lines(state):
     """Return one contextual explanation for each navigation pane.
 
@@ -3538,7 +3602,20 @@ def _tui_context_lines(state):
             obj.object_subtype,
         )
         type_label = obj.external_type_hint or obj.type_code
-        if meaning:
+        dlo_info = _tui_dlo_anchor_info(state, obj)
+        if dlo_info and dlo_info.get("record") is not None:
+            record = dlo_info["record"]
+            path = dlo_info.get("path") or record.short_name
+            path_note = (
+                path
+                if dlo_info.get("path_complete")
+                else f"{path} (partial)"
+            )
+            right_line = (
+                f"Member/object: {obj.name}  {type_label} — "
+                f"QAOSSS14 RRN {record.rrn:,}; QDLS {path_note}."
+            )
+        elif meaning:
             right_line = (
                 f"Member/object: {obj.name}  {type_label} — {meaning}."
             )
@@ -3612,6 +3689,41 @@ def _tui_object_lines(state, obj):
         f"EPA context:  {obj.epa.context}",
         ]
     )
+
+    dlo_anchor_info = _tui_dlo_anchor_info(state, obj)
+    if dlo_anchor_info and dlo_anchor_info.get("record") is not None:
+        anchor_record = dlo_anchor_info["record"]
+        lines.extend(
+            [
+                "",
+                "QDLS anchor metadata",
+                f"  QAOSSS14 RRN: {anchor_record.rrn:,}",
+                (
+                    f"  Short name:    "
+                    f"{anchor_record.short_name or '-'}"
+                ),
+                (
+                    f"  Long name:     "
+                    f"{anchor_record.long_name or '-'}"
+                ),
+                (
+                    f"  Owner text:    "
+                    f"{anchor_record.owner_text or '-'}"
+                ),
+            ]
+        )
+        path = dlo_anchor_info.get("path") or ""
+        if path:
+            label = (
+                "Reconstructed path"
+                if dlo_anchor_info.get("path_complete")
+                else "Partial path"
+            )
+            lines.append(f"  {label}: {path}")
+        lines.append(
+            "  Link method:   WOSEFILD key found in recovered QDOC bytes; "
+            "WOSEPLDN is followed only through matching QAOSSS14 records."
+        )
 
     if (
         (
