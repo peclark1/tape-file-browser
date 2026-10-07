@@ -246,17 +246,48 @@ reconstructs complete keys from ordinary one-page indexes:
 This is the first actual machine-index traversal in the DASD explorer rather
 than a known-key search. It validates common-text reconstruction, nested XOR
 links, left/right enumeration, and the ordinary four-byte RRN hint against
-independent QDDS data. Multi-page access paths remain incomplete until page
-pointers are followed.
+independent QDDS data.
+
+## Multi-page access-path traversal
+
+The next real-image pass established the ordinary page-pointer relationship as
+well. Large QDDSI objects are recovered as virtual segment groups assembled
+from multiple physical extents, so page traversal must use the reconstructed
+virtual segment rather than assume physical LBA contiguity.
+
+Four unrelated V2R3 indexes contain root-page pointers whose three-byte
+elements have segment-table index zero. Their low page-offset field advances
+in values such as `0x18`, `0x20`, and `0x28`; the pointed logical page begins
+at segment byte offset `page_offset << 8` (256-byte units). Secondary pages
+use the same node/text representation and free-byte/first-free constraints as
+the active root page.
+
+Following those pointers while carrying the accumulated common-key prefix
+produces exact complete traversals:
+
+- `QACJINFO`: 36/36 keys, four logical pages, three page pointers;
+- `QAQAATPY`: 99/99 keys, three pages, two page pointers;
+- `QAEBAUDL`: 584/584 keys, five pages, four page pointers;
+- `QADBXDIC`: 2615/2615 keys, eleven pages, ten page pointers.
+
+For every one of these indexes, the recovered four-byte ordinal hints form an
+exact permutation of `1..N`. That is substantially stronger than matching a
+few known keys: thousands of tree entries, common-text paths, node links, and
+page transitions independently resolve to the complete QDDS ordinal domain.
+
+The decoder follows only page pointers whose segment-table index is zero.
+A nonzero segment-table index is retained and reported as unresolved evidence;
+no cross-segment interpretation is guessed until a real example or IBM layout
+documents it.
 
 ## Next implementation steps
 
-1. Follow machine-index page pointers and validate one multi-page QDDSI against
-   its decoded QDDS records.
-2. Join DKYT field positions/lengths to friendly recovered 19/51 field names in
+1. Join DKYT field positions/lengths to friendly recovered 19/51 field names in
    CLI/TUI presentation.
-3. Add keyed-record navigation that keeps raw RRN/arrival order available as an
+2. Add keyed-record navigation that keeps raw RRN/arrival order available as an
    independent view.
+3. Exercise the keyed view on both simple character keys and multi-field/binary
+   keys, and preserve partial/raw fallback for unsupported pointer variants.
 4. Reuse the now-validated machine-index traversal lessons when permanent
    context/library directory work resumes, without assuming the QDDSI page
    placement is identical to a context index.
