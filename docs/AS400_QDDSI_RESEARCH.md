@@ -185,28 +185,37 @@ A repeatable pass over Mark's recovered V2R3 QDDSI primaries found 277 plausible
 `01B4` QDDSI primary segment groups. Reassembling fragmented segment groups in
 virtual-address order and applying the current conservative walker produced:
 
-- 229 complete one-DKEY traversals;
-- 42 multi-DKEY indexes, deliberately rejected by the current walker rather
-  than guessed;
-- 2 special indexes whose active machine-index root does not use the ordinary
+- 258 complete traversals after admitting multi-DKEY layouts whose populated
+  rows share one user/machine key-length shape (including zero-populated rows);
+- 7 multi-DKEY indexes whose populated rows use different key lengths and are
+  still deliberately rejected rather than guessed;
+- 6 special indexes whose active machine-index root does not use the ordinary
   root-node shape;
-- 2 special long-key indexes whose compressed text is not yet reconstructed
-  correctly;
+- 4 special long-key/compressed-text cases whose complete keys are not yet
+  reconstructed correctly;
 - 2 segment groups whose full virtual chain is not recovered by the current
   header-based extent reconstruction.
 
-Every one of the 229 complete traversals resolves its DKEY data-space address
-to a recovered QDDS primary. In 226 cases the ordinary database-reference
-suffix behaves as the simple four-byte RRN/ordinal hint used by the browser and
-falls within the recovered QDDS range. Three special cases demonstrate why the
-code correctly labels this value an `ordinal_hint` rather than claiming that
-every database-relative-address encoding is a plain RRN.
+The multi-DKEY extension is independently visible in the real trees: for
+examples such as QAX4MTAA, QADBLDNC, QASULTEL, and QAOKLEAA, the recovered
+machine-index entry count equals the **sum** of the populated DKEY key counts
+when those rows share the same user/machine key lengths. Zero-count DKEY rows
+do not contribute entries.
 
-This changes the remaining problem substantially: ordinary one-DKEY tree
-walking is no longer the research blocker. The next database/index work is the
-exception set -- multi-DKEY indexes, special root/text layouts, and the few
-database-reference variants that need more of IBM's documented adjusted data
-space number/internal-flag interpretation.
+For the original 229 complete single-populated-row traversals, every DKEY
+data-space address resolves to a recovered QDDS primary. In 226 cases the
+ordinary database-reference suffix behaves as the simple four-byte RRN/ordinal
+hint used by the browser and falls within the recovered QDDS range. Three
+special cases demonstrate why the code correctly labels this value an
+`ordinal_hint` rather than claiming that every database-relative-address
+encoding is a plain RRN.
+
+This changes the remaining problem substantially: ordinary tree walking,
+including many multi-DKEY layouts, is no longer the research blocker. The next
+database/index work is the exception set -- populated DKEY rows with different
+key lengths, special root/text layouts, and the few database-reference variants
+that need more of IBM's documented adjusted data space number/internal-flag
+interpretation.
 
 ## FUNDDEF surviving key evidence
 
