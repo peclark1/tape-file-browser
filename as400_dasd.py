@@ -540,6 +540,10 @@ class RecoveredObject:
             (0x19, 0x0E): "*DOC",
             (0x19, 0x12): "*FLR",
             (0x19, 0x51): "*FORMAT",
+            # IBM/MI documentation and context-index research identify 19/52
+            # as the Object Information Repository space associated with a
+            # context/library.
+            (0x19, 0x52): "*OIRS",
         }
         return known.get(
             (self.object_type, self.object_subtype),
