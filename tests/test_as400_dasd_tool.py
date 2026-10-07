@@ -11,6 +11,7 @@ from as400_dasd_tool import (
     _DLO_RUNTIME_INDEX_FILES,
     _dlo_export_pair,
     _dlo_filename_hint,
+    _dlo_schema_descriptor_layout,
     _dlo_schema_marker_evidence,
     _dlo_preview_strings,
     _find_byte_occurrences,
@@ -365,6 +366,45 @@ class DASDToolTests(unittest.TestCase):
             ),
         )
 
+    def test_dlo_schema_descriptor_layout_reads_one_based_offset_length(self):
+        field = "WOSEDOCN".encode("cp037")
+        alias = "XOSEDOCN".encode("cp037")
+        marker = "WOSFMT14".encode("cp037")
+        related = (
+            "QAOSSS14".encode("cp037")
+            + "QAOSSI25".encode("cp037")
+            + "QAOSSI66".encode("cp037")
+            + "WOSEDNGC".encode("cp037")
+        )
+        window = (
+            field
+            + alias
+            + marker
+            + b"\x00\xC1"
+            + related
+            + bytes.fromhex("0021002c")
+            + b"\x00" * 24
+        )
+        marker_offset = window.index(marker)
+        self.assertEqual(
+            _dlo_schema_descriptor_layout(
+                window,
+                marker_offset,
+                "WOSFMT14",
+            ),
+            (
+                "WOSEDOCN",
+                (
+                    "QAOSSS14",
+                    "QAOSSI25",
+                    "QAOSSI66",
+                    "WOSEDNGC",
+                ),
+                33,
+                44,
+            ),
+        )
+
     def test_dlo_schema_subcommand_defaults_to_wosfmt14(self):
         parser = build_parser()
         args = parser.parse_args(["dlo-schema", "marks.hda"])
@@ -412,6 +452,23 @@ class DASDToolTests(unittest.TestCase):
         path, complete = _qaosss14_path(document, (document,))
         self.assertFalse(complete)
         self.assertEqual(path, "/QDLS/BULLET1.RFT")
+
+    def test_dlo_paths_subcommand_accepts_specific_sysobjnam(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "dlo-paths",
+                "marks.hda",
+                "FMPV082760",
+                "FMPV195818",
+            ]
+        )
+        self.assertEqual(args.command, "dlo-paths")
+        self.assertEqual(
+            args.sysobjnam,
+            ["FMPV082760", "FMPV195818"],
+        )
+        self.assertFalse(args.show_unmatched)
 
     def test_dlo_export_subcommand_requires_explicit_output(self):
         parser = build_parser()
