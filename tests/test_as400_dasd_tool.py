@@ -418,6 +418,7 @@ class DASDToolTests(unittest.TestCase):
         document_key = bytes.fromhex("1112131415161718")
         folder = SimpleNamespace(
             rrn=677,
+            leading_key=folder_key,
             record_key=folder_key,
             parent_key=zero,
             short_name="QIWSFLR",
@@ -425,6 +426,7 @@ class DASDToolTests(unittest.TestCase):
         )
         document = SimpleNamespace(
             rrn=695,
+            leading_key=document_key,
             record_key=document_key,
             parent_key=folder_key,
             short_name="CKPCSPTH.EXE",
@@ -438,20 +440,49 @@ class DASDToolTests(unittest.TestCase):
         self.assertTrue(complete)
         self.assertEqual(
             path,
-            "/QDLS/QIWSFLR/CKPCSPTH.EXE",
+            "QIWSFLR/CKPCSPTH.EXE",
         )
+
+    def test_qaosss14_parent_link_uses_leading_key_not_wosefild(self):
+        zero = b"\x00" * 8
+        folder_leading = bytes.fromhex("07c60c120a342b3b")
+        folder_field = bytes.fromhex("07c90b050f1e2c2d")
+        child_leading = bytes.fromhex("07c60c120a342f0c")
+        child_field = bytes.fromhex("07c90b050f1e2e03")
+        folder = SimpleNamespace(
+            rrn=1870,
+            leading_key=folder_leading,
+            record_key=folder_field,
+            parent_key=zero,
+            short_name="QGFSWOF1",
+            long_name="The Bulletin Board folder for SWO users",
+        )
+        child = SimpleNamespace(
+            rrn=1871,
+            leading_key=child_leading,
+            record_key=child_field,
+            parent_key=folder_leading,
+            short_name="BULLET1.RFT",
+            long_name="AS/400 Office Training Information",
+        )
+
+        path, complete = _qaosss14_path(child, (folder, child))
+        self.assertTrue(complete)
+        self.assertEqual(path, "QGFSWOF1/BULLET1.RFT")
+        self.assertNotEqual(child.parent_key, folder.record_key)
 
     def test_qaosss14_path_marks_unresolved_parent_partial(self):
         document = SimpleNamespace(
             rrn=1871,
-            record_key=bytes.fromhex("0102030405060708"),
+            leading_key=bytes.fromhex("0102030405060708"),
+            record_key=bytes.fromhex("2122232425262728"),
             parent_key=bytes.fromhex("1112131415161718"),
             short_name="BULLET1.RFT",
             long_name="AS/400 Office Training Information",
         )
         path, complete = _qaosss14_path(document, (document,))
         self.assertFalse(complete)
-        self.assertEqual(path, "/QDLS/BULLET1.RFT")
+        self.assertEqual(path, "BULLET1.RFT")
 
     def test_dlo_paths_subcommand_accepts_specific_sysobjnam(self):
         parser = build_parser()
