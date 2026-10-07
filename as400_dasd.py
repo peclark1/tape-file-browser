@@ -1182,8 +1182,27 @@ class QAOSSS14AnchorRecord:
         ).rstrip(" \x00")
 
     @property
+    def leading_key(self) -> bytes:
+        """Eight-byte record prefix preceding the WOSFMT14 field layout."""
+
+        return self.raw[0:8]
+
+    @property
+    def secondary_key_raw(self) -> bytes:
+        """Second eight-byte record prefix preceding the WOSFMT14 fields."""
+
+        return self.raw[8:16]
+
+    @property
+    def secondary_key_text(self) -> str:
+        value = self.secondary_key_raw.decode("cp037", errors="replace")
+        if all(character.isprintable() for character in value):
+            return value.rstrip(" \x00")
+        return ""
+
+    @property
     def record_key(self) -> bytes:
-        """Observed 8-byte WOSEFILD value used to correlate DLO records."""
+        """Observed 8-byte WOSEFILD field value."""
 
         return self.field("WOSEFILD")
 
