@@ -424,6 +424,8 @@ class DASDHeaderTests(unittest.TestCase):
 
     def test_qaosss14_anchor_record_observed_offsets(self):
         raw = bytearray(QAOSSS14_V2_RECORD_LENGTH)
+        raw[0:8] = bytes.fromhex("a1a2a3a4a5a6a7a8")
+        raw[8:16] = "S1011111".encode("cp037")
         raw[16:24] = bytes.fromhex("0102030405060708")
         raw[32:76] = "CKPCSPTH.EXE".encode("cp037").ljust(44, b"\x40")
         raw[76:78] = bytes.fromhex("000e")
@@ -438,6 +440,11 @@ class DASDHeaderTests(unittest.TestCase):
         )
         anchor_record = QAOSSS14AnchorRecord.from_data_space_record(record)
         self.assertEqual(anchor_record.rrn, 695)
+        self.assertEqual(
+            anchor_record.leading_key,
+            bytes.fromhex("a1a2a3a4a5a6a7a8"),
+        )
+        self.assertEqual(anchor_record.secondary_key_text, "S1011111")
         self.assertEqual(
             anchor_record.record_key,
             bytes.fromhex("0102030405060708"),
