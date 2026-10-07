@@ -4397,12 +4397,37 @@ def _tui_member_lines(state, member_item):
     return lines
 
 
+def _tui_viewer_target(state):
+    """Return the navigation level whose details should fill the lower pane.
+
+    The focused navigation pane owns the detail view. This keeps a child that
+    was auto-selected for navigation from hiding its parent library/file
+    details. When the content pane itself has focus, retain the traditional
+    deepest-selection behavior.
+    """
+
+    focus = state.get("focus", 3)
+    if focus == 0:
+        return "left"
+    if focus == 1:
+        return "mid"
+    if focus == 2:
+        return "right"
+
+    if _tui_selected(state, "right") is not None:
+        return "right"
+    if _tui_selected(state, "mid") is not None:
+        return "mid"
+    return "left"
+
+
 def _tui_viewer_lines(state):
     right = _tui_selected(state, "right")
     mid = _tui_selected(state, "mid")
     left = _tui_selected(state, "left")
+    target = _tui_viewer_target(state)
 
-    if right is not None:
+    if target == "right" and right is not None:
         if right["kind"] == "member":
             key = (
                 "member",
@@ -4426,7 +4451,10 @@ def _tui_viewer_lines(state):
                 )
             return state["viewer_cache"][key]
 
-    if mid is not None:
+    if (
+        target in ("right", "mid")
+        and mid is not None
+    ):
         if mid["kind"] == "file":
             key = (
                 "file",
