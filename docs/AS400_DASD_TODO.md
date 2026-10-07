@@ -21,10 +21,17 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       between the storage-management **permanent directory** (virtual-address
       to DASD mapping) and a permanent **context/library machine index**
       (object namespace).
-- [ ] Locate the strongest IBM MI/System/38 documentation available for the
-      context machine-index page header/trunk, key representation, page
-      pointers, and context operations before assigning names to additional
-      on-disk fields.
+- [x] Locate strong IBM System/38 VMC documentation for context semantics,
+      the logical context-entry format, and the release-2 machine-index
+      binary-radix-tree element model. The exact release-2 page-header byte
+      layout/trunk offset still requires corroboration before automatic traversal.
+- [x] Add `context-xref`, a read-only diagnostic that correlates objects already
+      assigned through EPA back-pointers with the documented logical context
+      entry form `T S NL N @` and reports raw address/name-entry occurrences
+      without assuming compressed entries are contiguous.
+- [ ] Run `context-xref` on representative QGPL and smaller contexts in both
+      real images; use the address-hit offsets to identify candidate terminal
+      text areas and constrain the page-header/trunk search.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 

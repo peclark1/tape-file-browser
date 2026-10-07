@@ -193,6 +193,8 @@ as400-dasd dlo-schema disk.hda --family QAOSSS14
 as400-dasd dlo-paths disk.hda FMPV082760 FMPV195818
 as400-dasd dlo-parent-gaps disk.hda --raw-scan
 as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
+as400-dasd context-xref disk.hda QGPL
+as400-dasd context-page disk.hda QGPL 0 --offset 0
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
@@ -212,6 +214,10 @@ The current milestone can:
 - perform the second directory-recovery pass and reconstruct multi-extent segment groups;
 - parse common EPA object headers from recovered primary segments;
 - recover permanent contexts/libraries and assign objects to them through EPA context back-pointers;
+- model IBM's documented expanded context entry form (`T S NL N @`) and use
+  `context-xref` to correlate EPA-known membership with raw context-segment
+  address/name evidence while the compressed machine-index traversal is being
+  reconstructed;
 - list real `*FILE` objects and recovered members inside a library;
 - follow member cursors to QDDS/QDDSI storage;
 - decode standard 92-byte AS/400 source physical-file records and print their source text;
@@ -512,6 +518,8 @@ as400-dasd dlo-schema disk.hda --family QAOSSS14
 as400-dasd dlo-paths disk.hda FMPV082760 FMPV195818
 as400-dasd dlo-parent-gaps disk.hda --raw-scan
 as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
+as400-dasd context-xref disk.hda QGPL
+as400-dasd context-page disk.hda QGPL 0 --offset 0
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
 as400-dasd scan disk.hda --report dasd-report.txt
@@ -531,6 +539,10 @@ The current milestone can:
 - perform the second directory-recovery pass and reconstruct multi-extent segment groups;
 - parse common EPA object headers from recovered primary segments;
 - recover permanent contexts/libraries and assign objects to them through EPA context back-pointers;
+- model IBM's documented expanded context entry form (`T S NL N @`) and use
+  `context-xref` to correlate EPA-known membership with raw context-segment
+  address/name evidence while the compressed machine-index traversal is being
+  reconstructed;
 - list real `*FILE` objects and recovered members inside a library;
 - follow member cursors to QDDS/QDDSI storage;
 - decode standard 92-byte AS/400 source physical-file records and print their source text;

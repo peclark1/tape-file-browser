@@ -1425,6 +1425,87 @@ def decode_standard_source_stream(
     )
 
 
+
+@dataclass(frozen=True)
+class ContextIndexEntry:
+    """Expanded System/38/early-AS/400 context machine-index entry.
+
+    IBM's System/38 VMC context-management documentation gives the logical
+    entry form as::
+
+        T S NL N @
+
+    where T is object type, S is subtype, NL is the unpadded name length,
+    N is the user-specified EBCDIC object name with trailing blanks removed,
+    and @ is the eight-byte internal address of the object's EPA header.
+
+    This class represents a *reconstructed logical index entry*. It does not
+    imply that these bytes occur contiguously on an index page: machine-index
+    common-text compression can split leading entry bytes from terminal text.
+    """
+
+    raw: bytes
+    object_type: int
+    object_subtype: int
+    name_raw: bytes
+    object_address: InternalAddress
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "ContextIndexEntry":
+        if len(raw) < 11:
+            raise ValueError("context index entry requires at least 11 bytes")
+        name_length = raw[2]
+        if name_length > 30:
+            raise ValueError(
+                f"context entry name length {name_length} exceeds 30 bytes"
+            )
+        expected = 3 + name_length + 8
+        if len(raw) != expected:
+            raise ValueError(
+                f"context index entry length is {len(raw)} bytes; "
+                f"expected {expected} from NL={name_length}"
+            )
+        return cls(
+            raw=bytes(raw),
+            object_type=raw[0],
+            object_subtype=raw[1],
+            name_raw=bytes(raw[3 : 3 + name_length]),
+            object_address=InternalAddress.from_bytes(raw[-8:]),
+        )
+
+    @classmethod
+    def from_object(cls, obj: "RecoveredObject") -> "ContextIndexEntry":
+        """Build the documented logical entry expected for a recovered object.
+
+        The object's recovered primary owning address is used as the internal
+        object identity. This is the same address form already used by EPA
+        context back-pointers in the recovery model. Real context-index
+        traversal remains the independent check of that relationship.
+        """
+
+        name_raw = obj.epa.name_raw.rstrip(b"\x40\x00")
+        if len(name_raw) > 30:
+            raise ValueError("recovered object name exceeds 30 bytes")
+        raw = (
+            bytes([obj.object_type, obj.object_subtype, len(name_raw)])
+            + name_raw
+            + obj.segment.header.owner.to_bytes()
+        )
+        return cls.from_bytes(raw)
+
+    @property
+    def name_length(self) -> int:
+        return len(self.name_raw)
+
+    @property
+    def name(self) -> str:
+        return self.name_raw.decode("cp037", errors="replace").rstrip(" \x00")
+
+    @property
+    def type_code(self) -> str:
+        return f"{self.object_type:02X}/{self.object_subtype:02X}"
+
+
 @dataclass(frozen=True)
 class MachineIndexElement:
     """One three-byte release-2 System/38/AS/400 machine-index element.

@@ -10,6 +10,7 @@ from as400_dasd import (
     QAOSSS14AnchorRecord,
     QAOSSS14_V2_RECORD_LENGTH,
     SECTOR_SIZE,
+    ContextIndexEntry,
     DASDImage,
     DataSpaceLayout,
     DocumentByteStringInfo,
@@ -492,6 +493,23 @@ class DASDHeaderTests(unittest.TestCase):
             decoded.records[1].text,
             "          PROGRAM-ID. TEST.",
         )
+
+
+    def test_context_index_entry_documented_format(self):
+        owner = make_internal_address(0x00D0, 0x0038D5000000)
+        name = "JHUDGINS".encode("cp037")
+        raw = bytes([0x08, 0x01, len(name)]) + name + owner
+
+        entry = ContextIndexEntry.from_bytes(raw)
+        self.assertEqual(entry.type_code, "08/01")
+        self.assertEqual(entry.name_length, 8)
+        self.assertEqual(entry.name, "JHUDGINS")
+        self.assertEqual(entry.object_address.extender, 0x00D0)
+        self.assertEqual(entry.object_address.address, 0x0038D5000000)
+        self.assertEqual(entry.raw, raw)
+
+        with self.assertRaises(ValueError):
+            ContextIndexEntry.from_bytes(raw[:-1])
 
     def test_machine_index_element_formats(self):
         # IBM Appendix-A release-2 format uses three-byte elements.

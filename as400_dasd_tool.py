@@ -18,6 +18,7 @@ from as400_dasd import (
     QAOSSS14AnchorRecord,
     QAOSSS14_V2_RECORD_LENGTH,
     SECTOR_SIZE,
+    ContextIndexEntry,
     DASDImage,
     Extent,
     InternalAddress,
@@ -2531,6 +2532,154 @@ def cmd_dlo_parent_gaps(args):
     return 0
 
 
+
+def _find_pattern_offsets(data, pattern, *, limit=8):
+    """Return bounded non-overlapping byte-pattern offsets."""
+
+    if not pattern:
+        return []
+    offsets = []
+    start = 0
+    while start <= len(data) - len(pattern):
+        offset = data.find(pattern, start)
+        if offset < 0:
+            break
+        offsets.append(offset)
+        if limit and len(offsets) >= limit:
+            break
+        start = offset + max(1, len(pattern))
+    return offsets
+
+
+def cmd_context_xref(args):
+    """Correlate EPA-known members with documented context-entry byte forms."""
+
+    image = _open(args.image)
+    _, _, inventory = _recover_all(image)
+
+    libraries = [
+        library
+        for library in inventory.libraries
+        if library.name.upper() == args.library_name.upper()
+    ]
+    if not libraries:
+        raise ValueError(
+            f"library/context not recovered: {args.library_name.upper()}"
+        )
+    context = libraries[0]
+    objects = inventory.in_library(context.name)
+    data = image.read_segment_bytes(context.segment)
+
+    rows = []
+    address_hits_total = 0
+    name_address_hits_total = 0
+    full_hits_total = 0
+
+    for obj in objects:
+        entry = ContextIndexEntry.from_object(obj)
+        address_pattern = entry.object_address.to_bytes()
+        name_address_pattern = entry.name_raw + address_pattern
+
+        address_hits = _find_pattern_offsets(
+            data,
+            address_pattern,
+            limit=args.max_hits,
+        )
+        name_address_hits = _find_pattern_offsets(
+            data,
+            name_address_pattern,
+            limit=args.max_hits,
+        )
+        full_hits = _find_pattern_offsets(
+            data,
+            entry.raw,
+            limit=args.max_hits,
+        )
+
+        if address_hits:
+            address_hits_total += 1
+        if name_address_hits:
+            name_address_hits_total += 1
+        if full_hits:
+            full_hits_total += 1
+
+        if address_hits or args.include_misses:
+            rows.append(
+                (
+                    obj,
+                    entry,
+                    address_hits,
+                    name_address_hits,
+                    full_hits,
+                )
+            )
+
+    print(f"Disk:       {image.path}")
+    print(f"Context:    {context.name}")
+    print(
+        f"Segment:    VA {context.segment.virtual_address:012X}  "
+        f"LBA {context.segment.start_lba:,}  "
+        f"{context.segment.pages:,} pages"
+    )
+    print(f"EPA-assigned objects: {len(objects):,}")
+    print()
+    print(
+        "Documented logical context-entry form: "
+        "T S NL N @  (type, subtype, name length, name, 8-byte object address)"
+    )
+    print(
+        "This diagnostic does not assume the logical entry is contiguous on "
+        "disk; machine-index common-text compression may split its leading "
+        "bytes from terminal text."
+    )
+    print()
+    print(
+        f"Objects whose 8-byte address occurs in the context segment: "
+        f"{address_hits_total:,}/{len(objects):,}"
+    )
+    print(
+        f"Objects with contiguous N+@ bytes: "
+        f"{name_address_hits_total:,}/{len(objects):,}"
+    )
+    print(
+        f"Objects with the complete expanded T+S+NL+N+@ sequence: "
+        f"{full_hits_total:,}/{len(objects):,}"
+    )
+    print()
+
+    if not rows:
+        print("No candidate object-address occurrences were found.")
+        return 0
+
+    print("Type   Object                         @ hits  N+@  full  first @ offset")
+    shown = 0
+    for obj, entry, address_hits, name_address_hits, full_hits in rows:
+        if args.limit and shown >= args.limit:
+            break
+        first = f"0x{address_hits[0]:X}" if address_hits else "-"
+        print(
+            f"{entry.type_code:<7}"
+            f"{obj.name[:30]:<31}"
+            f"{len(address_hits):>6}  "
+            f"{len(name_address_hits):>3}  "
+            f"{len(full_hits):>4}  "
+            f"{first}"
+        )
+        shown += 1
+
+    if args.limit and len(rows) > shown:
+        print(f"... {len(rows) - shown:,} additional row(s)")
+
+    print()
+    print(
+        "Interpretation: an address-only hit is useful location evidence, not "
+        "yet a decoded tree entry. N+@ or full-entry hits are stronger, but "
+        "the final context traversal must reconstruct keys through the "
+        "documented binary-radix-tree elements and page pointers."
+    )
+    return 0
+
+
 def cmd_context_page(args):
     image = _open(args.image)
     _, segments, inventory = _recover_all(image)
@@ -3700,7 +3849,12 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "while program-template, instruction-stream, and ODT decoding remain "
         "future work"
     ),
-    (0x04, 0x01): "library/context object that owns named AS/400 objects",
+    (0x04, 0x01): (
+        "permanent context/library namespace; IBM VMC documentation describes "
+        "its first segment group as an EPA header followed by a machine index "
+        "whose logical entries identify object type, subtype, shortened name, "
+        "and an 8-byte object address"
+    ),
     (0x06, 0xC1): (
         "IBM *DOCBSS Document byte string space used by Document Library "
         "Services; a same-named QDOC document may reference its workstation "
@@ -5272,6 +5426,16 @@ def _tui_viewer_lines(state):
                 f"Recovered *FILE objects: {len(files):,}",
                 f"Recovered members: {len(members):,}",
                 "",
+                (
+                    "MI context: a library is a context namespace whose "
+                    "machine index stores addressability to named system objects."
+                ),
+                (
+                    "Membership evidence: currently recovered from each "
+                    "object's EPA context back-pointer; independent context-index "
+                    "traversal is the current research milestone."
+                ),
+                "",
                 "Select a file or object type in the middle pane.",
             ]
 
@@ -6256,6 +6420,34 @@ def build_parser():
         help="maximum correlations to report; use 0 for all (default: 500)",
     )
     dlo_index_scan.set_defaults(func=cmd_dlo_index_scan)
+
+    context_xref = sub.add_parser(
+        "context-xref",
+        help=(
+            "correlate EPA-known library members with documented context "
+            "machine-index entry byte patterns"
+        ),
+    )
+    context_xref.add_argument("image")
+    context_xref.add_argument("library_name")
+    context_xref.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum matching rows to print; use 0 for all (default: 200)",
+    )
+    context_xref.add_argument(
+        "--max-hits",
+        type=int,
+        default=8,
+        help="maximum offsets retained per pattern; use 0 for all (default: 8)",
+    )
+    context_xref.add_argument(
+        "--include-misses",
+        action="store_true",
+        help="also list EPA-assigned objects with no address occurrence",
+    )
+    context_xref.set_defaults(func=cmd_context_xref)
 
     context_page = sub.add_parser(
         "context-page",

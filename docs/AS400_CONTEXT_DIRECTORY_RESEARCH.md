@@ -63,22 +63,93 @@ What is intentionally missing is automatic recognition of the index page
 header/trunk, pointer following, front-end-compressed key reconstruction, and
 full context traversal.
 
+## Stronger IBM documentation now located
+
+The IBM *System/38 Vertical Microcode Logic Overviews and Component
+Descriptions Manual*, SY21-0889-5 (sixth edition, September 1985), gives us
+substantially stronger architectural evidence than the higher-level AS/400
+manuals.
+
+### Documented context semantics
+
+The Context Management section states that contexts store **addressability to
+system objects**. Addressability to a system object can be in only one context
+at a time. Once addressed by a context, an object can be located through
+Resolve System Pointer or late binding.
+
+For permanent contexts, the first segment group contains:
+
+1. segment-group header;
+2. EPA header;
+3. a machine index containing the actual context entries.
+
+The manual explicitly gives the logical machine-index entry as:
+
+```text
+T S NL N @
+1 1  1 * 8     (bytes)
+```
+
+where:
+
+- `T` is object type;
+- `S` is the user-defined qualifier/subtype;
+- `NL` is the name length after trailing blanks are removed;
+- `N` is the user-specified object name;
+- `@` is the eight-byte address of the object's EPA header.
+
+It also documents dangling-entry validation by comparing segment extender,
+object name, and the object's back-pointer to the addressing context. This is a
+particularly useful independent cross-check for our EPA-derived membership.
+
+### Documented release-2 machine-index model
+
+The Machine Index Management section says release-2 indexes use three-byte
+elements, may span as many as 64 segment groups (1 GB), and support multiple
+page sizes. The index is a binary radix tree containing page pointers, text
+elements, nodes, and clusters.
+
+Common text represents leading bytes shared by multiple entries. Terminal text
+contains the uncompressed residue, with one terminal text element per index
+entry. A search starts at the root node of the trunk page and follows tested
+argument bits, common text, and page pointers until terminal text is reached.
+
+The generic machine-index documentation also states that an index entry has a
+**prefix** used as the search key and a **suffix** containing information
+associated with that key, and that the maximum entry length is 128 bytes.
+
+IBM's later MATCTX documentation remains useful as a semantic cross-check:
+materialized context entries are ordered by object type, subtype, then object
+name. Later IBM i API documentation explicitly says that the MI term
+`context` is synonymous with an IBM i library. These later sources do not prove
+the V2R3 physical byte layout, so they are kept as semantic corroboration only.
+
+### What remains unknown
+
+The exact release-2 **page-header byte layout**, the precise location of the
+trunk within a recovered V2R3 context segment, and the physical prefix/suffix
+split for a context entry are not yet sufficiently documented/validated for us
+to hard-code them.
+
+The new `context-xref` diagnostic therefore uses only the documented expanded
+entry form and known EPA-derived object identities. It searches a recovered
+context segment for:
+
+- the object's eight-byte internal address;
+- contiguous `N + @`;
+- the full expanded `T + S + NL + N + @`.
+
+Because the binary-radix tree can move common leading bytes out of terminal
+text, absence of a contiguous full entry is **not** treated as a failure. Address
+locations instead give us evidence for finding terminal-text regions and
+constraining the eventual page-header/trunk decoder.
+
 ## Documentation still needed
 
-Before naming more fields, find the strongest available IBM documentation for:
-
-1. permanent context semantics and MI operations on contexts;
-2. release-2 machine-index page header/trunk layout;
-3. logical machine-index page size and page-pointer interpretation;
-4. front-end/common-text key compression;
-5. leaf/entry representation for a context mapping object name/type to an
-   object/system pointer;
-6. whether the context index format differs from the documented generic
-   machine-index format in any release-specific way.
-
-If our attached manuals do not contain that detail, broaden the search to the
-appropriate IBM AS/400 MI or System/38 architecture manuals and clearly label
-that as outside-source research.
+Before automatically traversing context pages, continue looking for the exact
+release-2 page-header/trunk data-area definition, preferably in IBM's VMC data
+area/module material. Do not infer those byte offsets solely from repeated
+patterns in one image.
 
 ## Real-image validation plan
 

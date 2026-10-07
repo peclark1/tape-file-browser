@@ -21,6 +21,7 @@ from as400_dasd_tool import (
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
     _tui_file_context,
+    _find_pattern_offsets,
     _tui_file_storage_evidence,
     _tui_hex_lines,
     _data_space_status_note,
@@ -187,6 +188,18 @@ class DASDToolTests(unittest.TestCase):
             ),
             [profile],
         )
+
+    def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):
+        data = b"ABC--ABC--ABC"
+        self.assertEqual(
+            _find_pattern_offsets(data, b"ABC", limit=2),
+            [0, 5],
+        )
+        self.assertEqual(
+            _find_pattern_offsets(data, b"ABC", limit=0),
+            [0, 5, 10],
+        )
+        self.assertEqual(_find_pattern_offsets(data, b"", limit=2), [])
 
     def test_tui_msgq_profile_link_requires_exact_internal_address(self):
         profile = SimpleNamespace(
