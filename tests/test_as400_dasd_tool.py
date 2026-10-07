@@ -19,6 +19,7 @@ from as400_dasd_tool import (
     _machine_index_page_structure_lines,
     _qaosss14_path,
     _qaosss14_unresolved_parent_records,
+    _qddsi_key_field_labels,
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
     _tui_file_context,
@@ -64,6 +65,25 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_qddsi_key_field_labels_require_exact_offset_and_length(self):
+        spec = SimpleNamespace(
+            fields=(
+                SimpleNamespace(record_offset_hint=0, length_or_fork=2),
+                SimpleNamespace(record_offset_hint=2, length_or_fork=3),
+                SimpleNamespace(record_offset_hint=5, length_or_fork=2),
+                SimpleNamespace(record_offset_hint=7, length_or_fork=99),
+            )
+        )
+        format_fields = (
+            SimpleNamespace(offset=0, storage_length=2, name="FUNDNO"),
+            SimpleNamespace(offset=2, storage_length=3, name="ACCTNO"),
+            SimpleNamespace(offset=5, storage_length=2, name="SUBNO"),
+            SimpleNamespace(offset=7, storage_length=40, name="ACCTDEF"),
+        )
+        self.assertEqual(
+            _qddsi_key_field_labels(spec, format_fields),
+            ("FUNDNO", "ACCTNO", "SUBNO", ""),
+        )
     def test_info_and_sector(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "sample.hda"
