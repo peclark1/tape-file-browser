@@ -25,8 +25,9 @@ repeatable real-image validation.
 - [x] Locate `QUSRSYS/QAOSSS14` and its complete recovered storage set on
       the V2R3 image: `*FILE` 19/01, `*MEM` 0D/50, QDDS 0B/90, and
       QDDSI 0C/90.
-- [ ] Locate/identify the other documented document/folder search indexes:
-      `QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18`.
+- [x] Locate the complete documented V2R3 document/folder search-index set:
+      `QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18`, including
+      their recovered *FILE/member/QDDS objects where present.
 - [x] Add a raw `dlo-schema` evidence scanner for `WOSFMTxx` /
       `QAOSS*` associations, including the observed `QAOSSS14` and
       `QAOSSY14` families, without guessing abbreviation meanings.
@@ -35,14 +36,20 @@ repeatable real-image validation.
       IBM field abbreviations verbatim.
 - [x] Correlate QDOC objects to QAOSSS14 anchor records through the observed
       8-byte `WOSEFILD` value embedded in recovered QDOC bytes.
-- [x] Reconstruct parent links when a `WOSEPLDN` value uniquely matches
-      another QAOSSS14 `WOSEFILD`, returning complete or partial QDLS paths.
-- [x] Verify the PC Support hierarchy independently:
-      `FMPV082760 -> /QDLS/QIWSFLR/CKPCSPTH.EXE` and
-      `FMPV195818 -> /QDLS/QIWSFL2/DTAQ.PKG`.
-- [ ] Resolve parent links whose referenced folder/anchor record is absent or
-      not yet correlated (including the QAOSSS14 parent key used by the
-      BULLET1/BULLET2/BULLET3 records).
+- [x] Reconstruct QAOSSS14 parent links when a `WOSEPLDN` value uniquely
+      matches another record's **leading 8-byte key**. This corrects the
+      earlier assumption that the parent key always matched `WOSEFILD`.
+- [x] Verify the PC Support hierarchy independently. In these records the
+      anchor names also match the known user-facing QDLS components:
+      `FMPV082760 -> QIWSFLR/CKPCSPTH.EXE` and
+      `FMPV195818 -> QIWSFL2/DTAQ.PKG`.
+- [x] Resolve the BULLET1/BULLET2/BULLET3 parent anchor: their `WOSEPLDN`
+      points to QAOSSS14 RRN 1870 by its leading record key. RRN 1870's
+      anchor short name is `QGFSWOF1`; the independently observed
+      user-facing folder name remains `BULLETIN`.
+- [ ] Resolve the three remaining QAOSSS14 records (RRNs 1883-1885) whose
+      nonzero parent key has no matching leading key in the recovered
+      QAOSSS14 record set.
 - [ ] Determine the semantics of the remaining WOSFMT14 binary/field values;
       do not expand identifiers such as `WOSEFILD`/`WOSEPLDN` from their
       spelling alone.
