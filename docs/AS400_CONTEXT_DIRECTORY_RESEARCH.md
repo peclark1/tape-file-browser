@@ -335,11 +335,35 @@ tails fall in logical page 3, while `PROTO` falls in logical page 4. The
 `context-page` diagnostic now accepts a nonzero `--origin` and an arbitrary
 element-stream phase so those specific pages can be inspected directly.
 
-This is also a useful project checkpoint: one targeted byte-level validation of
-pages 3/4 should tell us whether the candidate is structurally real. If it does
-not yield a clear node/text relationship, the context work should be parked
-with its evidence documented rather than consuming the rest of the DASD browser
-refinement effort.
+The targeted byte-level probe provides the structural confirmation we wanted.
+Using the 512-byte page model, origin `0x1E0`, and phase 2:
+
+- logical page 3 starts at segment offset `0x7E0`;
+- the recovered `FUNDDEF` key tail at segment offset `0x865` is therefore
+  page-relative `0x85`;
+- the phase-2 element at page offset `0xCB` is raw `4A0085`, decoded by the
+  documented release-2 element format as text length 74 and displacement
+  `0x85`: an exact start reference to that known tail;
+- the phase-2 element at `0xE3` is `5600C6` (length 86, displacement
+  `0xC6`), whose text range covers the `ACCTDEF` tail at page-relative
+  `0xD6`; another phase-2 element at `0x1B8` (`2B00C4`) also covers it;
+- logical page 4 starts at segment offset `0x9E0`; its phase-2 element at
+  `0x20` is `7C0002` (length 124, displacement `0x02`), covering the
+  recovered `PROTO` tail at page-relative `0x5B`.
+
+This is materially stronger than the earlier statistical scores: documented
+three-byte text elements in one coherent phase now point into the independently
+recovered key text at the expected page-relative locations. It does **not** yet
+identify the page-header/root-node boundary or reconstruct a complete context
+entry, so 512/origin-0x1E0/phase-2 remains a strongly supported PPSITEST working
+model rather than an architectural constant.
+
+That is the planned checkpoint for this research pass. The remaining context
+tasks—page-header/root-node placement, node/page-pointer traversal,
+front-end/common-text reconstruction, and context-derived membership—are
+preserved for a later return. The active DASD-browser effort now moves to
+database/QDDSI and keyed-file reconstruction rather than extending this one
+reverse-engineering thread indefinitely.
 
 ## Real-image validation plan
 Once the documentation model is firm:
