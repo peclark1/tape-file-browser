@@ -2533,6 +2533,50 @@ def cmd_dlo_parent_gaps(args):
 
 
 
+
+_MACHINE_INDEX_USED_PAGE_FIELDS = (
+    "root node of the page",
+    "page type",
+    "number of free bytes",
+    "offset to the first free byte on the page",
+    "backpointer information",
+    "current tree",
+)
+
+_MACHINE_INDEX_FREE_PAGE_FIELDS = (
+    "unused",
+    "page type",
+    "number of free pages in free chain",
+    "pointer to next free page",
+)
+
+
+def _machine_index_page_structure_lines():
+    """Document what IBM names in a release-2 machine-index page header.
+
+    IBM patent US4774657A reproduces the System/38 machine-index element/page
+    model.  The English text confirms the logical page range and use of page
+    backpointer information; the German family publication DE3788750T2
+    preserves the field labels for in-use and free logical pages in searchable
+    text.  The source figures carry field widths graphically, but those widths
+    are not reliably available in the text source used here, so this helper
+    intentionally reports names/order only and performs no byte decoding.
+    """
+
+    lines = [
+        "Documented logical-page header fields (names/order only):",
+        "  In-use page: "
+        + " | ".join(_MACHINE_INDEX_USED_PAGE_FIELDS),
+        "  Free page:   "
+        + " | ".join(_MACHINE_INDEX_FREE_PAGE_FIELDS),
+        (
+            "  Caution: field widths/byte offsets are not yet independently "
+            "corroborated for the recovered V2R3 CISC pages, so the browser "
+            "does not decode this header yet."
+        ),
+    ]
+    return lines
+
 def _find_pattern_offsets(data, pattern, *, limit=8):
     """Return bounded non-overlapping byte-pattern offsets."""
 
@@ -2752,6 +2796,9 @@ def cmd_context_page(args):
         "The context's page-header/trunk location is still under "
         "reverse engineering, so page/offset selection is explicit."
     )
+    print()
+    for line in _machine_index_page_structure_lines():
+        print(line)
     return 0
 
 
@@ -3850,10 +3897,10 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "future work"
     ),
     (0x04, 0x01): (
-        "permanent context/library namespace; IBM VMC documentation describes "
-        "its first segment group as an EPA header followed by a machine index "
-        "whose logical entries identify object type, subtype, shortened name, "
-        "and an 8-byte object address"
+        "OS/400 *LIB directory for a set of objects; object identity includes "
+        "type as well as name. At the MI level this is a permanent context "
+        "namespace whose first segment group contains an EPA header and a "
+        "machine index of named object addressability."
     ),
     (0x06, 0xC1): (
         "IBM *DOCBSS Document byte string space used by Document Library "

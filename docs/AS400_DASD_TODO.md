@@ -23,8 +23,17 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       (object namespace).
 - [x] Locate strong IBM System/38 VMC documentation for context semantics,
       the logical context-entry format, and the release-2 machine-index
-      binary-radix-tree element model. The exact release-2 page-header byte
-      layout/trunk offset still requires corroboration before automatic traversal.
+      binary-radix-tree element model.
+- [x] Recover IBM's documented logical-page header field **names and order**
+      from the System/38 machine-index material/patent family: in-use pages
+      carry root node, page type, free-byte count, first-free-byte offset,
+      backpointer information, and current tree; free pages carry page type,
+      free-chain count, and next-free-page pointer. Expose this context in
+      `context-page` without guessing field widths or byte offsets.
+- [ ] Establish the exact release-2 page-header field widths/byte offsets and
+      trunk placement from an authoritative data-area/layout source (ideally
+      `SY21-0892`) or independent real-image corroboration before automatic
+      header decoding.
 - [x] Add `context-xref`, a read-only diagnostic that correlates objects already
       assigned through EPA back-pointers with the documented logical context
       entry form `T S NL N @` and reports raw address/name-entry occurrences

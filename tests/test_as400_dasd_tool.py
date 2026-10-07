@@ -16,6 +16,7 @@ from as400_dasd_tool import (
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
+    _machine_index_page_structure_lines,
     _qaosss14_path,
     _qaosss14_unresolved_parent_records,
     _scan_ebcdic_sysobjnam,
@@ -144,6 +145,12 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("*QDIDX", qdidx)
         self.assertIn("*OIRS", qdidx)
 
+        library = _tui_object_type_context(0x04, 0x01)
+        self.assertIn("*LIB", library)
+        self.assertIn("directory for a set of objects", library)
+        self.assertIn("permanent context", library)
+        self.assertIn("machine index", library)
+
         usrprf = _tui_object_type_context(0x08, 0x01)
         self.assertIn("user profile", usrprf)
         self.assertIn("message queue", usrprf)
@@ -188,6 +195,17 @@ class DASDToolTests(unittest.TestCase):
             ),
             [profile],
         )
+
+    def test_machine_index_page_structure_is_context_only(self):
+        lines = _machine_index_page_structure_lines()
+        text = "\n".join(lines)
+        self.assertIn("root node of the page", text)
+        self.assertIn("page type", text)
+        self.assertIn("backpointer information", text)
+        self.assertIn("current tree", text)
+        self.assertIn("pointer to next free page", text)
+        self.assertIn("field widths/byte offsets", text)
+        self.assertIn("does not decode this header yet", text)
 
     def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):
         data = b"ABC--ABC--ABC"

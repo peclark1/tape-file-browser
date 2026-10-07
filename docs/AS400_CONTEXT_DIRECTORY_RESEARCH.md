@@ -124,12 +124,57 @@ name. Later IBM i API documentation explicitly says that the MI term
 `context` is synonymous with an IBM i library. These later sources do not prove
 the V2R3 physical byte layout, so they are kept as semantic corroboration only.
 
+### Logical-page header field names/order
+
+IBM patent **US4774657A, Index key range estimator** explicitly ties its binary
+radix-tree implementation to the System/38 machine-index design. Its Appendix A
+repeats the three-byte node/page-pointer/text-element model, states that logical
+index pages can range from 512 through 32768 bytes, and explains that page
+backpointer information is used when a search backs from a child page to its
+parent.
+
+The searchable text of the German family publication **DE3788750T2** preserves
+the labels and order from the page-format figure. An **in-use** logical page is
+shown with:
+
+1. root node of the page;
+2. page type;
+3. number of free bytes;
+4. offset to the first free byte on the page;
+5. backpointer information;
+6. current tree.
+
+A **free** page is shown with:
+
+1. unused;
+2. page type;
+3. number of free pages in the free chain;
+4. pointer to the next free page.
+
+This is enough to improve our forensic page descriptions, but **not** enough to
+decode bytes safely. The field widths are conveyed in the source figure and are
+not reliably represented in the searchable text we have. We therefore preserve
+the documented field names/order in `context-page` while deliberately leaving
+their offsets undecoded.
+
+### Operator-level library semantics
+
+The attached period book *Understanding AS/400 System Operations* provides
+useful browser-facing context independent of the low-level layout. It states
+that a library (`*LIB`) is a special object that serves as a directory for a set
+of objects, and explains that object identity within a library includes object
+type as well as object name. Consequently, two different object types may share
+a name in the same library, while two objects of the same type may not.
+
+That wording is now reflected in the `*LIB` TUI description alongside the MI
+context/machine-index explanation.
+
 ### What remains unknown
 
-The exact release-2 **page-header byte layout**, the precise location of the
-trunk within a recovered V2R3 context segment, and the physical prefix/suffix
-split for a context entry are not yet sufficiently documented/validated for us
-to hard-code them.
+The exact release-2 **page-header field widths and byte offsets**, the precise
+location of the trunk within a recovered V2R3 context segment, and the physical
+prefix/suffix split for a context entry are not yet sufficiently
+documented/validated for us to hard-code them.
 
 The new `context-xref` diagnostic therefore uses only the documented expanded
 entry form and known EPA-derived object identities. It searches a recovered
@@ -147,9 +192,10 @@ constraining the eventual page-header/trunk decoder.
 ## Documentation still needed
 
 Before automatically traversing context pages, continue looking for the exact
-release-2 page-header/trunk data-area definition, preferably in IBM's VMC data
-area/module material. Do not infer those byte offsets solely from repeated
-patterns in one image.
+release-2 page-header/trunk data-area definition. IBM's System/38 documentation
+explicitly references **Vertical Microcode Data Areas, SY21-0892**, which is the
+best-looking next source for the missing widths/offsets if a scan can be located.
+Do not infer those byte offsets solely from repeated patterns in one image.
 
 ## Real-image validation plan
 
