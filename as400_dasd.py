@@ -2842,7 +2842,7 @@ class DASDImage:
         self,
         storage: MemberStorage,
     ) -> DataSpaceIndexTraversal | None:
-        """Enumerate complete keys from an ordinary one-page QDDSI root."""
+        """Enumerate complete keys from an ordinary recovered QDDSI machine index."""
 
         layout = self.read_data_space_index_layout(storage)
         if layout is None or storage.data_index is None:
