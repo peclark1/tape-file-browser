@@ -102,6 +102,33 @@ repeatable real-image validation.
 - [ ] Improve permanent/temporary sector-header indicator decoding.
 - [ ] Reduce dependence on structural corroboration for ambiguous candidates.
 
+## Program object / MI decoding
+
+IBM documents enough of the original-program-model/non-bound MI architecture to
+make a real MI disassembler a realistic goal. The remaining hard part for this
+offline disk browser is recovering the correct program-template representation
+from the encapsulated on-disk *PGM object and matching the instruction encoding
+to this CISC release.
+
+- [x] Add bounded forensic *PGM browsing (owned segments, EBCDIC strings,
+      hex/EBCDIC primary-segment preview).
+- [ ] Identify the program-template / observability components stored in a real
+      V2R3 CISC *PGM object and compare them with IBM MATPG materialization
+      formats.
+- [ ] Decode the documented program-template header and component offsets.
+- [ ] Decode ODT/ODV/OES entries so instruction operands can be typed and
+      symbolized rather than displayed as raw indexes.
+- [ ] Build a release-appropriate MI opcode/form table from IBM's AS/400
+      Machine Interface Functional Reference and, if useful, the system's own
+      QPROCT instruction table.
+- [ ] Add an MI instruction-stream disassembler with branch/entry-point labels
+      and typed ODT operands.
+- [ ] Add control-flow/basic-block reconstruction and a conservative
+      MI-pseudo-source view.
+- [ ] Use BOM/debug/observability information when present, but do not imply
+      that original RPG/COBOL/CL source names or control structures can always
+      be reconstructed.
+
 ## Browser and documentation
 
 - [x] Add curses DASD browser.
