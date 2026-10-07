@@ -17,6 +17,7 @@ from as400_dasd_tool import (
     _find_byte_occurrences,
     _load_library_catalog,
     _qaosss14_path,
+    _qaosss14_unresolved_parent_records,
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
     _tui_library_context,
@@ -436,6 +437,44 @@ class DASDToolTests(unittest.TestCase):
                 44,
             ),
         )
+
+    def test_qaosss14_unresolved_parent_records(self):
+        root_key = bytes.fromhex("0102030405060708")
+        missing_key = bytes.fromhex("1112131415161718")
+        zero = b"\x00" * 8
+
+        root = SimpleNamespace(
+            rrn=1,
+            leading_key=root_key,
+            parent_key=zero,
+        )
+        child = SimpleNamespace(
+            rrn=2,
+            leading_key=bytes.fromhex("2122232425262728"),
+            parent_key=root_key,
+        )
+        gap = SimpleNamespace(
+            rrn=3,
+            leading_key=bytes.fromhex("3132333435363738"),
+            parent_key=missing_key,
+        )
+
+        unresolved = _qaosss14_unresolved_parent_records(
+            (root, child, gap)
+        )
+        self.assertEqual(len(unresolved), 1)
+        self.assertIs(unresolved[0][0], gap)
+        self.assertEqual(unresolved[0][1], ())
+
+    def test_dlo_parent_gaps_subcommand(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            ["dlo-parent-gaps", "marks.hda", "--raw-scan"]
+        )
+        self.assertEqual(args.command, "dlo-parent-gaps")
+        self.assertTrue(args.raw_scan)
+        self.assertEqual(args.context, 24)
+        self.assertEqual(args.limit, 50)
 
     def test_dlo_schema_subcommand_defaults_to_wosfmt14(self):
         parser = build_parser()
