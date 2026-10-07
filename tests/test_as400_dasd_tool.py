@@ -21,6 +21,7 @@ from as400_dasd_tool import (
     _tui_context_lines,
     _tui_library_context,
     _tui_object_type_context,
+    _tui_viewer_target,
     build_parser,
     main,
 )
@@ -106,6 +107,29 @@ class DASDToolTests(unittest.TestCase):
         qdidx = _tui_object_type_context(0x0E, 0x90)
         self.assertIn("*QDIDX", qdidx)
         self.assertIn("*OIRS", qdidx)
+
+    def test_tui_detail_target_follows_focused_hierarchy_level(self):
+        state = {
+            "focus": 0,
+            "left_items": [{"kind": "library", "label": "QGPL"}],
+            "left_index": 0,
+            "mid_items": [{"kind": "file", "label": "QCLSRC"}],
+            "mid_index": 0,
+            "right_items": [{"kind": "member", "label": "REFRESH2"}],
+            "right_index": 0,
+        }
+        self.assertEqual(_tui_viewer_target(state), "left")
+        state["focus"] = 1
+        self.assertEqual(_tui_viewer_target(state), "mid")
+        state["focus"] = 2
+        self.assertEqual(_tui_viewer_target(state), "right")
+        state["focus"] = 3
+        self.assertEqual(_tui_viewer_target(state), "right")
+
+        state["right_items"] = []
+        self.assertEqual(_tui_viewer_target(state), "mid")
+        state["mid_items"] = []
+        self.assertEqual(_tui_viewer_target(state), "left")
 
     def test_tui_keeps_context_for_library_file_and_member_visible(self):
         member = SimpleNamespace(
