@@ -26,6 +26,7 @@ from as400_dasd import (
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
+    decode_data_space_index_root,
     decode_data_space_records,
     decode_format_fields,
     decode_standard_source_stream,
@@ -117,6 +118,36 @@ def load_format_field_fixture(path):
 def make_internal_address(extender, address):
     return extender.to_bytes(2, "big") + address.to_bytes(6, "big")
 
+
+def make_qddsi_root_fixture(
+    root_hex,
+    *,
+    key_count,
+    user_key_length,
+    machine_key_length,
+):
+    """Build the minimum ordinary QDDSI metadata around a real root shape."""
+
+    base = 0x001000000000
+    primary = bytearray(0x1800)
+    primary[0x11E:0x120] = (1).to_bytes(2, "big")
+    primary[0x12A:0x130] = (base + 0x400).to_bytes(6, "big")
+
+    row = memoryview(primary)[0x400:0x440]
+    row[0:8] = make_internal_address(1, 0x000F00000000)
+    row[0x10:0x14] = key_count.to_bytes(4, "big")
+    row[0x18:0x1A] = (0).to_bytes(2, "big")
+    row[0x1A:0x1C] = user_key_length.to_bytes(2, "big")
+    row[0x1C:0x1E] = machine_key_length.to_bytes(2, "big")
+
+    root = bytes.fromhex(root_hex)
+    primary[0x1000 : 0x1000 + len(root)] = root
+    data = bytes(primary)
+    layout = DataSpaceIndexLayout.from_primary_segment(
+        data,
+        virtual_address=base,
+    )
+    return data, layout
 
 def make_segment_page(
     virtual_address,
@@ -381,6 +412,106 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(spec.fields[0].record_offset_hint, 0)
         self.assertEqual(spec.fields[0].field_ordinal_hint, 1)
 
+    def test_qddsi_single_entry_root_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 E4 10 1C "
+            "0D 10 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.page_size, 0x800)
+        self.assertEqual(traversal.page_type, 0xCC)
+        self.assertEqual(traversal.entry_count, 1)
+        entry = traversal.entries[0]
+        self.assertEqual(entry.user_key.decode("cp037"), "*PUBLIC   ")
+        self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
+        self.assertEqual(entry.ordinal_hint, 1)
+
+    def test_qddsi_common_text_two_entry_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 DA 10 26 "
+            "86 00 1C 60 00 00 "
+            "40 40 40 40 40 40 40 40 40 40 00 00 00 01 "
+            "00 10 1B 00 10 25 0C 10 0E 02",
+            key_count=2,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(
+            [entry.user_key for entry in traversal.entries],
+            [b"\x40" * 10, b"\x40" * 10],
+        )
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [1, 2],
+        )
+
+    def test_qddsi_nested_xor_and_common_text_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 B3 10 4D "
+            "60 00 00 88 00 22 "
+            "E3 C7 E3 E2 E8 E2 40 40 40 40 40 40 40 40 "
+            "40 40 00 00 00 09 "
+            "0D 10 14 9B 00 32 05 10 0E "
+            "C1 E2 40 40 40 40 40 40 40 40 00 00 00 0A "
+            "0D 10 2B 0D 10 3F "
+            "D3 D5 40 40 40 40 40 40 40 40 00 00 00 0B",
+            key_count=3,
+            user_key_length=16,
+            machine_key_length=20,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(
+            [entry.user_key.decode("cp037") for entry in traversal.entries],
+            ["TGTSYS          ", "TGTSYSAS        ", "TGTSYSLN        "],
+        )
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [9, 10, 11],
+        )
+
+    def test_qddsi_binary_multifield_key_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "90 00 46 CC 07 A2 10 64 "
+            "83 00 70 60 00 00 00 02 80 01 00 00 00 01 "
+            "06 10 0F 06 10 1F 00 10 0E "
+            "06 80 00 00 00 00 02 "
+            "95 00 20 06 10 2F 00 10 0E "
+            "0B 80 00 00 00 00 03 "
+            "94 00 2E 06 10 3F 00 10 0E "
+            "1E 80 00 00 00 00 04 "
+            "97 00 08 8F 00 54 80 00 00 0B 00 00 00 05 "
+            "06 10 4D 06 10 5D 00 10 4C "
+            "01 00 02 00 00 00 06",
+            key_count=6,
+            user_key_length=4,
+            machine_key_length=8,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(
+            [entry.user_key.hex() for entry in traversal.entries],
+            [
+                "00028001",
+                "00068000",
+                "000b8000",
+                "001e8000",
+                "8000000b",
+                "80010002",
+            ],
+        )
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [1, 2, 3, 4, 5, 6],
+        )
+
     def test_qdds_layout_scalars_from_real_metadata(self):
         fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
         expected = {
@@ -629,23 +760,25 @@ class DASDHeaderTests(unittest.TestCase):
         text = MachineIndexElement(bytes.fromhex("051234"))
         self.assertEqual(text.kind, "text")
         self.assertEqual(text.text_length, 5)
+        self.assertEqual(text.text_storage_length, 6)
         self.assertEqual(text.text_displacement, 0x1234)
 
-        # type=10, common-text bit=0, direction=1, bit-to-test=3,
-        # xor displacement=0x01234
-        node_value = (
-            (0b10 << 22)
-            | (0 << 21)
-            | (1 << 20)
-            | (3 << 17)
-            | 0x1234
-        )
-        node = MachineIndexElement(node_value.to_bytes(3, "big"))
+        # Real QDDSI node: type=10, common text present, left direction,
+        # bit-to-test=6, XOR displacement 0x001C.
+        node = MachineIndexElement(bytes.fromhex("86001C"))
         self.assertEqual(node.kind, "node")
+        self.assertFalse(node.unresolved_node_flag)
         self.assertTrue(node.common_text_present)
-        self.assertEqual(node.direction, "right")
-        self.assertEqual(node.bit_to_test, 3)
-        self.assertEqual(node.xor_displacement, 0x1234)
+        self.assertEqual(node.direction, "left")
+        self.assertEqual(node.bit_to_test, 6)
+        self.assertEqual(node.xor_displacement, 0x001C)
+
+        # A second real node validates direction/common bit placement.
+        right = MachineIndexElement(bytes.fromhex("9B0032"))
+        self.assertFalse(right.common_text_present)
+        self.assertEqual(right.direction, "right")
+        self.assertEqual(right.bit_to_test, 3)
+        self.assertEqual(right.xor_displacement, 0x0032)
 
         page_value = (
             (0b11 << 22)
