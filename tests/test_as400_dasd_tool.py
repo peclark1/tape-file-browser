@@ -15,6 +15,7 @@ from as400_dasd_tool import (
     _dlo_preview_strings,
     _find_byte_occurrences,
     _load_library_catalog,
+    _qaosss14_path,
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
     _tui_library_context,
@@ -370,6 +371,47 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(args.command, "dlo-schema")
         self.assertEqual(args.format_name, "WOSFMT14")
         self.assertIsNone(args.family)
+
+    def test_qaosss14_parent_key_reconstructs_qdls_path(self):
+        zero = b"\x00" * 8
+        folder_key = bytes.fromhex("0102030405060708")
+        document_key = bytes.fromhex("1112131415161718")
+        folder = SimpleNamespace(
+            rrn=677,
+            record_key=folder_key,
+            parent_key=zero,
+            short_name="QIWSFLR",
+            long_name="QIWSFLR",
+        )
+        document = SimpleNamespace(
+            rrn=695,
+            record_key=document_key,
+            parent_key=folder_key,
+            short_name="CKPCSPTH.EXE",
+            long_name="CKPCSPTH.EXE",
+        )
+
+        path, complete = _qaosss14_path(
+            document,
+            (folder, document),
+        )
+        self.assertTrue(complete)
+        self.assertEqual(
+            path,
+            "/QDLS/QIWSFLR/CKPCSPTH.EXE",
+        )
+
+    def test_qaosss14_path_marks_unresolved_parent_partial(self):
+        document = SimpleNamespace(
+            rrn=1871,
+            record_key=bytes.fromhex("0102030405060708"),
+            parent_key=bytes.fromhex("1112131415161718"),
+            short_name="BULLET1.RFT",
+            long_name="AS/400 Office Training Information",
+        )
+        path, complete = _qaosss14_path(document, (document,))
+        self.assertFalse(complete)
+        self.assertEqual(path, "/QDLS/BULLET1.RFT")
 
     def test_dlo_export_subcommand_requires_explicit_output(self):
         parser = build_parser()
