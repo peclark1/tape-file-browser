@@ -57,10 +57,25 @@ The tool can already decode QDDS fixed-length records and verified field types,
 which gives us the independent side of the next cross-check: any proposed QDDSI
 record reference must resolve to a real recovered RRN/record.
 
+The first real PPSITEST probe produced a stronger architectural clue than
+expected:
+
+- `PPSITEST/ACCTDEF(ACCTDEF)`: no recovered QDDS data space, but a 16-page
+  QDDSI at VA `001BA7000000`, LBA `239472`.
+- `PPSITEST/FUNDDEF(FUNDDEF)`: no recovered QDDS data space, but a 16-page
+  QDDSI at VA `0014EC000000`, LBA `245024`.
+
+This pattern is consistent with these members being logical-file/access-path
+members rather than physical data-bearing members, but that remains a hypothesis
+until we read the recovered DDS source. The period manuals explicitly distinguish
+physical files (which contain the data) from logical files (which contain
+pointers/access paths over physical-file records), so the source definition is the
+right next independent check.
+
 ## First research questions
 
-1. Which small recovered member has a QDDSI and a clean decoded QDDS record
-   stream?
+1. Are ACCTDEF and FUNDDEF logical files, and which physical file/member(s)
+   do their recovered DDS source definitions name?
 2. Does the member cursor or file FCB contain a direct pointer to QDDSI that can
    replace same-name correlation?
 3. Is the QDDSI primary segment followed by secondary owned segment groups, and
@@ -75,17 +90,22 @@ record reference must resolve to a real recovered RRN/record.
 ## Initial validation plan
 
 Start with the B10 `PPSITEST` application material because it is small enough
-to inspect manually. Run `member-storage` for the recovered application
+to inspect manually. Run `member` for the recovered application
 members to identify which one actually has QDDSI. Prefer a database member such
 as `ACCTDEF(ACCTDEF)` or `FUNDDEF(FUNDDEF)` over the QDDSSRC/QLBLSRC source
 members.
 
-Once a QDDSI-bearing member is identified:
+Before decoding the QDDSI bytes, first read the recovered DDS source for
+`QDDSSRC/ACCTDEF` and `QDDSSRC/FUNDDEF`. If they are logical files, capture
+`PFILE`/`JFILE`, key fields, select/omit rules, and uniqueness/sequence keywords.
+Then identify the referenced physical member and use *its* QDDS records as the
+independent target for keyed-order validation.
 
-1. preserve its QDDS/QDDSI VAs, LBAs, pages, and owned segments;
-2. inspect its decoded format and several representative records;
-3. search QDDSI bytes for the documented key field values and record
-   references;
+After that semantic check:
+
+1. preserve the QDDSI VAs, LBAs, pages, and owned segments;
+2. inspect the referenced physical member's decoded format and representative records;
+3. search QDDSI bytes for known key values and candidate record references;
 4. only after that evidence pass, introduce a QDDSI-specific decoder.
 
 ## TUI implications
