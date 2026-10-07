@@ -2006,13 +2006,25 @@ def decode_data_space_index_root(
         raise ValueError("QDDSI first-free offset precedes the root-page header")
 
     used_bytes = first_free_offset - root_offset
-    page_size = used_bytes + free_bytes
-    if (
-        page_size < 512
-        or page_size > 32768
-        or page_size & (page_size - 1)
-    ):
-        raise ValueError(f"implausible QDDSI logical page size {page_size}")
+    # The free-byte count can include holes inside the current tree, so it
+    # does not always equal page_size - used_bytes. Recover the page size
+    # from IBM's allowed power-of-two sizes: it must contain both the used
+    # span and the reported free bytes, while used+free must cover the page.
+    page_sizes = [
+        size
+        for size in (512, 1024, 2048, 4096, 8192, 16384, 32768)
+        if (
+            used_bytes <= size
+            and free_bytes <= size
+            and used_bytes + free_bytes >= size
+            and root_offset + size <= len(data)
+        )
+    ]
+    if not page_sizes:
+        raise ValueError(
+            "QDDSI root header does not imply a supported logical page size"
+        )
+    page_size = min(page_sizes)
     page_end = root_offset + page_size
     if page_end > len(data):
         raise ValueError(
