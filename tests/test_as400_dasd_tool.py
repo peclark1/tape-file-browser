@@ -23,6 +23,8 @@ from as400_dasd_tool import (
     _tui_context_lines,
     _tui_file_context,
     _find_pattern_offsets,
+    _find_pattern_segment_locations,
+    _object_owned_segments,
     _tui_file_storage_evidence,
     _tui_hex_lines,
     _data_space_status_note,
@@ -206,6 +208,60 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("pointer to next free page", text)
         self.assertIn("field widths/byte offsets", text)
         self.assertIn("does not decode this header yet", text)
+
+    def test_object_owned_segments_and_cross_segment_pattern_search(self):
+        owner_key = (1, 0x1000)
+        other_key = (1, 0x2000)
+
+        primary = SimpleNamespace(
+            owner_key=owner_key,
+            virtual_address=0x1000,
+            start_lba=10,
+        )
+        secondary = SimpleNamespace(
+            owner_key=owner_key,
+            virtual_address=0x3000,
+            start_lba=30,
+        )
+        unrelated = SimpleNamespace(
+            owner_key=other_key,
+            virtual_address=0x2000,
+            start_lba=20,
+        )
+        segment_result = SimpleNamespace(
+            segments=[secondary, unrelated, primary]
+        )
+        obj = SimpleNamespace(segment=primary)
+
+        owned = _object_owned_segments(segment_result, obj)
+        self.assertEqual(owned, [primary, secondary])
+
+        locations = _find_pattern_segment_locations(
+            [
+                (primary, b"XXABC"),
+                (secondary, b"ABCYYABC"),
+            ],
+            b"ABC",
+            limit=0,
+        )
+        self.assertEqual(
+            [(segment.virtual_address, offset) for segment, offset in locations],
+            [(0x1000, 2), (0x3000, 0), (0x3000, 5)],
+        )
+        self.assertEqual(
+            [
+                (segment.virtual_address, offset)
+                for segment, offset in _find_pattern_segment_locations(
+                    [
+                        (primary, b"XXABC"),
+                        (secondary, b"ABCYYABC"),
+                    ],
+                    b"ABC",
+                    limit=2,
+                )
+            ],
+            [(0x1000, 2), (0x3000, 0)],
+        )
 
     def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):
         data = b"ABC--ABC--ABC"

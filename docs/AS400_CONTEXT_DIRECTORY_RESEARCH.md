@@ -197,8 +197,36 @@ explicitly references **Vertical Microcode Data Areas, SY21-0892**, which is the
 best-looking next source for the missing widths/offsets if a scan can be located.
 Do not infer those byte offsets solely from repeated patterns in one image.
 
-## Real-image validation plan
+## First real-image xref result
 
+The first `context-xref` run against the independent Mark/Patrik V2R3
+`QGPL` context reported 165 EPA-assigned objects but found the candidate
+8-byte object address for only three of them in the **primary** 56-page context
+segment. The three primary-segment hits were:
+
+- `0D/50 QLBLSRC1  DFHAID` at primary offset `0x2573`;
+- `19/01 QMAPSRC1` at primary offset `0x3165`;
+- `0D/50 QUDSSRC   QAWUUDSSRC` at primary offset `0x3843`.
+
+None had contiguous `N + @` or a complete expanded `T S NL N @` byte
+sequence.
+
+That result immediately exposed an implementation limitation rather than
+justifying a structural conclusion: the initial diagnostic searched only the
+context's primary segment group. IBM's release-2 machine-index documentation
+allows an index to span multiple segment groups. `context-xref` now searches
+**all recovered segment groups with the context's owning-object key** and
+reports each hit as `segment-VA + offset`.
+
+The earlier 3/165 figure is therefore retained as a useful primary-segment
+observation, but it must not be treated as the context-wide hit rate.
+
+The surviving B10 image also did not recover a `QGPL` context on the disk
+tested. That is not treated as an error in the architecture model; the next B10
+comparison should use one of the contexts actually listed by
+`as400-dasd libraries petes.hda`.
+
+## Real-image validation plan
 Once the documentation model is firm:
 
 1. Start with a small, well-known recovered library such as QGPL.

@@ -2595,11 +2595,53 @@ def _find_pattern_offsets(data, pattern, *, limit=8):
     return offsets
 
 
+def _object_owned_segments(segment_result, obj):
+    """Return every recovered segment group owned by one object/context."""
+
+    key = obj.segment.owner_key
+    return sorted(
+        [
+            segment
+            for segment in segment_result.segments
+            if segment.owner_key == key
+        ],
+        key=lambda segment: (
+            segment.virtual_address,
+            segment.start_lba,
+        ),
+    )
+
+
+def _find_pattern_segment_locations(segment_blobs, pattern, *, limit=8):
+    """Search a pattern across multiple owned segment groups.
+
+    Locations are returned as (segment, offset) pairs so offsets remain
+    meaningful even when an object spans multiple segment groups.
+    """
+
+    if not pattern:
+        return []
+
+    locations = []
+    for segment, data in segment_blobs:
+        remaining = 0 if not limit else max(0, limit - len(locations))
+        if limit and remaining == 0:
+            break
+        for offset in _find_pattern_offsets(
+            data,
+            pattern,
+            limit=remaining,
+        ):
+            locations.append((segment, offset))
+            if limit and len(locations) >= limit:
+                return locations
+    return locations
+
 def cmd_context_xref(args):
     """Correlate EPA-known members with documented context-entry byte forms."""
 
     image = _open(args.image)
-    _, _, inventory = _recover_all(image)
+    _, segment_result, inventory = _recover_all(image)
 
     libraries = [
         library
@@ -2607,12 +2649,26 @@ def cmd_context_xref(args):
         if library.name.upper() == args.library_name.upper()
     ]
     if not libraries:
+        available = ", ".join(
+            library.name for library in inventory.libraries[:12]
+        )
+        suffix = (
+            f" Recovered contexts include: {available}."
+            if available
+            else " No permanent contexts were recovered."
+        )
         raise ValueError(
-            f"library/context not recovered: {args.library_name.upper()}"
+            f"library/context not recovered: {args.library_name.upper()}."
+            f"{suffix} Run 'as400-dasd libraries {args.image}' for the "
+            "complete list."
         )
     context = libraries[0]
     objects = inventory.in_library(context.name)
-    data = image.read_segment_bytes(context.segment)
+    owned_segments = _object_owned_segments(segment_result, context)
+    segment_blobs = [
+        (segment, image.read_segment_bytes(segment))
+        for segment in owned_segments
+    ]
 
     rows = []
     address_hits_total = 0
@@ -2624,18 +2680,18 @@ def cmd_context_xref(args):
         address_pattern = entry.object_address.to_bytes()
         name_address_pattern = entry.name_raw + address_pattern
 
-        address_hits = _find_pattern_offsets(
-            data,
+        address_hits = _find_pattern_segment_locations(
+            segment_blobs,
             address_pattern,
             limit=args.max_hits,
         )
-        name_address_hits = _find_pattern_offsets(
-            data,
+        name_address_hits = _find_pattern_segment_locations(
+            segment_blobs,
             name_address_pattern,
             limit=args.max_hits,
         )
-        full_hits = _find_pattern_offsets(
-            data,
+        full_hits = _find_pattern_segment_locations(
+            segment_blobs,
             entry.raw,
             limit=args.max_hits,
         )
@@ -2661,9 +2717,13 @@ def cmd_context_xref(args):
     print(f"Disk:       {image.path}")
     print(f"Context:    {context.name}")
     print(
-        f"Segment:    VA {context.segment.virtual_address:012X}  "
+        f"Primary:    VA {context.segment.virtual_address:012X}  "
         f"LBA {context.segment.start_lba:,}  "
         f"{context.segment.pages:,} pages"
+    )
+    print(
+        f"Owned segment groups: {len(owned_segments):,}  "
+        f"({sum(segment.pages for segment in owned_segments):,} pages total)"
     )
     print(f"EPA-assigned objects: {len(objects):,}")
     print()
@@ -2695,12 +2755,21 @@ def cmd_context_xref(args):
         print("No candidate object-address occurrences were found.")
         return 0
 
-    print("Type   Object                         @ hits  N+@  full  first @ offset")
+    print(
+        "Type   Object                         @ hits  N+@  full  "
+        "first @ location"
+    )
     shown = 0
     for obj, entry, address_hits, name_address_hits, full_hits in rows:
         if args.limit and shown >= args.limit:
             break
-        first = f"0x{address_hits[0]:X}" if address_hits else "-"
+        if address_hits:
+            first_segment, first_offset = address_hits[0]
+            first = (
+                f"{first_segment.virtual_address:012X}+0x{first_offset:X}"
+            )
+        else:
+            first = "-"
         print(
             f"{entry.type_code:<7}"
             f"{obj.name[:30]:<31}"
@@ -2721,6 +2790,11 @@ def cmd_context_xref(args):
         "the final context traversal must reconstruct keys through the "
         "documented binary-radix-tree elements and page pointers."
     )
+    if len(owned_segments) > 1:
+        print(
+            "All recovered segment groups owned by this context were searched; "
+            "reported offsets are relative to the individual segment VA shown."
+        )
     return 0
 
 
@@ -4357,18 +4431,7 @@ def _tui_hex_lines(data, *, base_offset=0):
 
 
 def _tui_owned_segments(state, obj):
-    key = obj.segment.owner_key
-    return sorted(
-        [
-            segment
-            for segment in state["segments"].segments
-            if segment.owner_key == key
-        ],
-        key=lambda segment: (
-            segment.virtual_address,
-            segment.start_lba,
-        ),
-    )
+    return _object_owned_segments(state["segments"], obj)
 
 
 

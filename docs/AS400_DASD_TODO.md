@@ -38,9 +38,16 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       assigned through EPA back-pointers with the documented logical context
       entry form `T S NL N @` and reports raw address/name-entry occurrences
       without assuming compressed entries are contiguous.
-- [ ] Run `context-xref` on representative QGPL and smaller contexts in both
-      real images; use the address-hit offsets to identify candidate terminal
-      text areas and constrain the page-header/trunk search.
+- [x] Run the first `context-xref` pass on Mark/Patrik `QGPL`. The
+      primary 56-page context segment contained only 3/165 object-address
+      hits and no contiguous `N+@`/full entries; this exposed that the first
+      diagnostic was incorrectly scanning only the primary segment group.
+- [x] Update `context-xref` to search every recovered segment group owned by
+      the context and report locations as `segment VA + offset`.
+- [ ] Re-run Mark/Patrik `QGPL` with the all-owned-segments diagnostic and
+      compare a smaller recovered context. On the B10 image, first list the
+      contexts actually present because `QGPL` was not recovered on the
+      tested surviving disk.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
