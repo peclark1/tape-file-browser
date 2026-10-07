@@ -2867,6 +2867,17 @@ def _primary_location_map(location_map, primary_segment):
     }
 
 
+def _machine_index_origin_rank(score):
+    """Rank an origin using suffix evidence before exact-start coincidence."""
+
+    return (
+        score["best_covered"],
+        score["covered"],
+        score["best_exact"],
+        score["exact"],
+    )
+
+
 def _machine_index_origin_scan(
     primary_blob,
     location_map,
@@ -2905,12 +2916,7 @@ def _machine_index_origin_scan(
         # We are locating only the longest known *suffix* of each logical key.
         # A real text element may therefore begin before that suffix. Prefer
         # phase-coherent coverage over exact-start coincidences.
-        rank = (
-            score["best_covered"],
-            score["covered"],
-            score["best_exact"],
-            score["exact"],
-        )
+        rank = _machine_index_origin_rank(score)
         scores.append((rank, origin, score))
 
     scores.sort(
