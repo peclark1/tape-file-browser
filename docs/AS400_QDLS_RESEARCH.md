@@ -272,6 +272,16 @@ meaning of the surrounding bytes.
   existing output unless `--force` is requested;
 - never writes to the DASD image.
 
+`as400-dasd dlo-parent-gaps IMAGE`
+
+- isolates QAOSSS14 records whose nonzero `WOSEPLDN` value has zero or
+  multiple leading-key matches;
+- with `--raw-scan`, searches for that exact eight-byte value elsewhere in
+  the raw image and classifies the containing recovered segment/object;
+- provides a targeted way to investigate the exceptional parent relationships
+  without weakening the traversal rule that already resolves the other
+  records.
+
 ## Next experiments
 
 1. Apply the same direct recovery approach to `QAOSSS10`-`QAOSSS13`,
