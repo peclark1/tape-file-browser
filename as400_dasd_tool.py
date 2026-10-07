@@ -3539,6 +3539,44 @@ def cmd_member(args):
                         f"attr 0x{field.field_attributes:02X}"
                     )
 
+            traversal = image.read_data_space_index_traversal(storage)
+            if traversal is not None:
+                state = "complete" if traversal.complete else "partial"
+                page_note = (
+                    f"  page {traversal.page_size:,} bytes"
+                    if traversal.page_size is not None
+                    else ""
+                )
+                print(
+                    f"  QDDSI root keys: {traversal.entry_count:,}/"
+                    f"{traversal.expected_entries:,}  {state}{page_note}"
+                )
+                for entry in traversal.entries[:32]:
+                    preview = ebcdic_preview(
+                        entry.user_key,
+                        limit=len(entry.user_key),
+                    )
+                    ordinal = (
+                        f"RRN~{entry.ordinal_hint:,}"
+                        if entry.ordinal_hint is not None
+                        else f"dbref {entry.database_reference.hex().upper()}"
+                    )
+                    print(
+                        f"      key {entry.user_key.hex().upper()}  "
+                        f"[{preview}]  {ordinal}"
+                    )
+                if traversal.entry_count > 32:
+                    print(
+                        f"      ... {traversal.entry_count - 32:,} more key(s)"
+                    )
+                if traversal.page_pointers:
+                    print(
+                        f"      page pointers not followed: "
+                        f"{len(traversal.page_pointers):,}"
+                    )
+                for warning in traversal.warnings:
+                    print(f"      warning: {warning}")
+
     return 0
 
 
