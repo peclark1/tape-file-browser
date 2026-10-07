@@ -3556,7 +3556,10 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x0B, 0x90): "internal QDDS data space backing a member record stream",
     (0x0C, 0x90): "internal QDDS index associated with member storage",
     (0x0D, 0x50): "member cursor linking a file/member name to its storage",
-    (0x0E, 0x90): "internal index object used by file/member storage",
+    (0x0E, 0x90): (
+        "IBM *QDIDX independent index; a library/context uses one to locate "
+        "entries in its associated *OIRS object-information repository"
+    ),
     (0x19, 0x01): "file object whose members may contain source or database records",
     (0x19, 0x02): "message queue object",
     (0x19, 0x0E): (
@@ -3565,6 +3568,11 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     ),
     (0x19, 0x12): "QDLS document-library folder stored through QDOC",
     (0x19, 0x51): "record-format metadata associated with a *FILE object",
+    (0x19, 0x52): (
+        "IBM *OIRS Object Information Repository space associated with a "
+        "library/context; stores object-description information for external "
+        "objects in that context"
+    ),
 }
 
 
