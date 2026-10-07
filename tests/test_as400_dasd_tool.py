@@ -24,7 +24,10 @@ from as400_dasd_tool import (
     _tui_file_context,
     _find_pattern_offsets,
     _find_pattern_segment_locations,
+    _key_tail_location_map,
+    _key_tail_storage_page_summary,
     _longest_pattern_suffix_locations,
+    _machine_index_text_reference_score,
     _object_owned_segments,
     _tui_file_storage_evidence,
     _tui_hex_lines,
@@ -281,6 +284,66 @@ class DASDToolTests(unittest.TestCase):
             [(item.virtual_address, offset) for item, offset in locations],
             [(0x1000, 2)],
         )
+
+    def test_key_tail_page_summary_and_text_reference_score(self):
+        segment = SimpleNamespace(
+            virtual_address=0x1000,
+            start_lba=10,
+        )
+        obj1 = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x01,
+            name="ONE",
+            segment=SimpleNamespace(virtual_address=0x2000),
+        )
+        obj2 = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x01,
+            name="TWO",
+            segment=SimpleNamespace(virtual_address=0x3000),
+        )
+
+        rows = [
+            (
+                obj1,
+                None,
+                [],
+                6,
+                [(segment, 0x65)],
+                [],
+                [],
+                [],
+            ),
+            (
+                obj2,
+                None,
+                [],
+                5,
+                [(segment, 0x65), (segment, 0x180)],
+                [],
+                [],
+                [],
+            ),
+        ]
+        locations = _key_tail_location_map(rows)
+        self.assertEqual(len(locations), 2)
+        self.assertEqual(len(locations[(0x1000, 0x65)]["objects"]), 2)
+        pages = _key_tail_storage_page_summary(locations)
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(len(pages[0]["locations"]), 2)
+        self.assertEqual(len(pages[0]["objects"]), 2)
+
+        data = bytearray(512)
+        # A plausible text element points exactly to 0x65 and covers six bytes.
+        value = (6 << 16) | 0x65
+        data[0x20:0x23] = value.to_bytes(3, "big")
+        exact, covered = _machine_index_text_reference_score(
+            [(segment, bytes(data))],
+            locations,
+            512,
+        )
+        self.assertEqual(exact, 1)
+        self.assertEqual(covered, 1)
 
     def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):
         data = b"ABC--ABC--ABC"

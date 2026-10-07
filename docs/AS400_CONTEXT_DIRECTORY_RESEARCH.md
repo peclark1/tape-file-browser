@@ -255,6 +255,37 @@ The `JHUDGINS` context currently has zero EPA-assigned objects, making it a
 better later test for whether context traversal can recover membership that the
 EPA-backpointer direction misses.
 
+### Key-tail validation on both images
+
+The key-tail pass produced a much stronger signal:
+
+- Mark/Patrik `QGPL`: 92/165 EPA-assigned objects had a contiguous suffix of
+  at least five bytes from the documented `T+S+NL+N` key.
+- B10 `PPSITEST`: all 6/6 assigned objects had such a suffix.
+- PPSITEST's first observed tail locations are tightly grouped at offsets
+  `0x865`, `0x8B6`, `0x96D`, and `0xA3B`, which places all six object
+  candidates in just two 512-byte storage pages.
+- Some candidates deliberately collide on the same raw suffix location:
+  `ACCTDEF` and `FUNDDEF` each appear through more than one recovered object
+  identity, and QGPL examples such as several `VERIFY` members share one raw
+  suffix occurrence. This is expected evidence that suffix matching locates
+  text but does **not** by itself identify a unique index entry.
+
+IBM's machine-index description gives us the next independent check: a text
+element is a three-byte element containing a text length and a displacement to
+the actual text within the logical page. The diagnostic now groups distinct
+tail locations by 512-byte storage page and scores candidate logical page sizes
+(512 through 32768 bytes) by looking for plausible text elements that either
+start exactly at, or cover, the observed key-tail bytes. Because the
+page-header/trunk offset is still unknown, every possible byte alignment is
+tested and the result is reported only as a score, not as a decoded pointer.
+
+A page size that repeatedly produces strong text-element-to-tail references in
+both QGPL and PPSITEST would materially constrain the next reverse-engineering
+step. A weak/ambiguous score would instead tell us that the missing page origin
+or terminal-text boundary must be resolved before interpreting the element
+stream.
+
 ## Real-image validation plan
 Once the documentation model is firm:
 

@@ -2666,6 +2666,163 @@ def _longest_pattern_suffix_locations(
     return 0, []
 
 
+
+def _key_tail_location_map(rows):
+    """Group key-tail evidence by exact recovered segment location."""
+
+    locations = {}
+    for (
+        obj,
+        _entry,
+        _full_key_hits,
+        key_tail_length,
+        key_tail_hits,
+        _base_address_hits,
+        _physical_epa_hits,
+        _expanded_base_hits,
+    ) in rows:
+        for segment, offset in key_tail_hits:
+            key = (segment.virtual_address, offset)
+            item = locations.setdefault(
+                key,
+                {
+                    "segment": segment,
+                    "offset": offset,
+                    "max_tail": 0,
+                    "objects": [],
+                },
+            )
+            item["max_tail"] = max(item["max_tail"], key_tail_length)
+            item["objects"].append(obj)
+    return locations
+
+
+def _key_tail_storage_page_summary(location_map):
+    """Summarize distinct tail locations by 512-byte recovered storage page."""
+
+    pages = {}
+    for item in location_map.values():
+        segment = item["segment"]
+        offset = item["offset"]
+        page_index = offset // PAGE_SIZE
+        key = (segment.virtual_address, page_index)
+        page = pages.setdefault(
+            key,
+            {
+                "segment": segment,
+                "page_index": page_index,
+                "locations": set(),
+                "objects": set(),
+                "max_tail": 0,
+            },
+        )
+        page["locations"].add(offset)
+        for obj in item["objects"]:
+            page["objects"].add(
+                (
+                    obj.object_type,
+                    obj.object_subtype,
+                    obj.name,
+                    obj.segment.virtual_address,
+                )
+            )
+        page["max_tail"] = max(page["max_tail"], item["max_tail"])
+    return sorted(
+        pages.values(),
+        key=lambda page: (
+            -len(page["locations"]),
+            -len(page["objects"]),
+            page["segment"].virtual_address,
+            page["page_index"],
+        ),
+    )
+
+
+def _machine_index_text_reference_score(
+    segment_blobs,
+    location_map,
+    page_size,
+):
+    """Score whether text elements plausibly reference known key-tail bytes.
+
+    IBM documents a text element as a three-byte element containing a text
+    length and a displacement to the actual text within the logical page.
+    Header/trunk alignment is still unknown, so this forensic scorer examines
+    every possible three-byte start rather than assuming an element alignment.
+
+    Returns the number of distinct key-tail locations with an exact text-start
+    reference and the number covered by at least one plausible text element.
+    """
+
+    data_by_va = {
+        segment.virtual_address: data
+        for segment, data in segment_blobs
+    }
+    exact_locations = set()
+    covered_locations = set()
+
+    for key, item in location_map.items():
+        segment = item["segment"]
+        data = data_by_va.get(segment.virtual_address)
+        if data is None or page_size > len(data):
+            continue
+
+        offset = item["offset"]
+        page_base = (offset // page_size) * page_size
+        page = data[page_base : page_base + page_size]
+        relative = offset - page_base
+        required = item["max_tail"]
+
+        for element_offset in range(0, max(0, len(page) - 2)):
+            value = int.from_bytes(
+                page[element_offset : element_offset + 3],
+                "big",
+            )
+            if value & 0x800000:
+                continue
+            text_length = (value >> 16) & 0x7F
+            displacement = value & 0xFFFF
+            if not text_length or displacement >= len(page):
+                continue
+            text_end = displacement + text_length
+            if text_end > len(page):
+                continue
+
+            if displacement == relative and text_length >= required:
+                exact_locations.add(key)
+                covered_locations.add(key)
+                break
+            if (
+                displacement <= relative
+                and text_end >= relative + required
+            ):
+                covered_locations.add(key)
+
+    return len(exact_locations), len(covered_locations)
+
+
+def _machine_index_page_size_scores(segment_blobs, location_map):
+    """Score documented text-element references for candidate logical sizes."""
+
+    scores = []
+    for page_size in (
+        512,
+        1024,
+        2048,
+        4096,
+        8192,
+        16384,
+        32768,
+    ):
+        exact, covered = _machine_index_text_reference_score(
+            segment_blobs,
+            location_map,
+            page_size,
+        )
+        scores.append((page_size, exact, covered))
+    return scores
+
+
 def cmd_context_xref(args):
     """Correlate EPA-known members with documented context-entry byte forms."""
 
@@ -2854,6 +3011,63 @@ def cmd_context_xref(args):
 
     if args.limit and len(rows) > shown:
         print(f"... {len(rows) - shown:,} additional row(s)")
+
+    location_map = _key_tail_location_map(rows)
+    if location_map:
+        ambiguous = sum(
+            1
+            for item in location_map.values()
+            if len(item["objects"]) > 1
+        )
+        print()
+        print(
+            f"Distinct key-tail byte locations: {len(location_map):,}  "
+            f"shared by multiple candidate objects: {ambiguous:,}"
+        )
+
+        page_summary = _key_tail_storage_page_summary(location_map)
+        print("Top 512-byte storage-page clusters:")
+        print(
+            "  Segment VA    page  page VA       locations  objects  max tail"
+        )
+        for page in page_summary[: args.page_summary]:
+            segment = page["segment"]
+            page_index = page["page_index"]
+            page_va = segment.virtual_address + page_index * PAGE_SIZE
+            print(
+                f"  {segment.virtual_address:012X}  "
+                f"{page_index:>4}  "
+                f"{page_va:012X}  "
+                f"{len(page['locations']):>9}  "
+                f"{len(page['objects']):>7}  "
+                f"{page['max_tail']:>8}"
+            )
+        if len(page_summary) > args.page_summary:
+            print(
+                f"  ... {len(page_summary) - args.page_summary:,} "
+                "additional storage page(s)"
+            )
+
+        print()
+        print(
+            "Plausible text-element references to these key tails by "
+            "candidate logical page size:"
+        )
+        print("  page size   exact start   covers tail")
+        for page_size, exact, covered in _machine_index_page_size_scores(
+            segment_blobs,
+            location_map,
+        ):
+            if exact or covered:
+                print(
+                    f"  {page_size:>8,}  "
+                    f"{exact:>11,}  "
+                    f"{covered:>11,}"
+                )
+        print(
+            "  (Every byte alignment is tested because the page-header/trunk "
+            "offset is not yet known; treat these as scores, not decoded links.)"
+        )
 
     print()
     print(
@@ -6633,6 +6847,15 @@ def build_parser():
         help=(
             "minimum contiguous suffix of T+S+NL+N to count as terminal-text "
             "evidence (default: 5)"
+        ),
+    )
+    context_xref.add_argument(
+        "--page-summary",
+        type=int,
+        default=12,
+        help=(
+            "maximum 512-byte storage-page clusters to print "
+            "(default: 12)"
         ),
     )
     context_xref.add_argument(

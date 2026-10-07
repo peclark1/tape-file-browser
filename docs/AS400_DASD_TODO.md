@@ -55,11 +55,21 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       contiguous key suffix above a configurable threshold. This follows IBM's
       documented common-text/terminal-text compression model and avoids relying
       on unresolved `@` semantics.
-- [ ] Re-run Mark/Patrik `QGPL` and B10 `PPSITEST` with key-tail evidence.
-      Use clusters of long key-tail locations to identify terminal-text regions
-      before attempting automatic node/page traversal. `JHUDGINS` currently
-      has zero EPA-assigned objects and remains valuable later as a test of
-      context-derived membership recovery.
+- [x] Re-run Mark/Patrik `QGPL` and B10 `PPSITEST` with key-tail
+      evidence. QGPL produced >=5-byte key tails for 92/165 EPA-assigned
+      objects; PPSITEST produced 6/6. Duplicate suffixes can map multiple
+      candidate objects to the same raw text location, so a tail hit alone is
+      not treated as a unique decoded entry.
+- [x] Add 512-byte storage-page clustering and candidate logical-page-size
+      scoring. The scorer uses IBM's documented three-byte text element
+      (length + page displacement) and tests whether plausible text elements
+      point to or cover the observed key tails without assuming header/trunk
+      alignment.
+- [ ] Re-run the two contexts with page clustering/reference scoring. Use the
+      strongest cross-image page-size/alignment evidence to constrain the trunk
+      and text-element search before following page pointers. `JHUDGINS`
+      currently has zero EPA-assigned objects and remains valuable later as a
+      test of context-derived membership recovery.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
