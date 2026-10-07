@@ -106,7 +106,7 @@ repeatable real-image validation.
 
 - [x] Add curses DASD browser.
 - [x] Add forensic `*PGM` browsing with owned-segment summary, printable
-      strings, and a bounded hex/ASCII/EBCDIC primary-segment preview.
+      strings, and a bounded hex/EBCDIC primary-segment preview.
 - [x] Add a generic bounded raw-object fallback for object classes without a
       specialized decoder.
 - [x] Improve database-member presentation with recovered field layouts,
