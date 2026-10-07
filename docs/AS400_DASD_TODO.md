@@ -136,6 +136,12 @@ to this CISC release.
       strings, and a bounded hex/EBCDIC primary-segment preview.
 - [x] Add a generic bounded raw-object fallback for object classes without a
       specialized decoder.
+- [x] Add semantic `*USRPRF` / `*MSGQ` views with cautious same-name
+      profile/queue correlation, owned-segment summaries, bounded EBCDIC text
+      hints, and a raw fallback.
+- [x] Add `*FILE` storage-evidence summaries (source member types, resolved
+      formats, QDDS/QDDSI counts) so source/database/logical-access-path cases
+      are described from recovered evidence rather than guessed from names.
 - [x] Improve database-member presentation with recovered field layouts,
       DENT-byte terminology, and raw bytes when decoded fields are blank.
 - [x] Explain the documented QGPL/QAAPFILE logical-file case instead of

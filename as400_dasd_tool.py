@@ -3705,7 +3705,11 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "Services; a same-named QDOC document may reference its workstation "
         "byte content through this internal object"
     ),
-    (0x08, 0x01): "user profile object",
+    (0x08, 0x01): (
+        "OS/400 user profile object containing security identity and "
+        "sign-on/environment attributes; a profile can reference an "
+        "associated message queue"
+    ),
     (0x0B, 0x90): "internal QDDS data space backing a member record stream",
     (0x0C, 0x90): "internal QDDS index associated with member storage",
     (0x0D, 0x50): "member cursor linking a file/member name to its storage",
@@ -3714,7 +3718,10 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "entries in its associated *OIRS object-information repository"
     ),
     (0x19, 0x01): "file object whose members may contain source or database records",
-    (0x19, 0x02): "message queue object",
+    (0x19, 0x02): (
+        "OS/400 message queue object used to receive messages for users, "
+        "workstations, programs, or system functions"
+    ),
     (0x19, 0x0E): (
         "QDLS document-library document; the QDOC object name is internal "
         "and the user-facing document name may differ"
@@ -4162,6 +4169,281 @@ def _tui_owned_segments(state, obj):
     )
 
 
+
+def _tui_same_name_objects(
+    inventory,
+    obj,
+    object_type,
+    object_subtype,
+):
+    """Find exact same-name objects of another MI class.
+
+    This is deliberately only a correlation helper. A matching name is useful
+    evidence, but does not prove an internal object relationship until the
+    relevant pointer/attribute is decoded.
+    """
+
+    wanted = obj.name.upper()
+    return sorted(
+        [
+            candidate
+            for candidate in inventory.objects
+            if candidate is not obj
+            and candidate.name.upper() == wanted
+            and candidate.object_type == object_type
+            and candidate.object_subtype == object_subtype
+        ],
+        key=lambda candidate: (
+            candidate.library_name or "",
+            candidate.segment.virtual_address,
+        ),
+    )
+
+
+def _tui_profile_queue_lines(state, obj):
+    """Semantic-first view for *USRPRF and *MSGQ objects."""
+
+    pair = (obj.object_type, obj.object_subtype)
+    if pair == (0x08, 0x01):
+        title = "User profile semantic view"
+        counterpart_type = (0x19, 0x02)
+        counterpart_label = "*MSGQ"
+        explanation = (
+            "  This is the recovered user-profile object. Security/profile "
+            "fields are not named until their CISC layout is independently "
+            "corroborated."
+        )
+    else:
+        title = "Message queue semantic view"
+        counterpart_type = (0x08, 0x01)
+        counterpart_label = "*USRPRF"
+        explanation = (
+            "  This is the recovered message-queue object. Queue entries are "
+            "not yet decoded as individual OS/400 messages."
+        )
+
+    counterparts = _tui_same_name_objects(
+        state["inventory"],
+        obj,
+        counterpart_type[0],
+        counterpart_type[1],
+    )
+
+    lines = ["", title, explanation]
+    if counterparts:
+        lines.append(f"  Same-name {counterpart_label} correlation:")
+        for candidate in counterparts[:8]:
+            context = candidate.library_name or "<unresolved context>"
+            lines.append(
+                f"    {context}/{candidate.name}  "
+                f"VA {candidate.segment.virtual_address:012X}"
+            )
+        if len(counterparts) > 8:
+            lines.append(
+                f"    ... {len(counterparts) - 8:,} additional match(es)"
+            )
+        lines.append(
+            "  Relationship note: OS/400's default MSGQ(*USRPRF) convention "
+            "uses a same-name user-profile message queue. The match above is "
+            "correlation evidence, not a decoded linkage field."
+        )
+    else:
+        lines.append(
+            f"  Same-name {counterpart_label}: not recovered on this image."
+        )
+
+    owned = _tui_owned_segments(state, obj)
+    lines.append(f"  Recovered owned segments: {len(owned):,}")
+    for segment in owned[:16]:
+        role = "primary" if segment.is_primary else "secondary"
+        lines.append(
+            f"    type {segment.header.segment_type:04X}  "
+            f"VA {segment.virtual_address:012X}  "
+            f"LBA {segment.start_lba:>9,}  "
+            f"{segment.pages:>6,} pages  {role}"
+        )
+    if len(owned) > 16:
+        lines.append(
+            f"    ... {len(owned) - 16:,} additional owned segments"
+        )
+
+    seen = set()
+    hints = []
+    for segment in owned[:8]:
+        try:
+            prefix = _tui_segment_prefix(
+                state["image"],
+                segment,
+                limit=1024,
+            )
+        except Exception:
+            continue
+        for value in _tui_ebcdic_strings(prefix, min_length=5):
+            value = value.strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            hints.append((segment, value[:160]))
+            if len(hints) >= 24:
+                break
+        if len(hints) >= 24:
+            break
+
+    if hints:
+        lines.extend(
+            [
+                "",
+                "  Bounded EBCDIC text hints from owned segments",
+                (
+                    "  (forensic strings only; not decoded profile fields or "
+                    "message entries)"
+                ),
+            ]
+        )
+        for segment, value in hints:
+            lines.append(
+                f"    {segment.header.segment_type:04X}/"
+                f"{segment.virtual_address:012X}: {value}"
+            )
+
+    try:
+        primary_prefix = _tui_segment_prefix(
+            state["image"],
+            obj.segment,
+            limit=256,
+        )
+    except Exception as exc:
+        primary_prefix = b""
+        lines.extend(["", f"  Raw preview error: {exc}"])
+
+    if primary_prefix:
+        lines.extend(
+            [
+                "",
+                "  Raw primary-segment prefix (first 256 bytes)",
+                "  Offset    Hex                                              EBCDIC",
+            ]
+        )
+        lines.extend(
+            "  " + line
+            for line in _tui_hex_lines(primary_prefix)
+        )
+
+    return lines
+
+
+def _tui_file_storage_evidence(state, file_item, *, formats=None):
+    """Summarize recovered *FILE storage without guessing file semantics."""
+
+    image = state["image"]
+    inventory = state["inventory"]
+    segments = state["segments"]
+    members = file_item["members"]
+    file_obj = file_item["object"]
+
+    if formats is None:
+        formats = []
+        if file_obj is not None:
+            try:
+                formats = image.resolve_file_formats(
+                    file_obj,
+                    inventory,
+                )
+            except Exception:
+                formats = []
+
+    source_types = set()
+    qdds_count = 0
+    qddsi_count = 0
+    unresolved_count = 0
+
+    for member in members:
+        try:
+            info = image.read_member_info(member)
+        except Exception:
+            info = None
+        if info is not None and info.member_type:
+            source_types.add(info.member_type)
+
+        try:
+            storage = image.resolve_member_storage(
+                member,
+                inventory,
+                segments,
+            )
+        except Exception:
+            unresolved_count += 1
+            continue
+
+        if storage.data_space is not None:
+            qdds_count += 1
+        else:
+            unresolved_count += 1
+        if storage.data_index is not None:
+            qddsi_count += 1
+
+    documented_context = _tui_file_context(
+        file_item["library"],
+        file_item["name"],
+    )
+    documented_logical = (
+        bool(documented_context)
+        and "logical file" in documented_context.lower()
+    )
+
+    if documented_logical:
+        interpretation = (
+            "Documented logical/access-path file; independent member QDDS "
+            "record storage is not required."
+        )
+    elif source_types and qdds_count:
+        interpretation = (
+            "Source physical-file evidence: source-member metadata and "
+            "recovered QDDS record storage are both present."
+        )
+    elif formats and qdds_count:
+        interpretation = (
+            "Formatted database file with recovered member record storage. "
+            "This evidence alone does not distinguish every physical/logical "
+            "file variant."
+        )
+    elif qdds_count:
+        interpretation = (
+            "Recovered member QDDS record storage is present, but no record "
+            "format object was resolved."
+        )
+    elif members:
+        interpretation = (
+            "No independent member QDDS record stream was recovered. This can "
+            "reflect logical/access-path behavior or an incomplete capture."
+        )
+    else:
+        interpretation = "No recovered members are available to classify."
+
+    lines = [
+        "Storage evidence",
+        f"  Recovered members:        {len(members):,}",
+        f"  QDDS data space(s):       {qdds_count:,}/{len(members):,}",
+        f"  QDDSI index object(s):    {qddsi_count:,}/{len(members):,}",
+        f"  Resolved format object(s): {len(formats):,}",
+    ]
+    if formats:
+        lines.append(
+            "  Format name(s):           "
+            + ", ".join(format_obj.name for format_obj in formats[:12])
+        )
+    if source_types:
+        lines.append(
+            "  Source member type(s):    "
+            + ", ".join(sorted(source_types))
+        )
+    if unresolved_count:
+        lines.append(
+            f"  Unresolved member storage: {unresolved_count:,}"
+        )
+    lines.append(f"  Interpretation: {interpretation}")
+    return lines
+
 def _data_space_status_note(status):
     """Describe only what is documented/observed about the DENT byte."""
 
@@ -4261,6 +4543,13 @@ def _tui_object_lines(state, obj):
                 "  " + line
                 for line in _tui_hex_lines(prefix[:512])
             )
+
+
+    if (obj.object_type, obj.object_subtype) in {
+        (0x08, 0x01),
+        (0x19, 0x02),
+    }:
+        lines.extend(_tui_profile_queue_lines(state, obj))
 
     dlo_anchor_info = _tui_dlo_anchor_info(state, obj)
     if dlo_anchor_info and dlo_anchor_info.get("record") is not None:
@@ -4460,7 +4749,9 @@ def _tui_object_lines(state, obj):
         in {
             (0x02, 0x01),
             (0x06, 0xC1),
+            (0x08, 0x01),
             (0x19, 0x01),
+            (0x19, 0x02),
             (0x19, 0x0E),
             (0x19, 0x12),
             (0x19, 0x51),
@@ -4511,6 +4802,7 @@ def _tui_file_lines(state, file_item):
     if file_context:
         lines.extend(["", "File role", "  " + file_context])
 
+    formats = []
     if file_obj is not None:
         lines.extend(
             [
@@ -4534,6 +4826,17 @@ def _tui_file_lines(state, file_item):
                 "Format:  "
                 + ", ".join(format_obj.name for format_obj in formats)
             )
+
+    lines.extend(
+        [
+            "",
+            *_tui_file_storage_evidence(
+                state,
+                file_item,
+                formats=formats,
+            ),
+        ]
+    )
 
     if members:
         lines.extend(["", "Members"])

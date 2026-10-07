@@ -21,10 +21,12 @@ from as400_dasd_tool import (
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
     _tui_file_context,
+    _tui_file_storage_evidence,
     _tui_hex_lines,
     _data_space_status_note,
     _tui_library_context,
     _tui_object_type_context,
+    _tui_same_name_objects,
     _tui_viewer_target,
     build_parser,
     main,
@@ -139,6 +141,125 @@ class DASDToolTests(unittest.TestCase):
         qdidx = _tui_object_type_context(0x0E, 0x90)
         self.assertIn("*QDIDX", qdidx)
         self.assertIn("*OIRS", qdidx)
+
+        usrprf = _tui_object_type_context(0x08, 0x01)
+        self.assertIn("user profile", usrprf)
+        self.assertIn("message queue", usrprf)
+
+        msgq = _tui_object_type_context(0x19, 0x02)
+        self.assertIn("message queue", msgq)
+        self.assertIn("messages", msgq)
+
+    def test_tui_same_name_profile_queue_correlation_is_type_specific(self):
+        def make_obj(object_type, object_subtype, name, library, address):
+            return SimpleNamespace(
+                object_type=object_type,
+                object_subtype=object_subtype,
+                name=name,
+                library_name=library,
+                segment=SimpleNamespace(virtual_address=address),
+            )
+
+        profile = make_obj(0x08, 0x01, "JHUDGINS", "*MACHINE", 0x1000)
+        queue = make_obj(0x19, 0x02, "JHUDGINS", None, 0x2000)
+        unrelated = make_obj(0x19, 0x02, "QSYSOPR", "QSYS", 0x3000)
+        same_name_file = make_obj(0x19, 0x01, "JHUDGINS", "QGPL", 0x4000)
+        inventory = SimpleNamespace(
+            objects=[profile, queue, unrelated, same_name_file]
+        )
+
+        self.assertEqual(
+            _tui_same_name_objects(
+                inventory,
+                profile,
+                0x19,
+                0x02,
+            ),
+            [queue],
+        )
+        self.assertEqual(
+            _tui_same_name_objects(
+                inventory,
+                queue,
+                0x08,
+                0x01,
+            ),
+            [profile],
+        )
+
+    def test_tui_file_storage_evidence_distinguishes_common_shapes(self):
+        source_member = SimpleNamespace(member_name="REFRESH2", kind="source")
+        data_member = SimpleNamespace(member_name="PDPICKDEMO", kind="data")
+        logical_member = SimpleNamespace(member_name="QAAPF1X1", kind="logical")
+
+        class FakeImage:
+            def read_member_info(self, member):
+                if member.kind == "source":
+                    return SimpleNamespace(member_type="CLP")
+                return SimpleNamespace(member_type="")
+
+            def resolve_member_storage(self, member, inventory, segments):
+                if member.kind in {"source", "data"}:
+                    return SimpleNamespace(
+                        data_space=object(),
+                        data_index=object(),
+                    )
+                return SimpleNamespace(
+                    data_space=None,
+                    data_index=None,
+                )
+
+        state = {
+            "image": FakeImage(),
+            "inventory": SimpleNamespace(),
+            "segments": SimpleNamespace(),
+        }
+        file_obj = SimpleNamespace(name="TESTFILE")
+
+        source_lines = _tui_file_storage_evidence(
+            state,
+            {
+                "library": "QGPL",
+                "name": "QCLSRC",
+                "object": file_obj,
+                "members": [source_member],
+            },
+            formats=[SimpleNamespace(name="SRCFMT")],
+        )
+        source_text = "\n".join(source_lines)
+        self.assertIn("Source physical-file evidence", source_text)
+        self.assertIn("QDDS data space(s):       1/1", source_text)
+        self.assertIn("Source member type(s):    CLP", source_text)
+
+        data_lines = _tui_file_storage_evidence(
+            state,
+            {
+                "library": "QGPL",
+                "name": "PDPICKORG",
+                "object": file_obj,
+                "members": [data_member],
+            },
+            formats=[SimpleNamespace(name="PD00RC")],
+        )
+        self.assertIn(
+            "Formatted database file",
+            "\n".join(data_lines),
+        )
+
+        logical_lines = _tui_file_storage_evidence(
+            state,
+            {
+                "library": "QGPL",
+                "name": "QAAPFILE",
+                "object": file_obj,
+                "members": [logical_member],
+            },
+            formats=[],
+        )
+        self.assertIn(
+            "Documented logical/access-path file",
+            "\n".join(logical_lines),
+        )
 
     def test_tui_detail_target_follows_focused_hierarchy_level(self):
         state = {
