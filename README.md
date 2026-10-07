@@ -191,6 +191,7 @@ as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
 as400-dasd dlo-index-scan disk.hda
 as400-dasd dlo-schema disk.hda --family QAOSSS14
 as400-dasd dlo-paths disk.hda FMPV082760 FMPV195818
+as400-dasd dlo-parent-gaps disk.hda --raw-scan
 as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
@@ -386,6 +387,14 @@ names, producing `QIWSFLR/CKPCSPTH.EXE` and
 as QDLS folder names; for example the BULLET1 parent anchor is `QGFSWOF1`
 while independent QDOC evidence identifies the user-facing folder as
 `BULLETIN`.
+
+`as400-dasd dlo-parent-gaps disk.hda` isolates QAOSSS14 records whose
+nonzero parent key does not resolve uniquely through another record's leading
+key. With `--raw-scan`, it searches for each exact eight-byte key elsewhere
+in the DASD image and reports the raw offset/LBA plus the recovered
+segment/object containing the hit when possible. This keeps the exceptional
+cases separate from the leading-key rule that already resolves almost all
+other anchor records.
 
 `as400-dasd dlo-schema disk.hda` scans the raw image for literal IBM
 `WOSFMTxx` metadata associations without loading the whole DASD image into
