@@ -372,12 +372,15 @@ uses an 8-byte `WOSEFILD` value embedded in the QDOC object's bytes.
 `as400-dasd dlo-paths disk.hda [SYSOBJNAM ...]` performs that decoded
 correlation. The recovered QUSRSYS/QAOSSS14 QDDS has 193-byte records.
 Repeated `WOSFMT14/QAOSSS14` descriptors provide the field offsets and
-lengths, and a unique `WOSEPLDN -> WOSEFILD` link is followed as a parent
-relationship. The command reports complete and partial paths while retaining
-the internal QDOC SYSOBJNAM. On the real V2R3 image this independently
-reconstructs examples including
-`/QDLS/QIWSFLR/CKPCSPTH.EXE` and
-`/QDLS/QIWSFL2/DTAQ.PKG`.
+lengths, and a unique `WOSEPLDN -> leading-record-key` link is followed as a parent
+relationship. The command reports complete and partial **QAOSSS14 anchor
+hierarchies** while retaining the internal QDOC SYSOBJNAM. On the real V2R3
+image the PC Support examples independently agree with the known user-facing
+names, producing `QIWSFLR/CKPCSPTH.EXE` and
+`QIWSFL2/DTAQ.PKG`. Other anchor short names are not automatically treated
+as QDLS folder names; for example the BULLET1 parent anchor is `QGFSWOF1`
+while independent QDOC evidence identifies the user-facing folder as
+`BULLETIN`.
 
 `as400-dasd dlo-schema disk.hda` scans the raw image for literal IBM
 `WOSFMTxx` metadata associations without loading the whole DASD image into
