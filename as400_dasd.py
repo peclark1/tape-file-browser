@@ -1108,6 +1108,108 @@ class DataSpaceRecord:
         ).rstrip()
 
 
+# Observed V2R3 QAOSSS14 anchor-record format. These exact field
+# identifiers and 1-based offset/length pairs repeat in the recovered
+# WOSFMT14/QAOSSS14 descriptor metadata on the real V2R3 image. The names are
+# preserved verbatim; unknown abbreviations are intentionally not expanded.
+QAOSSS14_V2_RECORD_LENGTH = 193
+QAOSSS14_V2_FIELD_LAYOUT = {
+    "WOSEFILD": (17, 8),
+    "WOSEDOCD": (25, 4),
+    "WOSEDOCN": (33, 44),
+    "WOSEDOCT": (77, 2),
+    "WOSESYSC": (83, 13),
+    "WOSEOWNR": (96, 16),
+    "WOSEFDOC": (112, 12),
+    "WOSEPLDN": (132, 8),
+    "WOSEWIPI": (142, 1),
+    "WOSESLVL": (147, 1),
+    "WOSECRTD": (150, 6),
+    "WOSELCDT": (156, 8),
+    "WOSEOCDT": (164, 8),
+    "WOSEIXDT": (180, 8),
+    "WOSEINTS": (189, 2),
+}
+
+
+@dataclass(frozen=True)
+class QAOSSS14AnchorRecord:
+    """One V2R3 QAOSSS14 DLO anchor record.
+
+    IBM documents QAOSSS14 as containing an "anchor record" that stores the
+    DLO system object name. The field identifiers and layout below come from
+    repeated WOSFMT14 descriptors recovered from the real V2R3 image; field
+    semantics beyond directly observed string/key relationships remain
+    intentionally conservative.
+    """
+
+    ordinal: int
+    status: int
+    raw: bytes
+
+    @classmethod
+    def from_data_space_record(
+        cls,
+        record: "DataSpaceRecord",
+    ) -> "QAOSSS14AnchorRecord":
+        if len(record.data) != QAOSSS14_V2_RECORD_LENGTH:
+            raise ValueError(
+                "QAOSSS14 V2R3 record must be exactly "
+                f"{QAOSSS14_V2_RECORD_LENGTH} bytes"
+            )
+        return cls(
+            ordinal=record.ordinal,
+            status=record.status,
+            raw=record.data,
+        )
+
+    @property
+    def rrn(self) -> int:
+        return self.ordinal
+
+    def field(self, name: str) -> bytes:
+        key = name.upper()
+        if key not in QAOSSS14_V2_FIELD_LAYOUT:
+            raise KeyError(key)
+        offset_one, length = QAOSSS14_V2_FIELD_LAYOUT[key]
+        start = offset_one - 1
+        return self.raw[start : start + length]
+
+    def text(self, name: str) -> str:
+        return self.field(name).decode(
+            "cp037",
+            errors="replace",
+        ).rstrip(" \x00")
+
+    @property
+    def record_key(self) -> bytes:
+        """Observed 8-byte WOSEFILD value used to correlate DLO records."""
+
+        return self.field("WOSEFILD")
+
+    @property
+    def parent_key(self) -> bytes:
+        """Observed 8-byte WOSEPLDN value; linkage is validated separately."""
+
+        return self.field("WOSEPLDN")
+
+    @property
+    def long_name(self) -> str:
+        return self.text("WOSEDOCN")
+
+    @property
+    def short_name(self) -> str:
+        return self.text("WOSEFDOC")
+
+    @property
+    def owner_text(self) -> str:
+        return self.text("WOSEOWNR")
+
+    @property
+    def object_type_raw(self) -> bytes:
+        return self.field("WOSEDOCT")
+
+
 @dataclass(frozen=True)
 class DataSpaceRecordSet:
     """Logical data-space records reconstructed across 03B4 segment groups."""
