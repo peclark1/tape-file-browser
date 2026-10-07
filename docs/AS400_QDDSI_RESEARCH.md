@@ -199,7 +199,7 @@ page. Treat that as "zero keys represented by the surviving access path" rather
 than an unconditional claim that no historical ACCTDEF rows ever existed; an
 index can have maintenance/recovery state that we have not decoded yet.
 
-## Machine-index placement
+## Machine-index placement and first traversal
 
 The recovered 16-page QDDSIs match IBM's high-level layout well:
 
@@ -207,25 +207,59 @@ The recovered 16-page QDDSIs match IBM's high-level layout well:
 - the active root page in populated examples is at segment offset `0x1000`;
 - larger indexes use additional dense pages consistent with secondary pages.
 
-The project already has the documented release-2 three-byte
-`MachineIndexElement` primitive. QDDSI can now legitimately reuse that
-machinery because IBM explicitly states that data-space indexes use machine
-indexes. Full tree traversal still waits on a validated page-header/root
-decoder.
+The ordinary active root pages now provide enough repeated structure to walk
+small single-page trees conservatively. Bytes `+4..+5` of the root page are
+the free-byte count and `+6..+7` are the absolute first-free offset. The latter
+bounds the used portion of the page; the free-byte count can also include holes
+inside the current tree, so it is not always simply `page_size - used_bytes`.
+The observed roots resolve to 2048-byte logical pages.
+
+Real QDDSI trees also corrected the earlier provisional node-bit decoding:
+
+- node bit 20 (zero) means common text is present;
+- bit 19 is left/right direction;
+- bits 18-16 select the key bit being tested;
+- the low 16 bits are the XOR displacement;
+- bit 21 is preserved but remains unnamed.
+
+A successor cluster is found by XORing the current node's 16-bit displacement
+with the offset of the node that led into the current cluster. The cluster has
+left and right three-byte branch elements, followed by a common-text element
+when requested by the originating node. Real common/terminal text also shows
+that the seven-bit text-length field is stored as byte-count minus one: encoded
+zero represents one byte.
+
+The first read-only traversal deliberately stops at page pointers, but it
+reconstructs complete keys from ordinary one-page indexes:
+
+- `DBUUSERS`: `*PUBLIC   ` plus database reference `00000001`, resolving to
+  QDDS RRN 1;
+- `QAEASTUL`: two entries sharing a common 13-byte prefix, with RRN hints 1
+  and 2;
+- `QASNADSQ`: a nested tree reconstructs `TGTSYS`, `TGTSYSAS`, and
+  `TGTSYSLN` key values with RRN hints 9, 10, and 11;
+- `QAO1CVNP`: six entries with two DKYT key fields and a four-byte composite
+  user key. The reconstructed user-key bytes exactly equal the first four
+  bytes of QDDS RRNs 1 through 6, while the appended references resolve to
+  those same RRNs.
+
+This is the first actual machine-index traversal in the DASD explorer rather
+than a known-key search. It validates common-text reconstruction, nested XOR
+links, left/right enumeration, and the ordinary four-byte RRN hint against
+independent QDDS data. Multi-page access paths remain incomplete until page
+pointers are followed.
 
 ## Next implementation steps
 
-1. Keep direct cursor-pointer resolution as the primary QDDS/QDDSI relationship;
-   retain same-name matching only as fallback/corroboration.
-2. Surface "primary missing, direct pointer known" and surviving owned secondary
-   segments in CLI/TUI storage views.
-3. Add a conservative DKEY/DKYT parser that exposes documented/validated fields
-   and raw attributes without prematurely naming unknown bits.
-4. Join DKYT field positions/lengths to recovered 19/51 format fields.
-5. Traverse one simple QDDSI machine index (DBUUSERS first), emit user key plus
-   data-space ordinal, and cross-check every ordinal against decoded QDDS.
-6. Repeat on a multi-record/multi-field index before exposing keyed-order
-   browsing in the TUI.
+1. Follow machine-index page pointers and validate one multi-page QDDSI against
+   its decoded QDDS records.
+2. Join DKYT field positions/lengths to friendly recovered 19/51 field names in
+   CLI/TUI presentation.
+3. Add keyed-record navigation that keeps raw RRN/arrival order available as an
+   independent view.
+4. Reuse the now-validated machine-index traversal lessons when permanent
+   context/library directory work resumes, without assuming the QDDSI page
+   placement is identical to a context index.
 
 ## Research discipline
 
