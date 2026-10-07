@@ -12,12 +12,14 @@ import sys
 from pathlib import Path
 
 from as400_dasd import (
+    EPA_MIN_SIZE,
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
     PAGE_SIZE,
     QAOSSS14AnchorRecord,
     QAOSSS14_V2_RECORD_LENGTH,
     SECTOR_SIZE,
+    SEGMENT_HEADER_SIZE,
     ContextIndexEntry,
     DASDImage,
     Extent,
@@ -2742,6 +2744,8 @@ def _machine_index_text_reference_score(
     segment_blobs,
     location_map,
     page_size,
+    *,
+    page_origin=0,
 ):
     """Score plausible text-element references to known key-tail bytes.
 
@@ -2766,7 +2770,14 @@ def _machine_index_text_reference_score(
             continue
 
         offset = item["offset"]
-        page_base = (offset // page_size) * page_size
+        if offset < page_origin:
+            continue
+        page_base = (
+            page_origin
+            + ((offset - page_origin) // page_size) * page_size
+        )
+        if page_base + page_size > len(data):
+            continue
         page = data[page_base : page_base + page_size]
         relative = offset - page_base
         required = item["max_tail"]
@@ -2839,6 +2850,96 @@ def _machine_index_page_size_scores(segment_blobs, location_map):
         )
         scores.append((page_size, score))
     return scores
+
+
+
+_CONTEXT_INDEX_MIN_OFFSET = SEGMENT_HEADER_SIZE + EPA_MIN_SIZE
+
+
+def _primary_location_map(location_map, primary_segment):
+    """Keep key-tail evidence from the primary context segment only."""
+
+    return {
+        key: item
+        for key, item in location_map.items()
+        if item["segment"].virtual_address
+        == primary_segment.virtual_address
+    }
+
+
+def _machine_index_origin_scan(
+    primary_blob,
+    location_map,
+    page_size,
+    *,
+    step=8,
+    max_origin=PAGE_SIZE - 1,
+):
+    """Score candidate first-page origins after the documented object headers.
+
+    The exact context-index start is unknown. The documentation says the first
+    context segment contains YYSGHDR, EPA header, then the machine index, so
+    candidates before the minimum known header footprint (0x78) are excluded.
+    The scan is deliberately limited to the first 512-byte storage page.
+    """
+
+    segment, data = primary_blob
+    if step < 1:
+        raise ValueError("origin scan step must be positive")
+    if not location_map:
+        return []
+
+    start = _CONTEXT_INDEX_MIN_OFFSET
+    stop = min(max_origin, PAGE_SIZE - 1, len(data) - 1)
+    scores = []
+    for origin in range(start, stop + 1, step):
+        # Require at least one complete logical page after the candidate origin.
+        if origin + page_size > len(data):
+            continue
+        score = _machine_index_text_reference_score(
+            [(segment, data)],
+            location_map,
+            page_size,
+            page_origin=origin,
+        )
+        rank = (
+            score["best_exact"],
+            score["exact"],
+            score["best_covered"],
+            score["covered"],
+        )
+        scores.append((rank, origin, score))
+
+    scores.sort(
+        key=lambda item: (
+            -item[0][0],
+            -item[0][1],
+            -item[0][2],
+            -item[0][3],
+            item[1],
+        )
+    )
+    return scores
+
+
+def _machine_index_origin_scan_summary(
+    primary_blob,
+    location_map,
+    *,
+    step=8,
+):
+    """Return top origin candidates for the three smallest IBM page sizes."""
+
+    rows = []
+    for page_size in (512, 1024, 2048, 4096):
+        candidates = _machine_index_origin_scan(
+            primary_blob,
+            location_map,
+            page_size,
+            step=step,
+        )
+        rows.append((page_size, candidates[:3]))
+    return rows
 
 
 def cmd_context_xref(args):
@@ -3093,6 +3194,58 @@ def cmd_context_xref(args):
             "page. Every byte alignment is still tested; phase concentration "
             "is evidence, not a decoded page origin."
         )
+
+        primary_blob = next(
+            (
+                item
+                for item in segment_blobs
+                if item[0].virtual_address
+                == context.segment.virtual_address
+            ),
+            None,
+        )
+        primary_locations = _primary_location_map(
+            location_map,
+            context.segment,
+        )
+        if primary_blob is not None and primary_locations:
+            print()
+            print(
+                "Primary-segment logical-page origin scan "
+                f"(0x{_CONTEXT_INDEX_MIN_OFFSET:X}-0x1FF, "
+                f"step {args.origin_step}):"
+            )
+            print(
+                "  page size  origin   exact  best exact phase   "
+                "covers  best cover phase"
+            )
+            for page_size, candidates in _machine_index_origin_scan_summary(
+                primary_blob,
+                primary_locations,
+                step=args.origin_step,
+            ):
+                if not candidates:
+                    print(
+                        f"  {page_size:>8,}  "
+                        "no full page fits after the minimum object headers"
+                    )
+                    continue
+                for index, (_rank, origin, score) in enumerate(candidates):
+                    prefix = f"  {page_size:>8,}" if index == 0 else " " * 10
+                    print(
+                        f"{prefix}  0x{origin:03X}  "
+                        f"{score['exact']:>6,}  "
+                        f"{score['best_exact']:>6,}@"
+                        f"{score['best_exact_phase']}  "
+                        f"{score['covered']:>7,}  "
+                        f"{score['best_covered']:>6,}@"
+                        f"{score['best_covered_phase']}"
+                    )
+            print(
+                "  Origin candidates are forensic scores only. The scan starts "
+                "after the minimum known YYSGHDR+EPA footprint and assumes the "
+                "first logical page begins within the first 512-byte storage page."
+            )
 
     print()
     print(
@@ -6881,6 +7034,15 @@ def build_parser():
         help=(
             "maximum 512-byte storage-page clusters to print "
             "(default: 12)"
+        ),
+    )
+    context_xref.add_argument(
+        "--origin-step",
+        type=int,
+        default=8,
+        help=(
+            "byte step for the primary-segment page-origin scan "
+            "(default: 8; use 1 for an exhaustive first-page scan)"
         ),
     )
     context_xref.add_argument(

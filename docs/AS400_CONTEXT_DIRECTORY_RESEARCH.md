@@ -296,10 +296,34 @@ better **phase coherence** than arbitrary page data. The scorer now reports,
 for each candidate page size, total exact/covering references plus the strongest
 phase and its support.
 
-The next criterion is therefore cross-image agreement on both page size and
-three-byte phase. If PPSITEST's compact 0x800-0xBFF region and QGPL favor the
-same phase-aware model, we can dump those candidate text elements and inspect
-their length/displacement fields directly before attempting node traversal.
+The phase-aware rerun sharpened the result but also exposed a wrong
+assumption in our comparison. QGPL's 512-byte candidate has strong phase-2
+coherence (104 of 131 covering references), while PPSITEST's 512-byte candidate
+has strong phase-0 coherence (15 of 16). PPSITEST's raw 4096-byte model has
+three of five exact references in phase 1.
+
+We should **not** require unrelated contexts to use the same logical page size
+or segment-relative phase. IBM's machine-index implementation supports multiple
+logical page sizes, and—more importantly—our current scorer has been treating
+segment offset zero as logical-page origin even though the documented first
+context segment contains YYSGHDR and EPA material before the machine index.
+
+PPSITEST gives an additional structural constraint: its only recovered context
+segment is exactly eight 512-byte storage pages (4096 bytes). A complete
+4096-byte machine-index page cannot follow even the minimum known
+YYSGHDR+EPA footprint inside that segment. The attractive 4096-byte exact-start
+score is therefore best treated as a false-positive/raw-displacement effect
+unless later documentation shows a different storage model.
+
+The diagnostic now scans candidate **first logical-page origins** from the
+minimum known header footprint (0x78) through the first 512-byte storage page,
+with an 8-byte step by default and an optional one-byte exhaustive pass. For
+each origin it rescans 512/1024/2048/4096-byte page models. This makes
+PPSITEST the best calibration context: its tails are compact, all known members
+produce evidence, and the segment size rules out some otherwise attractive
+false models. Once a stable origin/page-size/text-element model emerges there,
+we can test the same element semantics—not necessarily the same page size—on
+QGPL.
 
 ## Real-image validation plan
 Once the documentation model is firm:

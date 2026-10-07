@@ -27,6 +27,7 @@ from as400_dasd_tool import (
     _key_tail_location_map,
     _key_tail_storage_page_summary,
     _longest_pattern_suffix_locations,
+    _machine_index_origin_scan,
     _machine_index_text_reference_score,
     _object_owned_segments,
     _tui_file_storage_evidence,
@@ -359,6 +360,36 @@ class DASDToolTests(unittest.TestCase):
         )
         self.assertEqual(score["best_exact_phase"], 2)
         self.assertEqual(score["best_exact"], 1)
+
+    def test_machine_index_origin_scan_honors_minimum_context_header(self):
+        segment = SimpleNamespace(
+            virtual_address=0x1000,
+            start_lba=10,
+        )
+        data = bytearray(2048)
+        location_map = {
+            (0x1000, 0x300): {
+                "segment": segment,
+                "offset": 0x300,
+                "max_tail": 5,
+                "objects": [],
+            }
+        }
+
+        # Candidate logical page starts at 0x80. A phase-0 text element at
+        # page-relative offset 0x06 references the known tail at relative 0x280.
+        value = (5 << 16) | 0x280
+        data[0x86:0x89] = value.to_bytes(3, "big")
+        scores = _machine_index_origin_scan(
+            (segment, bytes(data)),
+            location_map,
+            512,
+            step=8,
+        )
+        self.assertTrue(scores)
+        self.assertEqual(scores[0][1], 0x80)
+        self.assertEqual(scores[0][2]["exact"], 1)
+        self.assertGreaterEqual(scores[0][1], 0x78)
 
     def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):
         data = b"ABC--ABC--ABC"

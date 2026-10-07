@@ -74,11 +74,21 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       logical page). This discounts some chance three-byte values: a real
       release-2 element stream should show stronger alignment coherence than
       arbitrary data even while the page-header/trunk origin is unknown.
-- [ ] Re-run QGPL and PPSITEST with phase-aware scores. Prefer a candidate only
-      if the same page size/alignment behavior is reproducible across images;
-      then dump the exact/covering text-element candidates around PPSITEST's
-      compact 0x800-0xBFF region before following page pointers. `JHUDGINS`
-      remains a later context-derived-membership test.
+- [x] Re-run QGPL and PPSITEST with phase-aware scores. QGPL's 512-byte
+      model is strongly phase-coherent (104/131 covering references in phase 2);
+      PPSITEST's 512-byte model is also strongly coherent (15/16 in phase 0),
+      but the phase differs. The 4096-byte PPSITEST exact-start score is not
+      sufficient by itself to select a page size.
+- [x] Add a primary-segment page-origin scan. It tests candidate machine-index
+      starts from the minimum known YYSGHDR+EPA footprint (0x78) through the
+      first 512-byte storage page and scores 512/1024/2048/4096-byte models.
+      This addresses the major flaw in treating segment offset zero as logical
+      page zero.
+- [ ] Run the origin scan first on compact B10 `PPSITEST` (use
+      `--origin-step 1` if the default 8-byte pass has a clear neighborhood),
+      then validate the resulting text-element model against QGPL. Do not
+      require unrelated contexts to use the same logical page size; the IBM
+      machine-index design supports multiple page sizes.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
