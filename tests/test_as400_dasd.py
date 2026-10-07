@@ -512,6 +512,40 @@ class DASDHeaderTests(unittest.TestCase):
             [1, 2, 3, 4, 5, 6],
         )
 
+    def test_qddsi_follows_same_segment_page_pointer(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 F2 10 0E "
+            "C0 00 18 60 00 00",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(data)
+        primary.extend(b"\x00" * (0x2000 - len(primary)))
+        secondary = bytes.fromhex(
+            "97 00 08 55 07 E4 18 1C "
+            "0D 18 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01"
+        )
+        primary[0x1800 : 0x1800 + len(secondary)] = secondary
+
+        traversal = decode_data_space_index_root(bytes(primary), layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.page_offsets, (0x1000, 0x1800))
+        self.assertEqual(traversal.page_count, 2)
+        self.assertEqual(len(traversal.page_pointers), 1)
+        pointer = traversal.page_pointers[0]
+        self.assertTrue(pointer.followed)
+        self.assertEqual(pointer.segment_table_index, 0)
+        self.assertEqual(pointer.page_offset, 0x18)
+        self.assertEqual(pointer.target_offset, 0x1800)
+        self.assertFalse(traversal.unresolved_page_pointers)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(
+            traversal.entries[0].user_key.decode("cp037"),
+            "*PUBLIC   ",
+        )
+        self.assertEqual(traversal.entries[0].ordinal_hint, 1)
     def test_qdds_layout_scalars_from_real_metadata(self):
         fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
         expected = {
