@@ -3548,8 +3548,9 @@ def cmd_member(args):
                     else ""
                 )
                 print(
-                    f"  QDDSI root keys: {traversal.entry_count:,}/"
-                    f"{traversal.expected_entries:,}  {state}{page_note}"
+                    f"  QDDSI keyed entries: {traversal.entry_count:,}/"
+                    f"{traversal.expected_entries:,}  {state}{page_note}  "
+                    f"pages {traversal.page_count:,}"
                 )
                 for entry in traversal.entries[:32]:
                     preview = ebcdic_preview(
@@ -3570,10 +3571,17 @@ def cmd_member(args):
                         f"      ... {traversal.entry_count - 32:,} more key(s)"
                     )
                 if traversal.page_pointers:
+                    unresolved = traversal.unresolved_page_pointers
                     print(
-                        f"      page pointers not followed: "
-                        f"{len(traversal.page_pointers):,}"
+                        f"      page pointers: {len(traversal.page_pointers):,}  "
+                        f"unresolved {len(unresolved):,}"
                     )
+                    for pointer in unresolved[:8]:
+                        print(
+                            f"        element 0x{pointer.element_offset:04X}: "
+                            f"STI {pointer.segment_table_index}  "
+                            f"page 0x{pointer.page_offset:04X}"
+                        )
                 for warning in traversal.warnings:
                     print(f"      warning: {warning}")
 
