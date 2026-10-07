@@ -853,6 +853,190 @@ QDDS_V2_RECORD_LENGTH_OFFSET = 0x1E4
 QDDS_V2_ENTRY_LENGTH_OFFSET = 0x1EC
 QDDS_V2_LAYOUT_MIN_SIZE = QDDS_V2_ENTRY_LENGTH_OFFSET + 2
 
+# Observed QDDSI object-header/key-specification offsets. These are reproduced
+# by every recovered ordinary 0C/90 primary examined in both real images, while
+# the logical meaning of DKEY/DKYT comes from IBM SY21-0889-5. Keep unresolved
+# attribute bits and the DKEY +0x14 scalar raw rather than guessing names.
+QDDSI_DKEY_COUNT_OFFSET = 0x11E
+QDDSI_DKEY_POINTER_OFFSET = 0x12A
+QDDSI_DKEY_ROW_SIZE = 0x40
+QDDSI_DKYT_ROW_SIZE = 0x20
+QDDSI_LAYOUT_MIN_SIZE = QDDSI_DKEY_POINTER_OFFSET + 6
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexKeyField:
+    """One recovered DKYT row from a QDDSI key specification.
+
+    IBM documents DKYT rows as describing key-field ordering attributes,
+    length/fork information, relative offset, and field location. The final
+    two-byte selector below consistently tracks the source field ordinal in
+    the ordinary files checked so far, but remains an observed hint.
+    """
+
+    sequence_attributes: int
+    field_attributes: int
+    length_or_fork: int
+    relative_offset: int
+    location: int
+    field_ordinal_hint: int
+    raw: bytes
+
+    @property
+    def record_offset_hint(self) -> int | None:
+        """Zero-based record offset for ordinary directly mapped fields."""
+
+        if self.location <= 0:
+            return None
+        return self.location - 1
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexKeySpec:
+    """One DKEY row and its referenced DKYT rows."""
+
+    data_space: InternalAddress
+    field_table_pointer: InternalAddress
+    key_count: int
+    auxiliary_scalar_raw: int
+    key_field_count: int
+    user_key_length: int
+    machine_key_length: int
+    dkyt_address: int
+    fields: tuple[DataSpaceIndexKeyField, ...]
+    raw: bytes
+
+    @property
+    def appended_key_bytes(self) -> int:
+        return max(0, self.machine_key_length - self.user_key_length)
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexLayout:
+    """Conservatively decoded QDDSI DKEY/DKYT key specifications."""
+
+    dkey_count: int
+    dkey_address: int
+    keys: tuple[DataSpaceIndexKeySpec, ...]
+
+    @classmethod
+    def from_primary_segment(
+        cls,
+        data: bytes,
+        *,
+        virtual_address: int,
+    ) -> "DataSpaceIndexLayout":
+        if len(data) < QDDSI_LAYOUT_MIN_SIZE:
+            raise ValueError("QDDSI primary segment is too short for key metadata")
+
+        dkey_count = int.from_bytes(
+            data[
+                QDDSI_DKEY_COUNT_OFFSET :
+                QDDSI_DKEY_COUNT_OFFSET + 2
+            ],
+            "big",
+        )
+        dkey_address = int.from_bytes(
+            data[
+                QDDSI_DKEY_POINTER_OFFSET :
+                QDDSI_DKEY_POINTER_OFFSET + 6
+            ],
+            "big",
+        )
+
+        if dkey_count == 0:
+            return cls(
+                dkey_count=0,
+                dkey_address=dkey_address,
+                keys=(),
+            )
+        if dkey_count > 1024:
+            raise ValueError(f"implausible QDDSI DKEY count {dkey_count}")
+        dkey_offset = dkey_address - virtual_address
+        if (
+            dkey_offset < 0
+            or dkey_offset + dkey_count * QDDSI_DKEY_ROW_SIZE > len(data)
+        ):
+            raise ValueError("QDDSI DKEY table is outside recovered primary segment")
+
+        specs: list[DataSpaceIndexKeySpec] = []
+        for row_number in range(dkey_count):
+            offset = dkey_offset + row_number * QDDSI_DKEY_ROW_SIZE
+            row = data[offset : offset + QDDSI_DKEY_ROW_SIZE]
+
+            key_field_count = int.from_bytes(row[0x18:0x1A], "big")
+            if key_field_count > 1024:
+                raise ValueError(
+                    f"implausible QDDSI DKYT field count {key_field_count}"
+                )
+            dkyt_address = int.from_bytes(row[0x1E:0x24], "big")
+            fields: list[DataSpaceIndexKeyField] = []
+
+            if key_field_count:
+                dkyt_offset = dkyt_address - virtual_address
+                if (
+                    dkyt_offset < 0
+                    or dkyt_offset
+                    + key_field_count * QDDSI_DKYT_ROW_SIZE
+                    > len(data)
+                ):
+                    raise ValueError(
+                        "QDDSI DKYT table is outside recovered primary segment"
+                    )
+                for field_number in range(key_field_count):
+                    field_offset = (
+                        dkyt_offset
+                        + field_number * QDDSI_DKYT_ROW_SIZE
+                    )
+                    field_raw = data[
+                        field_offset :
+                        field_offset + QDDSI_DKYT_ROW_SIZE
+                    ]
+                    fields.append(
+                        DataSpaceIndexKeyField(
+                            sequence_attributes=field_raw[0],
+                            field_attributes=field_raw[1],
+                            length_or_fork=int.from_bytes(
+                                field_raw[2:4], "big"
+                            ),
+                            relative_offset=int.from_bytes(
+                                field_raw[4:6], "big"
+                            ),
+                            location=int.from_bytes(
+                                field_raw[6:8], "big"
+                            ),
+                            field_ordinal_hint=int.from_bytes(
+                                field_raw[8:10], "big"
+                            ),
+                            raw=field_raw,
+                        )
+                    )
+
+            specs.append(
+                DataSpaceIndexKeySpec(
+                    data_space=InternalAddress.from_bytes(row[0:8]),
+                    field_table_pointer=InternalAddress.from_bytes(row[8:16]),
+                    key_count=int.from_bytes(row[0x10:0x14], "big"),
+                    auxiliary_scalar_raw=int.from_bytes(
+                        row[0x14:0x18], "big"
+                    ),
+                    key_field_count=key_field_count,
+                    user_key_length=int.from_bytes(row[0x1A:0x1C], "big"),
+                    machine_key_length=int.from_bytes(
+                        row[0x1C:0x1E], "big"
+                    ),
+                    dkyt_address=dkyt_address,
+                    fields=tuple(fields),
+                    raw=row,
+                )
+            )
+
+        return cls(
+            dkey_count=dkey_count,
+            dkey_address=dkey_address,
+            keys=tuple(specs),
+        )
+
 
 @dataclass(frozen=True)
 class DataSpaceLayout:
@@ -2162,6 +2346,23 @@ class DASDImage:
                 continue
             stream.extend(data[SEGMENT_HEADER_SIZE:])
         return bytes(stream), data_segments
+
+    def read_data_space_index_layout(
+        self,
+        storage: MemberStorage,
+    ) -> DataSpaceIndexLayout | None:
+        """Decode the QDDSI DKEY/DKYT key specification when recovered."""
+
+        if storage.data_index is None:
+            return None
+        data = self.read_segment_bytes(storage.data_index.segment)
+        try:
+            return DataSpaceIndexLayout.from_primary_segment(
+                data,
+                virtual_address=storage.data_index.segment.virtual_address,
+            )
+        except ValueError:
+            return None
 
     def read_data_space_layout(
         self,

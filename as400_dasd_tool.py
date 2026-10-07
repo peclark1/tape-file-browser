@@ -3513,6 +3513,31 @@ def cmd_member(args):
             f"LBA {index.segment.start_lba:,}  "
             f"{index.segment.pages:,} pages"
         )
+        index_layout = image.read_data_space_index_layout(storage)
+        if index_layout is not None:
+            print(
+                f"  QDDSI DKEY rows: {index_layout.dkey_count:,}  "
+                f"table VA {index_layout.dkey_address:012X}"
+            )
+            for number, spec in enumerate(index_layout.keys):
+                print(
+                    f"    DKEY {number}: data space {spec.data_space}  "
+                    f"keys {spec.key_count:,}  fields {spec.key_field_count:,}  "
+                    f"user/machine key {spec.user_key_length}/"
+                    f"{spec.machine_key_length} bytes"
+                )
+                for field_number, field in enumerate(spec.fields, 1):
+                    location = (
+                        f"record +{field.record_offset_hint}"
+                        if field.record_offset_hint is not None
+                        else "record location unknown"
+                    )
+                    print(
+                        f"      key field {field_number}: "
+                        f"len/fork {field.length_or_fork}  {location}  "
+                        f"seq 0x{field.sequence_attributes:02X}  "
+                        f"attr 0x{field.field_attributes:02X}"
+                    )
 
     return 0
 

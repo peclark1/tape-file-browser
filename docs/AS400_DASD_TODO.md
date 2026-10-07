@@ -39,8 +39,11 @@ the same documentation-first method before naming on-disk fields; see
       data-space second-segment field tables, DKEY/DKYT key specifications,
       use of the general machine index, key conversions, and the appended
       database-relative-address/ordinal suffix.
-- [ ] Add a conservative DKEY/DKYT decoder and join its key fields to recovered
-      19/51 record-format fields without naming unresolved attribute bits.
+- [x] Add a conservative DKEY/DKYT decoder that exposes data-space pointers,
+      key counts/lengths, and raw DKYT field attributes/locations without
+      naming unresolved bits. The ordinary real-image layouts parse across both
+      images; joining field rows to friendly 19/51 names remains the next UI
+      step.
 - [ ] Traverse one simple QDDSI machine index and emit user keys plus record
       ordinals, then cross-check those references against decoded QDDS RRNs.
 - [ ] Surface documented access-path/key context and recovered keyed-order

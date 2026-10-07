@@ -219,7 +219,8 @@ The current milestone can:
   address/name evidence while the compressed machine-index traversal is being
   reconstructed;
 - list real `*FILE` objects and recovered members inside a library;
-- follow member cursors to QDDS/QDDSI storage;
+- follow member cursors through their direct QDDS/QDDSI pointers, retaining the expected storage address and surviving owned secondary segments even when a primary segment is missing from a partial multi-disk image;
+- decode QDDSI DKEY/DKYT key specifications conservatively, including indexed data-space addresses, key counts/lengths, and raw key-field locations/attributes;
 - decode standard 92-byte AS/400 source physical-file records and print their source text;
 - recover generic fixed-length QDDS ordinal records using the data-space entry count and entry length;
 - identify MI 19/51 record-format objects and recover field names, record offsets, storage lengths, digits, decimal positions, and observed character/zoned/packed types;

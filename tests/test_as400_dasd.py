@@ -12,6 +12,7 @@ from as400_dasd import (
     SECTOR_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DataSpaceIndexLayout,
     DataSpaceLayout,
     DocumentByteStringInfo,
     EPAHeader,
@@ -336,6 +337,49 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(b10_fields["STNAME"].decode_value(state_record), "MISSOURI")
         self.assertEqual(b10_fields["YTD"].decode_value(state_record), "3896")
         self.assertEqual(b10_fields["LYR"].decode_value(state_record), "3996")
+
+    def test_qddsi_dkey_dkyt_layout_from_real_b10_shape(self):
+        base = 0x0014EC000000
+        primary = bytearray(0x800)
+        primary[0x11E:0x120] = (1).to_bytes(2, "big")
+        primary[0x12A:0x130] = (base + 0x400).to_bytes(6, "big")
+
+        row = memoryview(primary)[0x400:0x440]
+        row[0:8] = make_internal_address(0x00ED, 0x00093A000000)
+        row[8:16] = make_internal_address(0x00ED, 0x00134A000020)
+        row[0x10:0x14] = (1).to_bytes(4, "big")
+        row[0x14:0x18] = (0).to_bytes(4, "big")
+        row[0x18:0x1A] = (1).to_bytes(2, "big")
+        row[0x1A:0x1C] = (2).to_bytes(2, "big")
+        row[0x1C:0x1E] = (6).to_bytes(2, "big")
+        row[0x1E:0x24] = (base + 0x440).to_bytes(6, "big")
+
+        field = memoryview(primary)[0x440:0x460]
+        field[0:10] = bytes.fromhex(
+            "20 00 00 02 00 00 00 01 00 01"
+        )
+
+        layout = DataSpaceIndexLayout.from_primary_segment(
+            bytes(primary),
+            virtual_address=base,
+        )
+        self.assertEqual(layout.dkey_count, 1)
+        self.assertEqual(layout.dkey_address, base + 0x400)
+        spec = layout.keys[0]
+        self.assertEqual(
+            spec.data_space,
+            InternalAddress(0x00ED, 0x00093A000000),
+        )
+        self.assertEqual(spec.key_count, 1)
+        self.assertEqual(spec.key_field_count, 1)
+        self.assertEqual(spec.user_key_length, 2)
+        self.assertEqual(spec.machine_key_length, 6)
+        self.assertEqual(spec.appended_key_bytes, 4)
+        self.assertEqual(len(spec.fields), 1)
+        self.assertEqual(spec.fields[0].length_or_fork, 2)
+        self.assertEqual(spec.fields[0].location, 1)
+        self.assertEqual(spec.fields[0].record_offset_hint, 0)
+        self.assertEqual(spec.fields[0].field_ordinal_hint, 1)
 
     def test_qdds_layout_scalars_from_real_metadata(self):
         fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
