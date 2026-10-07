@@ -368,17 +368,17 @@ class DASDToolTests(unittest.TestCase):
         )
         data = bytearray(2048)
         location_map = {
-            (0x1000, 0x300): {
+            (0x1000, 0x200): {
                 "segment": segment,
-                "offset": 0x300,
+                "offset": 0x200,
                 "max_tail": 5,
                 "objects": [],
             }
         }
 
         # Candidate logical page starts at 0x80. A phase-0 text element at
-        # page-relative offset 0x06 references the known tail at relative 0x280.
-        value = (5 << 16) | 0x280
+        # page-relative offset 0x06 references the known tail at relative 0x180.
+        value = (5 << 16) | 0x180
         data[0x86:0x89] = value.to_bytes(3, "big")
         scores = _machine_index_origin_scan(
             (segment, bytes(data)),
