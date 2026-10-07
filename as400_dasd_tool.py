@@ -1227,10 +1227,30 @@ def _load_qaosss14_anchor_records(image, inventory, segments):
 
 
 def _qaosss14_key_index(records):
+    """Index both observed QAOSSS14 8-byte identifiers used in QDOC objects."""
+
     index = {}
     zero = b"\x00" * 8
     for record in records:
-        key = record.record_key
+        # Most PC Support records use the same value in the leading record
+        # key and WOSEFILD. Other records (including the BULLET examples) do
+        # not, and both values occur in their corresponding QDOC object.
+        for key in (record.leading_key, record.record_key):
+            if key == zero:
+                continue
+            bucket = index.setdefault(key, [])
+            if record not in bucket:
+                bucket.append(record)
+    return index
+
+
+def _qaosss14_link_index(records):
+    """Index the leading 8-byte record key used by observed parent links."""
+
+    index = {}
+    zero = b"\x00" * 8
+    for record in records:
+        key = record.leading_key
         if key == zero:
             continue
         index.setdefault(key, []).append(record)
@@ -1240,10 +1260,11 @@ def _qaosss14_key_index(records):
 def _match_qdoc_anchor_record(image, obj, records, key_index=None):
     """Match a recovered QDOC object to one QAOSSS14 record by binary keys.
 
-    On the real V2R3 image, the QAOSSS14 WOSEFILD value for a document occurs
-    in that QDOC object's recovered bytes. WOSEPLDN also occurs in the matched
-    examples when it is nonzero. Use both observations to prefer a unique
-    correlation without assigning meanings to the abbreviations themselves.
+    Direct V2R3-image evidence shows both the leading eight-byte QAOSSS14
+    record key and the WOSEFILD value in corresponding QDOC objects. They are
+    identical for many PC Support records but differ for other DLOs such as
+    BULLET1.RFT. WOSEPLDN is also present in the matched examples. Score these
+    literal byte relationships without assigning meanings to the IBM names.
     """
 
     if obj is None or not records:
@@ -1262,30 +1283,56 @@ def _match_qdoc_anchor_record(image, obj, records, key_index=None):
             candidates[record.rrn] = record
 
     if not candidates:
-        return None, "no QAOSSS14 WOSEFILD key found in QDOC object"
+        return None, "no QAOSSS14 binary anchor key found in QDOC object"
 
     zero = b"\x00" * 8
-    strong = []
+    scored = []
     for record in candidates.values():
-        parent = record.parent_key
-        if parent == zero or parent in data:
-            strong.append(record)
+        score = 0
+        if record.leading_key != zero and record.leading_key in data:
+            score += 4
+        if record.record_key != zero and record.record_key in data:
+            score += 3
+        if (
+            record.parent_key != zero
+            and record.parent_key in data
+        ):
+            score += 1
+        if (
+            record.secondary_key_raw != zero
+            and record.secondary_key_raw in data
+        ):
+            score += 1
+        scored.append((score, record))
 
-    pool = strong or list(candidates.values())
-    if len(pool) != 1:
+    best_score = max(score for score, _record in scored)
+    best = [
+        record
+        for score, record in scored
+        if score == best_score
+    ]
+    if len(best) != 1:
         return None, (
-            f"{len(pool)} QAOSSS14 anchor candidates remain ambiguous"
+            f"{len(best)} QAOSSS14 anchor candidates tie at "
+            f"binary-evidence score {best_score}"
         )
-    return pool[0], ""
+    return best[0], ""
 
 
-def _qaosss14_path(record, records, key_index=None):
-    """Reconstruct a QDLS-style path from observed WOSEPLDN->WOSEFILD links."""
+def _qaosss14_path(record, records, link_index=None):
+    """Reconstruct the observed QAOSSS14 anchor hierarchy.
+
+    On the real V2R3 image, a child's WOSEPLDN value matches the parent's
+    leading eight-byte QAOSSS14 record key. It is *not* universally the
+    parent's WOSEFILD value. Components use WOSEFDOC (falling back to
+    WOSEDOCN); these are anchor-record names and are not assumed to be the
+    user-facing folder name unless independently corroborated.
+    """
 
     if record is None:
         return "", False
 
-    key_index = key_index or _qaosss14_key_index(records)
+    link_index = link_index or _qaosss14_link_index(records)
     zero = b"\x00" * 8
     components = []
     current = record
@@ -1303,7 +1350,7 @@ def _qaosss14_path(record, records, key_index=None):
             complete = True
             break
 
-        parents = key_index.get(parent_key, ())
+        parents = link_index.get(parent_key, ())
         if len(parents) != 1:
             break
         current = parents[0]
@@ -1311,10 +1358,17 @@ def _qaosss14_path(record, records, key_index=None):
     components.reverse()
     if not components:
         return "", complete
-    return "/QDLS/" + "/".join(components), complete
+    return "/".join(components), complete
 
 
-def _qaosss14_object_info(image, obj, records, key_index=None):
+def _qaosss14_object_info(
+    image,
+    obj,
+    records,
+    *,
+    key_index=None,
+    link_index=None,
+):
     record, error = _match_qdoc_anchor_record(
         image,
         obj,
@@ -1324,18 +1378,22 @@ def _qaosss14_object_info(image, obj, records, key_index=None):
     if record is None:
         return {
             "record": None,
-            "path": "",
+            "anchor_path": "",
             "path_complete": False,
             "error": error,
         }
-    path, complete = _qaosss14_path(
+    anchor_path, complete = _qaosss14_path(
         record,
         records,
-        key_index=key_index,
+        link_index=link_index,
     )
     return {
         "record": record,
-        "path": path,
+        "anchor_path": anchor_path,
+        # Compatibility while callers transition from the earlier QDLS-path
+        # wording. This value is the QAOSSS14 anchor hierarchy, not
+        # automatically a user-facing QDLS path.
+        "path": anchor_path,
         "path_complete": complete,
         "error": "",
     }
@@ -2095,6 +2153,7 @@ def cmd_dlo_paths(args):
     docs.sort(key=lambda obj: (obj.name, obj.segment.virtual_address))
 
     key_index = _qaosss14_key_index(records)
+    link_index = _qaosss14_link_index(records)
     rows = []
     unmatched = 0
     for obj in docs:
@@ -2103,6 +2162,7 @@ def cmd_dlo_paths(args):
             obj,
             records,
             key_index=key_index,
+            link_index=link_index,
         )
         record = info["record"]
         if record is None:
@@ -2139,7 +2199,7 @@ def cmd_dlo_paths(args):
     print()
     print(
         "SYSOBJNAM   RRN      QAOSSS14 short name  "
-        "Reconstructed QDLS path"
+        "QAOSSS14 anchor hierarchy"
     )
     for obj, record, short_name, path, complete, error in shown:
         if record is None:
@@ -2150,7 +2210,7 @@ def cmd_dlo_paths(args):
             continue
         display_path = path or "-"
         if display_path != "-" and not complete:
-            display_path += "  [partial]"
+            display_path += "  [partial anchor hierarchy]"
         print(
             f"{obj.name:<10} {record.rrn:>8,}  "
             f"{(short_name or '-'):20.20} {display_path}"
@@ -2161,10 +2221,11 @@ def cmd_dlo_paths(args):
 
     print()
     print(
-        "Correlation method: the QAOSSS14 WOSEFILD 8-byte key is found "
-        "inside the recovered QDOC object; WOSEPLDN is followed to another "
-        "QAOSSS14 WOSEFILD only when that link is unique. Field identifiers "
-        "are preserved exactly and their abbreviations are not expanded."
+        "Correlation method: observed QAOSSS14 leading-key and WOSEFILD "
+        "bytes are matched against recovered QDOC object data; WOSEPLDN is "
+        "followed to another record's leading key only when unique. The "
+        "result is an anchor hierarchy, not automatically a user-facing "
+        "QDLS folder path. IBM field identifiers remain unexpanded."
     )
     return 0
 
@@ -3656,6 +3717,7 @@ def _tui_qaosss14_cache(state):
         cache["record_set"] = record_set
         cache["records"] = records
         cache["key_index"] = _qaosss14_key_index(records)
+        cache["link_index"] = _qaosss14_link_index(records)
         cache["objects"] = {}
     return cache
 
@@ -3690,6 +3752,7 @@ def _tui_dlo_anchor_info(state, obj):
             doc,
             cache["records"],
             key_index=cache["key_index"],
+            link_index=cache["link_index"],
         )
         info["doc"] = doc
         info["member"] = cache["member"]
@@ -3797,7 +3860,10 @@ def _tui_context_lines(state):
         dlo_info = _tui_dlo_anchor_info(state, obj)
         if dlo_info and dlo_info.get("record") is not None:
             record = dlo_info["record"]
-            path = dlo_info.get("path") or record.short_name
+            path = (
+                dlo_info.get("anchor_path")
+                or record.short_name
+            )
             path_note = (
                 path
                 if dlo_info.get("path_complete")
@@ -3805,7 +3871,8 @@ def _tui_context_lines(state):
             )
             right_line = (
                 f"Member/object: {obj.name}  {type_label} — "
-                f"QAOSSS14 RRN {record.rrn:,}; QDLS {path_note}."
+                f"QAOSSS14 RRN {record.rrn:,}; anchor hierarchy "
+                f"{path_note}."
             )
         elif meaning:
             right_line = (
@@ -3904,17 +3971,33 @@ def _tui_object_lines(state, obj):
                 ),
             ]
         )
-        path = dlo_anchor_info.get("path") or ""
+        path = dlo_anchor_info.get("anchor_path") or ""
         if path:
             label = (
-                "Reconstructed path"
+                "Anchor hierarchy"
                 if dlo_anchor_info.get("path_complete")
-                else "Partial path"
+                else "Partial anchor hierarchy"
             )
             lines.append(f"  {label}: {path}")
-        lines.append(
-            "  Link method:   WOSEFILD key found in recovered QDOC bytes; "
-            "WOSEPLDN is followed only through matching QAOSSS14 records."
+        lines.extend(
+            [
+                (
+                    "  Leading key:   "
+                    + anchor_record.leading_key.hex().upper()
+                ),
+                (
+                    "  WOSEFILD:      "
+                    + anchor_record.record_key.hex().upper()
+                ),
+                (
+                    "  WOSEPLDN:      "
+                    + anchor_record.parent_key.hex().upper()
+                ),
+                (
+                    "  Link method:   QDOC binary keys correlate the anchor; "
+                    "WOSEPLDN follows a unique leading-record key."
+                ),
+            ]
         )
 
     if (
