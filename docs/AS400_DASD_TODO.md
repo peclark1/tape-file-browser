@@ -84,11 +84,21 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       first 512-byte storage page and scores 512/1024/2048/4096-byte models.
       This addresses the major flaw in treating segment offset zero as logical
       page zero.
-- [ ] Run the origin scan first on compact B10 `PPSITEST` (use
-      `--origin-step 1` if the default 8-byte pass has a clear neighborhood),
-      then validate the resulting text-element model against QGPL. Do not
-      require unrelated contexts to use the same logical page size; the IBM
-      machine-index design supports multiple page sizes.
+- [x] Run both coarse and exhaustive origin scans on B10 `PPSITEST`. For
+      512-byte pages, origin `0x1E0` preserves the strongest suffix evidence:
+      16/20 distinct tails covered, 15 in one modulo-3 phase, with 2 exact
+      starts. Exhaustive scanning also finds origins with 3 exact starts but
+      much weaker coverage; because the known evidence is only a key suffix,
+      coverage is the more appropriate primary ranking signal.
+- [x] Rank page-origin candidates by phase-coherent suffix coverage before
+      exact-start count, and teach `context-page` to accept a nonzero logical
+      page `--origin` plus any three-byte element phase.
+- [ ] Probe PPSITEST's 512-byte candidate at origin `0x1E0`, phase 2,
+      especially logical pages 3 and 4 containing the observed key tails.
+      Inspect the actual text-element lengths/displacements before attempting
+      node or page-pointer traversal. After this focused validation, pause the
+      context-index deep dive and return to the next broader DASD/TUI refinement
+      area unless the bytes provide a decisive traversal breakthrough.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 

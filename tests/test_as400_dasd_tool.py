@@ -361,6 +361,42 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(score["best_exact_phase"], 2)
         self.assertEqual(score["best_exact"], 1)
 
+    def test_machine_index_origin_scan_prefers_suffix_coverage(self):
+        segment = SimpleNamespace(
+            virtual_address=0x1000,
+            start_lba=10,
+        )
+        data = bytearray(2048)
+        location_map = {
+            (0x1000, 0x300): {
+                "segment": segment,
+                "offset": 0x300,
+                "max_tail": 5,
+                "objects": [],
+            },
+            (0x1000, 0x340): {
+                "segment": segment,
+                "offset": 0x340,
+                "max_tail": 5,
+                "objects": [],
+            },
+        }
+
+        # Origin 0x80 gets two phase-coherent covering references.
+        data[0x86:0x89] = ((0x80 << 16) | 0x260).to_bytes(3, "big")
+        # Origin 0x88 gets a narrower exact-start coincidence for only one tail.
+        data[0x91:0x94] = ((5 << 16) | 0x278).to_bytes(3, "big")
+
+        scores = _machine_index_origin_scan(
+            (segment, bytes(data)),
+            location_map,
+            512,
+            step=8,
+        )
+        self.assertTrue(scores)
+        self.assertEqual(scores[0][1], 0x80)
+        self.assertGreaterEqual(scores[0][2]["covered"], 2)
+
     def test_machine_index_origin_scan_honors_minimum_context_header(self):
         segment = SimpleNamespace(
             virtual_address=0x1000,

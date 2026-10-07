@@ -2902,11 +2902,14 @@ def _machine_index_origin_scan(
             page_size,
             page_origin=origin,
         )
+        # We are locating only the longest known *suffix* of each logical key.
+        # A real text element may therefore begin before that suffix. Prefer
+        # phase-coherent coverage over exact-start coincidences.
         rank = (
-            score["best_exact"],
-            score["exact"],
             score["best_covered"],
             score["covered"],
+            score["best_exact"],
+            score["exact"],
         )
         scores.append((rank, origin, score))
 
@@ -3285,6 +3288,7 @@ def cmd_context_page(args):
         element_offset=args.offset,
         count=args.count,
         page_size=args.page_size,
+        page_origin=args.origin,
     )
 
     print(f"Disk:       {image.path}")
@@ -3296,7 +3300,7 @@ def cmd_context_page(args):
     )
     print(
         f"Logical page {args.page}  size {args.page_size:,}  "
-        f"element offset 0x{args.offset:X}"
+        f"origin 0x{args.origin:X}  element offset 0x{args.offset:X}"
     )
     print()
     print(
@@ -7070,10 +7074,22 @@ def build_parser():
         help="logical index-page size; multiple of 512 (default: 512)",
     )
     context_page.add_argument(
+        "--origin",
+        type=lambda value: int(value, 0),
+        default=0,
+        help=(
+            "byte offset of logical page 0 within the recovered context "
+            "segment (default: 0)"
+        ),
+    )
+    context_page.add_argument(
         "--offset",
         type=lambda value: int(value, 0),
         default=0,
-        help="3-byte-aligned element offset within the logical page",
+        help=(
+            "first element-stream byte offset within the logical page; any "
+            "modulo-3 phase is allowed (default: 0)"
+        ),
     )
     context_page.add_argument(
         "--count",

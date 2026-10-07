@@ -613,6 +613,67 @@ class DASDHeaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not divisible"):
                 DASDImage(path)
 
+    def test_probe_machine_index_page_supports_origin_and_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "context.hda"
+            va = 0x001000000000
+            pages = []
+            raw_pages = [bytearray(PAGE_SIZE) for _ in range(3)]
+
+            # Logical page 0 begins at segment offset 0x80. Put a text element
+            # at page-relative phase 2 so the probe must not assume phase 0.
+            raw_pages[0][0x82:0x85] = bytes.fromhex("050123")
+            for index, payload in enumerate(raw_pages):
+                pages.append(
+                    (
+                        make_header(va + index * PAGE_SIZE),
+                        bytes(payload),
+                    )
+                )
+            write_image(path, pages)
+
+            extent = Extent(
+                start_lba=0,
+                pages=3,
+                kind="test",
+                header=make_header(va),
+                virtual_address=va,
+            )
+            header = SegmentGroupHeader(
+                raw=b"\x00" * 32,
+                segment_type=0x0190,
+                size_pages=3,
+                new_flags=0,
+                flags=0,
+                domain=0,
+                owner=InternalAddress(1, va),
+                space=InternalAddress(0, 0),
+            )
+            segment = RecoveredSegment(
+                start_extent=extent,
+                extents=(extent,),
+                header=header,
+            )
+            context = SimpleNamespace(
+                object_type=0x04,
+                object_subtype=0x01,
+                segment=segment,
+            )
+
+            probes = DASDImage(path).probe_machine_index_page(
+                context,
+                0,
+                page_size=512,
+                page_origin=0x80,
+                element_offset=2,
+                count=1,
+            )
+            self.assertEqual(len(probes), 1)
+            self.assertEqual(probes[0].offset, 2)
+            self.assertEqual(probes[0].element.kind, "text")
+            self.assertEqual(probes[0].element.text_length, 5)
+            self.assertEqual(probes[0].element.text_displacement, 0x0123)
+
     def test_real_b10_header_fixture(self):
         raw = load_rle_fixture(B10_FIXTURE)
         self.assertEqual(len(raw), 232064 * HEADER_SIZE)

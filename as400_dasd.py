@@ -1776,6 +1776,7 @@ class DASDImage:
         element_offset: int = 0,
         count: int = 32,
         page_size: int = PAGE_SIZE,
+        page_origin: int = 0,
     ) -> list[MachineIndexElementProbe]:
         """Decode three-byte machine-index elements from one context page.
 
@@ -1783,7 +1784,9 @@ class DASDImage:
         than a full index traversal. IBM documents release-2 indexes as
         three-byte elements and logical pages from 512 through 32768 bytes.
         Until the context object's index-page header/trunk location is decoded,
-        the caller explicitly selects the page and element offset.
+        the caller explicitly selects the page origin, page, and element-stream
+        offset. The element offset may use any modulo-3 phase because the page
+        header/trunk length is not yet known.
         """
 
         if (
@@ -1793,19 +1796,20 @@ class DASDImage:
             raise ValueError("target object is not a permanent context/library")
         if page_size < PAGE_SIZE or page_size % PAGE_SIZE:
             raise ValueError("machine-index page size must be a multiple of 512")
+        if page_origin < 0:
+            raise ValueError("machine-index page origin must be non-negative")
         if element_offset < 0 or element_offset >= page_size:
             raise ValueError("element offset is outside the logical page")
-        if element_offset % 3:
-            raise ValueError("element offset must be 3-byte aligned")
         if count < 1:
             raise ValueError("count must be positive")
 
         data = self.read_segment_bytes(context.segment)
-        start = page_number * page_size
+        start = page_origin + page_number * page_size
         end = start + page_size
         if start < 0 or end > len(data):
             raise ValueError(
-                f"logical page {page_number} is outside the context segment"
+                f"logical page {page_number} at origin 0x{page_origin:X} "
+                "is outside the context segment"
             )
 
         page = data[start:end]

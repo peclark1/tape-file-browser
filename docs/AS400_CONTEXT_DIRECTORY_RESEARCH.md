@@ -318,12 +318,28 @@ unless later documentation shows a different storage model.
 The diagnostic now scans candidate **first logical-page origins** from the
 minimum known header footprint (0x78) through the first 512-byte storage page,
 with an 8-byte step by default and an optional one-byte exhaustive pass. For
-each origin it rescans 512/1024/2048/4096-byte page models. This makes
-PPSITEST the best calibration context: its tails are compact, all known members
-produce evidence, and the segment size rules out some otherwise attractive
-false models. Once a stable origin/page-size/text-element model emerges there,
-we can test the same element semantics—not necessarily the same page size—on
-QGPL.
+each origin it rescans 512/1024/2048/4096-byte page models.
+
+The real PPSITEST scan materially narrows the 512-byte model. The coarse pass
+put origin `0x1E0` first, with 16/20 distinct known tail locations covered and
+15 of those references in one modulo-3 phase; it also has two exact starts.
+The exhaustive pass surfaced `0x105` and `0x0BD` with three exact starts,
+but they cover only 7 and 10 tails respectively. Since our evidence is the
+longest known **suffix** of a logical key, a valid text element is expected to
+often begin before the observed suffix. Exact-start count is therefore a weaker
+criterion than phase-coherent coverage. Origin ranking now reflects that.
+
+This makes `0x1E0` the best current 512-byte PPSITEST candidate, not a decoded
+fact. With that origin, the observed `FUNDDEF`, `ACCTDEF`, and `ADDFUND`
+tails fall in logical page 3, while `PROTO` falls in logical page 4. The
+`context-page` diagnostic now accepts a nonzero `--origin` and an arbitrary
+element-stream phase so those specific pages can be inspected directly.
+
+This is also a useful project checkpoint: one targeted byte-level validation of
+pages 3/4 should tell us whether the candidate is structurally real. If it does
+not yield a clear node/text relationship, the context work should be parked
+with its evidence documented rather than consuming the rest of the DASD browser
+refinement effort.
 
 ## Real-image validation plan
 Once the documentation model is firm:
