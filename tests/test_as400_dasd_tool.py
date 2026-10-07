@@ -99,6 +99,14 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("*DOCBSS", docbss)
         self.assertIn("Document byte string space", docbss)
 
+        oirs = _tui_object_type_context(0x19, 0x52)
+        self.assertIn("*OIRS", oirs)
+        self.assertIn("Object Information Repository", oirs)
+
+        qdidx = _tui_object_type_context(0x0E, 0x90)
+        self.assertIn("*QDIDX", qdidx)
+        self.assertIn("*OIRS", qdidx)
+
     def test_tui_keeps_context_for_library_file_and_member_visible(self):
         member = SimpleNamespace(
             member_file_name="QCLSRC",
