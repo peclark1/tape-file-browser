@@ -49,7 +49,9 @@ repeatable real-image validation.
       user-facing folder name remains `BULLETIN`.
 - [ ] Resolve the three remaining QAOSSS14 records (RRNs 1883-1885) whose
       nonzero parent key has no matching leading key in the recovered
-      QAOSSS14 record set.
+      QAOSSS14 record set. A `dlo-parent-gaps --raw-scan` diagnostic now
+      locates those keys elsewhere in the raw image and classifies recovered
+      containing objects for the next evidence pass.
 - [ ] Determine the semantics of the remaining WOSFMT14 binary/field values;
       do not expand identifiers such as `WOSEFILD`/`WOSEPLDN` from their
       spelling alone.
