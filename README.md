@@ -271,7 +271,12 @@ Three contextual information rows above the normal status line explain the
 current selection in **each** navigation pane independently: library/view,
 file/object type, and member/object. Selecting the first file or member
 automatically therefore no longer hides the meaning of its parent library.
-The row corresponding to the focused pane is emphasized. Library descriptions
+The row corresponding to the focused pane is emphasized. The full lower
+**Content / details** pane also follows the focused hierarchy level: focus the
+left pane to see the selected library's role and recovery summary, the middle
+pane for file/object-type details, or the right pane for the selected
+member/object. Focusing the lower content pane retains the deepest selected
+item. Library descriptions
 are loaded from the editable `as400_libraries.json` catalog rather than being
 hard coded in the TUI. The catalog is seeded with every library currently recovered in
 the Mark-P02 file/member inventory, plus several common system libraries such as
