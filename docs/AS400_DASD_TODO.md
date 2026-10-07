@@ -22,8 +22,13 @@ the same documentation-first method before naming on-disk fields; see
       access paths to be journaled and rebuilt independently. Treat the later
       V4-era documentation as semantic corroboration, not proof of the V2R3
       QDDSI byte layout.
-- [ ] Choose one small real V2R3 member with a recovered QDDSI object and one
-      known keyed database file, preferably with decoded format/records.
+- [x] Identify small real V2R3 QDDSI examples. PPSITEST/ACCTDEF and
+      PPSITEST/FUNDDEF both have recovered 16-page QDDSI objects but no
+      recovered QDDS data space. This is consistent with logical-file/access-path
+      members, not yet proof.
+- [ ] Read the recovered QDDSSRC/ACCTDEF and QDDSSRC/FUNDDEF DDS source to
+      determine PF/LF role, referenced physical file(s), key fields, and
+      select/omit/unique/sequence attributes before decoding QDDSI bytes.
 - [ ] Inventory the QDDSI primary/owned segments, pointer relationships, and
       printable/key-field evidence before assigning internal field names.
 - [ ] Locate period database/DDS or VLIC documentation for data-space-index
