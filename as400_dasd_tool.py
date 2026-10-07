@@ -778,6 +778,30 @@ def _resolve_format_fields(
     return decoded
 
 
+def _qddsi_key_field_labels(spec, format_fields):
+    """Match ordinary DKYT rows to recovered 19/51 fields conservatively.
+
+    A friendly name is returned only when record offset and storage length
+    identify exactly one format field. DKYT rows whose length-or-fork value
+    does not behave like a direct field length remain unnamed.
+    """
+
+    labels = []
+    for key_field in spec.fields:
+        offset = key_field.record_offset_hint
+        matches = [
+            field
+            for field in format_fields
+            if (
+                offset is not None
+                and field.offset == offset
+                and field.storage_length == key_field.length_or_fork
+            )
+        ]
+        labels.append(matches[0].name if len(matches) == 1 else "")
+    return tuple(labels)
+
+
 def cmd_fields(args):
     image = _open(args.image)
     _, _, inventory = _recover_all(image)
@@ -3466,6 +3490,19 @@ def cmd_member(args):
 
     print()
     print("Member storage")
+    index_format_fields = ()
+    if member.library_name:
+        try:
+            index_formats = _resolve_format_fields(
+                image,
+                inventory,
+                member.library_name,
+                member.member_file_name,
+            )
+            if index_formats:
+                index_format_fields = index_formats[0][1]
+        except Exception:
+            index_format_fields = ()
     if storage.data_space is None:
         if storage.data_space_address is None:
             print("  QDDS data space: no direct pointer / not recovered")
@@ -3526,14 +3563,20 @@ def cmd_member(args):
                     f"user/machine key {spec.user_key_length}/"
                     f"{spec.machine_key_length} bytes"
                 )
+                field_labels = _qddsi_key_field_labels(
+                    spec,
+                    index_format_fields,
+                )
                 for field_number, field in enumerate(spec.fields, 1):
                     location = (
                         f"record +{field.record_offset_hint}"
                         if field.record_offset_hint is not None
                         else "record location unknown"
                     )
+                    label = field_labels[field_number - 1]
+                    friendly = f" {label}" if label else ""
                     print(
-                        f"      key field {field_number}: "
+                        f"      key field {field_number}{friendly}: "
                         f"len/fork {field.length_or_fork}  {location}  "
                         f"seq 0x{field.sequence_attributes:02X}  "
                         f"attr 0x{field.field_attributes:02X}"
@@ -5831,6 +5874,85 @@ def _tui_member_lines(state, member_item):
         ]
     )
 
+    index_layout = None
+    traversal = None
+    index_format_fields = ()
+    if storage.data_index is not None:
+        try:
+            index_layout = image.read_data_space_index_layout(storage)
+            traversal = image.read_data_space_index_traversal(storage)
+        except Exception as exc:
+            lines.extend(["", f"Access-path decode error: {exc}"])
+        if member.library_name:
+            try:
+                index_formats = _resolve_format_fields(
+                    image,
+                    inventory,
+                    member.library_name,
+                    member.member_file_name,
+                )
+                if index_formats:
+                    index_format_fields = index_formats[0][1]
+            except Exception:
+                index_format_fields = ()
+
+    if index_layout is not None:
+        lines.extend(["", "Recovered keyed access path"])
+        for number, spec in enumerate(index_layout.keys):
+            lines.append(
+                f"  DKEY {number}: {spec.key_count:,} key(s), "
+                f"{spec.key_field_count:,} field(s), "
+                f"user/machine {spec.user_key_length}/"
+                f"{spec.machine_key_length} bytes"
+            )
+            labels = _qddsi_key_field_labels(spec, index_format_fields)
+            for field_number, field in enumerate(spec.fields, 1):
+                label = labels[field_number - 1]
+                name = label or f"field {field_number}"
+                location = (
+                    f"record +{field.record_offset_hint}"
+                    if field.record_offset_hint is not None
+                    else "record location unknown"
+                )
+                lines.append(
+                    f"    {field_number}. {name}: len/fork "
+                    f"{field.length_or_fork}, {location}"
+                )
+        if traversal is not None:
+            state_text = "complete" if traversal.complete else "partial"
+            lines.append(
+                f"  Traversal: {traversal.entry_count:,}/"
+                f"{traversal.expected_entries:,} entries ({state_text}), "
+                f"{traversal.page_count:,} page(s)"
+            )
+            if traversal.page_pointers:
+                lines.append(
+                    f"  Page pointers: {len(traversal.page_pointers):,}; "
+                    f"unresolved {len(traversal.unresolved_page_pointers):,}"
+                )
+            if traversal.entries:
+                lines.extend(["", "Key preview (first 20)"])
+                for entry in traversal.entries[:20]:
+                    key_hex = entry.user_key.hex().upper()
+                    key_text = ebcdic_preview(
+                        entry.user_key,
+                        limit=len(entry.user_key),
+                    )
+                    rrn = (
+                        f"RRN~{entry.ordinal_hint:,}"
+                        if entry.ordinal_hint is not None
+                        else entry.database_reference.hex().upper()
+                    )
+                    lines.append(
+                        f"  {key_hex}  [{key_text}] -> {rrn}"
+                    )
+                if traversal.entry_count > 20:
+                    lines.append(
+                        f"  ... {traversal.entry_count - 20:,} more key(s)"
+                    )
+            for warning in traversal.warnings:
+                lines.append(f"  Warning: {warning}")
+
     try:
         source = image.read_source_member(storage)
     except Exception as exc:
@@ -5948,7 +6070,48 @@ def _tui_member_lines(state, member_item):
                 f"{field.storage_length:>4}  "
                 f"{field.type_name:<10} {field.name}"
             )
-        lines.extend(["", "Decoded records (first 50)"])
+        if traversal is not None and traversal.entries:
+            by_rrn = {record.rrn: record for record in records}
+            keyed_rows = [
+                (entry, by_rrn.get(entry.ordinal_hint))
+                for entry in traversal.entries
+                if entry.ordinal_hint is not None
+            ]
+            resolved_rows = [
+                (entry, record)
+                for entry, record in keyed_rows
+                if record is not None
+            ]
+            lines.extend(
+                [
+                    "",
+                    (
+                        "Keyed-order records (first 50; original RRN view "
+                        "is retained below)"
+                    ),
+                ]
+            )
+            for entry, record in resolved_rows[:50]:
+                key_hex = entry.user_key.hex().upper()
+                lines.append(f"Key {key_hex} -> RRN {record.rrn:,}")
+                for field in fields:
+                    value = field.decode_value(record.data)
+                    if value:
+                        lines.append(f"  {field.name:<10} {value}")
+                lines.append("")
+            if len(resolved_rows) < traversal.entry_count:
+                lines.append(
+                    f"  {traversal.entry_count - len(resolved_rows):,} "
+                    "index entry/entries do not currently resolve to a "
+                    "recovered QDDS RRN."
+                )
+            if len(resolved_rows) > 50:
+                lines.append(
+                    f"... {len(resolved_rows) - 50:,} additional keyed "
+                    "records omitted from this preview."
+                )
+
+        lines.extend(["", "Arrival/RRN-order decoded records (first 50)"])
         for record in records[:50]:
             lines.append(
                 f"RRN {record.rrn:,}  DENT "
@@ -5986,7 +6149,7 @@ def _tui_member_lines(state, member_item):
         lines.extend(
             [
                 "",
-                "Raw record preview (first 100)",
+                "Arrival/RRN-order raw record preview (first 100)",
             ]
         )
         for record in records[:100]:
