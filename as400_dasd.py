@@ -44,6 +44,14 @@ FREE_SPACE_DELIMITER = bytes.fromhex("0000fc00000f0000")
 # 9404 Service Guide: 64-KB shadow error log on the load-source disk.
 KNOWN_B10_SHADOW_LOG_VADDR = 0x000083000000
 
+# Real-image evidence from both the surviving B10 disk and the independent
+# single-disk V2R3 image identifies two direct storage pointers in the 0D/50
+# permanent member cursor. These offsets are observed rather than yet tied to a
+# published cursor data-area definition, so keep the names deliberately narrow.
+MEMBER_QDDSI_POINTER_OFFSET = 0x128
+MEMBER_QDDS_POINTER_OFFSET = 0x300
+MEMBER_STORAGE_POINTER_SIZE = 8
+
 
 @dataclass(frozen=True)
 class InternalAddress:
@@ -781,6 +789,36 @@ class DocumentByteStringInfo:
 
 
 @dataclass(frozen=True)
+class MemberStoragePointers:
+    """Direct QDDS/QDDSI addresses observed in a permanent member cursor.
+
+    Across the two real CISC images used by this project, +0x128 points to the
+    member's QDDSI when one is present and +0x300 points to its QDDS. A missing
+    primary segment can therefore still be distinguished from "no storage
+    relationship" and can be correlated with surviving secondary segments.
+    """
+
+    data_space: InternalAddress | None
+    data_index: InternalAddress | None
+
+    @classmethod
+    def from_cursor_segment(cls, data: bytes) -> "MemberStoragePointers":
+        def read_pointer(offset: int) -> InternalAddress | None:
+            end = offset + MEMBER_STORAGE_POINTER_SIZE
+            if offset < 0 or end > len(data):
+                return None
+            address = InternalAddress.from_bytes(data[offset:end])
+            if address.is_null:
+                return None
+            return address
+
+        return cls(
+            data_space=read_pointer(MEMBER_QDDS_POINTER_OFFSET),
+            data_index=read_pointer(MEMBER_QDDSI_POINTER_OFFSET),
+        )
+
+
+@dataclass(frozen=True)
 class MemberStorage:
     """Recovered storage objects associated with one database member cursor."""
 
@@ -788,6 +826,8 @@ class MemberStorage:
     data_space: RecoveredObject | None
     data_index: RecoveredObject | None
     data_segments: tuple[RecoveredSegment, ...] = ()
+    data_space_address: InternalAddress | None = None
+    data_index_address: InternalAddress | None = None
 
     @property
     def data_pages(self) -> int:
@@ -1954,41 +1994,69 @@ class DASDImage:
         inventory: ObjectInventory,
         segments: SegmentRecoveryResult,
     ) -> MemberStorage:
-        """Pair a 0D50 member cursor with same-named QDDS/QDDSI objects.
+        """Resolve a 0D50 member cursor to its QDDS/QDDSI storage.
 
-        IBM describes each physical-file member as having a data space, and
-        keyed members may also have a data-space index. On the independent real
-        V2R3 image, the 0D50 cursor and its 0B90 QDDS use the same 30-byte
-        file/member object name and context. Secondary data-space segment
-        groups point back to the QDDS primary virtual address through YYSGHDR's
-        owning-object address.
+        Real-image validation now gives us a stronger relationship than the
+        original same-name heuristic: the cursor itself carries direct QDDSI
+        and QDDS internal addresses at observed offsets +0x128 and +0x300.
+        Use those addresses when present. Same-name matching remains a fallback
+        for cursors whose direct pointer is null or unavailable.
+
+        Importantly, retain a non-null direct QDDS address even when the QDDS
+        primary segment is absent from this disk. Secondary segment groups can
+        still point back to that owner, which is expected on a scatter-loaded
+        multi-disk AS/400 when only one disk image survives.
         """
 
         if not member.is_member_cursor:
             raise ValueError("object is not a 0D50 member cursor")
 
-        # QDDS/QDDSI are internal components and do not necessarily carry
-        # the library context back-pointer used by the external *FILE/*MEM
-        # objects. Match the exact 30-byte file/member name first.
-        qdds = inventory.matching_objects(
+        cursor_bytes = self.read_segment_bytes(member.segment)
+        cursor_extender = member.segment.header.owner.extender
+        pointers = MemberStoragePointers.from_cursor_segment(cursor_bytes)
+
+        def exact_object(
+            address: InternalAddress | None,
+            *,
+            object_type: int,
+            object_subtype: int,
+        ) -> RecoveredObject | None:
+            if address is None:
+                return None
+            matches = [
+                obj
+                for obj in inventory.objects
+                if obj.object_type == object_type
+                and obj.object_subtype == object_subtype
+                and obj.object_address.key == address.key
+            ]
+            if not matches:
+                return None
+            return sorted(
+                matches,
+                key=lambda obj: (
+                    obj.segment.virtual_address,
+                    obj.segment.start_lba,
+                ),
+            )[0]
+
+        # Preserve the original correlation as a compatibility fallback. QDDS
+        # and QDDSI are internal components and do not necessarily carry the
+        # library context back-pointer used by external *FILE/*MEM objects.
+        qdds_by_name = inventory.matching_objects(
             name_raw=member.epa.name_raw,
             object_type=0x0B,
             object_subtype=0x90,
         )
-        qddsi = inventory.matching_objects(
+        qddsi_by_name = inventory.matching_objects(
             name_raw=member.epa.name_raw,
             object_type=0x0C,
             object_subtype=0x90,
         )
 
-        # Prefer the same pointer extender as the cursor. On the real V2R3
-        # image the cursor also contains the QDDS internal address in its
-        # associated data, which provides a stronger disambiguator when the
-        # same file/member name exists in multiple libraries.
-        cursor_bytes = self.read_segment_bytes(member.segment)
-        cursor_extender = member.segment.header.owner.extender
-
-        def choose(objects: list[RecoveredObject]) -> RecoveredObject | None:
+        def choose_by_name(
+            objects: list[RecoveredObject],
+        ) -> RecoveredObject | None:
             if not objects:
                 return None
             same_extender = [
@@ -1999,25 +2067,45 @@ class DASDImage:
             pool = same_extender or objects
             pointed = []
             for obj in pool:
-                address = InternalAddress(
-                    obj.segment.header.owner.extender,
-                    obj.segment.virtual_address,
-                ).to_bytes()
-                if address in cursor_bytes:
+                if obj.object_address.to_bytes() in cursor_bytes:
                     pointed.append(obj)
             if len(pointed) == 1:
                 return pointed[0]
             return pool[0]
 
-        data_space = choose(qdds)
-        data_index = choose(qddsi)
-        owned: list[RecoveredSegment] = []
-
-        if data_space is not None:
-            owner_key = (
-                data_space.segment.header.owner.extender,
-                data_space.segment.virtual_address,
+        if pointers.data_space is not None:
+            data_space_address = pointers.data_space
+            data_space = exact_object(
+                data_space_address,
+                object_type=0x0B,
+                object_subtype=0x90,
             )
+        else:
+            data_space = choose_by_name(qdds_by_name)
+            data_space_address = (
+                data_space.object_address
+                if data_space is not None
+                else None
+            )
+
+        if pointers.data_index is not None:
+            data_index_address = pointers.data_index
+            data_index = exact_object(
+                data_index_address,
+                object_type=0x0C,
+                object_subtype=0x90,
+            )
+        else:
+            data_index = choose_by_name(qddsi_by_name)
+            data_index_address = (
+                data_index.object_address
+                if data_index is not None
+                else None
+            )
+
+        owned: list[RecoveredSegment] = []
+        if data_space_address is not None:
+            owner_key = data_space_address.key
             owned = sorted(
                 [
                     segment
@@ -2035,6 +2123,8 @@ class DASDImage:
             data_space=data_space,
             data_index=data_index,
             data_segments=tuple(owned),
+            data_space_address=data_space_address,
+            data_index_address=data_index_address,
         )
 
     def read_data_space_entry_stream(

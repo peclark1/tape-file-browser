@@ -19,6 +19,7 @@ from as400_dasd import (
     HeaderSnapshot,
     InternalAddress,
     MachineIndexElement,
+    MemberStoragePointers,
     RecoveredObject,
     RecoveredSegment,
     ScanResult,
@@ -555,6 +556,29 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(entry.name, "QCLSRC")
         self.assertEqual(entry.object_address, obj.object_address)
         self.assertTrue(entry.raw.endswith(bytes.fromhex("00010037ae000000")))
+
+    def test_member_storage_pointer_offsets(self):
+        cursor = bytearray(0x308)
+        cursor[0x128:0x130] = make_internal_address(
+            0x00ED, 0x0014EC000000
+        )
+        cursor[0x300:0x308] = make_internal_address(
+            0x00ED, 0x00093A000000
+        )
+
+        pointers = MemberStoragePointers.from_cursor_segment(bytes(cursor))
+        self.assertEqual(
+            pointers.data_index,
+            InternalAddress(0x00ED, 0x0014EC000000),
+        )
+        self.assertEqual(
+            pointers.data_space,
+            InternalAddress(0x00ED, 0x00093A000000),
+        )
+
+        empty = MemberStoragePointers.from_cursor_segment(bytes(0x308))
+        self.assertIsNone(empty.data_index)
+        self.assertIsNone(empty.data_space)
 
     def test_machine_index_element_formats(self):
         # IBM Appendix-A release-2 format uses three-byte elements.

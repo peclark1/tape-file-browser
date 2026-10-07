@@ -3467,7 +3467,13 @@ def cmd_member(args):
     print()
     print("Member storage")
     if storage.data_space is None:
-        print("  QDDS data space: not recovered")
+        if storage.data_space_address is None:
+            print("  QDDS data space: no direct pointer / not recovered")
+        else:
+            print(
+                "  QDDS data space: primary not recovered; "
+                f"cursor points to {storage.data_space_address}"
+            )
     else:
         qdds = storage.data_space
         print(
@@ -3475,6 +3481,8 @@ def cmd_member(args):
             f"LBA {qdds.segment.start_lba:,}  "
             f"primary {qdds.segment.pages:,} pages"
         )
+
+    if storage.data_segments:
         print(
             f"  Owned segments:  {len(storage.data_segments):,}  "
             f"{storage.data_pages:,} pages / "
@@ -3491,7 +3499,13 @@ def cmd_member(args):
             )
 
     if storage.data_index is None:
-        print("  QDDSI index:     not recovered / not present")
+        if storage.data_index_address is None:
+            print("  QDDSI index:     no direct pointer / not present")
+        else:
+            print(
+                "  QDDSI index:     primary not recovered; "
+                f"cursor points to {storage.data_index_address}"
+            )
     else:
         index = storage.data_index
         print(
@@ -5720,7 +5734,11 @@ def _tui_member_lines(state, member_item):
                 + (
                     f"VA {storage.data_space.segment.virtual_address:012X}"
                     if storage.data_space is not None
-                    else "not recovered"
+                    else (
+                        f"{storage.data_space_address} (primary not recovered)"
+                        if storage.data_space_address is not None
+                        else "not recovered"
+                    )
                 )
             ),
             (
@@ -5728,7 +5746,11 @@ def _tui_member_lines(state, member_item):
                 + (
                     f"VA {storage.data_index.segment.virtual_address:012X}"
                     if storage.data_index is not None
-                    else "not recovered"
+                    else (
+                        f"{storage.data_index_address} (primary not recovered)"
+                        if storage.data_index_address is not None
+                        else "not recovered"
+                    )
                 )
             ),
             (

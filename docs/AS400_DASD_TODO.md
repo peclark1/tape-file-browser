@@ -22,20 +22,27 @@ the same documentation-first method before naming on-disk fields; see
       access paths to be journaled and rebuilt independently. Treat the later
       V4-era documentation as semantic corroboration, not proof of the V2R3
       QDDSI byte layout.
-- [x] Identify small real V2R3 QDDSI examples. PPSITEST/ACCTDEF and
-      PPSITEST/FUNDDEF both have recovered 16-page QDDSI objects but no
-      recovered QDDS data space. This is consistent with logical-file/access-path
-      members, not yet proof.
-- [ ] Read the recovered QDDSSRC/ACCTDEF and QDDSSRC/FUNDDEF DDS source to
-      determine PF/LF role, referenced physical file(s), key fields, and
-      select/omit/unique/sequence attributes before decoding QDDSI bytes.
-- [ ] Inventory the QDDSI primary/owned segments, pointer relationships, and
-      printable/key-field evidence before assigning internal field names.
-- [ ] Locate period database/DDS or VLIC documentation for data-space-index
-      key specifications and access-path storage. The currently indexed manual
-      set does not yet provide a direct QDDSI physical-layout description.
-- [ ] Reconstruct enough of one QDDSI to emit record references in keyed order,
-      then cross-check those references against the member's decoded QDDS RRNs.
+- [x] Revisit PPSITEST/ACCTDEF and PPSITEST/FUNDDEF. Direct 0D/50 cursor
+      pointers prove that both had QDDS data spaces even though the QDDS
+      primaries are absent from Pete's surviving disk. Their recovered 02A4
+      second segment groups point back to those missing QDDS objects, so
+      "QDDSI present + QDDS absent => logical file" is no longer a valid
+      inference for a partial multi-disk image.
+- [x] Attempt the QDDSSRC/ACCTDEF and QDDSSRC/FUNDDEF semantic cross-check.
+      Their QDDS primary metadata survives, but their 03B4 source-record data
+      segments do not. PDM PF-DTA identification plus direct QDDS pointers and
+      the recovered field tables provide the stronger physical-file evidence.
+- [x] Inventory the first QDDSI structures. The cursor directly identifies
+      QDDS/QDDSI; the QDDSI DKEY area identifies the indexed QDDS and points to
+      a DKYT; DKYT field lengths/record locations match recovered 19/51 formats.
+- [x] Locate period documentation: System/38 VMC manual SY21-0889-5 documents
+      data-space second-segment field tables, DKEY/DKYT key specifications,
+      use of the general machine index, key conversions, and the appended
+      database-relative-address/ordinal suffix.
+- [ ] Add a conservative DKEY/DKYT decoder and join its key fields to recovered
+      19/51 record-format fields without naming unresolved attribute bits.
+- [ ] Traverse one simple QDDSI machine index and emit user keys plus record
+      ordinals, then cross-check those references against decoded QDDS RRNs.
 - [ ] Surface documented access-path/key context and recovered keyed-order
       evidence in the TUI while retaining a raw fallback for undecoded indexes.
 
