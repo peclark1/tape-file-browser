@@ -1980,6 +1980,125 @@ def _scan_ebcdic_sysobjnam(data, encoded_targets):
     return hits
 
 
+def cmd_dlo_paths(args):
+    """Map recovered QDOC documents to QAOSSS14 names and folder paths."""
+
+    image = _open(args.image)
+    _, segments, inventory = _recover_all(image)
+    member, record_set, records = _load_qaosss14_anchor_records(
+        image,
+        inventory,
+        segments,
+    )
+
+    print(f"Disk:       {image.path}")
+    if not records:
+        print(
+            "No recoverable 193-byte QAOSSS14 anchor-record member was "
+            "found."
+        )
+        return 0
+
+    print(
+        f"QAOSSS14:   {member.library_name or '<unresolved-context>'}/"
+        f"{member.member_file_name}({member.member_name})"
+    )
+    print(
+        f"Records:    {len(records):,} decoded; "
+        f"QDDS record length {record_set.layout.record_length:,}"
+    )
+
+    wanted = {
+        value.upper()
+        for value in (args.sysobjnam or [])
+    }
+    docs = [
+        obj
+        for obj in inventory.in_library("QDOC")
+        if (
+            obj.object_type == 0x19
+            and obj.object_subtype == 0x0E
+            and len(obj.name) == 10
+            and (not wanted or obj.name.upper() in wanted)
+        )
+    ]
+    docs.sort(key=lambda obj: (obj.name, obj.segment.virtual_address))
+
+    key_index = _qaosss14_key_index(records)
+    rows = []
+    unmatched = 0
+    for obj in docs:
+        info = _qaosss14_object_info(
+            image,
+            obj,
+            records,
+            key_index=key_index,
+        )
+        record = info["record"]
+        if record is None:
+            unmatched += 1
+            if args.show_unmatched:
+                rows.append(
+                    (
+                        obj,
+                        None,
+                        "",
+                        "",
+                        False,
+                        info["error"],
+                    )
+                )
+            continue
+        rows.append(
+            (
+                obj,
+                record,
+                record.short_name,
+                info["path"],
+                info["path_complete"],
+                "",
+            )
+        )
+
+    total_rows = len(rows)
+    shown = rows if not args.limit else rows[: args.limit]
+
+    print(f"QDOC docs:  {len(docs):,} considered")
+    print(f"Mapped:     {sum(1 for row in rows if row[1] is not None):,}")
+    print(f"Unmatched:  {unmatched:,}")
+    print()
+    print(
+        "SYSOBJNAM   RRN      QAOSSS14 short name  "
+        "Reconstructed QDLS path"
+    )
+    for obj, record, short_name, path, complete, error in shown:
+        if record is None:
+            print(
+                f"{obj.name:<10} {'-':>8}  {'-':<20} "
+                f"<unmatched: {error}>"
+            )
+            continue
+        display_path = path or "-"
+        if display_path != "-" and not complete:
+            display_path += "  [partial]"
+        print(
+            f"{obj.name:<10} {record.rrn:>8,}  "
+            f"{(short_name or '-'):20.20} {display_path}"
+        )
+
+    if len(shown) < total_rows:
+        print(f"... {total_rows - len(shown):,} additional rows omitted")
+
+    print()
+    print(
+        "Correlation method: the QAOSSS14 WOSEFILD 8-byte key is found "
+        "inside the recovered QDOC object; WOSEPLDN is followed to another "
+        "QAOSSS14 WOSEFILD only when that link is unique. Field identifiers "
+        "are preserved exactly and their abbreviations are not expanded."
+    )
+    return 0
+
+
 def cmd_dlo_index_scan(args):
     """Correlate QDOC SYSOBJNAM values against recovered QAOSS member data."""
 
@@ -2121,8 +2240,11 @@ def cmd_dlo_index_scan(args):
         print()
         print(
             "IBM documents QAOSSS14 as containing an anchor record that stores "
-            "the DLO system object name. A hit here is therefore especially "
-            "useful, but field meanings still require independent validation."
+            "the DLO system object name. On the V2R3 image, the useful "
+            "correlation is an 8-byte WOSEFILD key embedded in the QDOC "
+            "object rather than a plain EBCDIC SYSOBJNAM. Use dlo-paths for "
+            "that decoded correlation; this command remains the literal-name "
+            "probe."
         )
 
     return 0
@@ -5064,6 +5186,35 @@ def build_parser():
         help="maximum matches to report; use 0 for all (default: 200)",
     )
     dlo_xref.set_defaults(func=cmd_dlo_xref)
+
+    dlo_paths = sub.add_parser(
+        "dlo-paths",
+        help=(
+            "map QDOC internal document names to QAOSSS14 short names "
+            "and reconstructed QDLS folder paths"
+        ),
+    )
+    dlo_paths.add_argument("image")
+    dlo_paths.add_argument(
+        "sysobjnam",
+        nargs="*",
+        help=(
+            "optional QDOC SYSOBJNAM values; omit to scan all recovered "
+            "QDOC documents"
+        ),
+    )
+    dlo_paths.add_argument(
+        "--show-unmatched",
+        action="store_true",
+        help="include QDOC documents that cannot be uniquely correlated",
+    )
+    dlo_paths.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="maximum rows to print; use 0 for all (default: 200)",
+    )
+    dlo_paths.set_defaults(func=cmd_dlo_paths)
 
     dlo_index_scan = sub.add_parser(
         "dlo-index-scan",
