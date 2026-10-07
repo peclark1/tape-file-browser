@@ -863,6 +863,12 @@ QDDSI_DKEY_ROW_SIZE = 0x40
 QDDSI_DKYT_ROW_SIZE = 0x20
 QDDSI_LAYOUT_MIN_SIZE = QDDSI_DKEY_POINTER_OFFSET + 6
 
+# Ordinary recovered QDDSI primaries place the active machine-index root page
+# at the next 4-KB boundary. IBM documents that the data-space index contains
+# a general machine index; the page size itself is recovered from the root-page
+# free-byte and first-free fields rather than hard-coded here.
+QDDSI_MACHINE_INDEX_ROOT_OFFSET = 0x1000
+
 
 @dataclass(frozen=True)
 class DataSpaceIndexKeyField:
@@ -1769,9 +1775,17 @@ class MachineIndexElement:
     """One three-byte release-2 System/38/AS/400 machine-index element.
 
     IBM's published machine-index format uses three-byte elements. The high
-    bits identify text elements, decision nodes, and page pointers. Field
-    meanings below follow IBM's documented Appendix-A layout; this class does
-    not yet attempt to locate or traverse a complete context index page.
+    bits identify text elements, decision nodes, and page pointers.
+
+    The node bit positions below are independently validated by ordinary real
+    QDDSI trees. Bit 20 is the inverted common-text flag, bit 19 is direction,
+    bits 18-16 select the tested bit, and the low 16 bits are the XOR
+    displacement. Bit 21 remains deliberately unnamed.
+
+    text_length preserves the encoded seven-bit field used by the older
+    context forensic probes. Real QDDSI common/terminal text demonstrates
+    that the stored field is length-minus-one, so text_storage_length exposes
+    the byte count used for actual tree traversal.
     """
 
     raw: bytes
@@ -1794,9 +1808,20 @@ class MachineIndexElement:
 
     @property
     def text_length(self) -> int | None:
+        """Encoded seven-bit text-length field (not the byte count)."""
+
         if self.kind != "text":
             return None
         return (self.value >> 16) & 0x7F
+
+    @property
+    def text_storage_length(self) -> int | None:
+        """Actual text byte count validated on real QDDSI trees."""
+
+        encoded = self.text_length
+        if encoded is None:
+            return None
+        return encoded + 1
 
     @property
     def text_displacement(self) -> int | None:
@@ -1805,29 +1830,38 @@ class MachineIndexElement:
         return self.value & 0xFFFF
 
     @property
+    def unresolved_node_flag(self) -> bool | None:
+        """Preserve node bit 21 without assigning undocumented semantics."""
+
+        if self.kind != "node":
+            return None
+        return bool((self.value >> 21) & 1)
+
+    @property
     def common_text_present(self) -> bool | None:
         if self.kind != "node":
             return None
-        # IBM documents zero as "common text present".
-        return not bool((self.value >> 21) & 1)
+        # IBM documents zero as common text present; real QDDSI clusters
+        # independently place that flag at bit 20.
+        return not bool((self.value >> 20) & 1)
 
     @property
     def direction(self) -> str | None:
         if self.kind != "node":
             return None
-        return "right" if ((self.value >> 20) & 1) else "left"
+        return "right" if ((self.value >> 19) & 1) else "left"
 
     @property
     def bit_to_test(self) -> int | None:
         if self.kind != "node":
             return None
-        return (self.value >> 17) & 0x7
+        return (self.value >> 16) & 0x7
 
     @property
     def xor_displacement(self) -> int | None:
         if self.kind != "node":
             return None
-        return self.value & 0x1FFFF
+        return self.value & 0xFFFF
 
     @property
     def segment_table_index(self) -> int | None:
@@ -1841,13 +1875,325 @@ class MachineIndexElement:
             return None
         return self.value & 0xFFFF
 
-
 @dataclass(frozen=True)
 class MachineIndexElementProbe:
     """Decoded element at a caller-selected offset within a logical page."""
 
     offset: int
     element: MachineIndexElement
+
+@dataclass(frozen=True)
+class MachineIndexPagePointerRef:
+    """Page pointer encountered while conservatively walking one QDDSI page."""
+
+    element_offset: int
+    segment_table_index: int
+    page_offset: int
+    key_prefix: bytes
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexEntry:
+    """One complete machine-index key recovered from a QDDSI root page."""
+
+    machine_key: bytes
+    user_key: bytes
+    database_reference: bytes
+    terminal_element_offset: int
+
+    @property
+    def ordinal_hint(self) -> int | None:
+        """Observed RRN/ordinal value for ordinary four-byte DB references.
+
+        IBM documents a machine-supplied database-relative-address suffix.
+        In the ordinary one-data-space indexes validated so far, a four-byte
+        suffix resolves directly to the QDDS ordinal/RRN. Keep this explicitly
+        as a hint until every flag/data-space-number variant is decoded.
+        """
+
+        if len(self.database_reference) != 4:
+            return None
+        return int.from_bytes(self.database_reference, "big")
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexTraversal:
+    """Conservative traversal result for one recovered QDDSI root page."""
+
+    entries: tuple[DataSpaceIndexEntry, ...]
+    expected_entries: int
+    root_offset: int
+    page_size: int | None
+    page_type: int | None
+    free_bytes: int | None
+    first_free_offset: int | None
+    page_pointers: tuple[MachineIndexPagePointerRef, ...] = ()
+    complete: bool = False
+    warnings: tuple[str, ...] = ()
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.entries)
+
+
+def decode_data_space_index_root(
+    data: bytes,
+    layout: DataSpaceIndexLayout,
+) -> DataSpaceIndexTraversal:
+    """Walk an ordinary QDDSI active root machine-index page.
+
+    IBM says a data-space index contains a general release-2 machine index.
+    Real V2R3 QDDSIs establish the physical details used here: the active
+    root page begins at segment offset 0x1000; the free-byte and first-free
+    fields recover the logical page size; a node low 16-bit displacement is
+    XORed with the originating node offset to locate its successor cluster;
+    and text length is encoded as byte-count minus one.
+
+    This intentionally stops at page pointers. It is sufficient to enumerate
+    complete keys from small one-page indexes without pretending multi-page
+    traversal has been solved.
+    """
+
+    root_offset = QDDSI_MACHINE_INDEX_ROOT_OFFSET
+
+    if layout.dkey_count == 0:
+        return DataSpaceIndexTraversal(
+            entries=(),
+            expected_entries=0,
+            root_offset=root_offset,
+            page_size=None,
+            page_type=None,
+            free_bytes=None,
+            first_free_offset=None,
+            complete=True,
+        )
+    if layout.dkey_count != 1 or len(layout.keys) != 1:
+        raise ValueError(
+            "QDDSI root traversal currently requires exactly one DKEY row"
+        )
+
+    spec = layout.keys[0]
+    if spec.key_count == 0:
+        return DataSpaceIndexTraversal(
+            entries=(),
+            expected_entries=0,
+            root_offset=root_offset,
+            page_size=None,
+            page_type=None,
+            free_bytes=None,
+            first_free_offset=None,
+            complete=True,
+        )
+    if spec.user_key_length > spec.machine_key_length:
+        raise ValueError("QDDSI user key is longer than machine key")
+    if len(data) < root_offset + 8:
+        raise ValueError("QDDSI primary segment has no complete root-page header")
+
+    root = MachineIndexElement(data[root_offset : root_offset + 3])
+    if root.kind != "node":
+        raise ValueError("QDDSI active root does not begin with a node")
+
+    page_type = data[root_offset + 3]
+    free_bytes = int.from_bytes(
+        data[root_offset + 4 : root_offset + 6],
+        "big",
+    )
+    first_free_offset = int.from_bytes(
+        data[root_offset + 6 : root_offset + 8],
+        "big",
+    )
+    if first_free_offset < root_offset + 8:
+        raise ValueError("QDDSI first-free offset precedes the root-page header")
+
+    used_bytes = first_free_offset - root_offset
+    page_size = used_bytes + free_bytes
+    if (
+        page_size < 512
+        or page_size > 32768
+        or page_size & (page_size - 1)
+    ):
+        raise ValueError(f"implausible QDDSI logical page size {page_size}")
+    page_end = root_offset + page_size
+    if page_end > len(data):
+        raise ValueError(
+            "QDDSI root logical page extends beyond the recovered primary segment"
+        )
+    if first_free_offset > page_end:
+        raise ValueError("QDDSI first-free offset lies beyond the logical page")
+
+    entries: list[DataSpaceIndexEntry] = []
+    page_pointers: list[MachineIndexPagePointerRef] = []
+    warnings: list[str] = []
+    visited_nodes: set[tuple[int, int]] = set()
+    emitted_keys: set[bytes] = set()
+    complete = True
+
+    def mark_incomplete(message: str) -> None:
+        nonlocal complete
+        complete = False
+        if message not in warnings:
+            warnings.append(message)
+
+    def read_text(
+        element: MachineIndexElement,
+        *,
+        element_offset: int,
+    ) -> bytes | None:
+        displacement = element.text_displacement
+        length = element.text_storage_length
+        if displacement is None or length is None:
+            return None
+        # Zero displacement is used by small real indexes as an unused branch.
+        if displacement == 0:
+            return None
+        end = displacement + length
+        if (
+            displacement < root_offset
+            or end > first_free_offset
+            or end > page_end
+        ):
+            mark_incomplete(
+                "text element at "
+                f"0x{element_offset:04X} points outside the active root page"
+            )
+            return None
+        return data[displacement:end]
+
+    def emit_terminal(
+        prefix: bytes,
+        element: MachineIndexElement,
+        element_offset: int,
+    ) -> None:
+        text = read_text(element, element_offset=element_offset)
+        if text is None:
+            return
+        machine_key = prefix + text
+        if len(machine_key) != spec.machine_key_length:
+            mark_incomplete(
+                "terminal key at "
+                f"0x{element_offset:04X} has {len(machine_key)} bytes; "
+                f"expected {spec.machine_key_length}"
+            )
+            return
+        if machine_key in emitted_keys:
+            return
+        emitted_keys.add(machine_key)
+        entries.append(
+            DataSpaceIndexEntry(
+                machine_key=machine_key,
+                user_key=machine_key[: spec.user_key_length],
+                database_reference=machine_key[spec.user_key_length :],
+                terminal_element_offset=element_offset,
+            )
+        )
+
+    def walk_node(
+        node_offset: int,
+        origin_node_offset: int,
+        prefix: bytes,
+        depth: int = 0,
+    ) -> None:
+        if depth > 512:
+            mark_incomplete("machine-index node depth exceeded safety limit")
+            return
+        visit_key = (node_offset, origin_node_offset)
+        if visit_key in visited_nodes:
+            mark_incomplete(
+                f"machine-index node loop detected at 0x{node_offset:04X}"
+            )
+            return
+        visited_nodes.add(visit_key)
+
+        if node_offset < root_offset or node_offset + 3 > first_free_offset:
+            mark_incomplete(
+                f"machine-index node offset 0x{node_offset:04X} is outside used page"
+            )
+            return
+        node = MachineIndexElement(data[node_offset : node_offset + 3])
+        if node.kind != "node" or node.xor_displacement is None:
+            mark_incomplete(f"expected node at 0x{node_offset:04X}")
+            return
+
+        cluster_offset = (
+            (origin_node_offset & 0xFFFF) ^ node.xor_displacement
+        )
+        required = 9 if node.common_text_present else 6
+        if (
+            cluster_offset < root_offset + 8
+            or cluster_offset + required > first_free_offset
+        ):
+            mark_incomplete(
+                "node at "
+                f"0x{node_offset:04X} points to invalid cluster "
+                f"0x{cluster_offset:04X}"
+            )
+            return
+
+        branch_prefix = prefix
+        if node.common_text_present:
+            common_offset = cluster_offset + 6
+            common = MachineIndexElement(
+                data[common_offset : common_offset + 3]
+            )
+            if common.kind != "text":
+                mark_incomplete(
+                    f"common-text slot at 0x{common_offset:04X} is not text"
+                )
+                return
+            common_text = read_text(common, element_offset=common_offset)
+            if common_text is None:
+                mark_incomplete(
+                    f"common text at 0x{common_offset:04X} is not recoverable"
+                )
+                return
+            branch_prefix += common_text
+
+        for branch_offset in (cluster_offset, cluster_offset + 3):
+            branch = MachineIndexElement(
+                data[branch_offset : branch_offset + 3]
+            )
+            if branch.kind == "text":
+                # Zero displacement is the observed empty-branch sentinel.
+                if branch.text_displacement:
+                    emit_terminal(branch_prefix, branch, branch_offset)
+            elif branch.kind == "node":
+                walk_node(
+                    branch_offset,
+                    node_offset,
+                    branch_prefix,
+                    depth + 1,
+                )
+            else:
+                page_pointers.append(
+                    MachineIndexPagePointerRef(
+                        element_offset=branch_offset,
+                        segment_table_index=branch.segment_table_index or 0,
+                        page_offset=branch.page_offset or 0,
+                        key_prefix=branch_prefix,
+                    )
+                )
+                mark_incomplete("page-pointer traversal is not implemented yet")
+
+    walk_node(root_offset, root_offset, b"")
+
+    if len(entries) != spec.key_count:
+        mark_incomplete(
+            f"recovered {len(entries)} root-page key(s); "
+            f"DKEY reports {spec.key_count}"
+        )
+
+    return DataSpaceIndexTraversal(
+        entries=tuple(entries),
+        expected_entries=spec.key_count,
+        root_offset=root_offset,
+        page_size=page_size,
+        page_type=page_type,
+        free_bytes=free_bytes,
+        first_free_offset=first_free_offset,
+        page_pointers=tuple(page_pointers),
+        complete=complete,
+        warnings=tuple(warnings),
+    )
 
 
 
@@ -2361,6 +2707,21 @@ class DASDImage:
                 data,
                 virtual_address=storage.data_index.segment.virtual_address,
             )
+        except ValueError:
+            return None
+
+    def read_data_space_index_traversal(
+        self,
+        storage: MemberStorage,
+    ) -> DataSpaceIndexTraversal | None:
+        """Enumerate complete keys from an ordinary one-page QDDSI root."""
+
+        layout = self.read_data_space_index_layout(storage)
+        if layout is None or storage.data_index is None:
+            return None
+        data = self.read_segment_bytes(storage.data_index.segment)
+        try:
+            return decode_data_space_index_root(data, layout)
         except ValueError:
             return None
 
