@@ -4128,16 +4128,12 @@ def _tui_segment_prefix(image, segment, limit=1024):
 
 
 def _tui_hex_lines(data, *, base_offset=0):
-    """Format bytes as offset + hex + ASCII + EBCDIC for forensic browsing."""
+    """Format bytes as offset + hex + EBCDIC for AS/400 forensic browsing."""
 
     lines = []
     for offset in range(0, len(data), 16):
         chunk = data[offset : offset + 16]
         hex_text = " ".join(f"{byte:02X}" for byte in chunk)
-        ascii_text = "".join(
-            chr(byte) if 32 <= byte < 127 else "."
-            for byte in chunk
-        )
         ebcdic = chunk.decode("cp037", errors="replace")
         ebcdic_text = "".join(
             character if character.isprintable() else "."
@@ -4146,7 +4142,7 @@ def _tui_hex_lines(data, *, base_offset=0):
         lines.append(
             f"{base_offset + offset:08X}  "
             f"{hex_text:<47}  "
-            f"A:{ascii_text:<16} E:{ebcdic_text}"
+            f"E:{ebcdic_text}"
         )
     return lines
 
@@ -4258,7 +4254,7 @@ def _tui_object_lines(state, obj):
                 [
                     "",
                     "  Raw primary-segment prefix (first 512 bytes)",
-                    "  Offset    Hex                                              ASCII / EBCDIC",
+                    "  Offset    Hex                                              EBCDIC",
                 ]
             )
             lines.extend(
@@ -4485,7 +4481,7 @@ def _tui_object_lines(state, obj):
                 [
                     "",
                     "Forensic raw object prefix (first 256 bytes)",
-                    "Offset    Hex                                              ASCII / EBCDIC",
+                    "Offset    Hex                                              EBCDIC",
                 ]
             )
             lines.extend(_tui_hex_lines(prefix))
