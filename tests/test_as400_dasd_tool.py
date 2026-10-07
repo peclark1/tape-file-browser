@@ -25,6 +25,7 @@ from as400_dasd_tool import (
     _tui_hex_lines,
     _data_space_status_note,
     _tui_library_context,
+    _tui_msgq_profile_link,
     _tui_object_type_context,
     _tui_same_name_objects,
     _tui_viewer_target,
@@ -186,6 +187,53 @@ class DASDToolTests(unittest.TestCase):
             ),
             [profile],
         )
+
+    def test_tui_msgq_profile_link_requires_exact_internal_address(self):
+        profile = SimpleNamespace(
+            object_type=0x08,
+            object_subtype=0x01,
+            name="JHUDGINS",
+            library_name="*MACHINE",
+            segment=SimpleNamespace(
+                virtual_address=0x00D00038D5000000,
+                header=SimpleNamespace(
+                    owner=SimpleNamespace(
+                        key=(0x00D0, 0x0038D5000000)
+                    )
+                ),
+            ),
+        )
+        other_profile = SimpleNamespace(
+            object_type=0x08,
+            object_subtype=0x01,
+            name="JHUDGINS",
+            library_name="*MACHINE",
+            segment=SimpleNamespace(
+                virtual_address=0x00D0001111000000,
+                header=SimpleNamespace(
+                    owner=SimpleNamespace(
+                        key=(0x00D0, 0x001111000000)
+                    )
+                ),
+            ),
+        )
+
+        raw = bytearray(0x58)
+        raw[0x38:0x40] = bytes.fromhex("00d00038d5000000")
+        msgq = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x02,
+            name="JHUDGINS",
+            epa=SimpleNamespace(raw=bytes(raw)),
+        )
+        inventory = SimpleNamespace(
+            objects=[profile, other_profile, msgq]
+        )
+
+        pointer, matches = _tui_msgq_profile_link(inventory, msgq)
+        self.assertIsNotNone(pointer)
+        self.assertEqual(pointer.key, (0x00D0, 0x0038D5000000))
+        self.assertEqual(matches, [profile])
 
     def test_tui_file_storage_evidence_distinguishes_common_shapes(self):
         source_member = SimpleNamespace(member_name="REFRESH2", kind="source")

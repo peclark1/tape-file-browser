@@ -16,6 +16,7 @@ from as400_dasd import (
     EPAHeader,
     Extent,
     HeaderSnapshot,
+    InternalAddress,
     MachineIndexElement,
     RecoveredObject,
     RecoveredSegment,
@@ -794,6 +795,26 @@ class DASDHeaderTests(unittest.TestCase):
                 label,
             )
             self.assertEqual(epa.name, name, label)
+
+    def test_real_jhudgins_msgq_contains_observed_usrprf_address(self):
+        fixture = load_object_fixture(OBJECT_FIXTURE)
+
+        _, usr_raw = fixture["B10_JHUDGINS_USRPRF"]
+        _, msg_raw = fixture["B10_JHUDGINS_1902"]
+
+        usr_segment = SegmentGroupHeader.from_bytes(usr_raw[:32])
+        usr_epa = EPAHeader.from_bytes(usr_raw[32:])
+        msg_epa = EPAHeader.from_bytes(msg_raw[32:])
+
+        observed = InternalAddress.from_bytes(
+            msg_epa.raw[0x38:0x40]
+        )
+
+        self.assertEqual(usr_epa.name, "JHUDGINS")
+        self.assertEqual(msg_epa.name, "JHUDGINS")
+        self.assertEqual(observed.key, usr_segment.owner.key)
+        self.assertEqual(observed.extender, 0x00D0)
+        self.assertEqual(observed.address, 0x0038D5000000)
 
     def test_real_member_header_metadata(self):
         object_fixture = load_object_fixture(OBJECT_FIXTURE)

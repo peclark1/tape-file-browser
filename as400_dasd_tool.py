@@ -20,6 +20,7 @@ from as400_dasd import (
     SECTOR_SIZE,
     DASDImage,
     Extent,
+    InternalAddress,
     ebcdic_preview,
     format_hex,
 )
@@ -4200,6 +4201,41 @@ def _tui_same_name_objects(
     )
 
 
+
+def _tui_msgq_profile_link(inventory, obj):
+    """Resolve the observed EPA+0x38 address on a recovered *MSGQ.
+
+    The real B10 JHUDGINS 19/02 object contains an eight-byte internal address
+    at EPA+0x38 which exactly matches the owning-object address of the recovered
+    JHUDGINS 08/01 *USRPRF. The field's formal IBM name/meaning is not yet
+    documented here, so callers must present this as observed correlation rather
+    than a decoded architectural attribute.
+    """
+
+    if (obj.object_type, obj.object_subtype) != (0x19, 0x02):
+        return None, []
+    if len(obj.epa.raw) < 0x40:
+        return None, []
+
+    pointer = InternalAddress.from_bytes(obj.epa.raw[0x38:0x40])
+    if pointer.is_null:
+        return pointer, []
+
+    matches = sorted(
+        [
+            candidate
+            for candidate in inventory.objects
+            if (candidate.object_type, candidate.object_subtype) == (0x08, 0x01)
+            and candidate.segment.header.owner.key == pointer.key
+        ],
+        key=lambda candidate: (
+            candidate.library_name or "",
+            candidate.name,
+            candidate.segment.virtual_address,
+        ),
+    )
+    return pointer, matches
+
 def _tui_profile_queue_lines(state, obj):
     """Semantic-first view for *USRPRF and *MSGQ objects."""
 
@@ -4230,22 +4266,60 @@ def _tui_profile_queue_lines(state, obj):
     )
 
     lines = ["", title, explanation]
+
+    direct_pointer = None
+    direct_profiles = []
+    if pair == (0x19, 0x02):
+        direct_pointer, direct_profiles = _tui_msgq_profile_link(
+            state["inventory"],
+            obj,
+        )
+        if direct_pointer is not None:
+            lines.append(
+                f"  Observed EPA+0x38 internal address: {direct_pointer}"
+            )
+            if direct_profiles:
+                lines.append("  Address-resolved *USRPRF target:")
+                for candidate in direct_profiles[:8]:
+                    context = candidate.library_name or "<unresolved context>"
+                    lines.append(
+                        f"    {context}/{candidate.name}  "
+                        f"VA {candidate.segment.virtual_address:012X}"
+                    )
+                lines.append(
+                    "  Evidence note: the real B10 JHUDGINS sample resolves "
+                    "this address exactly to its same-name *USRPRF owner "
+                    "address. The formal meaning/name of EPA+0x38 remains "
+                    "undecoded."
+                )
+            elif not direct_pointer.is_null:
+                lines.append(
+                    "  Address-resolved *USRPRF target: not recovered on "
+                    "this image."
+                )
+
     if counterparts:
-        lines.append(f"  Same-name {counterpart_label} correlation:")
-        for candidate in counterparts[:8]:
-            context = candidate.library_name or "<unresolved context>"
-            lines.append(
-                f"    {context}/{candidate.name}  "
-                f"VA {candidate.segment.virtual_address:012X}"
-            )
-        if len(counterparts) > 8:
-            lines.append(
-                f"    ... {len(counterparts) - 8:,} additional match(es)"
-            )
+        same_as_direct = (
+            direct_profiles
+            and {id(candidate) for candidate in counterparts}
+            == {id(candidate) for candidate in direct_profiles}
+        )
+        if not same_as_direct:
+            lines.append(f"  Same-name {counterpart_label} correlation:")
+            for candidate in counterparts[:8]:
+                context = candidate.library_name or "<unresolved context>"
+                lines.append(
+                    f"    {context}/{candidate.name}  "
+                    f"VA {candidate.segment.virtual_address:012X}"
+                )
+            if len(counterparts) > 8:
+                lines.append(
+                    f"    ... {len(counterparts) - 8:,} additional match(es)"
+                )
         lines.append(
             "  Relationship note: OS/400's default MSGQ(*USRPRF) convention "
-            "uses a same-name user-profile message queue. The match above is "
-            "correlation evidence, not a decoded linkage field."
+            "uses a same-name user-profile message queue. Name correlation "
+            "alone is not treated as a decoded linkage field."
         )
     else:
         lines.append(

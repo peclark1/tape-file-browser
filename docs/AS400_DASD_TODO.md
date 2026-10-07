@@ -139,6 +139,14 @@ to this CISC release.
 - [x] Add semantic `*USRPRF` / `*MSGQ` views with cautious same-name
       profile/queue correlation, owned-segment summaries, bounded EBCDIC text
       hints, and a raw fallback.
+- [x] Preserve the real B10 `JHUDGINS` observation that the `19/02 *MSGQ`
+      EPA+0x38 internal address resolves exactly to the owning-object address of
+      the recovered same-name `08/01 *USRPRF`; expose it as an observed link
+      without assigning an undocumented field name.
+- [ ] Compare recovered `*MSGQ` object storage with IBM MI `MATQAT`
+      (Materialize Queue Attributes) semantics: queue type, current/maximum
+      message count, extension value, key length, and maximum message size.
+      Do not assume the MATQAT materialization layout is the on-disk layout.
 - [x] Add `*FILE` storage-evidence summaries (source member types, resolved
       formats, QDDS/QDDSI counts) so source/database/logical-access-path cases
       are described from recovered evidence rather than guessed from names.

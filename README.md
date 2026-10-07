@@ -275,10 +275,15 @@ Program objects (`*PGM`) now get a forensic program view: recovered owned
 segments, printable EBCDIC strings from the primary-segment prefix, and a
 hex/EBCDIC view of the first 512 bytes. The browser does not pretend this
 is source code or a decoded instruction stream; program-template, instruction
-stream, and ODT decoding remain separate reverse-engineering work. Other object
-types without a specialized decoder get a smaller hex/EBCDIC raw-object prefix
-so they are still inspectable instead of producing metadata only. Format objects show their
-recovered field descriptions.
+stream, and ODT decoding remain separate reverse-engineering work. `*USRPRF`
+and `*MSGQ` objects get semantic-first views with owned-segment/text evidence
+before their raw prefix. On the real B10 `JHUDGINS` sample, the `*MSGQ`
+EPA+0x38 internal address resolves exactly to the recovered same-name
+`*USRPRF` owning-object address; the browser exposes that observation while
+leaving the field's formal meaning unnamed until independently documented.
+Other object types without a specialized decoder get a smaller hex/EBCDIC
+raw-object prefix so they are still inspectable instead of producing metadata
+only. Format objects show their recovered field descriptions.
 
 Three contextual information rows above the normal status line explain the
 current selection in **each** navigation pane independently: library/view,
