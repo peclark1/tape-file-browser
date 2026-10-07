@@ -218,8 +218,23 @@ allows an index to span multiple segment groups. `context-xref` now searches
 **all recovered segment groups with the context's owning-object key** and
 reports each hit as `segment-VA + offset`.
 
-The earlier 3/165 figure is therefore retained as a useful primary-segment
-observation, but it must not be treated as the context-wide hit rate.
+The all-owned-segments rerun searched three QGPL-owned segment groups
+(69 pages total) and produced **exactly the same 3/165 base-address hits**.
+So the missing matches were not hiding in the two additional recovered segment
+groups.
+
+That rerun exposed a more important mistake in the first diagnostic. IBM's
+documented `@` field is the address of the object's **EPA header**. Our first
+implementation searched the primary segment-group base/owning address instead.
+On these recovered objects the EPA header begins immediately after the 32-byte
+YYSGHDR, so the documented address is:
+
+`primary segment VA + 0x20`
+
+`context-xref` now searches that EPA-header address as the real `@` value and
+reports the old segment-base address separately as `base@` forensic evidence.
+The three original hits are therefore **not** currently counted as proven
+context-entry address hits.
 
 The surviving B10 image also did not recover a `QGPL` context on the disk
 tested. That is not treated as an error in the architecture model; the next B10

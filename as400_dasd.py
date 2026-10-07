@@ -520,6 +520,21 @@ class RecoveredObject:
         return f"{self.object_type:02X}/{self.object_subtype:02X}"
 
     @property
+    def epa_address(self) -> InternalAddress:
+        """Internal address of this object's common EPA header.
+
+        A recovered primary segment begins with the 32-byte YYSGHDR and the
+        EPA header follows immediately. IBM's context-management documentation
+        defines the context-entry @ field as the address of the EPA header,
+        not the base address of the owning segment group.
+        """
+
+        return InternalAddress(
+            self.segment.header.owner.extender,
+            self.segment.virtual_address + SEGMENT_HEADER_SIZE,
+        )
+
+    @property
     def external_type_hint(self) -> str:
         known = {
             (0x02, 0x01): "*PGM",
@@ -1477,10 +1492,11 @@ class ContextIndexEntry:
     def from_object(cls, obj: "RecoveredObject") -> "ContextIndexEntry":
         """Build the documented logical entry expected for a recovered object.
 
-        The object's recovered primary owning address is used as the internal
-        object identity. This is the same address form already used by EPA
-        context back-pointers in the recovery model. Real context-index
-        traversal remains the independent check of that relationship.
+        IBM defines the final @ field as the internal address of the object's
+        EPA header. A recovered primary segment starts with the 32-byte
+        segment-group header, so the EPA address is primary-segment VA + 0x20.
+        Real context-index traversal remains the independent check of that
+        documented relationship.
         """
 
         name_raw = obj.epa.name_raw.rstrip(b"\x40\x00")
@@ -1489,7 +1505,7 @@ class ContextIndexEntry:
         raw = (
             bytes([obj.object_type, obj.object_subtype, len(name_raw)])
             + name_raw
-            + obj.segment.header.owner.to_bytes()
+            + obj.epa_address.to_bytes()
         )
         return cls.from_bytes(raw)
 

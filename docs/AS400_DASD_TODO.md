@@ -44,10 +44,17 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       diagnostic was incorrectly scanning only the primary segment group.
 - [x] Update `context-xref` to search every recovered segment group owned by
       the context and report locations as `segment VA + offset`.
-- [ ] Re-run Mark/Patrik `QGPL` with the all-owned-segments diagnostic and
-      compare a smaller recovered context. On the B10 image, first list the
-      contexts actually present because `QGPL` was not recovered on the
-      tested surviving disk.
+- [x] Re-run Mark/Patrik `QGPL` across all three context-owned segment
+      groups (69 pages total). The hit count remained 3/165, ruling out the
+      primary-only scan as the reason for the low match rate.
+- [x] Correct `context-xref` to use IBM's documented `@` value: the internal
+      address of the EPA header at primary-segment VA + 0x20. Preserve the old
+      segment-base search separately as `base@` forensic evidence.
+- [ ] Re-run Mark/Patrik `QGPL` with the corrected EPA-address diagnostic.
+      On the B10 image, use a populated recovered context such as `PPSITEST`
+      (6 EPA-assigned objects) for the first cross-image comparison; `JHUDGINS`
+      currently has zero EPA-assigned objects and will be more valuable later
+      as a test of context-derived membership recovery.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 

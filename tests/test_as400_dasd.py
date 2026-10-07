@@ -496,20 +496,59 @@ class DASDHeaderTests(unittest.TestCase):
 
 
     def test_context_index_entry_documented_format(self):
-        owner = make_internal_address(0x00D0, 0x0038D5000000)
+        epa_address = make_internal_address(0x00D0, 0x0038D5000020)
         name = "JHUDGINS".encode("cp037")
-        raw = bytes([0x08, 0x01, len(name)]) + name + owner
+        raw = bytes([0x08, 0x01, len(name)]) + name + epa_address
 
         entry = ContextIndexEntry.from_bytes(raw)
         self.assertEqual(entry.type_code, "08/01")
         self.assertEqual(entry.name_length, 8)
         self.assertEqual(entry.name, "JHUDGINS")
         self.assertEqual(entry.object_address.extender, 0x00D0)
-        self.assertEqual(entry.object_address.address, 0x0038D5000000)
+        self.assertEqual(entry.object_address.address, 0x0038D5000020)
         self.assertEqual(entry.raw, raw)
 
         with self.assertRaises(ValueError):
             ContextIndexEntry.from_bytes(raw[:-1])
+
+    def test_context_index_entry_from_object_uses_epa_header_address(self):
+        extent = Extent(
+            start_lba=10,
+            pages=2,
+            kind="test",
+            header=b"",
+            virtual_address=0x0037AE000000,
+        )
+        header = SegmentGroupHeader(
+            raw=b"\x00" * 32,
+            segment_type=0x0180,
+            size_pages=2,
+            new_flags=0,
+            flags=0,
+            domain=0,
+            owner=InternalAddress(0x0001, 0x0037AE000000),
+            space=InternalAddress(0, 0),
+        )
+        segment = RecoveredSegment(
+            start_extent=extent,
+            extents=(extent,),
+            header=header,
+        )
+        epa = SimpleNamespace(
+            name_raw="QCLSRC".encode("cp037").ljust(30, b"\x40"),
+            object_type=0x19,
+            object_subtype=0x01,
+            name="QCLSRC",
+        )
+        obj = RecoveredObject(segment=segment, epa=epa)
+
+        self.assertEqual(obj.epa_address.extender, 0x0001)
+        self.assertEqual(obj.epa_address.address, 0x0037AE000020)
+
+        entry = ContextIndexEntry.from_object(obj)
+        self.assertEqual(entry.name, "QCLSRC")
+        self.assertEqual(entry.object_address, obj.epa_address)
+        self.assertTrue(entry.raw.endswith(bytes.fromhex("00010037ae000020")))
 
     def test_machine_index_element_formats(self):
         # IBM Appendix-A release-2 format uses three-byte elements.

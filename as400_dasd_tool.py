@@ -2671,18 +2671,25 @@ def cmd_context_xref(args):
     ]
 
     rows = []
-    address_hits_total = 0
+    epa_address_hits_total = 0
+    base_address_hits_total = 0
     name_address_hits_total = 0
     full_hits_total = 0
 
     for obj in objects:
         entry = ContextIndexEntry.from_object(obj)
-        address_pattern = entry.object_address.to_bytes()
-        name_address_pattern = entry.name_raw + address_pattern
+        epa_address_pattern = entry.object_address.to_bytes()
+        base_address_pattern = obj.segment.header.owner.to_bytes()
+        name_address_pattern = entry.name_raw + epa_address_pattern
 
-        address_hits = _find_pattern_segment_locations(
+        epa_address_hits = _find_pattern_segment_locations(
             segment_blobs,
-            address_pattern,
+            epa_address_pattern,
+            limit=args.max_hits,
+        )
+        base_address_hits = _find_pattern_segment_locations(
+            segment_blobs,
+            base_address_pattern,
             limit=args.max_hits,
         )
         name_address_hits = _find_pattern_segment_locations(
@@ -2696,19 +2703,22 @@ def cmd_context_xref(args):
             limit=args.max_hits,
         )
 
-        if address_hits:
-            address_hits_total += 1
+        if epa_address_hits:
+            epa_address_hits_total += 1
+        if base_address_hits:
+            base_address_hits_total += 1
         if name_address_hits:
             name_address_hits_total += 1
         if full_hits:
             full_hits_total += 1
 
-        if address_hits or args.include_misses:
+        if epa_address_hits or base_address_hits or args.include_misses:
             rows.append(
                 (
                     obj,
                     entry,
-                    address_hits,
+                    epa_address_hits,
+                    base_address_hits,
                     name_address_hits,
                     full_hits,
                 )
@@ -2738,11 +2748,15 @@ def cmd_context_xref(args):
     )
     print()
     print(
-        f"Objects whose 8-byte address occurs in the context segment: "
-        f"{address_hits_total:,}/{len(objects):,}"
+        f"Objects whose documented EPA-header @ address occurs: "
+        f"{epa_address_hits_total:,}/{len(objects):,}"
     )
     print(
-        f"Objects with contiguous N+@ bytes: "
+        f"Objects whose primary segment-base address occurs: "
+        f"{base_address_hits_total:,}/{len(objects):,}"
+    )
+    print(
+        f"Objects with contiguous N+@ bytes (using EPA @): "
         f"{name_address_hits_total:,}/{len(objects):,}"
     )
     print(
@@ -2756,15 +2770,22 @@ def cmd_context_xref(args):
         return 0
 
     print(
-        "Type   Object                         @ hits  N+@  full  "
-        "first @ location"
+        "Type   Object                         EPA@  base@  N+@  full  "
+        "first EPA@ location"
     )
     shown = 0
-    for obj, entry, address_hits, name_address_hits, full_hits in rows:
+    for (
+        obj,
+        entry,
+        epa_address_hits,
+        base_address_hits,
+        name_address_hits,
+        full_hits,
+    ) in rows:
         if args.limit and shown >= args.limit:
             break
-        if address_hits:
-            first_segment, first_offset = address_hits[0]
+        if epa_address_hits:
+            first_segment, first_offset = epa_address_hits[0]
             first = (
                 f"{first_segment.virtual_address:012X}+0x{first_offset:X}"
             )
@@ -2773,7 +2794,8 @@ def cmd_context_xref(args):
         print(
             f"{entry.type_code:<7}"
             f"{obj.name[:30]:<31}"
-            f"{len(address_hits):>6}  "
+            f"{len(epa_address_hits):>4}  "
+            f"{len(base_address_hits):>5}  "
             f"{len(name_address_hits):>3}  "
             f"{len(full_hits):>4}  "
             f"{first}"
@@ -2785,10 +2807,11 @@ def cmd_context_xref(args):
 
     print()
     print(
-        "Interpretation: an address-only hit is useful location evidence, not "
-        "yet a decoded tree entry. N+@ or full-entry hits are stronger, but "
-        "the final context traversal must reconstruct keys through the "
-        "documented binary-radix-tree elements and page pointers."
+        "Interpretation: EPA@ is the documented context-entry address form "
+        "(primary segment VA + 0x20). A base@ hit is tracked separately as "
+        "forensic correlation and is not counted as a documented context entry. "
+        "N+@ or full-entry hits are stronger, but final traversal must still "
+        "reconstruct keys through the binary-radix-tree elements and pointers."
     )
     if len(owned_segments) > 1:
         print(
