@@ -337,13 +337,28 @@ class DASDToolTests(unittest.TestCase):
         # A plausible text element points exactly to 0x65 and covers six bytes.
         value = (6 << 16) | 0x65
         data[0x20:0x23] = value.to_bytes(3, "big")
-        exact, covered = _machine_index_text_reference_score(
+        score = _machine_index_text_reference_score(
             [(segment, bytes(data))],
             locations,
             512,
         )
-        self.assertEqual(exact, 1)
-        self.assertEqual(covered, 1)
+        self.assertEqual(score["exact"], 1)
+        self.assertEqual(score["covered"], 1)
+        self.assertEqual(score["best_exact_phase"], 2)
+        self.assertEqual(score["best_exact"], 1)
+        self.assertEqual(score["best_covered_phase"], 2)
+        self.assertEqual(score["best_covered"], 1)
+
+        # Add a plausible covering value in another phase. The exact reference
+        # should remain phase-coherent even though coverage becomes noisier.
+        data[0x24:0x27] = ((20 << 16) | 0x60).to_bytes(3, "big")
+        score = _machine_index_text_reference_score(
+            [(segment, bytes(data))],
+            locations,
+            512,
+        )
+        self.assertEqual(score["best_exact_phase"], 2)
+        self.assertEqual(score["best_exact"], 1)
 
     def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):
         data = b"ABC--ABC--ABC"

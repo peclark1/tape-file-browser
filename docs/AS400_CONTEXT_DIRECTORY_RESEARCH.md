@@ -280,11 +280,26 @@ start exactly at, or cover, the observed key-tail bytes. Because the
 page-header/trunk offset is still unknown, every possible byte alignment is
 tested and the result is reported only as a score, not as a decoded pointer.
 
-A page size that repeatedly produces strong text-element-to-tail references in
-both QGPL and PPSITEST would materially constrain the next reverse-engineering
-step. A weak/ambiguous score would instead tell us that the missing page origin
-or terminal-text boundary must be resolved before interpreting the element
-stream.
+The first page-size score is useful but not yet decisive. In QGPL, raw exact
+starts increase from 12 at 512-byte pages to 64 at 16384-byte pages, while
+coverage remains high across several sizes. In PPSITEST, 512-byte pages cover
+16 of the 20 distinct tail locations but produce no exact starts; 4096-byte
+pages produce five exact starts while covering eight. Larger pages also create
+more possible three-byte values whose displacement can fall within the page, so
+raw hit count alone can favor them by chance.
+
+There is a stronger structural discriminator available from the same
+documentation: release-2 machine-index elements are three bytes. Even before we
+know the header/trunk origin, candidate elements can be grouped by their offset
+modulo three within a proposed logical page. Real tree elements should show
+better **phase coherence** than arbitrary page data. The scorer now reports,
+for each candidate page size, total exact/covering references plus the strongest
+phase and its support.
+
+The next criterion is therefore cross-image agreement on both page size and
+three-byte phase. If PPSITEST's compact 0x800-0xBFF region and QGPL favor the
+same phase-aware model, we can dump those candidate text elements and inspect
+their length/displacement fields directly before attempting node traversal.
 
 ## Real-image validation plan
 Once the documentation model is firm:

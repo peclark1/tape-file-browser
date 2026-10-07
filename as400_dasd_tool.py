@@ -2743,23 +2743,21 @@ def _machine_index_text_reference_score(
     location_map,
     page_size,
 ):
-    """Score whether text elements plausibly reference known key-tail bytes.
+    """Score plausible text-element references to known key-tail bytes.
 
-    IBM documents a text element as a three-byte element containing a text
-    length and a displacement to the actual text within the logical page.
-    Header/trunk alignment is still unknown, so this forensic scorer examines
-    every possible three-byte start rather than assuming an element alignment.
-
-    Returns the number of distinct key-tail locations with an exact text-start
-    reference and the number covered by at least one plausible text element.
+    IBM documents each release-2 machine-index element as three bytes. Because
+    the page-header/trunk origin is not decoded yet, the raw scorer examines
+    every byte start, but it also groups references by element-offset modulo 3.
+    A genuine element stream should show substantially better phase coherence
+    than accidental three-byte values in arbitrary data.
     """
 
     data_by_va = {
         segment.virtual_address: data
         for segment, data in segment_blobs
     }
-    exact_locations = set()
-    covered_locations = set()
+    exact_by_phase = [set(), set(), set()]
+    covered_by_phase = [set(), set(), set()]
 
     for key, item in location_map.items():
         segment = item["segment"]
@@ -2788,17 +2786,37 @@ def _machine_index_text_reference_score(
             if text_end > len(page):
                 continue
 
+            phase = element_offset % 3
             if displacement == relative and text_length >= required:
-                exact_locations.add(key)
-                covered_locations.add(key)
-                break
-            if (
+                exact_by_phase[phase].add(key)
+                covered_by_phase[phase].add(key)
+            elif (
                 displacement <= relative
                 and text_end >= relative + required
             ):
-                covered_locations.add(key)
+                covered_by_phase[phase].add(key)
 
-    return len(exact_locations), len(covered_locations)
+    exact_locations = set().union(*exact_by_phase)
+    covered_locations = set().union(*covered_by_phase)
+
+    exact_counts = tuple(len(items) for items in exact_by_phase)
+    covered_counts = tuple(len(items) for items in covered_by_phase)
+    best_exact_phase = max(range(3), key=lambda phase: exact_counts[phase])
+    best_covered_phase = max(
+        range(3),
+        key=lambda phase: covered_counts[phase],
+    )
+
+    return {
+        "exact": len(exact_locations),
+        "covered": len(covered_locations),
+        "exact_by_phase": exact_counts,
+        "covered_by_phase": covered_counts,
+        "best_exact_phase": best_exact_phase,
+        "best_exact": exact_counts[best_exact_phase],
+        "best_covered_phase": best_covered_phase,
+        "best_covered": covered_counts[best_covered_phase],
+    }
 
 
 def _machine_index_page_size_scores(segment_blobs, location_map):
@@ -2814,12 +2832,12 @@ def _machine_index_page_size_scores(segment_blobs, location_map):
         16384,
         32768,
     ):
-        exact, covered = _machine_index_text_reference_score(
+        score = _machine_index_text_reference_score(
             segment_blobs,
             location_map,
             page_size,
         )
-        scores.append((page_size, exact, covered))
+        scores.append((page_size, score))
     return scores
 
 
@@ -3053,20 +3071,27 @@ def cmd_context_xref(args):
             "Plausible text-element references to these key tails by "
             "candidate logical page size:"
         )
-        print("  page size   exact start   covers tail")
-        for page_size, exact, covered in _machine_index_page_size_scores(
+        print(
+            "  page size   exact  best exact phase   covers  "
+            "best cover phase"
+        )
+        for page_size, score in _machine_index_page_size_scores(
             segment_blobs,
             location_map,
         ):
-            if exact or covered:
+            if score["exact"] or score["covered"]:
                 print(
                     f"  {page_size:>8,}  "
-                    f"{exact:>11,}  "
-                    f"{covered:>11,}"
+                    f"{score['exact']:>6,}  "
+                    f"{score['best_exact']:>6,}@{score['best_exact_phase']}  "
+                    f"{score['covered']:>7,}  "
+                    f"{score['best_covered']:>6,}@"
+                    f"{score['best_covered_phase']}"
                 )
         print(
-            "  (Every byte alignment is tested because the page-header/trunk "
-            "offset is not yet known; treat these as scores, not decoded links.)"
+            "  Phase is element offset modulo 3 within the candidate logical "
+            "page. Every byte alignment is still tested; phase concentration "
+            "is evidence, not a decoded page origin."
         )
 
     print()

@@ -65,11 +65,20 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       (length + page displacement) and tests whether plausible text elements
       point to or cover the observed key tails without assuming header/trunk
       alignment.
-- [ ] Re-run the two contexts with page clustering/reference scoring. Use the
-      strongest cross-image page-size/alignment evidence to constrain the trunk
-      and text-element search before following page pointers. `JHUDGINS`
-      currently has zero EPA-assigned objects and remains valuable later as a
-      test of context-derived membership recovery.
+- [x] Re-run the two contexts with page clustering/reference scoring.
+      PPSITEST concentrates all 20 distinct tail locations in two 512-byte
+      storage pages; QGPL shows broader clusters. Raw page-size scores are not
+      decisive: PPSITEST has 0 exact starts at 512/1024/2048 but 5 at 4096,
+      while QGPL's raw exact count rises with larger page sizes.
+- [x] Add element-phase scoring (element offset modulo 3 within each candidate
+      logical page). This discounts some chance three-byte values: a real
+      release-2 element stream should show stronger alignment coherence than
+      arbitrary data even while the page-header/trunk origin is unknown.
+- [ ] Re-run QGPL and PPSITEST with phase-aware scores. Prefer a candidate only
+      if the same page size/alignment behavior is reproducible across images;
+      then dump the exact/covering text-element candidates around PPSITEST's
+      compact 0x800-0xBFF region before following page pointers. `JHUDGINS`
+      remains a later context-derived-membership test.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
