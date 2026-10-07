@@ -15,6 +15,8 @@ from as400_dasd import (
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
     PAGE_SIZE,
+    QAOSSS14AnchorRecord,
+    QAOSSS14_V2_RECORD_LENGTH,
     SECTOR_SIZE,
     DASDImage,
     Extent,
@@ -1165,6 +1167,178 @@ def _find_byte_occurrences(data, needle):
         start = offset + 1
     return offsets
 
+
+
+def _load_qaosss14_anchor_records(image, inventory, segments):
+    """Return the best recovered V2R3 QAOSSS14 anchor-record set.
+
+    The file/member relationship may still be partially unresolved, so search
+    member cursors by file name globally and prefer the candidate with the most
+    successfully decoded 193-byte records.
+    """
+
+    candidates = []
+    for member in inventory.members(file_name="QAOSSS14"):
+        try:
+            storage = image.resolve_member_storage(
+                member,
+                inventory,
+                segments,
+            )
+            record_set = image.read_data_space_records(storage)
+        except Exception:
+            record_set = None
+        if (
+            record_set is None
+            or record_set.layout.record_length
+            != QAOSSS14_V2_RECORD_LENGTH
+        ):
+            continue
+
+        decoded = []
+        for record in record_set.user_records:
+            try:
+                decoded.append(
+                    QAOSSS14AnchorRecord.from_data_space_record(record)
+                )
+            except ValueError:
+                continue
+        if decoded:
+            candidates.append(
+                (
+                    len(decoded),
+                    member,
+                    record_set,
+                    tuple(decoded),
+                )
+            )
+
+    if not candidates:
+        return None, None, ()
+    candidates.sort(
+        key=lambda item: (
+            item[0],
+            item[1].segment.virtual_address,
+        ),
+        reverse=True,
+    )
+    _count, member, record_set, decoded = candidates[0]
+    return member, record_set, decoded
+
+
+def _qaosss14_key_index(records):
+    index = {}
+    zero = b"\x00" * 8
+    for record in records:
+        key = record.record_key
+        if key == zero:
+            continue
+        index.setdefault(key, []).append(record)
+    return index
+
+
+def _match_qdoc_anchor_record(image, obj, records, key_index=None):
+    """Match a recovered QDOC object to one QAOSSS14 record by binary keys.
+
+    On the real V2R3 image, the QAOSSS14 WOSEFILD value for a document occurs
+    in that QDOC object's recovered bytes. WOSEPLDN also occurs in the matched
+    examples when it is nonzero. Use both observations to prefer a unique
+    correlation without assigning meanings to the abbreviations themselves.
+    """
+
+    if obj is None or not records:
+        return None, "QAOSSS14 anchor records are not recovered"
+
+    try:
+        data = image.read_segment_bytes(obj.segment)
+    except Exception as exc:
+        return None, f"could not read QDOC object: {exc}"
+
+    key_index = key_index or _qaosss14_key_index(records)
+    candidates = {}
+    for offset in range(0, max(0, len(data) - 7)):
+        key = data[offset : offset + 8]
+        for record in key_index.get(key, ()):
+            candidates[record.rrn] = record
+
+    if not candidates:
+        return None, "no QAOSSS14 WOSEFILD key found in QDOC object"
+
+    zero = b"\x00" * 8
+    strong = []
+    for record in candidates.values():
+        parent = record.parent_key
+        if parent == zero or parent in data:
+            strong.append(record)
+
+    pool = strong or list(candidates.values())
+    if len(pool) != 1:
+        return None, (
+            f"{len(pool)} QAOSSS14 anchor candidates remain ambiguous"
+        )
+    return pool[0], ""
+
+
+def _qaosss14_path(record, records, key_index=None):
+    """Reconstruct a QDLS-style path from observed WOSEPLDN->WOSEFILD links."""
+
+    if record is None:
+        return "", False
+
+    key_index = key_index or _qaosss14_key_index(records)
+    zero = b"\x00" * 8
+    components = []
+    current = record
+    seen = set()
+    complete = False
+
+    while current is not None and current.rrn not in seen:
+        seen.add(current.rrn)
+        component = current.short_name or current.long_name
+        if component:
+            components.append(component)
+
+        parent_key = current.parent_key
+        if parent_key == zero:
+            complete = True
+            break
+
+        parents = key_index.get(parent_key, ())
+        if len(parents) != 1:
+            break
+        current = parents[0]
+
+    components.reverse()
+    if not components:
+        return "", complete
+    return "/QDLS/" + "/".join(components), complete
+
+
+def _qaosss14_object_info(image, obj, records, key_index=None):
+    record, error = _match_qdoc_anchor_record(
+        image,
+        obj,
+        records,
+        key_index=key_index,
+    )
+    if record is None:
+        return {
+            "record": None,
+            "path": "",
+            "path_complete": False,
+            "error": error,
+        }
+    path, complete = _qaosss14_path(
+        record,
+        records,
+        key_index=key_index,
+    )
+    return {
+        "record": record,
+        "path": path,
+        "path_complete": complete,
+        "error": "",
+    }
 
 def cmd_dlos(args):
     image = _open(args.image)
