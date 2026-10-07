@@ -3694,7 +3694,11 @@ def _tui_export_selected_dlo(stdscr, state, current_dir):
 
 
 _TUI_OBJECT_TYPE_CONTEXT = {
-    (0x02, 0x01): "executable program object",
+    (0x02, 0x01): (
+        "compiled MI program object; segment/raw browsing is available, "
+        "while program-template, instruction-stream, and ODT decoding remain "
+        "future work"
+    ),
     (0x04, 0x01): "library/context object that owns named AS/400 objects",
     (0x06, 0xC1): (
         "IBM *DOCBSS Document byte string space used by Document Library "
@@ -4455,6 +4459,37 @@ def _tui_object_lines(state, obj):
                     f"... {len(strings) - 300:,} additional strings omitted"
                 )
 
+    specialized = (
+        (obj.object_type, obj.object_subtype)
+        in {
+            (0x02, 0x01),
+            (0x06, 0xC1),
+            (0x19, 0x01),
+            (0x19, 0x0E),
+            (0x19, 0x12),
+            (0x19, 0x51),
+        }
+    )
+    if not specialized:
+        try:
+            prefix = _tui_segment_prefix(
+                state["image"],
+                obj.segment,
+                limit=256,
+            )
+        except Exception as exc:
+            prefix = b""
+            lines.extend(["", f"Raw object preview error: {exc}"])
+        if prefix:
+            lines.extend(
+                [
+                    "",
+                    "Forensic raw object prefix (first 256 bytes)",
+                    "Offset    Hex                                              ASCII / EBCDIC",
+                ]
+            )
+            lines.extend(_tui_hex_lines(prefix))
+
     return lines
 
 
@@ -4697,9 +4732,17 @@ def _tui_member_lines(state, member_item):
                 f"  Format:        {format_obj.name}",
                 f"  Fields:        {len(fields):,}",
                 "",
-                "Decoded records (first 50)",
+                "Field layout",
+                "  Off   Len  Type       Field",
             ]
         )
+        for field in fields:
+            lines.append(
+                f"  {field.offset:>4}  "
+                f"{field.storage_length:>4}  "
+                f"{field.type_name:<10} {field.name}"
+            )
+        lines.extend(["", "Decoded records (first 50)"])
         for record in records[:50]:
             lines.append(
                 f"RRN {record.rrn:,}  DENT "
