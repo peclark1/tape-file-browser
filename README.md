@@ -190,6 +190,7 @@ as400-dasd dlos disk.hda --model-fields
 as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
 as400-dasd dlo-index-scan disk.hda
 as400-dasd dlo-schema disk.hda --family QAOSSS14
+as400-dasd dlo-paths disk.hda FMPV082760 FMPV195818
 as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
 as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
 as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
@@ -266,10 +267,13 @@ as source lines. Other QDDS members show record-layout information and either
 decoded fields or raw EBCDIC record previews. Format objects show their recovered
 field descriptions.
 
-A contextual information line above the normal status line explains the selected
-library, file, member, or MI object type as you browse. Library descriptions are
-loaded from the editable `as400_libraries.json` catalog rather than being hard
-coded in the TUI. The catalog is seeded with every library currently recovered in
+Three contextual information rows above the normal status line explain the
+current selection in **each** navigation pane independently: library/view,
+file/object type, and member/object. Selecting the first file or member
+automatically therefore no longer hides the meaning of its parent library.
+The row corresponding to the focused pane is emphasized. Library descriptions
+are loaded from the editable `as400_libraries.json` catalog rather than being
+hard coded in the TUI. The catalog is seeded with every library currently recovered in
 the Mark-P02 file/member inventory, plus several common system libraries such as
 QDOC, QUSRSYS, QHLPSYS, and QTEMP. Descriptions are researched from period IBM
 documentation where possible. Each catalog entry also carries a functional
@@ -326,9 +330,11 @@ prompts for an output filename, validates the DOCBSS length metadata again,
 refuses to overwrite the DASD image, and asks before replacing an existing
 output file. A `*DOCBSS` object can also be selected directly and exported
 through its matching QDOC document.
-When the document metadata contains a conservative PC-style filename hint such as
-`CKPCSPTH.EXE` or `DTAQ.PKG`, the TUI offers that as the default export
-name while labeling it as a metadata hint rather than a QAOSS-verified path.
+When the selected QDOC document has a unique QAOSSS14 anchor correlation, the
+detail pane also shows the recovered QAOSSS14 RRN, 12-byte short name, longer
+name/title, and complete or partial reconstructed QDLS path. Export prefers the
+QAOSSS14 short name as its default filename. If no anchor mapping is available,
+the older conservative printable-metadata filename hint remains the fallback.
 
 For QDLS/document-library work, `as400-dasd dlos disk.hda` lists recovered
 QDOC `*DOC`/`*FLR` objects using their 10-character internal system object
@@ -358,21 +364,30 @@ replaced unless `--force` is supplied. This does not yet reconstruct the
 user-facing QDLS path, so export is addressed by the 10-character internal
 SYSOBJNAM.
 
-`as400-dasd dlo-index-scan disk.hda` takes the next conservative step by
-correlating all recovered QDOC 10-character SYSOBJNAM values against recovered
-QAOSS member records. It defaults to `QAOSSS14`, because IBM explicitly
-documents an anchor record there that stores the DLO system object name. The
-scan uses exact 10-byte EBCDIC matches and makes no assumptions about field
-offsets or record semantics. Use `--all-indexes` to probe the documented
-`QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18` set in one pass.
+`as400-dasd dlo-index-scan disk.hda` remains the literal EBCDIC
+SYSOBJNAM probe. The V2R3 QAOSSS14 records do not expose the useful QDOC
+correlation as a plain 10-character name; the recovered relationship instead
+uses an 8-byte `WOSEFILD` value embedded in the QDOC object's bytes.
+
+`as400-dasd dlo-paths disk.hda [SYSOBJNAM ...]` performs that decoded
+correlation. The recovered QUSRSYS/QAOSSS14 QDDS has 193-byte records.
+Repeated `WOSFMT14/QAOSSS14` descriptors provide the field offsets and
+lengths, and a unique `WOSEPLDN -> WOSEFILD` link is followed as a parent
+relationship. The command reports complete and partial paths while retaining
+the internal QDOC SYSOBJNAM. On the real V2R3 image this independently
+reconstructs examples including
+`/QDLS/QIWSFLR/CKPCSPTH.EXE` and
+`/QDLS/QIWSFL2/DTAQ.PKG`.
 
 `as400-dasd dlo-schema disk.hda` scans the raw image for literal IBM
 `WOSFMTxx` metadata associations without loading the whole DASD image into
 memory. It defaults to `WOSFMT14` and reports the nearby 8-character field
 identifier plus concatenated `QAOSS*`/`WOS*` identifiers exactly as stored.
-Use `--family QAOSSS14` or `--family QAOSSY14` to isolate one observed
-descriptor family. The command intentionally does not expand the abbreviations
-or infer field semantics from their names.
+It now also reports the repeated big-endian descriptor offset/length values;
+for QAOSSS14 these reproduce the 193-byte record layout as 1-based field
+offsets and lengths. Use `--family QAOSSS14` or `--family QAOSSY14` to
+isolate one observed descriptor family. Unknown abbreviations are deliberately
+left unexpanded.
 
 See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan,
 `docs/AS400_DASD_TODO.md` for the active backlog, and
