@@ -22,21 +22,30 @@ repeatable real-image validation.
 - [x] Run direct V2R3-image probes for known objects such as
       `FMPV082760`, `FMPV195818`, and `DPWN524712`; preserve the
       resulting correlations in the QDLS research notes.
-- [ ] Locate `QAOSSS14` or its unresolved storage: IBM documents its anchor
-      record as one of the places that stores each DLO's 10-character
-      SYSOBJNAM, making it the highest-value QAOSS target.
+- [x] Locate `QUSRSYS/QAOSSS14` and its complete recovered storage set on
+      the V2R3 image: `*FILE` 19/01, `*MEM` 0D/50, QDDS 0B/90, and
+      QDDSI 0C/90.
 - [ ] Locate/identify the other documented document/folder search indexes:
       `QAOSSS10`-`QAOSSS15`, `QAOSSS17`, and `QAOSSS18`.
 - [x] Add a raw `dlo-schema` evidence scanner for `WOSFMTxx` /
       `QAOSS*` associations, including the observed `QAOSSS14` and
       `QAOSSY14` families, without guessing abbreviation meanings.
-- [ ] Decode the binary descriptor fields and the relevant QAOSS record
-      formats, or identify their unresolved storage objects if normal
-      library/file recovery does not expose them.
-- [ ] Map QDOC system object names (SYSOBJNAM) to user-facing DLO names.
-- [ ] Reconstruct parent/child folder relationships and complete QDLS paths.
-- [ ] Verify known examples such as PC Support folders/files against the
-      reconstructed hierarchy.
+- [x] Decode the V2R3 `WOSFMT14/QAOSSS14` descriptor offsets/lengths and
+      the corresponding 193-byte QDDS record layout while preserving unknown
+      IBM field abbreviations verbatim.
+- [x] Correlate QDOC objects to QAOSSS14 anchor records through the observed
+      8-byte `WOSEFILD` value embedded in recovered QDOC bytes.
+- [x] Reconstruct parent links when a `WOSEPLDN` value uniquely matches
+      another QAOSSS14 `WOSEFILD`, returning complete or partial QDLS paths.
+- [x] Verify the PC Support hierarchy independently:
+      `FMPV082760 -> /QDLS/QIWSFLR/CKPCSPTH.EXE` and
+      `FMPV195818 -> /QDLS/QIWSFL2/DTAQ.PKG`.
+- [ ] Resolve parent links whose referenced folder/anchor record is absent or
+      not yet correlated (including the QAOSSS14 parent key used by the
+      BULLET1/BULLET2/BULLET3 records).
+- [ ] Determine the semantics of the remaining WOSFMT14 binary/field values;
+      do not expand identifiers such as `WOSEFILD`/`WOSEPLDN` from their
+      spelling alone.
 - [x] Identify MI `06/C1` as IBM `*DOCBSS` (Document byte string space)
       and correlate `FMPV082760F` / `FMPV195818F` companions with their
       same-base QDOC documents on the real V2R3 image.
@@ -88,6 +97,9 @@ repeatable real-image validation.
 
 - [x] Add curses DASD browser.
 - [x] Add contextual object/library explanations in the TUI.
+- [x] Keep library/view, file/object-type, and member/object context visible
+      simultaneously so an automatic child selection never hides its parent
+      pane's meaning.
 - [x] Add validated `*DOCBSS` workstation-file export to the TUI with
       explicit destination prompting and overwrite confirmation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
@@ -100,7 +112,8 @@ repeatable real-image validation.
       documented status.
 - [ ] Move MI object-type descriptions to a similarly editable/researchable
       catalog if the list grows enough to justify it.
-- [ ] Show reconstructed QDLS paths in the TUI once QAOSS decoding is proven.
+- [x] Show uniquely reconstructed QAOSSS14 QDLS names/paths in the TUI while
+      retaining the internal QDOC SYSOBJNAM for forensic identity.
 - [ ] Add keyed-record navigation after QDDSI traversal is stable.
 - [ ] Consider GTK integration only after the read-only CLI/TUI data model is
       stable.
