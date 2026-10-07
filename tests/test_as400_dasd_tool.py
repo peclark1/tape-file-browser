@@ -20,6 +20,9 @@ from as400_dasd_tool import (
     _qaosss14_unresolved_parent_records,
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
+    _tui_file_context,
+    _tui_hex_lines,
+    _data_space_status_note,
     _tui_library_context,
     _tui_object_type_context,
     _tui_viewer_target,
@@ -73,6 +76,30 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("QGPL TEST00", text)
 
 
+
+    def test_known_qaapfile_context_explains_logical_file(self):
+        text = _tui_file_context("QGPL", "QAAPFILE")
+        self.assertIn("logical file", text)
+        self.assertIn("view/access path", text)
+
+        self.assertIn(
+            "small symbol-set",
+            _tui_file_context("QGPL", "QAAPFILE$"),
+        )
+
+    def test_hex_lines_show_ascii_and_ebcdic(self):
+        data = b"MZ" + "ABC".encode("cp037")
+        lines = _tui_hex_lines(data)
+        self.assertEqual(len(lines), 1)
+        self.assertIn("4D 5A", lines[0])
+        self.assertIn("A:MZ", lines[0])
+        self.assertIn("E:", lines[0])
+
+    def test_dent_status_note_is_cautious(self):
+        note = _data_space_status_note(0x80)
+        self.assertIn("observed", note)
+        self.assertIn("not yet decoded", note)
+        self.assertNotIn("deleted", note.lower())
 
     def test_tui_context_describes_known_as400_roles(self):
         qdoc = _tui_library_context("QDOC")
