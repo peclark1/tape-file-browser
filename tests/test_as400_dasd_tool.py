@@ -124,6 +124,10 @@ class DASDToolTests(unittest.TestCase):
         member = _tui_object_type_context(0x0D, 0x50)
         self.assertIn("member cursor", member)
 
+        pgm = _tui_object_type_context(0x02, 0x01)
+        self.assertIn("compiled MI program", pgm)
+        self.assertIn("ODT", pgm)
+
         docbss = _tui_object_type_context(0x06, 0xC1)
         self.assertIn("*DOCBSS", docbss)
         self.assertIn("Document byte string space", docbss)
