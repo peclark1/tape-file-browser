@@ -1884,17 +1884,24 @@ class MachineIndexElementProbe:
 
 @dataclass(frozen=True)
 class MachineIndexPagePointerRef:
-    """Page pointer encountered while conservatively walking one QDDSI page."""
+    """Page pointer encountered while walking a QDDSI machine index."""
 
     element_offset: int
     segment_table_index: int
     page_offset: int
     key_prefix: bytes
+    followed: bool = False
+
+    @property
+    def target_offset(self) -> int:
+        """Observed byte offset encoded by the pointer's 256-byte units."""
+
+        return self.page_offset << 8
 
 
 @dataclass(frozen=True)
 class DataSpaceIndexEntry:
-    """One complete machine-index key recovered from a QDDSI root page."""
+    """One complete machine-index key recovered from a QDDSI tree."""
 
     machine_key: bytes
     user_key: bytes
@@ -1918,7 +1925,7 @@ class DataSpaceIndexEntry:
 
 @dataclass(frozen=True)
 class DataSpaceIndexTraversal:
-    """Conservative traversal result for one recovered QDDSI root page."""
+    """Conservative traversal result for one recovered QDDSI machine index."""
 
     entries: tuple[DataSpaceIndexEntry, ...]
     expected_entries: int
@@ -1927,6 +1934,7 @@ class DataSpaceIndexTraversal:
     page_type: int | None
     free_bytes: int | None
     first_free_offset: int | None
+    page_offsets: tuple[int, ...] = ()
     page_pointers: tuple[MachineIndexPagePointerRef, ...] = ()
     complete: bool = False
     warnings: tuple[str, ...] = ()
@@ -1935,23 +1943,31 @@ class DataSpaceIndexTraversal:
     def entry_count(self) -> int:
         return len(self.entries)
 
+    @property
+    def page_count(self) -> int:
+        return len(self.page_offsets)
+
+    @property
+    def unresolved_page_pointers(self) -> tuple[MachineIndexPagePointerRef, ...]:
+        return tuple(pointer for pointer in self.page_pointers if not pointer.followed)
+
 
 def decode_data_space_index_root(
     data: bytes,
     layout: DataSpaceIndexLayout,
 ) -> DataSpaceIndexTraversal:
-    """Walk an ordinary QDDSI active root machine-index page.
+    """Walk an ordinary QDDSI release-2 machine index in keyed order.
 
     IBM says a data-space index contains a general release-2 machine index.
     Real V2R3 QDDSIs establish the physical details used here: the active
-    root page begins at segment offset 0x1000; the free-byte and first-free
-    fields recover the logical page size; a node low 16-bit displacement is
-    XORed with the originating node offset to locate its successor cluster;
-    and text length is encoded as byte-count minus one.
+    root page begins at segment offset 0x1000; free-byte/first-free fields
+    constrain each logical page; node displacements XOR with the originating
+    node offset; and text length is encoded as byte-count minus one.
 
-    This intentionally stops at page pointers. It is sufficient to enumerate
-    complete keys from small one-page indexes without pretending multi-page
-    traversal has been solved.
+    Page pointers with segment-table index zero are also validated on four
+    multi-page real indexes. Their low field is in 256-byte units within the
+    recovered QDDSI segment. Other segment-table indexes remain unresolved
+    and are reported without being followed.
     """
 
     root_offset = QDDSI_MACHINE_INDEX_ROOT_OFFSET
@@ -1969,7 +1985,7 @@ def decode_data_space_index_root(
         )
     if layout.dkey_count != 1 or len(layout.keys) != 1:
         raise ValueError(
-            "QDDSI root traversal currently requires exactly one DKEY row"
+            "QDDSI traversal currently requires exactly one DKEY row"
         )
 
     spec = layout.keys[0]
@@ -1987,58 +2003,17 @@ def decode_data_space_index_root(
     if spec.user_key_length > spec.machine_key_length:
         raise ValueError("QDDSI user key is longer than machine key")
     if len(data) < root_offset + 8:
-        raise ValueError("QDDSI primary segment has no complete root-page header")
-
-    root = MachineIndexElement(data[root_offset : root_offset + 3])
-    if root.kind != "node":
-        raise ValueError("QDDSI active root does not begin with a node")
-
-    page_type = data[root_offset + 3]
-    free_bytes = int.from_bytes(
-        data[root_offset + 4 : root_offset + 6],
-        "big",
-    )
-    first_free_offset = int.from_bytes(
-        data[root_offset + 6 : root_offset + 8],
-        "big",
-    )
-    if first_free_offset < root_offset + 8:
-        raise ValueError("QDDSI first-free offset precedes the root-page header")
-
-    used_bytes = first_free_offset - root_offset
-    # The free-byte count can include holes inside the current tree, so it
-    # does not always equal page_size - used_bytes. Recover the page size
-    # from IBM's allowed power-of-two sizes: it must contain both the used
-    # span and the reported free bytes, while used+free must cover the page.
-    page_sizes = [
-        size
-        for size in (512, 1024, 2048, 4096, 8192, 16384, 32768)
-        if (
-            used_bytes <= size
-            and free_bytes <= size
-            and used_bytes + free_bytes >= size
-            and root_offset + size <= len(data)
-        )
-    ]
-    if not page_sizes:
-        raise ValueError(
-            "QDDSI root header does not imply a supported logical page size"
-        )
-    page_size = min(page_sizes)
-    page_end = root_offset + page_size
-    if page_end > len(data):
-        raise ValueError(
-            "QDDSI root logical page extends beyond the recovered primary segment"
-        )
-    if first_free_offset > page_end:
-        raise ValueError("QDDSI first-free offset lies beyond the logical page")
+        raise ValueError("QDDSI segment has no complete root-page header")
 
     entries: list[DataSpaceIndexEntry] = []
     page_pointers: list[MachineIndexPagePointerRef] = []
+    page_offsets: list[int] = []
     warnings: list[str] = []
-    visited_nodes: set[tuple[int, int]] = set()
+    visited_pages: set[int] = set()
+    visited_nodes: set[tuple[int, int, int]] = set()
     emitted_keys: set[bytes] = set()
     complete = True
+    root_metadata: tuple[int, int, int, int] | None = None
 
     def mark_incomplete(message: str) -> None:
         nonlocal complete
@@ -2046,40 +2021,89 @@ def decode_data_space_index_root(
         if message not in warnings:
             warnings.append(message)
 
-    def read_text(
-        element: MachineIndexElement,
-        *,
-        element_offset: int,
-    ) -> bytes | None:
-        displacement = element.text_displacement
-        length = element.text_storage_length
-        if displacement is None or length is None:
-            return None
-        # Zero displacement is used by small real indexes as an unused branch.
-        if displacement == 0:
-            return None
-        end = displacement + length
-        if (
-            displacement < root_offset
-            or end > first_free_offset
-            or end > page_end
-        ):
-            mark_incomplete(
-                "text element at "
-                f"0x{element_offset:04X} points outside the active root page"
+    def expand_low16(page_start: int, low_value: int) -> int:
+        """Map a 16-bit in-page address into the page's segment window."""
+
+        result = (page_start & ~0xFFFF) | low_value
+        if result < page_start:
+            result += 0x10000
+        return result
+
+    def page_metadata(
+        page_start: int,
+    ) -> tuple[MachineIndexElement, int, int, int, int]:
+        if page_start < 0 or page_start + 8 > len(data):
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} is outside recovered segment"
             )
-            return None
-        return data[displacement:end]
+        page_root = MachineIndexElement(data[page_start : page_start + 3])
+        if page_root.kind != "node":
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} does not begin with a node"
+            )
+        page_type = data[page_start + 3]
+        free_bytes = int.from_bytes(
+            data[page_start + 4 : page_start + 6],
+            "big",
+        )
+        first_free_low = int.from_bytes(
+            data[page_start + 6 : page_start + 8],
+            "big",
+        )
+        first_free = expand_low16(page_start, first_free_low)
+        if first_free < page_start + 8:
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} has invalid first-free offset"
+            )
+
+        used_bytes = first_free - page_start
+        page_sizes = [
+            size
+            for size in (512, 1024, 2048, 4096, 8192, 16384, 32768)
+            if (
+                used_bytes <= size
+                and free_bytes <= size
+                and used_bytes + free_bytes >= size
+                and page_start + size <= len(data)
+            )
+        ]
+        if not page_sizes:
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} does not imply a "
+                "supported logical page size"
+            )
+        page_size = min(page_sizes)
+        if first_free > page_start + page_size:
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} first-free lies past page end"
+            )
+        return page_root, page_size, page_type, free_bytes, first_free
 
     def emit_terminal(
+        page_start: int,
+        page_end: int,
+        first_free: int,
         prefix: bytes,
         element: MachineIndexElement,
         element_offset: int,
     ) -> None:
-        text = read_text(element, element_offset=element_offset)
-        if text is None:
+        displacement = element.text_displacement
+        length = element.text_storage_length
+        if displacement is None or length is None or displacement == 0:
             return
-        machine_key = prefix + text
+        text_offset = expand_low16(page_start, displacement)
+        text_end = text_offset + length
+        if (
+            text_offset < page_start
+            or text_end > first_free
+            or text_end > page_end
+        ):
+            mark_incomplete(
+                "text element at "
+                f"0x{element_offset:04X} points outside its active page"
+            )
+            return
+        machine_key = prefix + data[text_offset:text_end]
         if len(machine_key) != spec.machine_key_length:
             mark_incomplete(
                 "terminal key at "
@@ -2099,98 +2123,190 @@ def decode_data_space_index_root(
             )
         )
 
-    def walk_node(
-        node_offset: int,
-        origin_node_offset: int,
+    def walk_page(
+        page_start: int,
         prefix: bytes,
-        depth: int = 0,
+        page_depth: int = 0,
     ) -> None:
-        if depth > 512:
-            mark_incomplete("machine-index node depth exceeded safety limit")
+        nonlocal root_metadata
+        if page_depth > 256:
+            mark_incomplete("machine-index page depth exceeded safety limit")
             return
-        visit_key = (node_offset, origin_node_offset)
-        if visit_key in visited_nodes:
+        if page_start in visited_pages:
             mark_incomplete(
-                f"machine-index node loop detected at 0x{node_offset:04X}"
+                f"machine-index page loop detected at 0x{page_start:04X}"
             )
             return
-        visited_nodes.add(visit_key)
+        visited_pages.add(page_start)
+        page_offsets.append(page_start)
 
-        if node_offset < root_offset or node_offset + 3 > first_free_offset:
-            mark_incomplete(
-                f"machine-index node offset 0x{node_offset:04X} is outside used page"
+        try:
+            page_root, page_size, page_type, free_bytes, first_free = (
+                page_metadata(page_start)
             )
+        except ValueError as exc:
+            mark_incomplete(str(exc))
             return
-        node = MachineIndexElement(data[node_offset : node_offset + 3])
-        if node.kind != "node" or node.xor_displacement is None:
-            mark_incomplete(f"expected node at 0x{node_offset:04X}")
-            return
+        if page_start == root_offset:
+            root_metadata = (page_size, page_type, free_bytes, first_free)
+        page_end = page_start + page_size
 
-        cluster_offset = (
-            (origin_node_offset & 0xFFFF) ^ node.xor_displacement
-        )
-        required = 9 if node.common_text_present else 6
-        if (
-            cluster_offset < root_offset + 8
-            or cluster_offset + required > first_free_offset
-        ):
-            mark_incomplete(
-                "node at "
-                f"0x{node_offset:04X} points to invalid cluster "
-                f"0x{cluster_offset:04X}"
-            )
-            return
-
-        branch_prefix = prefix
-        if node.common_text_present:
-            common_offset = cluster_offset + 6
-            common = MachineIndexElement(
-                data[common_offset : common_offset + 3]
-            )
-            if common.kind != "text":
+        def read_text(
+            element: MachineIndexElement,
+            *,
+            element_offset: int,
+        ) -> bytes | None:
+            displacement = element.text_displacement
+            length = element.text_storage_length
+            if displacement is None or length is None or displacement == 0:
+                return None
+            text_offset = expand_low16(page_start, displacement)
+            text_end = text_offset + length
+            if (
+                text_offset < page_start
+                or text_end > first_free
+                or text_end > page_end
+            ):
                 mark_incomplete(
-                    f"common-text slot at 0x{common_offset:04X} is not text"
+                    "text element at "
+                    f"0x{element_offset:04X} points outside its active page"
+                )
+                return None
+            return data[text_offset:text_end]
+
+        def walk_node(
+            node_offset: int,
+            origin_node_offset: int,
+            node_prefix: bytes,
+            depth: int = 0,
+        ) -> None:
+            if depth > 512:
+                mark_incomplete("machine-index node depth exceeded safety limit")
+                return
+            visit_key = (page_start, node_offset, origin_node_offset)
+            if visit_key in visited_nodes:
+                mark_incomplete(
+                    f"machine-index node loop detected at 0x{node_offset:04X}"
                 )
                 return
-            common_text = read_text(common, element_offset=common_offset)
-            if common_text is None:
+            visited_nodes.add(visit_key)
+
+            if node_offset < page_start or node_offset + 3 > first_free:
                 mark_incomplete(
-                    f"common text at 0x{common_offset:04X} is not recoverable"
+                    f"machine-index node offset 0x{node_offset:04X} is outside used page"
                 )
                 return
-            branch_prefix += common_text
+            node = MachineIndexElement(data[node_offset : node_offset + 3])
+            if node.kind != "node" or node.xor_displacement is None:
+                mark_incomplete(f"expected node at 0x{node_offset:04X}")
+                return
 
-        for branch_offset in (cluster_offset, cluster_offset + 3):
-            branch = MachineIndexElement(
-                data[branch_offset : branch_offset + 3]
+            cluster_low = (
+                (origin_node_offset & 0xFFFF) ^ node.xor_displacement
             )
-            if branch.kind == "text":
-                # Zero displacement is the observed empty-branch sentinel.
-                if branch.text_displacement:
-                    emit_terminal(branch_prefix, branch, branch_offset)
-            elif branch.kind == "node":
-                walk_node(
-                    branch_offset,
-                    node_offset,
-                    branch_prefix,
-                    depth + 1,
+            cluster_offset = expand_low16(page_start, cluster_low)
+            required = 9 if node.common_text_present else 6
+            if (
+                cluster_offset < page_start + 8
+                or cluster_offset + required > first_free
+            ):
+                mark_incomplete(
+                    "node at "
+                    f"0x{node_offset:04X} points to invalid cluster "
+                    f"0x{cluster_offset:04X}"
                 )
-            else:
-                page_pointers.append(
-                    MachineIndexPagePointerRef(
-                        element_offset=branch_offset,
-                        segment_table_index=branch.segment_table_index or 0,
-                        page_offset=branch.page_offset or 0,
-                        key_prefix=branch_prefix,
+                return
+
+            branch_prefix = node_prefix
+            if node.common_text_present:
+                common_offset = cluster_offset + 6
+                common = MachineIndexElement(
+                    data[common_offset : common_offset + 3]
+                )
+                if common.kind != "text":
+                    mark_incomplete(
+                        f"common-text slot at 0x{common_offset:04X} is not text"
                     )
-                )
-                mark_incomplete("page-pointer traversal is not implemented yet")
+                    return
+                common_text = read_text(common, element_offset=common_offset)
+                if common_text is None:
+                    mark_incomplete(
+                        f"common text at 0x{common_offset:04X} is not recoverable"
+                    )
+                    return
+                branch_prefix += common_text
 
-    walk_node(root_offset, root_offset, b"")
+            for branch_offset in (cluster_offset, cluster_offset + 3):
+                branch = MachineIndexElement(
+                    data[branch_offset : branch_offset + 3]
+                )
+                if branch.kind == "text":
+                    if branch.text_displacement:
+                        emit_terminal(
+                            page_start,
+                            page_end,
+                            first_free,
+                            branch_prefix,
+                            branch,
+                            branch_offset,
+                        )
+                elif branch.kind == "node":
+                    walk_node(
+                        branch_offset,
+                        node_offset,
+                        branch_prefix,
+                        depth + 1,
+                    )
+                else:
+                    segment_index = branch.segment_table_index or 0
+                    pointer_value = branch.page_offset or 0
+                    target_offset = pointer_value << 8
+                    can_follow = (
+                        segment_index == 0
+                        and target_offset not in visited_pages
+                        and target_offset + 8 <= len(data)
+                    )
+                    page_pointers.append(
+                        MachineIndexPagePointerRef(
+                            element_offset=branch_offset,
+                            segment_table_index=segment_index,
+                            page_offset=pointer_value,
+                            key_prefix=branch_prefix,
+                            followed=can_follow,
+                        )
+                    )
+                    if segment_index != 0:
+                        mark_incomplete(
+                            "machine-index page pointer uses unresolved "
+                            f"segment-table index {segment_index}"
+                        )
+                    elif target_offset in visited_pages:
+                        mark_incomplete(
+                            f"machine-index page pointer loops to 0x{target_offset:04X}"
+                        )
+                    elif target_offset + 8 > len(data):
+                        mark_incomplete(
+                            f"machine-index page pointer target 0x{target_offset:04X} "
+                            "is outside recovered segment"
+                        )
+                    else:
+                        walk_page(
+                            target_offset,
+                            branch_prefix,
+                            page_depth + 1,
+                        )
+
+        walk_node(page_start, page_start, prefix)
+
+    walk_page(root_offset, b"")
+
+    if root_metadata is None:
+        raise ValueError("QDDSI root page could not be decoded")
+    page_size, page_type, free_bytes, first_free_offset = root_metadata
 
     if len(entries) != spec.key_count:
         mark_incomplete(
-            f"recovered {len(entries)} root-page key(s); "
+            f"recovered {len(entries)} machine-index key(s); "
             f"DKEY reports {spec.key_count}"
         )
 
@@ -2202,11 +2318,11 @@ def decode_data_space_index_root(
         page_type=page_type,
         free_bytes=free_bytes,
         first_free_offset=first_free_offset,
+        page_offsets=tuple(page_offsets),
         page_pointers=tuple(page_pointers),
         complete=complete,
         warnings=tuple(warnings),
     )
-
 
 
 class HeaderSnapshot:
