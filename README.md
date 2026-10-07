@@ -273,11 +273,11 @@ while the bit assignments remain intentionally undecoded.
 
 Program objects (`*PGM`) now get a forensic program view: recovered owned
 segments, printable EBCDIC strings from the primary-segment prefix, and a
-hex/ASCII/EBCDIC view of the first 512 bytes. The browser does not pretend this
+hex/EBCDIC view of the first 512 bytes. The browser does not pretend this
 is source code or a decoded instruction stream; program-template, instruction
 stream, and ODT decoding remain separate reverse-engineering work. Other object
-types without a specialized decoder get a smaller raw-object prefix so they are
-still inspectable instead of producing metadata only. Format objects show their
+types without a specialized decoder get a smaller hex/EBCDIC raw-object prefix
+so they are still inspectable instead of producing metadata only. Format objects show their
 recovered field descriptions.
 
 Three contextual information rows above the normal status line explain the
