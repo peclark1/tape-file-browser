@@ -3968,11 +3968,20 @@ def _tui_context_lines(state):
             if len(source_types) > 4:
                 shown += ", …"
             source_suffix = f"; source type(s): {shown}"
-        mid_line = (
-            f"File/type: *FILE {mid['name']} — "
-            f"{len(mid['members']):,} recovered member(s)"
-            f"{source_suffix}; members are separate *MEM cursors."
+        file_context = _tui_file_context(
+            mid.get("library"),
+            mid["name"],
         )
+        if file_context:
+            mid_line = (
+                f"File/type: *FILE {mid['name']} — {file_context}"
+            )
+        else:
+            mid_line = (
+                f"File/type: *FILE {mid['name']} — "
+                f"{len(mid['members']):,} recovered member(s)"
+                f"{source_suffix}; members are separate *MEM cursors."
+            )
     else:
         meaning = _tui_object_type_context(
             mid.get("type", 0),
@@ -4075,6 +4084,98 @@ def _tui_ebcdic_strings(data, min_length=4):
     return result
 
 
+_TUI_FILE_CONTEXT = {
+    ("QGPL", "QAAPFILE"): (
+        "IBM AFP Utilities symbol-set symbol-definitions logical file. "
+        "A logical file is a database view/access path rather than independent "
+        "record storage, so member cursors may legitimately have no QDDS "
+        "record stream of their own."
+    ),
+    ("QGPL", "QAAPFILE$"): (
+        "IBM AFP Utilities small symbol-set symbol definitions."
+    ),
+    ("QGPL", "QAAPFILE#"): (
+        "IBM AFP Utilities medium symbol-set symbol definitions."
+    ),
+    ("QGPL", "QAAPFILE@"): (
+        "IBM AFP Utilities large symbol-set symbol definitions."
+    ),
+}
+
+
+def _tui_file_context(library_name, file_name):
+    key = ((library_name or "").upper(), (file_name or "").upper())
+    return _TUI_FILE_CONTEXT.get(key, "")
+
+
+def _tui_segment_prefix(image, segment, limit=1024):
+    """Read a small virtual-order prefix without materializing a large object."""
+
+    if limit <= 0:
+        return b""
+    result = bytearray()
+    for extent in segment.extents:
+        for page_index in range(extent.pages):
+            if len(result) >= limit:
+                return bytes(result[:limit])
+            sector = image.read_sector(extent.start_lba + page_index)
+            result.extend(sector.data)
+    return bytes(result[:limit])
+
+
+def _tui_hex_lines(data, *, base_offset=0):
+    """Format bytes as offset + hex + ASCII + EBCDIC for forensic browsing."""
+
+    lines = []
+    for offset in range(0, len(data), 16):
+        chunk = data[offset : offset + 16]
+        hex_text = " ".join(f"{byte:02X}" for byte in chunk)
+        ascii_text = "".join(
+            chr(byte) if 32 <= byte < 127 else "."
+            for byte in chunk
+        )
+        ebcdic = chunk.decode("cp037", errors="replace")
+        ebcdic_text = "".join(
+            character if character.isprintable() else "."
+            for character in ebcdic
+        )
+        lines.append(
+            f"{base_offset + offset:08X}  "
+            f"{hex_text:<47}  "
+            f"A:{ascii_text:<16} E:{ebcdic_text}"
+        )
+    return lines
+
+
+def _tui_owned_segments(state, obj):
+    key = obj.segment.owner_key
+    return sorted(
+        [
+            segment
+            for segment in state["segments"].segments
+            if segment.owner_key == key
+        ],
+        key=lambda segment: (
+            segment.virtual_address,
+            segment.start_lba,
+        ),
+    )
+
+
+def _data_space_status_note(status):
+    """Describe only what is documented/observed about the DENT byte."""
+
+    if status == 0x80:
+        return (
+            "0x80 (high bit set; observed on normal recovered entries; "
+            "exact bit assignment not yet decoded)"
+        )
+    return (
+        f"0x{status:02X} (raw Data Space Entry Status/DENT byte; "
+        "bit assignment not yet decoded)"
+    )
+
+
 def _tui_object_lines(state, obj):
     meaning = _tui_object_type_context(
         obj.object_type,
@@ -4105,6 +4206,61 @@ def _tui_object_lines(state, obj):
         f"EPA context:  {obj.epa.context}",
         ]
     )
+
+    if obj.object_type == 0x02 and obj.object_subtype == 0x01:
+        owned = _tui_owned_segments(state, obj)
+        lines.extend(
+            [
+                "",
+                "Program object browse",
+                (
+                    "  *PGM is a compiled MI program object. The current "
+                    "browser has not decoded its program template/instruction "
+                    "stream yet, so the views below are forensic."
+                ),
+                f"  Recovered owned segments: {len(owned):,}",
+            ]
+        )
+        for segment in owned[:32]:
+            role = "primary" if segment.is_primary else "secondary"
+            lines.append(
+                f"    type {segment.header.segment_type:04X}  "
+                f"VA {segment.virtual_address:012X}  "
+                f"LBA {segment.start_lba:>9,}  "
+                f"{segment.pages:>6,} pages  {role}"
+            )
+        if len(owned) > 32:
+            lines.append(
+                f"    ... {len(owned) - 32:,} additional owned segments"
+            )
+
+        try:
+            prefix = _tui_segment_prefix(
+                state["image"],
+                obj.segment,
+                limit=2048,
+            )
+        except Exception as exc:
+            prefix = b""
+            lines.append(f"  Raw preview error: {exc}")
+
+        if prefix:
+            strings = _tui_ebcdic_strings(prefix, min_length=5)
+            if strings:
+                lines.extend(["", "  Printable EBCDIC strings (prefix)"])
+                for value in strings[:24]:
+                    lines.append(f"    {value[:120]}")
+            lines.extend(
+                [
+                    "",
+                    "  Raw primary-segment prefix (first 512 bytes)",
+                    "  Offset    Hex                                              ASCII / EBCDIC",
+                ]
+            )
+            lines.extend(
+                "  " + line
+                for line in _tui_hex_lines(prefix[:512])
+            )
 
     dlo_anchor_info = _tui_dlo_anchor_info(state, obj)
     if dlo_anchor_info and dlo_anchor_info.get("record") is not None:
@@ -4317,6 +4473,13 @@ def _tui_file_lines(state, file_item):
         ),
     ]
 
+    file_context = _tui_file_context(
+        file_item["library"],
+        file_item["name"],
+    )
+    if file_context:
+        lines.extend(["", "File role", "  " + file_context])
+
     if file_obj is not None:
         lines.extend(
             [
@@ -4460,12 +4623,36 @@ def _tui_member_lines(state, member_item):
         lines.extend(["", f"Record decode error: {exc}"])
 
     if record_set is None:
-        lines.extend(
-            [
-                "",
-                "No recoverable source or fixed-length QDDS records.",
-            ]
+        file_context = _tui_file_context(
+            member.library_name,
+            member.member_file_name,
         )
+        lines.extend([""])
+        if file_context and "logical file" in file_context.lower():
+            lines.extend(
+                [
+                    "No independent QDDS record stream for this member.",
+                    (
+                        "This is consistent with the documented logical-file "
+                        "role: a logical file describes a view/access path "
+                        "rather than owning a separate copy of database rows."
+                    ),
+                    "",
+                    "File context:",
+                    "  " + file_context,
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "No recoverable source or fixed-length QDDS records.",
+                    (
+                        "The member cursor is recovered, but its data space "
+                        "is absent, incomplete, or uses a layout the current "
+                        "decoder does not yet recognize."
+                    ),
+                ]
+            )
         return lines
 
     layout = record_set.layout
@@ -4473,6 +4660,11 @@ def _tui_member_lines(state, member_item):
         [
             "",
             "Database records",
+            (
+                "  DENT byte:    IBM documents per-entry status flags for "
+                "valid/deleted/cross-segment states; exact bit positions "
+                "are not yet decoded."
+            ),
             f"  User entries:  {layout.entry_count:,}",
             f"  Record length: {layout.record_length:,}",
             f"  Entry length:  {layout.entry_length:,}",
@@ -4510,14 +4702,31 @@ def _tui_member_lines(state, member_item):
         )
         for record in records[:50]:
             lines.append(
-                f"RRN {record.rrn:,}  status 0x{record.status:02X}"
+                f"RRN {record.rrn:,}  DENT "
+                f"{_data_space_status_note(record.status)}"
             )
+            shown_fields = 0
             for field in fields:
                 value = field.decode_value(record.data)
                 if value:
                     lines.append(
                         f"  {field.name:<10} {value}"
                     )
+                    shown_fields += 1
+            if not shown_fields:
+                preview = record.ebcdic_preview
+                if len(preview) > 96:
+                    preview = preview[:93] + "..."
+                lines.append(
+                    "  Decoded fields are blank; raw EBCDIC: "
+                    + (preview or "<blank>")
+                )
+                amount = min(48, len(record.data))
+                lines.append(
+                    "  Raw hex: "
+                    + record.data[:amount].hex(" ").upper()
+                    + (" ..." if amount < len(record.data) else "")
+                )
             lines.append("")
         if len(records) > 50:
             lines.append(
@@ -4534,7 +4743,7 @@ def _tui_member_lines(state, member_item):
         for record in records[:100]:
             lines.append(
                 f"RRN {record.rrn:>8,}  "
-                f"0x{record.status:02X}  "
+                f"DENT 0x{record.status:02X}  "
                 f"{record.ebcdic_preview}"
             )
         if len(records) > 100:
