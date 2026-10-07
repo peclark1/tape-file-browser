@@ -1983,13 +1983,10 @@ def decode_data_space_index_root(
             first_free_offset=None,
             complete=True,
         )
-    if layout.dkey_count != 1 or len(layout.keys) != 1:
-        raise ValueError(
-            "QDDSI traversal currently requires exactly one DKEY row"
-        )
-
-    spec = layout.keys[0]
-    if spec.key_count == 0:
+    active_specs = tuple(
+        spec for spec in layout.keys if spec.key_count > 0
+    )
+    if not active_specs:
         return DataSpaceIndexTraversal(
             entries=(),
             expected_entries=0,
@@ -2000,6 +1997,17 @@ def decode_data_space_index_root(
             first_free_offset=None,
             complete=True,
         )
+    if len(active_specs) != 1:
+        raise ValueError(
+            "QDDSI traversal currently requires exactly one populated DKEY row"
+        )
+
+    # A QDDSI can carry multiple DKEY rows even when only one data space
+    # currently contributes keys. Real V2R3 examples validate that the machine
+    # index then follows the populated row's key lengths exactly; preserve the
+    # zero-count rows in the decoded layout but use the sole populated row for
+    # traversal.
+    spec = active_specs[0]
     if spec.user_key_length > spec.machine_key_length:
         raise ValueError("QDDSI user key is longer than machine key")
     if len(data) < root_offset + 8:
