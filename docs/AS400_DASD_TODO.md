@@ -107,6 +107,9 @@ repeatable real-image validation.
 - [x] Keep library/view, file/object-type, and member/object context visible
       simultaneously so an automatic child selection never hides its parent
       pane's meaning.
+- [x] Make the lower Content/details pane follow the focused hierarchy level,
+      so focusing a library or file shows its own full context even when a
+      child is automatically selected.
 - [x] Add validated `*DOCBSS` workstation-file export to the TUI with
       explicit destination prompting and overwrite confirmation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
