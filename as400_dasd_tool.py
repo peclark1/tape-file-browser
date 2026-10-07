@@ -2381,6 +2381,155 @@ def cmd_dlo_index_scan(args):
     return 0
 
 
+def _qaosss14_unresolved_parent_records(records):
+    """Return records whose nonzero parent key has no unique leading-key match."""
+
+    link_index = _qaosss14_link_index(records)
+    zero = b"\x00" * 8
+    result = []
+    for record in records:
+        parent = record.parent_key
+        if parent == zero:
+            continue
+        matches = link_index.get(parent, [])
+        if len(matches) != 1:
+            result.append((record, tuple(matches)))
+    return tuple(result)
+
+
+def _segment_containing_lba(segments, lba):
+    """Return the recovered segment whose physical extent contains one LBA."""
+
+    for segment in segments.segments:
+        for extent in segment.extents:
+            if extent.start_lba <= lba <= extent.end_lba:
+                return segment
+    return None
+
+
+def cmd_dlo_parent_gaps(args):
+    """Investigate QAOSSS14 parent keys that do not resolve uniquely."""
+
+    image = _open(args.image)
+    _, segments, inventory = _recover_all(image)
+    member, record_set, records = _load_qaosss14_anchor_records(
+        image,
+        inventory,
+        segments,
+    )
+    if member is None or record_set is None or not records:
+        raise ValueError(
+            "no recoverable 193-byte QAOSSS14 anchor-record set found"
+        )
+
+    gaps = _qaosss14_unresolved_parent_records(records)
+    print(f"Disk:       {image.path}")
+    print(
+        f"QAOSSS14:  {member.library_name or '<unresolved>'}/"
+        f"{member.member_file_name}({member.member_name})"
+    )
+    print(f"Records:    {len(records):,}")
+    print(f"Parent gaps:{len(gaps):,}")
+    print()
+
+    object_by_owner = {}
+    for obj in inventory.objects:
+        key = (
+            obj.segment.header.owner.extender,
+            obj.segment.virtual_address,
+        )
+        object_by_owner.setdefault(key, obj)
+
+    for record, matches in gaps:
+        print(
+            f"RRN {record.rrn:,}  short={record.short_name or '-'}  "
+            f"long={record.long_name or '-'}"
+        )
+        print(
+            f"  parent key: {record.parent_key.hex().upper()}  "
+            f"leading-key matches: {len(matches)}"
+        )
+
+        if not args.raw_scan:
+            continue
+
+        occurrences = []
+        for absolute, window, marker_offset in _iter_file_pattern_windows(
+            image.path,
+            record.parent_key,
+            before=args.context,
+            after=args.context,
+        ):
+            lba = absolute // SECTOR_SIZE
+            sector_offset = absolute % SECTOR_SIZE
+            segment = _segment_containing_lba(segments, lba)
+            owner = None
+            if segment is not None:
+                owner = object_by_owner.get(segment.owner_key)
+            occurrences.append(
+                (
+                    absolute,
+                    lba,
+                    sector_offset,
+                    segment,
+                    owner,
+                    window,
+                    marker_offset,
+                )
+            )
+            if args.limit and len(occurrences) >= args.limit:
+                break
+
+        print(f"  raw-image occurrences: {len(occurrences):,}")
+        for (
+            absolute,
+            lba,
+            sector_offset,
+            segment,
+            owner,
+            window,
+            marker_offset,
+        ) in occurrences:
+            if owner is not None:
+                owner_text = (
+                    f"{owner.library_name or '<orphan>'}/{owner.name} "
+                    f"{owner.external_type_hint or owner.type_code}"
+                )
+            elif segment is not None:
+                owner_text = (
+                    f"recovered segment type "
+                    f"{segment.header.segment_type:04X} "
+                    f"owner {segment.header.owner}"
+                )
+            else:
+                owner_text = "outside recovered segment map"
+
+            print(
+                f"    raw 0x{absolute:09X}  "
+                f"LBA {lba:,}+0x{sector_offset:03X}  {owner_text}"
+            )
+            if args.hex_context:
+                print(
+                    "      "
+                    + window.hex(" ").upper()
+                    + f"  [key at window +0x{marker_offset:X}]"
+                )
+        print()
+
+    if not gaps:
+        print(
+            "Every nonzero QAOSSS14 parent key resolves uniquely through "
+            "another record's leading key."
+        )
+    elif not args.raw_scan:
+        print(
+            "Use --raw-scan to locate each unresolved 8-byte parent key "
+            "elsewhere in the DASD image and classify recovered containers."
+        )
+
+    return 0
+
+
 def cmd_context_page(args):
     image = _open(args.image)
     _, segments, inventory = _recover_all(image)
@@ -5404,6 +5553,41 @@ def build_parser():
         help="maximum rows to print; use 0 for all (default: 200)",
     )
     dlo_paths.set_defaults(func=cmd_dlo_paths)
+
+    dlo_parent_gaps = sub.add_parser(
+        "dlo-parent-gaps",
+        help=(
+            "inspect QAOSSS14 records whose parent key does not resolve "
+            "uniquely through another anchor record"
+        ),
+    )
+    dlo_parent_gaps.add_argument("image")
+    dlo_parent_gaps.add_argument(
+        "--raw-scan",
+        action="store_true",
+        help=(
+            "search the raw DASD image for each unresolved 8-byte parent "
+            "key and classify recovered containing segments"
+        ),
+    )
+    dlo_parent_gaps.add_argument(
+        "--context",
+        type=int,
+        default=24,
+        help="raw bytes before/after each parent-key hit (default: 24)",
+    )
+    dlo_parent_gaps.add_argument(
+        "--hex-context",
+        action="store_true",
+        help="print hexadecimal context for raw parent-key hits",
+    )
+    dlo_parent_gaps.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="maximum raw hits per unresolved key; use 0 for all (default: 50)",
+    )
+    dlo_parent_gaps.set_defaults(func=cmd_dlo_parent_gaps)
 
     dlo_index_scan = sub.add_parser(
         "dlo-index-scan",
