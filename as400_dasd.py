@@ -1997,17 +1997,22 @@ def decode_data_space_index_root(
             first_free_offset=None,
             complete=True,
         )
-    if len(active_specs) != 1:
+    key_shapes = {
+        (spec.user_key_length, spec.machine_key_length)
+        for spec in active_specs
+    }
+    if len(key_shapes) != 1:
         raise ValueError(
-            "QDDSI traversal currently requires exactly one populated DKEY row"
+            "QDDSI traversal does not yet support populated DKEY rows "
+            "with different key lengths"
         )
 
-    # A QDDSI can carry multiple DKEY rows even when only one data space
-    # currently contributes keys. Real V2R3 examples validate that the machine
-    # index then follows the populated row's key lengths exactly; preserve the
-    # zero-count rows in the decoded layout but use the sole populated row for
-    # traversal.
+    # A QDDSI can carry multiple DKEY rows. Real V2R3 examples show that when
+    # all populated rows use the same user/machine key lengths, one machine
+    # index contains the sum of their reported key counts. Zero-count rows are
+    # retained in the decoded layout but do not contribute expected entries.
     spec = active_specs[0]
+    expected_entries = sum(item.key_count for item in active_specs)
     if spec.user_key_length > spec.machine_key_length:
         raise ValueError("QDDSI user key is longer than machine key")
     if len(data) < root_offset + 8:
@@ -2312,15 +2317,15 @@ def decode_data_space_index_root(
         raise ValueError("QDDSI root page could not be decoded")
     page_size, page_type, free_bytes, first_free_offset = root_metadata
 
-    if len(entries) != spec.key_count:
+    if len(entries) != expected_entries:
         mark_incomplete(
             f"recovered {len(entries)} machine-index key(s); "
-            f"DKEY reports {spec.key_count}"
+            f"populated DKEY rows report {expected_entries}"
         )
 
     return DataSpaceIndexTraversal(
         entries=tuple(entries),
-        expected_entries=spec.key_count,
+        expected_entries=expected_entries,
         root_offset=root_offset,
         page_size=page_size,
         page_type=page_type,
