@@ -445,7 +445,7 @@ class DASDHeaderTests(unittest.TestCase):
         second = memoryview(primary)[0x440:0x480]
         second[0:8] = make_internal_address(1, 0x001000000000)
         second[0x10:0x14] = (0).to_bytes(4, "big")
-        second[0x18:0x1A] = (1).to_bytes(2, "big")
+        second[0x18:0x1A] = (0).to_bytes(2, "big")
         second[0x1A:0x1C] = (10).to_bytes(2, "big")
         second[0x1C:0x1E] = (14).to_bytes(2, "big")
 
@@ -510,7 +510,7 @@ class DASDHeaderTests(unittest.TestCase):
         second = memoryview(primary)[0x440:0x480]
         second[0:8] = make_internal_address(1, 0x001000000000)
         second[0x10:0x14] = (0).to_bytes(4, "big")
-        second[0x18:0x1A] = (1).to_bytes(2, "big")
+        second[0x18:0x1A] = (0).to_bytes(2, "big")
         second[0x1A:0x1C] = (10).to_bytes(2, "big")
         second[0x1C:0x1E] = (14).to_bytes(2, "big")
 
