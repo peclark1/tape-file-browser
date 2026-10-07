@@ -62,10 +62,21 @@ DLO-related `QSYS` physical files such as:
 These are definitions/templates used when CL commands create output files.
 They must **not** be mistaken for the `QUSRSYS/QAOSS*` runtime search indexes.
 
-The current inventory does not yet show a recovered `QUSRSYS/QAOSS*` *FILE.
-That can mean either the relevant file objects/members were not recovered by the
-current pass or the context relationship is still unresolved. It does not prove
-that the original system lacked the DLO indexes.
+Direct raw-image and recovered-object inspection now locates
+`QUSRSYS/QAOSSS14` itself on the V2R3 disk, so the earlier "not yet visible"
+state is superseded. The exact recovered pieces are:
+
+| Object | MI type | Virtual address | LBA |
+| --- | --- | ---: | ---: |
+| QAOSSS14 file | 19/01 `*FILE` | `00AC04000000` | 1,810,748 |
+| QAOSSS14 member cursor | 0D/50 `*MEM` | `00AC13000000` | 1,506,920 |
+| QAOSSS14 data space | 0B/90 QDDS | `00AC0A000000` | 1,812,520 |
+| QAOSSS14 data-space index | 0C/90 QDDSI | `00AC0C000000` | 548,448 |
+
+The recovered `*FILE` context pointer is `0001:000283000000`, the recovered
+QUSRSYS library/context address. The QDDS header reports 1,885 user entries,
+record length 193, and entry length 194 (one status byte plus the 193-byte
+record).
 
 IBM command/model-file references:
 
@@ -132,6 +143,30 @@ Examples already observed during this project include:
   `WOSEPLDN`, `WOSEWIPI`, `WOSEIXDT`, `WOSEOCDT`, and
   `WOSEOWNR`. Their abbreviations are deliberately left unexpanded until an
   IBM definition or independent structural proof is found.
+- The repeated descriptor words immediately following these identifiers decode
+  consistently as **1-based field offsets and lengths** in the 193-byte
+  QAOSSS14 record. The currently recovered layout is:
+
+| IBM field id | 1-based offset | length |
+| --- | ---: | ---: |
+| `WOSEFILD` | 17 | 8 |
+| `WOSEDOCD` | 25 | 4 |
+| `WOSEDOCN` | 33 | 44 |
+| `WOSEDOCT` | 77 | 2 |
+| `WOSESYSC` | 83 | 13 |
+| `WOSEOWNR` | 96 | 16 |
+| `WOSEFDOC` | 112 | 12 |
+| `WOSEPLDN` | 132 | 8 |
+| `WOSEWIPI` | 142 | 1 |
+| `WOSESLVL` | 147 | 1 |
+| `WOSECRTD` | 150 | 6 |
+| `WOSELCDT` | 156 | 8 |
+| `WOSEOCDT` | 164 | 8 |
+| `WOSEIXDT` | 180 | 8 |
+| `WOSEINTS` | 189 | 2 |
+
+  The field names are preserved exactly; the tooling does not invent
+  expansions for them.
 - A full-image scan found 1,987 printable MI `06/C1` objects. For 1,972
   of them, a conservative ordinary layout passes all current checks: the
   16-bit values at +0x106 and +0x112 agree, the declared payload fits after the
@@ -145,6 +180,26 @@ Examples already observed during this project include:
   `PKGF\r\n` and contains the expected Data Queue package member list.
   This is strong evidence that the byte stream begins exactly one page after
   the DOCBSS metadata for these ordinary objects.
+
+- QAOSSS14 now provides an independent mapping from QDOC objects to DLO names.
+  For `FMPV082760`, exactly one QAOSSS14 record's 8-byte `WOSEFILD` value
+  occurs in the QDOC object: RRN 695. Its `WOSEFDOC` field is
+  `CKPCSPTH.EXE`; its `WOSEPLDN` value uniquely matches RRN 677, whose
+  short name is `QIWSFLR` and whose parent value is zero. This reconstructs
+  **`/QDLS/QIWSFLR/CKPCSPTH.EXE`**.
+- The same method maps `FMPV195818` uniquely to QAOSSS14 RRN 313 and then
+  to parent RRN 283, reconstructing
+  **`/QDLS/QIWSFL2/DTAQ.PKG`**.
+- `DPWN524712` uniquely correlates to QAOSSS14 RRN 1871. Its 44-byte
+  `WOSEDOCN` value is `AS/400 Office Training Information`, while its
+  12-byte `WOSEFDOC` value is `BULLET1.RFT`. The same parent key is used
+  by the adjacent BULLET2/BULLET3 records but does not currently resolve to a
+  QAOSSS14 record. Independently, the QDOC document's own error-log text names
+  folder `BULLETIN`, so the known BULLETIN relationship remains corroborating
+  evidence rather than a fabricated QAOSSS14 parent.
+- These examples also show that `WOSEDOCN` is not simply "the filename":
+  it can contain a longer document title, while `WOSEFDOC` carries the
+  12-character short component in the examples decoded so far.
 
 Printable strings inside a QDOC object are **hints**, not automatically
 authoritative path metadata. The `DPWN524712` case is stronger because the
@@ -177,6 +232,16 @@ The xref scanner is intentionally structural: finding the same SYSOBJNAM in a
 database/index object is evidence of a relationship without assuming the
 meaning of the surrounding bytes.
 
+`as400-dasd dlo-paths IMAGE [SYSOBJNAM ...]`
+
+- loads the recovered 193-byte QAOSSS14 anchor records;
+- correlates a QDOC object when its QAOSSS14 `WOSEFILD` key occurs uniquely
+  in that object's recovered bytes;
+- follows unique `WOSEPLDN -> WOSEFILD` links to reconstruct complete or
+  partial QDLS paths;
+- prints the internal SYSOBJNAM, QAOSSS14 RRN, short name, and path without
+  discarding the forensic internal identity.
+
 `as400-dasd dlo-schema IMAGE`
 
 - scans raw DASD bytes for exact `WOSFMTxx` markers in a streaming pass;
@@ -198,18 +263,20 @@ meaning of the surrounding bytes.
 
 ## Next experiments
 
-1. Decode the repeated binary descriptor structure in the V2R3
-   `WOSFMT14/QAOSSS14` schema region and determine the field ordering/length
-   metadata without assigning semantics beyond the embedded IBM names.
-2. Use `dlo-index-scan` and raw-image cross-checks to locate actual
-   `QAOSSS14` anchor records containing known SYSOBJNAM values.
-3. Determine how a QDOC `*DOC` references its same-base `*DOCBSS` object
-   and where the workstation byte stream begins/ends inside that object.
-4. Validate the `*DOCBSS` relationship across many documents before adding
-   export support.
-5. Reconstruct the parent-folder reference using the independently known
-   `DPWN524712 -> BULLETIN/BULLET1.RFT` example.
-6. Cross-check any proposed SYSOBJNAM -> DLO-name/folder mapping against more
-   than one object before promoting it from hypothesis to decoded structure.
-7. Once parent folder identifiers are understood, reconstruct full QDLS paths
-   and expose them in the TUI while retaining SYSOBJNAM as forensic metadata.
+1. Apply the same direct recovery approach to `QAOSSS10`-`QAOSSS13`,
+   `QAOSSS15`, `QAOSSS17`, and `QAOSSS18`, preserving each recovered
+   WOSFMT descriptor before assigning semantics.
+2. Investigate the unresolved parent key shared by the BULLET1/BULLET2/BULLET3
+   QAOSSS14 records and determine whether its folder record lives in another
+   QAOSS structure or a currently unrecovered entry.
+3. Determine which QAOSSS14 field or related structure carries IBM's
+   documented DLO system object name; the V2R3 QDOC correlation currently uses
+   the observed binary `WOSEFILD` key rather than pretending a plain EBCDIC
+   SYSOBJNAM is present in the 193-byte record.
+4. Validate QAOSSS14 path reconstruction over a larger random sample of QDOC
+   documents and folders, including non-PC-Support content.
+5. Decode the fifteen extended/non-ordinary `*DOCBSS` layouts before
+   broadening export beyond the conservatively validated ordinary form.
+6. Once the remaining parent-link cases are understood, add optional recursive
+   export that mirrors the recovered QDLS directory tree while continuing to
+   preserve internal SYSOBJNAM metadata.
