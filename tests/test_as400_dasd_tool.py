@@ -24,6 +24,7 @@ from as400_dasd_tool import (
     _tui_file_context,
     _find_pattern_offsets,
     _find_pattern_segment_locations,
+    _longest_pattern_suffix_locations,
     _object_owned_segments,
     _tui_file_storage_evidence,
     _tui_hex_lines,
@@ -261,6 +262,24 @@ class DASDToolTests(unittest.TestCase):
                 )
             ],
             [(0x1000, 2), (0x3000, 0)],
+        )
+
+    def test_longest_pattern_suffix_locations_models_common_text(self):
+        segment = SimpleNamespace(
+            virtual_address=0x1000,
+            start_lba=10,
+        )
+        pattern = b"PREFIX-TERMINAL"
+        length, locations = _longest_pattern_suffix_locations(
+            [(segment, b"XXTERMINALYY")],
+            pattern,
+            min_length=5,
+            limit=8,
+        )
+        self.assertEqual(length, len(b"TERMINAL"))
+        self.assertEqual(
+            [(item.virtual_address, offset) for item, offset in locations],
+            [(0x1000, 2)],
         )
 
     def test_find_pattern_offsets_is_bounded_and_non_overlapping(self):

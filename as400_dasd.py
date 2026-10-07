@@ -520,14 +520,25 @@ class RecoveredObject:
         return f"{self.object_type:02X}/{self.object_subtype:02X}"
 
     @property
-    def epa_address(self) -> InternalAddress:
-        """Internal address of this object's common EPA header.
+    def object_address(self) -> InternalAddress:
+        """Eight-byte address identifying the object's base segment.
 
-        A recovered primary segment begins with the 32-byte YYSGHDR and the
-        EPA header follows immediately. IBM's context-management documentation
-        defines the context-entry @ field as the address of the EPA header,
-        not the base address of the owning segment group.
+        System/38/MI pointer semantics identify an object through its base
+        segment. The context documentation describes the final @ field as the
+        address of the EPA header, but the real images do not support treating
+        that wording as a literal +0x20 byte displacement. Keep the base
+        address as the primary candidate and test the literal EPA byte
+        location separately in forensic diagnostics.
         """
+
+        return InternalAddress(
+            self.segment.header.owner.extender,
+            self.segment.virtual_address,
+        )
+
+    @property
+    def physical_epa_byte_address(self) -> InternalAddress:
+        """Literal byte location where the EPA bytes begin in the base page."""
 
         return InternalAddress(
             self.segment.header.owner.extender,
@@ -1492,11 +1503,12 @@ class ContextIndexEntry:
     def from_object(cls, obj: "RecoveredObject") -> "ContextIndexEntry":
         """Build the documented logical entry expected for a recovered object.
 
-        IBM defines the final @ field as the internal address of the object's
-        EPA header. A recovered primary segment starts with the 32-byte
-        segment-group header, so the EPA address is primary-segment VA + 0x20.
-        Real context-index traversal remains the independent check of that
-        documented relationship.
+        IBM describes the final @ field as the eight-byte address of the
+        object's EPA header. System-pointer semantics identify an MI object by
+        its base segment, while the literal EPA bytes begin 0x20 bytes into the
+        recovered base page. Real-image evidence does not justify equating @
+        with that physical byte displacement, so this reconstructed candidate
+        uses the object's base address and diagnostics test both forms.
         """
 
         name_raw = obj.epa.name_raw.rstrip(b"\x40\x00")
@@ -1505,7 +1517,7 @@ class ContextIndexEntry:
         raw = (
             bytes([obj.object_type, obj.object_subtype, len(name_raw)])
             + name_raw
-            + obj.epa_address.to_bytes()
+            + obj.object_address.to_bytes()
         )
         return cls.from_bytes(raw)
 
@@ -1520,6 +1532,12 @@ class ContextIndexEntry:
     @property
     def type_code(self) -> str:
         return f"{self.object_type:02X}/{self.object_subtype:02X}"
+
+    @property
+    def key_prefix(self) -> bytes:
+        """Documented context search-key candidate: T + S + NL + N."""
+
+        return self.raw[:-8]
 
 
 @dataclass(frozen=True)

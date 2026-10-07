@@ -2637,6 +2637,35 @@ def _find_pattern_segment_locations(segment_blobs, pattern, *, limit=8):
                 return locations
     return locations
 
+
+def _longest_pattern_suffix_locations(
+    segment_blobs,
+    pattern,
+    *,
+    min_length=5,
+    limit=8,
+):
+    """Find the longest contiguous suffix of a pattern present in segments.
+
+    Machine-index common text removes leading key bytes from terminal text.
+    A long suffix of T+S+NL+N is therefore useful terminal-text evidence
+    without assuming that the complete key remains contiguous.
+    """
+
+    if not pattern:
+        return 0, []
+    minimum = max(1, min(min_length, len(pattern)))
+    for length in range(len(pattern), minimum - 1, -1):
+        locations = _find_pattern_segment_locations(
+            segment_blobs,
+            pattern[-length:],
+            limit=limit,
+        )
+        if locations:
+            return length, locations
+    return 0, []
+
+
 def cmd_context_xref(args):
     """Correlate EPA-known members with documented context-entry byte forms."""
 
@@ -2671,56 +2700,71 @@ def cmd_context_xref(args):
     ]
 
     rows = []
-    epa_address_hits_total = 0
+    full_key_hits_total = 0
+    key_tail_hits_total = 0
     base_address_hits_total = 0
-    name_address_hits_total = 0
-    full_hits_total = 0
+    physical_epa_hits_total = 0
+    expanded_base_hits_total = 0
 
     for obj in objects:
         entry = ContextIndexEntry.from_object(obj)
-        epa_address_pattern = entry.object_address.to_bytes()
-        base_address_pattern = obj.segment.header.owner.to_bytes()
-        name_address_pattern = entry.name_raw + epa_address_pattern
-
-        epa_address_hits = _find_pattern_segment_locations(
+        full_key_hits = _find_pattern_segment_locations(
             segment_blobs,
-            epa_address_pattern,
+            entry.key_prefix,
             limit=args.max_hits,
         )
+        key_tail_length, key_tail_hits = _longest_pattern_suffix_locations(
+            segment_blobs,
+            entry.key_prefix,
+            min_length=args.min_key_tail,
+            limit=args.max_hits,
+        )
+
+        base_address_pattern = obj.object_address.to_bytes()
+        physical_epa_pattern = obj.physical_epa_byte_address.to_bytes()
         base_address_hits = _find_pattern_segment_locations(
             segment_blobs,
             base_address_pattern,
             limit=args.max_hits,
         )
-        name_address_hits = _find_pattern_segment_locations(
+        physical_epa_hits = _find_pattern_segment_locations(
             segment_blobs,
-            name_address_pattern,
+            physical_epa_pattern,
             limit=args.max_hits,
         )
-        full_hits = _find_pattern_segment_locations(
+        expanded_base_hits = _find_pattern_segment_locations(
             segment_blobs,
             entry.raw,
             limit=args.max_hits,
         )
 
-        if epa_address_hits:
-            epa_address_hits_total += 1
+        if full_key_hits:
+            full_key_hits_total += 1
+        if key_tail_hits:
+            key_tail_hits_total += 1
         if base_address_hits:
             base_address_hits_total += 1
-        if name_address_hits:
-            name_address_hits_total += 1
-        if full_hits:
-            full_hits_total += 1
+        if physical_epa_hits:
+            physical_epa_hits_total += 1
+        if expanded_base_hits:
+            expanded_base_hits_total += 1
 
-        if epa_address_hits or base_address_hits or args.include_misses:
+        if (
+            key_tail_hits
+            or base_address_hits
+            or physical_epa_hits
+            or args.include_misses
+        ):
             rows.append(
                 (
                     obj,
                     entry,
-                    epa_address_hits,
+                    full_key_hits,
+                    key_tail_length,
+                    key_tail_hits,
                     base_address_hits,
-                    name_address_hits,
-                    full_hits,
+                    physical_epa_hits,
+                    expanded_base_hits,
                 )
             )
 
@@ -2748,44 +2792,50 @@ def cmd_context_xref(args):
     )
     print()
     print(
-        f"Objects whose documented EPA-header @ address occurs: "
-        f"{epa_address_hits_total:,}/{len(objects):,}"
+        f"Objects with complete T+S+NL+N key bytes contiguous: "
+        f"{full_key_hits_total:,}/{len(objects):,}"
     )
     print(
-        f"Objects whose primary segment-base address occurs: "
+        f"Objects with a >= {args.min_key_tail}-byte documented key suffix: "
+        f"{key_tail_hits_total:,}/{len(objects):,}"
+    )
+    print(
+        f"Objects whose base/object address occurs: "
         f"{base_address_hits_total:,}/{len(objects):,}"
     )
     print(
-        f"Objects with contiguous N+@ bytes (using EPA @): "
-        f"{name_address_hits_total:,}/{len(objects):,}"
+        f"Objects whose literal base+0x20 EPA byte address occurs: "
+        f"{physical_epa_hits_total:,}/{len(objects):,}"
     )
     print(
-        f"Objects with the complete expanded T+S+NL+N+@ sequence: "
-        f"{full_hits_total:,}/{len(objects):,}"
+        f"Objects with complete key+base-address candidate contiguous: "
+        f"{expanded_base_hits_total:,}/{len(objects):,}"
     )
     print()
 
     if not rows:
-        print("No candidate object-address occurrences were found.")
+        print("No key-tail or candidate-address evidence was found.")
         return 0
 
     print(
-        "Type   Object                         EPA@  base@  N+@  full  "
-        "first EPA@ location"
+        "Type   Object                         keytail  base@  +20@  full  "
+        "first key-tail location"
     )
     shown = 0
     for (
         obj,
         entry,
-        epa_address_hits,
+        full_key_hits,
+        key_tail_length,
+        key_tail_hits,
         base_address_hits,
-        name_address_hits,
-        full_hits,
+        physical_epa_hits,
+        expanded_base_hits,
     ) in rows:
         if args.limit and shown >= args.limit:
             break
-        if epa_address_hits:
-            first_segment, first_offset = epa_address_hits[0]
+        if key_tail_hits:
+            first_segment, first_offset = key_tail_hits[0]
             first = (
                 f"{first_segment.virtual_address:012X}+0x{first_offset:X}"
             )
@@ -2794,10 +2844,10 @@ def cmd_context_xref(args):
         print(
             f"{entry.type_code:<7}"
             f"{obj.name[:30]:<31}"
-            f"{len(epa_address_hits):>4}  "
+            f"{key_tail_length:>7}  "
             f"{len(base_address_hits):>5}  "
-            f"{len(name_address_hits):>3}  "
-            f"{len(full_hits):>4}  "
+            f"{len(physical_epa_hits):>4}  "
+            f"{len(expanded_base_hits):>4}  "
             f"{first}"
         )
         shown += 1
@@ -2807,11 +2857,12 @@ def cmd_context_xref(args):
 
     print()
     print(
-        "Interpretation: EPA@ is the documented context-entry address form "
-        "(primary segment VA + 0x20). A base@ hit is tracked separately as "
-        "forensic correlation and is not counted as a documented context entry. "
-        "N+@ or full-entry hits are stronger, but final traversal must still "
-        "reconstruct keys through the binary-radix-tree elements and pointers."
+        "Interpretation: IBM documents T+S+NL+N as the identifying portion of "
+        "the context entry and machine-index common text can remove leading "
+        "bytes from terminal text. Long key tails are therefore more useful "
+        "for locating terminal text than a raw full-entry search. The manual "
+        "calls @ the EPA-header address, but current evidence does not justify "
+        "a literal +0x20 interpretation; base@ and +20@ are shown separately."
     )
     if len(owned_segments) > 1:
         print(
@@ -6574,6 +6625,15 @@ def build_parser():
         type=int,
         default=8,
         help="maximum offsets retained per pattern; use 0 for all (default: 8)",
+    )
+    context_xref.add_argument(
+        "--min-key-tail",
+        type=int,
+        default=5,
+        help=(
+            "minimum contiguous suffix of T+S+NL+N to count as terminal-text "
+            "evidence (default: 5)"
+        ),
     )
     context_xref.add_argument(
         "--include-misses",

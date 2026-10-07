@@ -47,14 +47,19 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Re-run Mark/Patrik `QGPL` across all three context-owned segment
       groups (69 pages total). The hit count remained 3/165, ruling out the
       primary-only scan as the reason for the low match rate.
-- [x] Correct `context-xref` to use IBM's documented `@` value: the internal
-      address of the EPA header at primary-segment VA + 0x20. Preserve the old
-      segment-base search separately as `base@` forensic evidence.
-- [ ] Re-run Mark/Patrik `QGPL` with the corrected EPA-address diagnostic.
-      On the B10 image, use a populated recovered context such as `PPSITEST`
-      (6 EPA-assigned objects) for the first cross-image comparison; `JHUDGINS`
-      currently has zero EPA-assigned objects and will be more valuable later
-      as a test of context-derived membership recovery.
+- [x] Test the literal `base + 0x20` interpretation of IBM's "EPA header
+      address" wording on both images. It matched 0/165 QGPL objects and 0/6
+      PPSITEST objects, while raw base/object addresses matched 3/165 and 1/6.
+      Do not label +0x20 as the documented `@` encoding.
+- [x] Add key-side evidence scanning: exact `T+S+NL+N` plus the longest
+      contiguous key suffix above a configurable threshold. This follows IBM's
+      documented common-text/terminal-text compression model and avoids relying
+      on unresolved `@` semantics.
+- [ ] Re-run Mark/Patrik `QGPL` and B10 `PPSITEST` with key-tail evidence.
+      Use clusters of long key-tail locations to identify terminal-text regions
+      before attempting automatic node/page traversal. `JHUDGINS` currently
+      has zero EPA-assigned objects and remains valuable later as a test of
+      context-derived membership recovery.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 

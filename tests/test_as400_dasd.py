@@ -496,22 +496,23 @@ class DASDHeaderTests(unittest.TestCase):
 
 
     def test_context_index_entry_documented_format(self):
-        epa_address = make_internal_address(0x00D0, 0x0038D5000020)
+        object_address = make_internal_address(0x00D0, 0x0038D5000000)
         name = "JHUDGINS".encode("cp037")
-        raw = bytes([0x08, 0x01, len(name)]) + name + epa_address
+        raw = bytes([0x08, 0x01, len(name)]) + name + object_address
 
         entry = ContextIndexEntry.from_bytes(raw)
         self.assertEqual(entry.type_code, "08/01")
         self.assertEqual(entry.name_length, 8)
         self.assertEqual(entry.name, "JHUDGINS")
+        self.assertEqual(entry.key_prefix, raw[:-8])
         self.assertEqual(entry.object_address.extender, 0x00D0)
-        self.assertEqual(entry.object_address.address, 0x0038D5000020)
+        self.assertEqual(entry.object_address.address, 0x0038D5000000)
         self.assertEqual(entry.raw, raw)
 
         with self.assertRaises(ValueError):
             ContextIndexEntry.from_bytes(raw[:-1])
 
-    def test_context_index_entry_from_object_uses_epa_header_address(self):
+    def test_context_index_entry_from_object_tracks_base_and_epa_bytes(self):
         extent = Extent(
             start_lba=10,
             pages=2,
@@ -542,13 +543,18 @@ class DASDHeaderTests(unittest.TestCase):
         )
         obj = RecoveredObject(segment=segment, epa=epa)
 
-        self.assertEqual(obj.epa_address.extender, 0x0001)
-        self.assertEqual(obj.epa_address.address, 0x0037AE000020)
+        self.assertEqual(obj.object_address.extender, 0x0001)
+        self.assertEqual(obj.object_address.address, 0x0037AE000000)
+        self.assertEqual(obj.physical_epa_byte_address.extender, 0x0001)
+        self.assertEqual(
+            obj.physical_epa_byte_address.address,
+            0x0037AE000020,
+        )
 
         entry = ContextIndexEntry.from_object(obj)
         self.assertEqual(entry.name, "QCLSRC")
-        self.assertEqual(entry.object_address, obj.epa_address)
-        self.assertTrue(entry.raw.endswith(bytes.fromhex("00010037ae000020")))
+        self.assertEqual(entry.object_address, obj.object_address)
+        self.assertTrue(entry.raw.endswith(bytes.fromhex("00010037ae000000")))
 
     def test_machine_index_element_formats(self):
         # IBM Appendix-A release-2 format uses three-byte elements.

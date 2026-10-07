@@ -223,23 +223,37 @@ The all-owned-segments rerun searched three QGPL-owned segment groups
 So the missing matches were not hiding in the two additional recovered segment
 groups.
 
-That rerun exposed a more important mistake in the first diagnostic. IBM's
-documented `@` field is the address of the object's **EPA header**. Our first
-implementation searched the primary segment-group base/owning address instead.
-On these recovered objects the EPA header begins immediately after the 32-byte
-YYSGHDR, so the documented address is:
+The next run tested a literal interpretation of IBM's phrase "address of the
+EPA header" as `primary-segment VA + 0x20`. That produced **0/165** matches
+in Mark/Patrik QGPL and **0/6** in B10 PPSITEST, while the base/object address
+still appeared for 3/165 and 1/6 respectively.
 
-`primary segment VA + 0x20`
+That makes the literal +0x20 interpretation too strong. The System/38 manual
+does say `@` is the eight-byte address of the EPA header, but MI system-pointer
+semantics identify an object by its **base segment**. The object header comprises
+the base-segment header plus EPA header, so the documentation's wording should
+not be converted into a physical byte displacement without the missing VMC
+data-area/addressing detail.
 
-`context-xref` now searches that EPA-header address as the real `@` value and
-reports the old segment-base address separately as `base@` forensic evidence.
-The three original hits are therefore **not** currently counted as proven
-context-entry address hits.
+The diagnostic now treats the base/object address and the literal +0x20 byte
+location as separate forensic candidates rather than labeling either one as
+proven `@`.
 
-The surviving B10 image also did not recover a `QGPL` context on the disk
-tested. That is not treated as an error in the architecture model; the next B10
-comparison should use one of the contexts actually listed by
-`as400-dasd libraries petes.hda`.
+The more productive next discriminator is the documented **key side** of the
+entry. Generic machine-index documentation says entries have a prefix used as
+the search key and a suffix holding information associated with that key.
+Common-text compression removes leading key bytes, while each entry retains
+terminal text containing the uncompressed residue. `context-xref` therefore
+now reports both the complete `T+S+NL+N` key and the longest contiguous suffix
+of that key above a configurable threshold. Clusters of long key-tail locations
+should identify terminal-text regions without depending on unresolved `@`
+address semantics.
+
+The surviving B10 image does not recover QGPL, but `PPSITEST` is a useful
+first cross-image context: it is eight pages and has six EPA-assigned objects.
+The `JHUDGINS` context currently has zero EPA-assigned objects, making it a
+better later test for whether context traversal can recover membership that the
+EPA-backpointer direction misses.
 
 ## Real-image validation plan
 Once the documentation model is firm:
