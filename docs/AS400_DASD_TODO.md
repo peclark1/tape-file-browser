@@ -50,8 +50,12 @@ the same documentation-first method before naming on-disk fields; see
       common-text plus nested XOR node traversal; multi-field QAO1CVNP
       reconstructs six 4-byte user keys whose bytes exactly match QDDS RRNs
       1-6.
-- [ ] Follow QDDSI machine-index page pointers so larger multi-page access
-      paths can be traversed rather than reported as partial.
+- [x] Follow ordinary same-segment QDDSI machine-index page pointers
+      (`segment_table_index == 0`, page-offset field in 256-byte units). Real
+      multi-page V2R3 indexes now traverse exactly: QACJINFO 36/36,
+      QAQAATPY 99/99, QAEBAUDL 584/584, and QADBXDIC 2615/2615 keys,
+      with each recovered four-byte ordinal set forming exactly `1..N`.
+      Nonzero segment-table-index pointers remain deliberately unresolved.
 - [ ] Surface documented access-path/key context and recovered keyed-order
       evidence in the TUI while retaining a raw fallback for undecoded indexes.
 
@@ -241,8 +245,11 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       the bit assignments still need independent confirmation.
 - [x] Parse QDDSI/data-space-index DKEY/DKYT key specifications and preserve
       unresolved attributes as raw values.
-- [ ] Extend the working single-page QDDSI traversal through page pointers
-      and present complete multi-page access paths in keyed order.
+- [x] Traverse ordinary QDDSI machine-index roots and same-segment secondary
+      pages in keyed order; preserve nonzero segment-table-index pointers as
+      unresolved evidence rather than guessing their target segment.
+- [ ] Join DKYT key fields to friendly recovered 19/51 format-field names in
+      CLI/TUI presentation.
 
 ## Storage-directory / recovery internals
 
