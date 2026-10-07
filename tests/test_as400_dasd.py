@@ -1,11 +1,14 @@
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 
 from as400_dasd import (
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
     PAGE_SIZE,
+    QAOSSS14AnchorRecord,
+    QAOSSS14_V2_RECORD_LENGTH,
     SECTOR_SIZE,
     DASDImage,
     DataSpaceLayout,
@@ -418,6 +421,34 @@ class DASDHeaderTests(unittest.TestCase):
         bad = DocumentByteStringInfo.from_primary_segment(bytes(broken))
         with self.assertRaises(ValueError):
             bad.validate_for_export(len(broken))
+
+    def test_qaosss14_anchor_record_observed_offsets(self):
+        raw = bytearray(QAOSSS14_V2_RECORD_LENGTH)
+        raw[16:24] = bytes.fromhex("0102030405060708")
+        raw[32:76] = "CKPCSPTH.EXE".encode("cp037").ljust(44, b"\x40")
+        raw[76:78] = bytes.fromhex("000e")
+        raw[95:111] = "QSECOFR QSECOFR ".encode("cp037")
+        raw[111:123] = "CKPCSPTH.EXE".encode("cp037")
+        raw[131:139] = bytes.fromhex("1112131415161718")
+
+        record = SimpleNamespace(
+            ordinal=695,
+            status=0x80,
+            data=bytes(raw),
+        )
+        anchor_record = QAOSSS14AnchorRecord.from_data_space_record(record)
+        self.assertEqual(anchor_record.rrn, 695)
+        self.assertEqual(
+            anchor_record.record_key,
+            bytes.fromhex("0102030405060708"),
+        )
+        self.assertEqual(anchor_record.short_name, "CKPCSPTH.EXE")
+        self.assertEqual(anchor_record.long_name, "CKPCSPTH.EXE")
+        self.assertEqual(
+            anchor_record.parent_key,
+            bytes.fromhex("1112131415161718"),
+        )
+        self.assertEqual(anchor_record.object_type_raw, bytes.fromhex("000e"))
 
     def test_standard_source_record_decoder(self):
         def entry(sequence, source_date, text, status=0x80):
