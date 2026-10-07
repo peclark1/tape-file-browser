@@ -87,13 +87,13 @@ class DASDToolTests(unittest.TestCase):
             _tui_file_context("QGPL", "QAAPFILE$"),
         )
 
-    def test_hex_lines_show_ascii_and_ebcdic(self):
+    def test_hex_lines_show_hex_and_ebcdic_only(self):
         data = b"MZ" + "ABC".encode("cp037")
         lines = _tui_hex_lines(data)
         self.assertEqual(len(lines), 1)
         self.assertIn("4D 5A", lines[0])
-        self.assertIn("A:MZ", lines[0])
         self.assertIn("E:", lines[0])
+        self.assertNotIn("A:", lines[0])
 
     def test_dent_status_note_is_cautious(self):
         note = _data_space_status_note(0x80)
