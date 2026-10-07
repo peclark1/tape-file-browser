@@ -105,6 +105,14 @@ repeatable real-image validation.
 ## Browser and documentation
 
 - [x] Add curses DASD browser.
+- [x] Add forensic `*PGM` browsing with owned-segment summary, printable
+      strings, and a bounded hex/ASCII/EBCDIC primary-segment preview.
+- [x] Add a generic bounded raw-object fallback for object classes without a
+      specialized decoder.
+- [x] Improve database-member presentation with recovered field layouts,
+      DENT-byte terminology, and raw bytes when decoded fields are blank.
+- [x] Explain the documented QGPL/QAAPFILE logical-file case instead of
+      presenting its lack of independent QDDS rows as a generic recovery error.
 - [x] Add contextual object/library explanations in the TUI.
 - [x] Keep library/view, file/object-type, and member/object context visible
       simultaneously so an automatic child selection never hides its parent
