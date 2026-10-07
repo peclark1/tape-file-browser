@@ -44,8 +44,14 @@ the same documentation-first method before naming on-disk fields; see
       naming unresolved bits. The ordinary real-image layouts parse across both
       images; joining field rows to friendly 19/51 names remains the next UI
       step.
-- [ ] Traverse one simple QDDSI machine index and emit user keys plus record
-      ordinals, then cross-check those references against decoded QDDS RRNs.
+- [x] Traverse ordinary single-page QDDSI machine-index roots and emit user
+      keys plus the observed four-byte RRN/ordinal reference. DBUUSERS
+      reconstructs `*PUBLIC` -> RRN 1; QAEASTUL and QASNADSQ validate
+      common-text plus nested XOR node traversal; multi-field QAO1CVNP
+      reconstructs six 4-byte user keys whose bytes exactly match QDDS RRNs
+      1-6.
+- [ ] Follow QDDSI machine-index page pointers so larger multi-page access
+      paths can be traversed rather than reported as partial.
 - [ ] Surface documented access-path/key context and recovered keyed-order
       evidence in the TUI while retaining a raw fallback for undecoded indexes.
 
@@ -233,8 +239,10 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [ ] Decode the data-space entry-status byte beyond preserving its raw value.
       IBM documents flags for valid/deleted/cross-segment-boundary states, but
       the bit assignments still need independent confirmation.
-- [ ] Parse QDDSI/data-space-index key specifications.
-- [ ] Traverse the QDDSI machine index and present records in keyed order.
+- [x] Parse QDDSI/data-space-index DKEY/DKYT key specifications and preserve
+      unresolved attributes as raw values.
+- [ ] Extend the working single-page QDDSI traversal through page pointers
+      and present complete multi-page access paths in keyed order.
 
 ## Storage-directory / recovery internals
 
