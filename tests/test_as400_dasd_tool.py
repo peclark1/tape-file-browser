@@ -25,8 +25,11 @@ from as400_dasd_tool import (
     _qaosss14_unresolved_parent_records,
     _qddsi_key_field_labels,
     _scan_ebcdic_sysobjnam,
+    _tui_breadcrumb,
     _tui_context_lines,
     _tui_context_traversal,
+    _tui_cycle_inspector_tab,
+    _tui_inspector_tab,
     _tui_file_context,
     _find_pattern_offsets,
     _find_pattern_segment_locations,
@@ -41,8 +44,10 @@ from as400_dasd_tool import (
     _tui_hex_lines,
     _data_space_status_note,
     _tui_library_context,
+    _tui_library_items,
     _tui_msgq_profile_link,
     _tui_object_type_context,
+    _tui_rebuild_from_mid,
     _tui_same_name_objects,
     _tui_viewer_target,
     build_parser,
@@ -643,6 +648,111 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(_tui_viewer_target(state), "mid")
         state["mid_items"] = []
         self.assertEqual(_tui_viewer_target(state), "left")
+
+    def test_tui_breadcrumb_tracks_library_file_member(self):
+        image = SimpleNamespace(path="/archive/marks.hda")
+        member = SimpleNamespace(
+            member_file_name="QCLSRC",
+            member_name="REFRESH2",
+        )
+        state = {
+            "image": image,
+            "left_items": [
+                {
+                    "kind": "library",
+                    "library": "QGPL",
+                    "label": "QGPL",
+                }
+            ],
+            "left_index": 0,
+            "mid_items": [
+                {
+                    "kind": "file",
+                    "name": "QCLSRC",
+                    "label": "QCLSRC",
+                }
+            ],
+            "mid_index": 0,
+            "right_items": [
+                {
+                    "kind": "member",
+                    "object": member,
+                    "label": "REFRESH2",
+                }
+            ],
+            "right_index": 0,
+        }
+        self.assertEqual(
+            _tui_breadcrumb(state),
+            "marks.hda > QGPL > QCLSRC > REFRESH2",
+        )
+
+    def test_tui_inspector_tabs_cycle_and_reset_scroll(self):
+        state = {
+            "inspector_tab": 0,
+            "viewer_scroll": 17,
+        }
+        self.assertEqual(_tui_inspector_tab(state), "Summary")
+        self.assertEqual(_tui_cycle_inspector_tab(state, 1), "Data")
+        self.assertEqual(state["viewer_scroll"], 0)
+        self.assertEqual(_tui_cycle_inspector_tab(state, -1), "Summary")
+        self.assertEqual(_tui_cycle_inspector_tab(state, -1), "Raw")
+
+    def test_tui_library_groups_directory_only_entries_by_type(self):
+        recovered = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x0E,
+            is_member_cursor=False,
+            name="FMPV000001",
+            external_type_hint="*DOC",
+            segment=SimpleNamespace(virtual_address=0x1000),
+        )
+        missing = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x0E,
+            display_name_hint="FMPV000002",
+            object_address=SimpleNamespace(address=0x2000),
+            type_code="19/0E",
+            owned_segment_count=1,
+        )
+
+        class Inventory:
+            def in_library(self, library):
+                return [recovered]
+
+            def members(self, **kwargs):
+                return []
+
+            def unresolved_context_entries(self, library=None):
+                return [missing]
+
+        state = {"inventory": Inventory()}
+        items = _tui_library_items(state, "QDOC")
+        group = next(
+            item
+            for item in items
+            if item.get("kind") == "library-object-type"
+        )
+        self.assertEqual(group["objects"], [recovered])
+        self.assertEqual(group["entries"], [missing])
+        self.assertIn("+ 1 dir", group["label"])
+
+        state.update(
+            {
+                "mid_items": [group],
+                "mid_index": 0,
+                "right_items": [],
+                "right_index": 0,
+                "viewer_scroll": 9,
+            }
+        )
+        _tui_rebuild_from_mid(state)
+        self.assertEqual(
+            [item["kind"] for item in state["right_items"]],
+            ["object", "context-entry"],
+        )
+        self.assertTrue(state["right_items"][1]["label"].startswith("[dir]"))
+        self.assertEqual(state["viewer_scroll"], 0)
 
     def test_tui_keeps_context_for_library_file_and_member_visible(self):
         member = SimpleNamespace(
