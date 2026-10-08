@@ -4346,6 +4346,8 @@ def _tui_rebuild_from_mid(state):
                 }
             )
         state["right_items"] = result
+    elif selected["kind"] == "search-group":
+        state["right_items"] = list(selected.get("search_items", ()))
     else:
         result = []
         for obj in selected["objects"]:
@@ -4920,6 +4922,12 @@ def _tui_context_lines(state):
             "File/type: directory-only context references — "
             f"{len(mid['entries']):,} entry/entries whose object primary "
             "is not recovered on this image."
+        )
+    elif mid["kind"] == "search-group":
+        mid_line = (
+            "File/type: search results — "
+            f"{len(mid.get('search_items', ())):,} recovered object/"
+            "directory-reference match(es)."
         )
     else:
         meaning = _tui_object_type_context(
@@ -6502,6 +6510,24 @@ def _tui_viewer_lines(state):
                 ),
             ]
 
+        if mid["kind"] == "search-group":
+            directory_count = sum(
+                1
+                for item in mid.get("search_items", ())
+                if item.get("kind") == "context-entry"
+            )
+            object_count = (
+                len(mid.get("search_items", ())) - directory_count
+            )
+            return [
+                "Search results",
+                "",
+                f"Recovered objects: {object_count:,}",
+                f"Directory-only references: {directory_count:,}",
+                "",
+                "Select a result in the right pane.",
+            ]
+
         return [
             f"Object type: {mid['type']:02X}/{mid['subtype']:02X}",
             f"Recovered objects: {len(mid['objects']):,}",
@@ -6699,7 +6725,7 @@ def _tui_prompt_search(stdscr, state):
         return
 
     wanted = query.upper()
-    matches = []
+    object_matches = []
     for obj in state["inventory"].objects:
         haystack = " ".join(
             [
@@ -6712,9 +6738,9 @@ def _tui_prompt_search(stdscr, state):
             ]
         ).upper()
         if wanted in haystack:
-            matches.append(obj)
+            object_matches.append(obj)
 
-    matches.sort(
+    object_matches.sort(
         key=lambda obj: (
             obj.library_name or "",
             obj.name,
@@ -6722,26 +6748,38 @@ def _tui_prompt_search(stdscr, state):
         )
     )
 
-    state["left_items"].insert(
-        0,
-        {
-            "kind": "search-view",
-            "label": f"<SEARCH {query}>  {len(matches):,}",
-            "objects": matches,
-        },
+    directory_matches = []
+    for entry in state["inventory"].unresolved_context_entries():
+        address = (
+            str(entry.object_address)
+            if entry.object_address is not None
+            else ""
+        )
+        haystack = " ".join(
+            [
+                entry.library_name,
+                entry.display_name_hint,
+                entry.type_code,
+                address,
+            ]
+        ).upper()
+        if wanted in haystack:
+            directory_matches.append(entry)
+
+    directory_matches.sort(
+        key=lambda entry: (
+            entry.library_name,
+            entry.display_name_hint,
+            entry.type_code,
+            (
+                entry.object_address.address
+                if entry.object_address is not None
+                else 0
+            ),
+        )
     )
-    state["left_index"] = 0
-    state["mid_items"] = [
-        {
-            "kind": "search-group",
-            "label": f"Results  {len(matches):,}",
-            "objects": matches,
-            "type": 0,
-            "subtype": 0,
-        }
-    ]
-    state["mid_index"] = 0
-    state["right_items"] = [
+
+    search_items = [
         {
             "kind": "object",
             "object": obj,
@@ -6751,15 +6789,52 @@ def _tui_prompt_search(stdscr, state):
                 f"  {obj.external_type_hint or obj.type_code}"
             ),
         }
-        for obj in matches
+        for obj in object_matches
     ]
+    search_items.extend(
+        {
+            "kind": "context-entry",
+            "entry": entry,
+            "label": (
+                f"{entry.library_name}/"
+                f"{entry.display_name_hint or '<name undecoded>'}  "
+                f"{entry.type_code}  [directory-only]"
+            ),
+        }
+        for entry in directory_matches
+    )
+
+    state["left_items"].insert(
+        0,
+        {
+            "kind": "search-view",
+            "label": f"<SEARCH {query}>  {len(search_items):,}",
+            "objects": object_matches,
+            "entries": directory_matches,
+        },
+    )
+    state["left_index"] = 0
+    state["mid_items"] = [
+        {
+            "kind": "search-group",
+            "label": f"Results  {len(search_items):,}",
+            "objects": object_matches,
+            "entries": directory_matches,
+            "search_items": search_items,
+            "type": 0,
+            "subtype": 0,
+        }
+    ]
+    state["mid_index"] = 0
+    state["right_items"] = search_items
     state["right_index"] = 0
     state["focus"] = 2
     state["viewer_scroll"] = 0
+    state["viewer_cache"] = {}
     state["status"] = (
-        f"Search '{query}': {len(matches):,} match(es)"
+        f"Search '{query}': {len(object_matches):,} recovered object(s), "
+        f"{len(directory_matches):,} directory-only reference(s)"
     )
-
 
 def _tui_rebuild_search_safe_from_left(state):
     selected = _tui_selected(state, "left")
