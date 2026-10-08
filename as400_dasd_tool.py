@@ -1698,7 +1698,7 @@ def cmd_dlo_export(args):
     """Export a conservatively validated *DOCBSS workstation byte stream."""
 
     image = _open(args.image)
-    _, _, inventory = _recover_all(image)
+    _, segments, inventory = _recover_all(image)
 
     sysobjnam = args.sysobjnam.upper()
     if len(sysobjnam) != 10:
