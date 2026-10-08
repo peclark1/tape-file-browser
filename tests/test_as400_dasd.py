@@ -32,6 +32,7 @@ from as400_dasd import (
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
+    assemble_document_byte_string,
     decode_context_machine_index,
     decode_context_terminal_name_hint,
     decode_data_space_index_root,
@@ -1183,6 +1184,33 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(records[1].data, b"ONE1")
         self.assertEqual(records[2].status, 0x40)
         self.assertEqual(records[2].data, b"TWO2")
+
+    def test_docbss_extended_payload_uses_continuation_after_metadata_page(self):
+        primary = bytearray(PAGE_SIZE * 2)
+        continuation = bytearray(PAGE_SIZE * 2)
+        payload = b"A" * 600
+        primary[0x106:0x108] = len(payload).to_bytes(2, "big")
+        primary[0x112:0x114] = len(payload).to_bytes(2, "big")
+        primary[PAGE_SIZE:] = payload[:PAGE_SIZE]
+        continuation[PAGE_SIZE:PAGE_SIZE + 88] = payload[PAGE_SIZE:]
+
+        info = DocumentByteStringInfo.from_primary_segment(bytes(primary))
+        recovered = assemble_document_byte_string(
+            info,
+            bytes(primary),
+            (bytes(continuation),),
+        )
+        self.assertEqual(recovered, payload)
+
+    def test_docbss_extended_payload_rejects_missing_continuation(self):
+        primary = bytearray(PAGE_SIZE * 2)
+        payload_length = 600
+        primary[0x106:0x108] = payload_length.to_bytes(2, "big")
+        primary[0x112:0x114] = payload_length.to_bytes(2, "big")
+        info = DocumentByteStringInfo.from_primary_segment(bytes(primary))
+
+        with self.assertRaisesRegex(ValueError, "missing 88 byte"):
+            assemble_document_byte_string(info, bytes(primary))
 
     def test_docbss_observed_length_layout(self):
         data = bytearray(PAGE_SIZE * 3)
