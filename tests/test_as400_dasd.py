@@ -668,6 +668,37 @@ class DASDHeaderTests(unittest.TestCase):
             [1, 2, 3, 4, 5, 6],
         )
 
+    def test_qddsi_active_root_pointer_can_move_root_page(self):
+        base = 0x001000000000
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 E4 10 1C "
+            "0D 10 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(0x2000)
+        root = bytearray(data[0x1000:0x101C])
+        root[6:8] = (0x181C).to_bytes(2, "big")
+        root[9:11] = (0x180E).to_bytes(2, "big")
+        primary[0x1800 : 0x1800 + len(root)] = root
+
+        # Observed QDDSI control pointer at +0x13A, then active-root pointer at
+        # control +0x20.
+        primary[0x13A:0x140] = (base + 0x0A00).to_bytes(6, "big")
+        primary[0x0A20:0x0A26] = (base + 0x1800).to_bytes(6, "big")
+
+        traversal = decode_data_space_index_root(
+            bytes(primary),
+            layout,
+            virtual_address=base,
+        )
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.root_offset, 0x1800)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(traversal.entries[0].ordinal_hint, 1)
+
     def test_qddsi_follows_same_segment_page_pointer(self):
         data, layout = make_qddsi_root_fixture(
             "97 00 08 CC 07 F2 10 0E "
