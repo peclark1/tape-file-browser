@@ -180,42 +180,74 @@ common leading text into common-text nodes.
 
 ## Broad V2R3 traversal validation
 
-The ordinary one-DKEY traversal is now validated beyond hand-picked examples.
-A repeatable pass over Mark's recovered V2R3 QDDSI primaries found 277 plausible
-`01B4` QDDSI primary segment groups. Reassembling fragmented segment groups in
-virtual-address order and applying the current conservative walker produced:
+A fresh pass over Mark's recovered V2R3 image finds 281 recovered primary
+`0C/90` QDDSI segment groups whose DKEY/DKYT metadata parses conservatively.
+Of those, 171 currently report zero keys and 110 contain populated DKEY rows.
 
-- 258 complete traversals after admitting multi-DKEY layouts whose populated
-  rows share one user/machine key-length shape (including zero-populated rows);
-- 7 multi-DKEY indexes whose populated rows use different key lengths and are
-  still deliberately rejected rather than guessed;
-- 6 special indexes whose active machine-index root does not use the ordinary
-  root-node shape;
-- 4 special long-key/compressed-text cases whose complete keys are not yet
-  reconstructed correctly;
-- 2 segment groups whose full virtual chain is not recovered by the current
-  header-based extent reconstruction.
+The active machine-index root is not fixed at segment offset `0x1000`.
+Across all 110 populated indexes, an observed six-byte QDDSI pointer at
+`+0x13A` identifies a machine-index control area, and a six-byte pointer at
+control-area `+0x20` identifies the active root page. The resulting root
+offsets are:
 
-The multi-DKEY extension is independently visible in the real trees: for
-examples such as QAX4MTAA, QADBLDNC, QASULTEL, and QAOKLEAA, the recovered
-machine-index entry count equals the **sum** of the populated DKEY key counts
-when those rows share the same user/machine key lengths. Zero-count DKEY rows
-do not contribute entries.
+- `+0x1000`: 102 indexes;
+- `+0x1800`: 7 indexes;
+- `+0x2800`: 1 index.
 
-For the original 229 complete single-populated-row traversals, every DKEY
-data-space address resolves to a recovered QDDS primary. In 226 cases the
-ordinary database-reference suffix behaves as the simple four-byte RRN/ordinal
-hint used by the browser and falls within the recovered QDDS range. Three
-special cases demonstrate why the code correctly labels this value an
-`ordinal_hint` rather than claiming that every database-relative-address
-encoding is a plain RRN.
+These pointer offsets are real-image observations, not yet promoted to IBM
+field names. Following them removes the earlier false "special root" category.
 
-This changes the remaining problem substantially: ordinary tree walking,
-including many multi-DKEY layouts, is no longer the research blocker. The next
-database/index work is the exception set -- populated DKEY rows with different
-key lengths, special root/text layouts, and the few database-reference variants
-that need more of IBM's documented adjusted data space number/internal-flag
-interpretation.
+The database-relative address also resolves the multi-DKEY ambiguity. IBM
+documents that it contains an adjusted data-space number and encoded ordinal.
+In every ordinary V2R3 tree that can currently be reconstructed, the four-byte
+suffix has this observed form:
+
+`DKEY-row byte | three-byte ordinal`
+
+The first byte equals the zero-based DKEY row number, and the final three bytes
+resolve to the corresponding QDDS ordinal. This lets one machine index contain
+different DKEY key lengths without forcing a global key shape.
+
+IBM also documents fork-character rows when an index covers data spaces with
+different key lengths. The mixed-key QASULE examples reproduce that structure:
+zero-length/zero-location non-field DKYT rows account for the extra ordering
+bytes interleaved among the field bytes. Consuming those ordering bytes while
+concatenating only real field rows reconstructs the user-key bytes for
+QASULE01, QASULE02, QASULE03, QASULE05, and QASULE06.
+
+With dynamic root resolution and DKEY-specific key shapes, 102 of the 110
+populated QDDSIs traverse completely. Those 102 indexes contain 128,191
+machine-index entries. For every one of those entries:
+
+- the four-byte suffix selects a populated DKEY row whose machine-key length
+  matches the recovered key;
+- the final three bytes form an ordinal within the recovered QDDS range for
+  that DKEY data space;
+- the number of entries attributed to each DKEY equals that row's reported
+  key count.
+
+The eight remaining populated indexes are a much narrower exception family:
+
+- `QAOKLAKA`
+- `QAOKLDKA`
+- `QAOKL10A`
+- `QAOKS01A`
+- `QAOKS02A`
+- `QAOKS03A`
+- `QAOKS04A`
+- `QAOKS05A`
+
+Their tree entry counts are already recovered exactly, and their terminal
+suffixes still carry plausible DKEY/ordinal references, but the reconstructed
+terminal paths are far shorter than the DKEY machine-key lengths. Repeated
+`3FFF`-like values and very large declared key fields indicate an
+indirect/compressed representation that is not yet decoded. Do not pad or
+invent the missing user-key bytes.
+
+This changes the remaining problem substantially: ordinary QDDSI traversal,
+multi-page traversal, dynamic root selection, and mixed-key multi-DKEY
+selection are now validated. The database/index research blocker is the small
+eight-index long/compressed-key family rather than general tree walking.
 
 ## FUNDDEF surviving key evidence
 
@@ -240,10 +272,11 @@ index can have maintenance/recovery state that we have not decoded yet.
 
 ## Machine-index placement and first traversal
 
-The recovered 16-page QDDSIs match IBM's high-level layout well:
+The recovered QDDSIs match IBM's high-level layout well:
 
 - sparse/base-page material begins around the 2-KB boundary;
-- the active root page in populated examples is at segment offset `0x1000`;
+- the active root is reached through the observed control/root pointer chain
+  rather than a fixed segment offset;
 - larger indexes use additional dense pages consistent with secondary pages.
 
 The ordinary active root pages now provide enough repeated structure to walk
@@ -268,8 +301,8 @@ when requested by the originating node. Real common/terminal text also shows
 that the seven-bit text-length field is stored as byte-count minus one: encoded
 zero represents one byte.
 
-The first read-only traversal deliberately stops at page pointers, but it
-reconstructs complete keys from ordinary one-page indexes:
+The first read-only traversal reconstructed complete keys from ordinary
+one-page indexes:
 
 - `DBUUSERS`: `*PUBLIC   ` plus database reference `00000001`, resolving to
   QDDS RRN 1;
@@ -321,15 +354,17 @@ documents it.
 
 ## Next implementation steps
 
-1. Join DKYT field positions/lengths to friendly recovered 19/51 field names in
-   CLI/TUI presentation.
-2. Add keyed-record navigation that keeps raw RRN/arrival order available as an
-   independent view.
-3. Exercise the keyed view on both simple character keys and multi-field/binary
-   keys, and preserve partial/raw fallback for unsupported pointer variants.
-4. Reuse the now-validated machine-index traversal lessons when permanent
-   context/library directory work resumes, without assuming the QDDSI page
-   placement is identical to a context index.
+1. Characterize the eight remaining long/compressed-key QDDSIs without
+   guessing the meaning of their `3FFF`-like references.
+2. Determine whether their omitted key material is represented through another
+   documented binary-tree/reference structure, and validate any interpretation
+   against the associated QDDS records.
+3. Keep DKEY-aware keyed-record presentation in the CLI/TUI: only map an index
+   entry to the currently displayed member when that entry's DKEY row points to
+   the member's QDDS.
+4. Once the eight-index exception family is understood or conservatively
+   classified, call the QDDSI/keyed-file milestone complete and resume the
+   permanent context/library machine-index traversal.
 
 ## Research discipline
 
