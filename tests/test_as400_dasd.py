@@ -28,6 +28,7 @@ from as400_dasd import (
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
+    decode_context_machine_index,
     decode_data_space_index_root,
     decode_data_space_records,
     decode_format_fields,
@@ -413,6 +414,45 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(spec.fields[0].location, 1)
         self.assertEqual(spec.fields[0].record_offset_hint, 0)
         self.assertEqual(spec.fields[0].field_ordinal_hint, 1)
+
+    def test_context_machine_index_single_terminal(self):
+        data = bytearray(0x1000)
+        # Synthetic one-entry release-2 tree rooted at the independently
+        # observed ordinary context offset +0x800.
+        data[0x800:0x808] = bytes.fromhex(
+            "97 00 08 CC 00 00 00 00"
+        )
+        terminal = (
+            bytes([0x19, 0x01])
+            + "TEST".encode("cp037")
+            + bytes([0x14])
+            + bytes.fromhex("000100001234")
+        )
+        self.assertEqual(len(terminal), 13)
+        data[0x808:0x80E] = bytes.fromhex(
+            "0C 08 0E 60 00 00"
+        )
+        data[0x80E:0x80E + len(terminal)] = terminal
+
+        traversal = decode_context_machine_index(bytes(data))
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 1)
+        entry = traversal.entries[0]
+        self.assertEqual(entry.object_type, 0x19)
+        self.assertEqual(entry.object_subtype, 0x01)
+        self.assertEqual(
+            entry.compact_object_reference,
+            bytes.fromhex("000100001234"),
+        )
+        self.assertEqual(
+            entry.object_address_hint,
+            InternalAddress(0x0001, 0x000012340000),
+        )
+
+    def test_context_machine_index_empty_root(self):
+        traversal = decode_context_machine_index(bytes(0x1000))
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 0)
 
     def test_qddsi_single_entry_root_traversal(self):
         data, layout = make_qddsi_root_fixture(
