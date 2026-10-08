@@ -6,12 +6,20 @@ repeatable real-image validation.
 
 ## Current priority
 
-### Database / QDDSI and keyed-file reconstruction
+### Permanent-context directory reconstruction
 
-The permanent-context work has reached a strong evidence checkpoint and is
-parked below rather than being allowed to monopolize the broader DASD browser.
-The next agreed priority is database/QDDSI and keyed-file reconstruction. Apply
-the same documentation-first method before naming on-disk fields; see
+The functional database/QDDSI keyed-record milestone is now complete and the
+permanent-context work resumes as the current architectural priority. Apply the
+same documentation-first discipline before naming page-header fields; use the
+validated QDDSI machine-index traversal as implementation guidance without
+assuming that context indexes use identical placement or control structures.
+
+### Database / QDDSI and keyed-file reconstruction — milestone checkpoint
+
+Ordinary, multi-page, and multi-DKEY recovered V2R3 access paths now enumerate
+keyed terminal references and resolve their database-relative addresses to the
+appropriate QDDS RRNs. The eight long/compact QAOK variants retain partial tree
+key evidence while still providing complete DKEY/ordinal references. See
 `docs/AS400_QDDSI_RESEARCH.md`.
 
 - [x] Inventory the existing backend: member cursors (0D/50) already resolve
@@ -73,7 +81,7 @@ the same documentation-first method before naming on-disk fields; see
       universal. Their tree entry counts are recovered, but complete machine
       keys are represented indirectly/compressed.
 
-### Permanent-context directory reconstruction — parked checkpoint
+### Permanent-context directory reconstruction — active checkpoint
 
 The next architectural milestone is to reconstruct each permanent
 context/library's own directory and use it as an independent
@@ -168,9 +176,10 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       (length 124, displacement `0x02`) covering the `PROTO` tail at
       `0x5B`. Preserve 512/origin-0x1E0/phase-2 as a strongly supported
       PPSITEST working model, not yet a full page/trunk decoder.
-- [ ] Resume context traversal later by identifying the page header/root-node
-      boundary and following one node/page-pointer path. The evidence is now
-      strong enough to park this work without losing the foothold.
+- [ ] Resume context traversal now by identifying the page header/root-node
+      boundary and following one node/page-pointer path. Reuse the validated
+      QDDSI tree-walking lessons but independently establish context page
+      placement/header semantics.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
@@ -346,7 +355,9 @@ to this CISC release.
       catalog if the list grows enough to justify it.
 - [x] Show uniquely reconstructed QAOSSS14 QDLS names/paths in the TUI while
       retaining the internal QDOC SYSOBJNAM for forensic identity.
-- [ ] Add keyed-record navigation after QDDSI traversal is stable.
+- [x] Add keyed-record presentation after QDDSI traversal became stable,
+      retaining arrival/RRN order as an independent view and labeling partial
+      key evidence explicitly.
 - [ ] Consider GTK integration only after the read-only CLI/TUI data model is
       stable.
 
