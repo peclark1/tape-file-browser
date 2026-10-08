@@ -2344,8 +2344,11 @@ class MachineIndexPageHeader:
     0x55.
 
     Secondary context pages also carry an observed six-byte backpointer area
-    immediately after this common prefix. The two real images expose two
-    reproducible encodings rather than one universal three-word interpretation.
+    immediately after this common prefix. IBM's published machine-index patent
+    describes this page-header information as the state used to back out of a
+    completed child page and resume processing in its parent page. The two real
+    images expose two reproducible physical encodings rather than one universal
+    three-word interpretation.
 
     On the independent V2R3 image, treating the raw words as
     (origin-low16, shared-high16, current-low16) reconstructs a pair of
@@ -2414,7 +2417,13 @@ class MachineIndexPageHeader:
 
     @property
     def backpointer_words(self) -> tuple[int, int, int] | None:
-        """Return the three raw two-byte child backpointer words, if present."""
+        """Return the three raw two-byte child backtracking/resume words.
+
+        IBM documents the purpose at the machine-index level: after a child
+        page is processed, page-header backpointer information resumes the
+        search in the parent page. Exact word names/encoding remain release-
+        specific and are intentionally not assigned here.
+        """
 
         if len(self.backpointer_raw) != 6:
             return None
