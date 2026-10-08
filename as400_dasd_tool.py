@@ -7771,12 +7771,23 @@ def _tui_browse(stdscr, initial_path=None):
             curses.A_BOLD | curses.A_REVERSE,
         )
 
-        nav_y = 2
+        breadcrumb = _tui_breadcrumb(state)
+        _tui_safe_addstr(
+            stdscr,
+            1,
+            0,
+            breadcrumb,
+            curses.A_BOLD,
+        )
+
+        nav_y = 3
         nav_height = max(7, min(18, height // 2 - 1))
         separator_y = nav_y + nav_height
         viewer_y = separator_y + 1
-        # Reserve three independent pane-context rows plus status/key rows.
-        viewer_height = max(1, height - viewer_y - 6)
+        # The redesign replaces three always-on explanatory rows with a
+        # breadcrumb and a purpose-specific inspector, leaving more room for
+        # actual object data.
+        viewer_height = max(2, height - viewer_y - 3)
 
         left_w = max(20, width // 4)
         mid_w = max(25, width // 3)
@@ -7813,23 +7824,23 @@ def _tui_browse(stdscr, initial_path=None):
         mid_labels = state["mid_items"]
         right_labels = state["right_items"]
 
-        left_title = "Libraries / views"
+        left_title = "Library / view"
         left = _tui_selected(state, "left")
         if left and left["kind"] in (
             "library",
             "orphans-view",
         ):
-            mid_title = "Files / object types"
+            mid_title = "File / object type"
         elif left and left["kind"] == "search-view":
-            mid_title = "Search"
+            mid_title = "Search results"
         else:
-            mid_title = "MI object types"
+            mid_title = "MI object type"
 
         mid = _tui_selected(state, "mid")
         if mid and mid["kind"] == "file":
-            right_title = "Members"
+            right_title = "Member / object"
         else:
-            right_title = "Objects"
+            right_title = "Object / directory entry"
 
         _tui_draw_list(
             stdscr,
@@ -7865,18 +7876,12 @@ def _tui_browse(stdscr, initial_path=None):
             state["focus"] == 2,
         )
 
-        viewer_heading = "Content / details"
-        heading_attr = curses.A_BOLD | (
-            curses.A_REVERSE
-            if state["focus"] == 3
-            else 0
-        )
-        _tui_safe_addstr(
+        _tui_draw_inspector_tabs(
             stdscr,
             viewer_y,
-            0,
-            viewer_heading.ljust(max(0, width - 1)),
-            heading_attr,
+            width,
+            state,
+            state["focus"] == 3,
         )
 
         try:
@@ -7904,32 +7909,15 @@ def _tui_browse(stdscr, initial_path=None):
                 line,
             )
 
-        context_lines = _tui_context_lines(state)
-        context_rows = (height - 5, height - 4, height - 3)
-        for pane_index, (row, context_line) in enumerate(
-            zip(context_rows, context_lines)
-        ):
-            attr = curses.A_DIM
-            if state["focus"] == pane_index:
-                attr |= curses.A_BOLD
-            _tui_safe_addstr(
-                stdscr,
-                row,
-                0,
-                context_line,
-                attr,
-            )
-
         scan = state["scan"]
         status = (
             state["status"]
             or (
                 f"{state['image'].sector_count:,} sectors • "
                 f"{len(state['segments'].segments):,} segments • "
-                f"{len(state['inventory'].objects):,} objects • "
+                f"{len(state['inventory'].objects):,} recovered objects • "
                 f"{len(state['inventory'].libraries):,} libraries • "
-                f"relative record zero LBA "
-                f"{scan.origin.lba if scan.origin else 'unknown'}"
+                f"RR0 LBA {scan.origin.lba if scan.origin else 'unknown'}"
             )
         )
         _tui_safe_addstr(
@@ -7939,13 +7927,27 @@ def _tui_browse(stdscr, initial_path=None):
             status,
             curses.A_DIM,
         )
+
+        right = _tui_selected(state, "right")
+        export_action = ""
+        if right is not None and right.get("kind") == "object":
+            obj = right["object"]
+            if (
+                (obj.object_type, obj.object_subtype) in {
+                    (0x19, 0x0E),
+                    (0x06, 0xC1),
+                }
+            ):
+                export_action = "  e export"
+
         _tui_safe_addstr(
             stdscr,
             height - 1,
             0,
             (
-                "←/→/Tab pane  ↑/↓ PgUp/PgDn navigate/scroll  "
-                "Enter drill  / search  e export DLO  o open  r rescan  q quit"
+                "Tab/←→ pane  ↑/↓ PgUp/PgDn navigate/scroll  "
+                "[/] view  1-6 view  / search"
+                f"{export_action}  o open  r rescan  q quit"
             ),
             curses.A_REVERSE,
         )
