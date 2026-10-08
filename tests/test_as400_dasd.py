@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from as400_dasd import (
+    CONTEXT_MACHINE_INDEX_PAGE_SIZE,
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
     PAGE_SIZE,
@@ -578,13 +579,41 @@ class DASDHeaderTests(unittest.TestCase):
 
     def test_machine_index_page_header_prefix(self):
         data = bytes.fromhex(
-            "93 00 08 CC 00 23 0B DD"
+            "93 00 08 CC 00 23 03 DD"
         )
         header = MachineIndexPageHeader.from_bytes(data)
         self.assertEqual(header.page_type, 0xCC)
         self.assertEqual(header.free_bytes, 0x0023)
-        self.assertEqual(header.first_free_low16, 0x0BDD)
-        self.assertEqual(header.first_free_offset(), 0x0BDD)
+        self.assertEqual(header.first_free_low16, 0x03DD)
+        self.assertEqual(header.first_free_offset(), 0x03DD)
+        self.assertEqual(header.current_tree_offset_hint, 0x08)
+        self.assertEqual(
+            header.tail_free_bytes(
+                page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+            ),
+            0x23,
+        )
+        self.assertEqual(
+            header.non_tail_free_bytes_hint(
+                page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+            ),
+            0,
+        )
+
+        child = MachineIndexPageHeader.from_bytes(
+            bytes.fromhex(
+                "97 00 0E 55 03 DF 0C 21 "
+                "08 00 00 00 08 00"
+            ),
+            offset=0,
+        )
+        self.assertEqual(child.page_type, 0x55)
+        self.assertEqual(
+            child.backpointer_raw,
+            bytes.fromhex("08 00 00 00 08 00"),
+        )
+        self.assertEqual(child.backpointer_words, (0x0800, 0, 0x0800))
+        self.assertEqual(child.current_tree_offset_hint, 0x0E)
 
         with self.assertRaisesRegex(ValueError, "begin with a node"):
             MachineIndexPageHeader.from_bytes(
@@ -596,7 +625,7 @@ class DASDHeaderTests(unittest.TestCase):
         # Synthetic one-entry release-2 tree rooted at the independently
         # observed ordinary context offset +0x800.
         data[0x800:0x808] = bytes.fromhex(
-            "97 00 08 CC 00 00 00 00"
+            "97 00 08 CC 03 E5 08 1B"
         )
         terminal = (
             bytes([0x19, 0x01])
@@ -631,14 +660,15 @@ class DASDHeaderTests(unittest.TestCase):
     def test_context_machine_index_follows_same_segment_page_pointer(self):
         data = bytearray(0x1200)
         data[0x800:0x808] = bytes.fromhex(
-            "97 00 08 CC 00 00 00 00"
+            "97 00 08 CC 03 F2 08 0E"
         )
         data[0x808:0x80E] = bytes.fromhex(
             "C0 00 0C 60 00 00"
         )
 
-        data[0xC00:0xC08] = bytes.fromhex(
-            "97 00 08 55 00 00 00 00"
+        data[0xC00:0xC0E] = bytes.fromhex(
+            "97 00 0E 55 03 DF 0C 21 "
+            "08 00 00 00 08 00"
         )
         terminal = (
             bytes([0x19, 0x01])
@@ -646,10 +676,10 @@ class DASDHeaderTests(unittest.TestCase):
             + bytes([0x14])
             + bytes.fromhex("000100001234")
         )
-        data[0xC08:0xC0E] = bytes.fromhex(
-            "0C 0C 0E 60 00 00"
+        data[0xC0E:0xC14] = bytes.fromhex(
+            "0C 0C 14 60 00 00"
         )
-        data[0xC0E:0xC0E + len(terminal)] = terminal
+        data[0xC14:0xC14 + len(terminal)] = terminal
 
         traversal = decode_context_machine_index(bytes(data))
         self.assertTrue(traversal.complete)
@@ -658,6 +688,14 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(
             [header.page_type for header in traversal.page_headers],
             [0xCC, 0x55],
+        )
+        self.assertEqual(
+            traversal.page_headers[1].backpointer_words,
+            (0x0800, 0, 0x0800),
+        )
+        self.assertEqual(
+            traversal.page_headers[1].current_tree_offset_hint,
+            0xC0E,
         )
         self.assertEqual(len(traversal.page_pointers), 1)
         self.assertTrue(traversal.page_pointers[0].followed)
