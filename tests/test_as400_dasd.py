@@ -25,10 +25,12 @@ from as400_dasd import (
     MemberStoragePointers,
     RecoveredObject,
     RecoveredSegment,
+    SegmentRecoveryResult,
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
     decode_context_machine_index,
+    decode_context_terminal_name_hint,
     decode_data_space_index_root,
     decode_data_space_records,
     decode_format_fields,
@@ -414,6 +416,163 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(spec.fields[0].location, 1)
         self.assertEqual(spec.fields[0].record_offset_hint, 0)
         self.assertEqual(spec.fields[0].field_ordinal_hint, 1)
+
+    def test_context_terminal_name_hint_decodes_real_ordinary_shapes(self):
+        simple = bytes.fromhex(
+            "1901d8e2f3f6e2d9c3401700d0003a3c00"
+        )
+        simple_name = decode_context_terminal_name_hint(simple)
+        self.assertIsNotNone(simple_name)
+        self.assertEqual(
+            simple_name.decode("cp037").rstrip(" "),
+            "QS36SRC",
+        )
+
+        member = bytes.fromhex(
+            "0d50d8c4c4e2e2d9c340fd"
+            "c1c4c4c6e4d5c4c4400c"
+            "00ed001c3500"
+        )
+        member_name = decode_context_terminal_name_hint(member)
+        self.assertIsNotNone(member_name)
+        self.assertEqual(
+            member_name[:10].decode("cp037").rstrip(" "),
+            "QDDSSRC",
+        )
+        self.assertEqual(
+            member_name[10:20].decode("cp037").rstrip(" "),
+            "ADDFUNDD",
+        )
+
+        # Composite special-object encodings use high-marker forms that are
+        # intentionally left raw rather than misnamed.
+        special = bytes.fromhex(
+            "0ed1d8e2e8e240fcd8e2e8e24012014900572c00"
+        )
+        self.assertIsNone(decode_context_terminal_name_hint(special))
+
+    def test_recover_objects_can_assign_context_only_membership(self):
+        context_va = 0x001000000000
+        object_va = 0x001200000000
+
+        context_first = bytearray(
+            make_segment_page(
+                context_va,
+                segment_type=0x0190,
+                object_type=0x04,
+                object_subtype=0x01,
+                name="QTEST",
+                context_extender=0,
+                context_address=0,
+            )
+        )
+        context_first[2:4] = (8).to_bytes(2, "big")
+        context_data = bytearray(8 * PAGE_SIZE)
+        context_data[:PAGE_SIZE] = context_first
+
+        terminal = (
+            bytes([0x19, 0x01])
+            + "TEST".encode("cp037")
+            + bytes([0x40, 26])
+            + bytes.fromhex("000100120000")
+        )
+        self.assertEqual(len(terminal), 14)
+        context_data[0x800:0x808] = bytes.fromhex(
+            "97 00 08 CC 00 00 00 00"
+        )
+        context_data[0x808:0x80E] = bytes.fromhex(
+            "0D 08 0E 60 00 00"
+        )
+        context_data[0x80E:0x80E + len(terminal)] = terminal
+
+        object_page = make_segment_page(
+            object_va,
+            segment_type=0x0180,
+            object_type=0x19,
+            object_subtype=0x01,
+            name="TEST",
+            context_extender=0,
+            context_address=0,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "context-membership.hda"
+            sectors = []
+            for page_index in range(8):
+                start = page_index * PAGE_SIZE
+                sectors.append(
+                    (
+                        make_header(
+                            context_va + page_index * PAGE_SIZE,
+                            order=3,
+                        ),
+                        bytes(context_data[start:start + PAGE_SIZE]),
+                    )
+                )
+            sectors.append(
+                (
+                    make_header(object_va),
+                    object_page,
+                )
+            )
+            write_image(path, sectors)
+
+            context_extent = Extent(
+                start_lba=0,
+                pages=8,
+                kind="permanent-candidate",
+                header=make_header(context_va, order=3),
+                virtual_address=context_va,
+            )
+            object_extent = Extent(
+                start_lba=8,
+                pages=1,
+                kind="permanent-candidate",
+                header=make_header(object_va),
+                virtual_address=object_va,
+            )
+            context_segment = RecoveredSegment(
+                start_extent=context_extent,
+                extents=(context_extent,),
+                header=SegmentGroupHeader.from_bytes(
+                    bytes(context_first[:32])
+                ),
+            )
+            object_segment = RecoveredSegment(
+                start_extent=object_extent,
+                extents=(object_extent,),
+                header=SegmentGroupHeader.from_bytes(
+                    object_page[:32]
+                ),
+            )
+
+            image = DASDImage(path)
+            inventory = image.recover_objects(
+                SimpleNamespace(),
+                SegmentRecoveryResult(
+                    segments=[context_segment, object_segment]
+                ),
+            )
+
+            target = next(
+                obj
+                for obj in inventory.objects
+                if obj.name == "TEST"
+            )
+            self.assertIsNone(target.epa_library_name)
+            self.assertEqual(target.context_library_names, ("QTEST",))
+            self.assertEqual(target.library_name, "QTEST")
+
+            entries = inventory.context_entries_for_library("QTEST")
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0].name_hint, "TEST")
+            self.assertIs(
+                inventory.resolve_context_entry(entries[0]),
+                target,
+            )
+            self.assertFalse(
+                inventory.unresolved_context_entries("QTEST")
+            )
 
     def test_context_machine_index_single_terminal(self):
         data = bytearray(0x1000)
