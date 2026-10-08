@@ -1958,13 +1958,24 @@ class MachineIndexPagePointerRef:
 
 @dataclass(frozen=True)
 class DataSpaceIndexEntry:
-    """One complete machine-index key recovered from a QDDSI tree."""
+    """One terminal QDDSI machine-index entry recovered in keyed order.
+
+    Most ordinary V2R3 indexes expose enough common/terminal text to rebuild
+    the complete machine key. A small long-key family exposes only the
+    distinguishing tree text plus the database-relative-address suffix. In
+    those cases key_complete is false, machine_key/user_key are empty, and
+    key_evidence preserves only the bytes actually recovered from the tree.
+    The database reference can still identify the DKEY row and QDDS ordinal
+    without inventing the omitted key bytes.
+    """
 
     machine_key: bytes
     user_key: bytes
     database_reference: bytes
     terminal_element_offset: int
     dkey_index: int = 0
+    key_complete: bool = True
+    key_evidence: bytes = b""
 
     @property
     def data_space_number_hint(self) -> int | None:
@@ -1979,6 +1990,12 @@ class DataSpaceIndexEntry:
         if len(self.database_reference) != 4:
             return None
         return self.database_reference[0]
+
+    @property
+    def display_key_bytes(self) -> bytes:
+        """Complete user key, or conservative tree-text evidence if partial."""
+
+        return self.user_key if self.key_complete else self.key_evidence
 
     @property
     def ordinal_hint(self) -> int | None:
@@ -2020,6 +2037,14 @@ class DataSpaceIndexTraversal:
     @property
     def page_count(self) -> int:
         return len(self.page_offsets)
+
+    @property
+    def complete_key_count(self) -> int:
+        return sum(1 for entry in self.entries if entry.key_complete)
+
+    @property
+    def partial_key_count(self) -> int:
+        return sum(1 for entry in self.entries if not entry.key_complete)
 
     @property
     def unresolved_page_pointers(self) -> tuple[MachineIndexPagePointerRef, ...]:
@@ -2221,15 +2246,16 @@ def decode_data_space_index_root(
                 f"0x{element_offset:04X} points outside its active page"
             )
             return
-        machine_key = prefix + data[text_offset:text_end]
-        if len(machine_key) < 4:
+        tree_key = prefix + data[text_offset:text_end]
+        if len(tree_key) < 4:
             mark_incomplete(
                 f"terminal key at 0x{element_offset:04X} is shorter than "
                 "the ordinary four-byte database reference"
             )
             return
 
-        dkey_index = machine_key[-4]
+        database_reference = tree_key[-4:]
+        dkey_index = database_reference[0]
         if dkey_index >= len(layout.keys):
             mark_incomplete(
                 "terminal key at "
@@ -2238,27 +2264,44 @@ def decode_data_space_index_root(
             )
             return
         spec = layout.keys[dkey_index]
-        if spec.key_count <= 0 or len(machine_key) != spec.machine_key_length:
+        if spec.key_count <= 0:
+            mark_incomplete(
+                f"terminal key at 0x{element_offset:04X} names empty "
+                f"DKEY row {dkey_index}"
+            )
+            return
+        if len(tree_key) > spec.machine_key_length:
             mark_incomplete(
                 "terminal key at "
-                f"0x{element_offset:04X} has {len(machine_key)} bytes for "
-                f"DKEY {dkey_index}; expected {spec.machine_key_length}"
+                f"0x{element_offset:04X} has {len(tree_key)} bytes for "
+                f"DKEY {dkey_index}; expected no more than "
+                f"{spec.machine_key_length}"
             )
             return
 
-        split = spec.split_machine_key(machine_key)
-        if split is None:
-            mark_incomplete(
-                "terminal key at "
-                f"0x{element_offset:04X} does not match DKEY {dkey_index} "
-                "field/fork structure"
-            )
-            return
-        user_key, database_reference = split
+        split = (
+            spec.split_machine_key(tree_key)
+            if len(tree_key) == spec.machine_key_length
+            else None
+        )
+        key_complete = split is not None
+        if key_complete:
+            user_key, database_reference = split
+            machine_key = tree_key
+            key_evidence = b""
+        else:
+            # IBM's machine-index description allows common/terminal text
+            # compression. The long-key V2R3 QAOK* family preserves only
+            # distinguishing tree text plus the ordinary four-byte DB reference.
+            # Keep that text as evidence and use the validated DB reference for
+            # keyed-order/RRN navigation without fabricating omitted key bytes.
+            machine_key = b""
+            user_key = b""
+            key_evidence = tree_key[:-4]
 
-        if machine_key in emitted_keys:
+        if tree_key in emitted_keys:
             return
-        emitted_keys.add(machine_key)
+        emitted_keys.add(tree_key)
         entries.append(
             DataSpaceIndexEntry(
                 machine_key=machine_key,
@@ -2266,6 +2309,8 @@ def decode_data_space_index_root(
                 database_reference=database_reference,
                 terminal_element_offset=element_offset,
                 dkey_index=dkey_index,
+                key_complete=key_complete,
+                key_evidence=key_evidence,
             )
         )
 
