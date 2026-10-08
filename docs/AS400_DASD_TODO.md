@@ -430,6 +430,13 @@ to this CISC release.
       forensic views. Keep definitions evidence-aware so "recovered" means
       what the browser actually proved or reconstructed rather than implying
       the entire original object necessarily survives.
+- [ ] Make inspector-tab state visually unambiguous. Give the active
+      Summary/Data/Keys/Storage/Evidence/Raw view a persistent selected style
+      even when another pane has keyboard focus, show applicable-but-inactive
+      views normally, and visibly dim/mark views for which the current
+      selection has no meaningful data. Keep unavailable views selectable so
+      they can explain why no data is available rather than silently doing
+      nothing.
 - [x] Add validated `*DOCBSS` workstation-file export to the TUI with
       explicit destination prompting and overwrite confirmation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
