@@ -4213,6 +4213,20 @@ def _tui_library_items(state, library_name):
             }
         )
 
+    directory_only = inventory.unresolved_context_entries(library_name)
+    if directory_only:
+        result.append(
+            {
+                "kind": "context-directory",
+                "entries": directory_only,
+                "library": library_name,
+                "label": (
+                    f"[directory-only]  {len(directory_only):,} "
+                    "context reference(s)"
+                ),
+            }
+        )
+
     return result
 
 
@@ -4310,6 +4324,25 @@ def _tui_rebuild_from_mid(state):
                     "file": selected,
                     "source_type": source_type,
                     "label": f"{member.member_name}{suffix}",
+                }
+            )
+        state["right_items"] = result
+    elif selected["kind"] == "context-directory":
+        result = []
+        for entry in selected["entries"]:
+            name = entry.display_name_hint or "<name undecoded>"
+            surviving = (
+                f"  owned-segments={entry.owned_segment_count}"
+                if entry.owned_segment_count
+                else ""
+            )
+            result.append(
+                {
+                    "kind": "context-entry",
+                    "entry": entry,
+                    "label": (
+                        f"{name}  {entry.type_code}{surviving}"
+                    ),
                 }
             )
         state["right_items"] = result
@@ -4882,6 +4915,12 @@ def _tui_context_lines(state):
                 f"{len(mid['members']):,} recovered member(s)"
                 f"{source_suffix}; members are separate *MEM cursors."
             )
+    elif mid["kind"] == "context-directory":
+        mid_line = (
+            "File/type: directory-only context references — "
+            f"{len(mid['entries']):,} entry/entries whose object primary "
+            "is not recovered on this image."
+        )
     else:
         meaning = _tui_object_type_context(
             mid.get("type", 0),
@@ -4915,6 +4954,13 @@ def _tui_context_lines(state):
             f"Member/object: *MEM "
             f"{member.member_file_name}({member.member_name})"
             f"{source_suffix}; member data is backed by QDDS/QDDSI."
+        )
+    elif right["kind"] == "context-entry":
+        entry = right["entry"]
+        name = entry.display_name_hint or "<name undecoded>"
+        right_line = (
+            f"Member/object: {name}  {entry.type_code} — context-directory "
+            "reference; object primary not recovered on this image."
         )
     else:
         obj = right["object"]
