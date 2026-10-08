@@ -559,6 +559,42 @@ Global browser search includes those directory-only names as well, so objects
 known only from a surviving library directory remain discoverable on partial
 images.
 
+### Page-header prefix corroboration across both images
+
+The first eight bytes of an in-use release-2 machine-index page can now be
+treated more strongly than the earlier documentation-only description.
+
+A corpus-wide pass over the 56 recovered permanent contexts visits **866**
+in-use context pages:
+
+- **51** trunk/root pages, all with page type `0xCC`;
+- **815** page-pointer targets, all with page type `0x55`.
+
+Across both images the physical prefix is reproduced at the same offsets:
+
+```text
++0x00..+0x02   three-byte root node
++0x03          page type
++0x04..+0x05   documented free-byte value
++0x06..+0x07   documented first-free-byte low address
+```
+
+Those widths/positions are independently consistent with the already validated
+QDDSI page parser, but the context result does not depend on QDDSI placement:
+the context roots and all 815 child pages were located through the context
+tree itself.
+
+The exact accounting semantics of the two-byte free-byte value remain
+deliberately conservative. Some real pages have internal free/tree-management
+space, so `used tail + free_bytes` is not always a simple page-size identity.
+Likewise, the bytes following `+0x07` still contain the documented
+backpointer information/current-tree structures whose exact widths have not
+yet been tied to an authoritative data-area definition.
+
+The backend now exposes this validated eight-byte prefix as
+`MachineIndexPageHeader` rather than continuing to leave all page-header bytes
+opaque.
+
 ### What is still deliberately unresolved
 
 The terminal byte stream is **not** being forced into the documented expanded
