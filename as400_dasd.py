@@ -3886,27 +3886,121 @@ class DASDImage:
                     )
                 ] = obj
 
+        # Independently traverse each recovered permanent context/library and
+        # preserve its terminal directory references. This provides the reverse
+        # relationship to the EPA context back-pointer and, on incomplete
+        # multi-disk images, can retain names/addresses for primaries that are
+        # no longer present on this disk.
+        recovered_by_address = {
+            obj.object_address.key: obj
+            for obj in recovered
+        }
+        owned_segment_counts = Counter(
+            segment.owner_key
+            for segment in segments.segments
+        )
+        context_memberships: dict[tuple[int, int], set[str]] = {}
+        context_entries: list[ContextDirectoryEntry] = []
+        context_warnings: dict[str, tuple[str, ...]] = {}
+
+        for context in recovered:
+            if (context.object_type, context.object_subtype) != (0x04, 0x01):
+                continue
+            try:
+                context_data = self.read_segment_bytes(context.segment)
+                traversal = decode_context_machine_index(context_data)
+            except (OSError, ValueError) as exc:
+                context_warnings[context.name] = (str(exc),)
+                continue
+
+            if traversal.warnings:
+                context_warnings[context.name] = traversal.warnings
+
+            for terminal in traversal.entries:
+                address = terminal.object_address_hint
+                entry = ContextDirectoryEntry(
+                    library_name=context.name,
+                    context_address=context.object_address,
+                    raw=terminal.raw,
+                    object_type=terminal.object_type,
+                    object_subtype=terminal.object_subtype,
+                    object_address=address,
+                    name_raw_hint=terminal.name_raw_hint,
+                    terminal_element_offset=terminal.terminal_element_offset,
+                    owned_segment_count=(
+                        owned_segment_counts.get(address.key, 0)
+                        if address is not None
+                        else 0
+                    ),
+                )
+                context_entries.append(entry)
+
+                if address is None:
+                    continue
+                candidate = recovered_by_address.get(address.key)
+                if candidate is None:
+                    continue
+                if (
+                    terminal.object_type is not None
+                    and terminal.object_subtype is not None
+                    and (candidate.object_type, candidate.object_subtype)
+                    != (terminal.object_type, terminal.object_subtype)
+                ):
+                    continue
+                context_memberships.setdefault(
+                    candidate.object_address.key,
+                    set(),
+                ).add(context.name)
+
         assigned: list[RecoveredObject] = []
         for obj in recovered:
             context = context_map.get(obj.epa.context.key)
-            library_name = None
+            epa_library_name = None
             if context is not None:
-                library_name = (
+                epa_library_name = (
                     "*MACHINE"
                     if context.object_type == 0x81
                     else context.name
                 )
+
+            context_library_names = tuple(
+                sorted(context_memberships.get(obj.object_address.key, ()))
+            )
+
+            # Preserve existing EPA behavior when both directions disagree.
+            # A unique context-only assignment is still useful when the EPA
+            # back-pointer is absent; disagreements remain visible through the
+            # two provenance fields rather than being silently reconciled.
+            if epa_library_name is not None:
+                library_name = epa_library_name
+            elif len(context_library_names) == 1:
+                library_name = context_library_names[0]
+            else:
+                library_name = None
+
             assigned.append(
                 RecoveredObject(
                     segment=obj.segment,
                     epa=obj.epa,
                     library_name=library_name,
+                    epa_library_name=epa_library_name,
+                    context_library_names=context_library_names,
                 )
             )
 
+        final_context_map: dict[tuple[int, int], RecoveredObject] = {}
+        for obj in assigned:
+            if (
+                (obj.object_type, obj.object_subtype) == (0x04, 0x01)
+                or obj.object_type == 0x81
+            ):
+                final_context_map[obj.object_address.key] = obj
+
         return ObjectInventory(
             objects=assigned,
-            contexts_by_key=context_map,
+            contexts_by_key=final_context_map,
+            context_entries=tuple(context_entries),
+            context_warnings=context_warnings,
         )
 
 
