@@ -7686,6 +7686,20 @@ def _tui_viewer_lines(state):
     """Return the active inspector-tab view for the current selection."""
 
     tab = _tui_inspector_tab(state)
+    availability = _tui_inspector_availability(state)
+    if tab != "Summary" and not availability.get(tab, False):
+        return [
+            tab,
+            "",
+            (
+                "No meaningful data for this view is available for the "
+                "current selection."
+            ),
+            (
+                "The tab remains selectable so the absence is explicit rather "
+                "than silently hidden."
+            ),
+        ]
     if tab == "Summary":
         return _tui_summary_lines(state)
     if tab == "Data":
@@ -7847,6 +7861,8 @@ def _tui_prompt_search(stdscr, state):
     state["focus"] = 2
     state["viewer_scroll"] = 0
     state["viewer_cache"] = {}
+    state["inspector_availability_cache"] = {}
+    _tui_apply_default_inspector(state)
     state["status"] = (
         f"Search '{query}': {len(object_matches):,} recovered object(s), "
         f"{len(directory_matches):,} directory-only reference(s)"
@@ -8308,6 +8324,7 @@ def _tui_browse(stdscr, initial_path=None):
                 _tui_rebuild_search_safe_from_left(state)
             elif pane_key == "mid":
                 _tui_rebuild_from_mid(state)
+            _tui_apply_default_inspector(state)
 
 
 def cmd_browse(args):
