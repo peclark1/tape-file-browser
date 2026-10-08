@@ -625,19 +625,51 @@ eight-byte prefix:
 +0x0E...       current-tree storage
 ```
 
-The six bytes are preserved as three raw 16-bit words. Their exact field names
-remain unresolved, but their structural role is no longer speculative. When
-the first and third words are expanded in the parent page, **770/815** child
-pages produce a valid parent `(origin-node, current-node)` traversal state.
-For **768/815**, that pair is exactly the immediate node state containing the
-page pointer. The exceptions are important: IBM documents the backpointer as
-the state used to resume a search in the parent after a child page is exhausted,
-so it must not be mislabeled as merely "the page-pointer source."
+The six bytes are preserved raw because the two images expose **two different,
+repeatable encodings**.
 
-The middle 16-bit word is still unresolved. Ordinary examples are often small,
-while some real system contexts contain substantially larger values. Until a
-data-area definition or an independent behavioral correlation is found, the
-backend exposes all three words only as raw backpointer evidence.
+On Mark's independent V2R3 image there are 804 child pages. Reading the six
+bytes as three big-endian 16-bit words
+
+```text
+word 1 = origin low 16
+word 2 = shared high 16
+word 3 = current low 16
+```
+
+and reconstructing
+
+```text
+origin  = (word2 << 16) | word1
+current = (word2 << 16) | word3
+```
+
+maps **770/804** child pages to a valid parent
+`(origin-node,current-node)` traversal state. **768/804** are exactly the
+immediate state containing the page pointer; two are other valid parent states.
+The remaining 34 do not map to a forward-search node pair observed by the
+current walker, which is compatible with IBM's documented use of backpointer
+information to resume/back out after a child subtree has been processed rather
+than merely recording the source pointer.
+
+Pete's older B10 image supplies 11 child pages and does **not** use that V2R3
+form. There, rotating the same three raw words as
+
+```text
+48-bit address = word2 : word3 : word1
+```
+
+produces an address in the owning context's virtual segment. **7/11** such
+addresses land on nodes participating in the recovered parent tree; five are
+the immediate origin node for the pointer path. For example, raw words
+`0808 004D 1600` reconstruct `004D16000808`, exactly the B10 QRPG
+context base plus `0x808`.
+
+This cross-image difference is important: the six-byte backpointer area has a
+stable location and purpose, but its physical encoding is not safe to treat as
+release-independent. The backend now exposes both candidate interpretations
+with explicit evidence-oriented names rather than assigning undocumented field
+names.
 
 Trunk page type `0xCC` has no corresponding six-byte child-backpointer area;
 its current-tree storage can begin immediately after the common prefix at
