@@ -1017,6 +1017,13 @@ QDDSI_MACHINE_INDEX_ROOT_OFFSET = 0x1000
 # This is an observed placement, not yet a published data-area field.
 CONTEXT_MACHINE_INDEX_ROOT_OFFSET = 0x800
 
+# Every real permanent-context page reached through the two-image corpus uses a
+# 1024-byte logical page: all 815 observed page-pointer targets are aligned at
+# +0x400 from the +0x800 trunk origin, and every first-free value falls within
+# that 1024-byte page. IBM permits other machine-index page sizes generally, so
+# keep this constant context-specific rather than architecture-wide.
+CONTEXT_MACHINE_INDEX_PAGE_SIZE = 0x400
+
 
 @dataclass(frozen=True)
 class DataSpaceIndexKeyField:
@@ -2279,17 +2286,26 @@ class MachineIndexPageHeader:
     """Observed release-2 in-use machine-index page header prefix.
 
     IBM's System/38 machine-index material documents the in-use logical-page
-    fields in this order: root node, page type, number of free bytes, and
-    offset to the first free byte, followed by backpointer information and the
-    current tree.
+    fields in this order: root node, page type, number of free bytes, offset to
+    the first free byte, backpointer information, and the current tree.
 
-    QDDSI already validated the first eight physical bytes as a three-byte root
-    node, one-byte page type, two-byte free-byte value, and two-byte first-free
-    low address. A corpus-wide context pass across both real images independently
-    reproduces the same byte positions on trunk and secondary context pages.
-    The free-byte value's exact accounting semantics remain conservative: many
-    pages include internal free/tree-management areas, so callers must not infer
-    page size from free_bytes alone.
+    Across both real CISC images, 866 traversed permanent-context pages
+    independently reproduce the first eight bytes as a three-byte root node,
+    one-byte page type, two-byte free-byte value, and two-byte first-free low
+    address. Context trunk pages use page type 0xCC; page-pointer targets use
+    0x55.
+
+    Secondary context pages also carry an observed six-byte backpointer area
+    immediately after this common prefix. The exact semantics of its three
+    two-byte words are not fully named: in 770/815 real child pages the first
+    and third words expand to a valid (origin-node, current-node) state in the
+    parent tree, and in 768 cases that pair is the immediate state containing
+    the page pointer. The middle word remains unresolved.
+
+    The context-specific current-tree storage area therefore begins at +0x08
+    on the trunk and +0x0E on ordinary child pages. These offsets are observed
+    CISC context facts, not a claim that every release-2 machine index uses the
+    same page type or page size.
     """
 
     offset: int
@@ -2297,6 +2313,7 @@ class MachineIndexPageHeader:
     page_type: int
     free_bytes: int
     first_free_low16: int
+    backpointer_raw: bytes = b""
 
     @classmethod
     def from_bytes(
@@ -2310,15 +2327,24 @@ class MachineIndexPageHeader:
         root = MachineIndexElement(data[offset : offset + 3])
         if root.kind != "node":
             raise ValueError("machine-index in-use page does not begin with a node")
+        page_type = data[offset + 3]
+        backpointer_raw = b""
+        if page_type == 0x55:
+            if offset + 14 > len(data):
+                raise ValueError(
+                    "machine-index child page requires six backpointer bytes"
+                )
+            backpointer_raw = bytes(data[offset + 8 : offset + 14])
         return cls(
             offset=offset,
             root=root,
-            page_type=data[offset + 3],
+            page_type=page_type,
             free_bytes=int.from_bytes(data[offset + 4 : offset + 6], "big"),
             first_free_low16=int.from_bytes(
                 data[offset + 6 : offset + 8],
                 "big",
             ),
+            backpointer_raw=backpointer_raw,
         )
 
     def first_free_offset(self) -> int:
@@ -2328,6 +2354,54 @@ class MachineIndexPageHeader:
         if result < self.offset:
             result += 0x10000
         return result
+
+    @property
+    def backpointer_words(self) -> tuple[int, int, int] | None:
+        """Return the three raw two-byte child backpointer words, if present."""
+
+        if len(self.backpointer_raw) != 6:
+            return None
+        return tuple(
+            int.from_bytes(self.backpointer_raw[index : index + 2], "big")
+            for index in (0, 2, 4)
+        )
+
+    @property
+    def current_tree_offset_hint(self) -> int | None:
+        """Observed start of tree storage for ordinary context page types."""
+
+        if self.page_type == 0xCC:
+            return self.offset + 8
+        if self.page_type == 0x55:
+            return self.offset + 14
+        return None
+
+    def tail_free_bytes(
+        self,
+        *,
+        page_size: int,
+    ) -> int | None:
+        """Return the unused tail from first-free through page end."""
+
+        if page_size <= 0:
+            raise ValueError("machine-index page size must be positive")
+        first_free = self.first_free_offset()
+        page_end = self.offset + page_size
+        if first_free < self.offset or first_free > page_end:
+            return None
+        return page_end - first_free
+
+    def non_tail_free_bytes_hint(
+        self,
+        *,
+        page_size: int,
+    ) -> int | None:
+        """Observed free bytes not accounted for by the unused page tail."""
+
+        tail = self.tail_free_bytes(page_size=page_size)
+        if tail is None or self.free_bytes < tail:
+            return None
+        return self.free_bytes - tail
 
 
 @dataclass(frozen=True)
@@ -2555,6 +2629,31 @@ def decode_context_machine_index(
                 "does not have a valid in-use page header"
             )
             return
+
+        if (page_start - root_offset) % CONTEXT_MACHINE_INDEX_PAGE_SIZE:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} is not aligned "
+                f"to the observed {CONTEXT_MACHINE_INDEX_PAGE_SIZE}-byte page size"
+            )
+        expected_type = 0xCC if page_start == root_offset else 0x55
+        if page_header.page_type != expected_type:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} has page type "
+                f"0x{page_header.page_type:02X}; expected 0x{expected_type:02X}"
+            )
+        tail_free = page_header.tail_free_bytes(
+            page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+        )
+        if tail_free is None:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} has first-free "
+                "outside its observed 1024-byte page"
+            )
+        elif page_header.free_bytes < tail_free:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} reports fewer "
+                "free bytes than its unused tail"
+            )
 
         visited_pages.add(page_start)
         page_offsets.append(page_start)
