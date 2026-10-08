@@ -378,6 +378,12 @@ to this CISC release.
 ## Browser and documentation
 
 - [x] Add curses DASD browser.
+- [x] Redesign the mature DASD TUI around the recovered object model without
+      replacing the proven three-pane navigation: add a persistent breadcrumb
+      plus Summary/Data/Keys/Storage/Evidence/Raw inspector views.
+- [x] Promote directory-only context terminals into normal per-library MI-type
+      groups beside recovered objects while retaining explicit `[dir]`
+      provenance markers and context-only/conflict evidence.
 - [x] Add forensic `*PGM` browsing with owned-segment summary, printable
       strings, and a bounded hex/EBCDIC primary-segment preview.
 - [x] Add a generic bounded raw-object fallback for object classes without a
@@ -402,11 +408,12 @@ to this CISC release.
       presenting its lack of independent QDDS rows as a generic recovery error.
 - [x] Add contextual object/library explanations in the TUI.
 - [x] Keep library/view, file/object-type, and member/object context visible
-      simultaneously so an automatic child selection never hides its parent
-      pane's meaning.
-- [x] Make the lower Content/details pane follow the focused hierarchy level,
-      so focusing a library or file shows its own full context even when a
-      child is automatically selected.
+      through the navigation panes plus breadcrumb so an automatic child
+      selection never hides its parent hierarchy.
+- [x] Make the lower inspector follow the focused hierarchy level, so focusing
+      a library or file shows its own view even when a child is automatically
+      selected; separate human-facing summary/data from storage/evidence/raw
+      forensic views.
 - [x] Add validated `*DOCBSS` workstation-file export to the TUI with
       explicit destination prompting and overwrite confirmation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
