@@ -290,9 +290,12 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       segment groups continue the stream after their own first 512-byte metadata
       page. CLI/TUI export now consumes only the continuation bytes required by
       the declared payload length.
-- [ ] Classify the remaining unusual `*DOCBSS` layouts before treating export
-      as universal; do not concatenate auxiliary 0F90 segments when the declared
-      payload already fits in the primary.
+- [x] Classify the remaining V2R3 `*DOCBSS` anomaly set. The old broad
+      raw scan's nine duplicate-length "exceptions" all have non-page-aligned
+      storage addresses and segment owners different from the candidate virtual
+      address, so they are not valid primary objects. All structurally valid
+      current-corpus primaries are ordinary or the six-object validated 0F90
+      overflow form. Keep this conclusion release-scoped rather than universal.
 
 ## Permanent-context directory cross-check
 
