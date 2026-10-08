@@ -3422,6 +3422,18 @@ def cmd_context_page(args):
                 f"{page_header.backpointer_raw.hex().upper()}  "
                 f"words {words[0]:04X} {words[1]:04X} {words[2]:04X}"
             )
+            v2_pair = page_header.shared_high16_node_pair_hint
+            if v2_pair is not None:
+                print(
+                    "             V2R3 state~ "
+                    f"(0x{v2_pair[0]:X}, 0x{v2_pair[1]:X})"
+                )
+            older_va = page_header.rotated_virtual_address_hint
+            if older_va is not None:
+                print(
+                    "             older-B10 VA~ "
+                    f"0x{older_va:012X}"
+                )
         if page_header.current_tree_offset_hint is not None:
             print(
                 "Tree start:  observed storage boundary "
@@ -4894,6 +4906,34 @@ def _tui_library_context(library_name):
         "library-description catalog. Source code, when present, lives in "
         "source physical *FILE members rather than in a distinct library type."
     )
+
+def _tui_context_traversal(state, library_name):
+    """Cache the recovered machine-index traversal for one library context."""
+
+    name = (library_name or "").upper()
+    cache = state.setdefault("context_traversal_cache", {})
+    if name in cache:
+        return cache[name]
+
+    context = next(
+        (
+            obj
+            for obj in state["inventory"].libraries
+            if obj.name.upper() == name
+        ),
+        None,
+    )
+    if context is None:
+        cache[name] = None
+        return None
+
+    try:
+        traversal = state["image"].read_context_machine_index(context)
+    except Exception:
+        traversal = None
+    cache[name] = traversal
+    return traversal
+
 
 def _tui_qaosss14_cache(state):
     cache = state.setdefault("qaosss14_cache", {})
@@ -6714,6 +6754,38 @@ def _tui_viewer_lines(state):
                     (),
                 )
             )
+            traversal = _tui_context_traversal(
+                state,
+                left["library"],
+            )
+            index_lines = []
+            if traversal is not None:
+                status = "complete" if traversal.complete else "partial"
+                page_types = sorted(
+                    {header.page_type for header in traversal.page_headers}
+                )
+                type_text = ",".join(f"{value:02X}" for value in page_types)
+                index_lines = [
+                    (
+                        f"Machine-index traversal: {status}; "
+                        f"{traversal.page_count:,} page(s), "
+                        f"{len(traversal.page_pointers):,} page pointer(s)"
+                    ),
+                    (
+                        "  page layout: 1,024 bytes, root +0x800"
+                        + (
+                            f", observed types {type_text}"
+                            if type_text
+                            else ""
+                        )
+                    ),
+                ]
+                if traversal.unresolved_page_pointers:
+                    index_lines.append(
+                        "  unresolved page pointers: "
+                        f"{len(traversal.unresolved_page_pointers):,}"
+                    )
+
             return [
                 f"Library: {left['library']}",
                 "Role:    " + _tui_library_context(left["library"]),
@@ -6727,6 +6799,7 @@ def _tui_viewer_lines(state):
                 f"EPA-only={epa_only:,}  context-only={context_only:,}  "
                 f"conflicts={conflicts:,}",
                 f"Context traversal warnings: {warning_count:,}",
+                *index_lines,
                 "",
                 (
                     "MI context: a library is a context namespace whose "
