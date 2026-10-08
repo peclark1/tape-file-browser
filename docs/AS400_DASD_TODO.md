@@ -122,9 +122,15 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       immediate pointer state. Pete's older B10 image uses a different rotated
       48-bit virtual-address form (word2:word3:word1), with 7/11 references
       landing on recovered parent-tree nodes.
-- [ ] Explain the remaining backtracking/resume-state exceptions and locate the
-      authoritative data-area field names. Do not collapse the V2R3 and B10
-      encodings into one physical layout merely because both occupy six bytes.
+- [x] Explain the remaining backtracking/resume-state exceptions at the
+      architectural level. IBM's published machine-index traversal describes
+      child-page backpointer information as the state used to return to the
+      parent page and resume processing, so it need not equal the incoming
+      page-pointer source node. Preserve the release-specific V2R3/B10 raw
+      encodings rather than forcing one layout.
+- [ ] Locate authoritative data-area field names/exact release-specific
+      backpointer encoding (ideally SY21-0892 or equivalent) before assigning
+      names to the three raw two-byte words.
 - [x] Add `context-xref`, a read-only diagnostic that correlates objects already
       assigned through EPA back-pointers with the documented logical context
       entry form `T S NL N @` and reports raw address/name-entry occurrences
