@@ -116,11 +116,15 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       at +0x08..+0x0D and current-tree storage begins at +0x0E; type-0xCC
       trunks can begin tree storage at +0x08. All 866 traversed context pages
       validate first-free within the page and total free bytes >= unused tail.
-- [ ] Resolve the exact semantics of the three two-byte child-backpointer words,
-      especially the middle word and the 45 non-immediate resume-state cases.
-      770/815 real child pages map word 1 + word 3 to a valid parent
-      (origin-node,current-node) state, but preserve them raw until a data-area
-      definition or independent behavioral correlation supports field names.
+- [x] Separate the child-backpointer encoding by image/release evidence.
+      Mark V2R3 uses (origin-low16, shared-high16, current-low16): 770/804
+      child pages reconstruct a valid parent node-state pair and 768 are the
+      immediate pointer state. Pete's older B10 image uses a different rotated
+      48-bit virtual-address form (word2:word3:word1), with 7/11 references
+      landing on recovered parent-tree nodes.
+- [ ] Explain the remaining backtracking/resume-state exceptions and locate the
+      authoritative data-area field names. Do not collapse the V2R3 and B10
+      encodings into one physical layout merely because both occupy six bytes.
 - [x] Add `context-xref`, a read-only diagnostic that correlates objects already
       assigned through EPA back-pointers with the documented logical context
       entry form `T S NL N @` and reports raw address/name-entry occurrences
