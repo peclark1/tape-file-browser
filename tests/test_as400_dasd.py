@@ -613,7 +613,39 @@ class DASDHeaderTests(unittest.TestCase):
             bytes.fromhex("08 00 00 00 08 00"),
         )
         self.assertEqual(child.backpointer_words, (0x0800, 0, 0x0800))
+        self.assertEqual(
+            child.shared_high16_node_pair_hint,
+            (0x0800, 0x0800),
+        )
+        self.assertEqual(
+            child.rotated_virtual_address_hint,
+            0x000008000800,
+        )
         self.assertEqual(child.current_tree_offset_hint, 0x0E)
+
+        v2_child = MachineIndexPageHeader.from_bytes(
+            bytes.fromhex(
+                "97 00 0E 55 03 DF 8C 21 "
+                "8C 17 00 01 8C 20"
+            ),
+            offset=0,
+        )
+        self.assertEqual(
+            v2_child.shared_high16_node_pair_hint,
+            (0x00018C17, 0x00018C20),
+        )
+
+        b10_child = MachineIndexPageHeader.from_bytes(
+            bytes.fromhex(
+                "97 00 0E 55 03 DF 0C 21 "
+                "08 08 00 4D 16 00"
+            ),
+            offset=0,
+        )
+        self.assertEqual(
+            b10_child.rotated_virtual_address_hint,
+            0x004D16000808,
+        )
 
         with self.assertRaisesRegex(ValueError, "begin with a node"):
             MachineIndexPageHeader.from_bytes(
