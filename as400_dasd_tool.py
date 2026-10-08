@@ -4134,6 +4134,149 @@ def _tui_picker_entries(directory):
     return result
 
 
+def _tui_help_lines():
+    """Built-in DASD browser guide; kept concise enough for terminal use."""
+
+    return [
+        "USING THE AS/400 DASD BROWSER",
+        "",
+        "Screen layout",
+        "  Breadcrumb       Current image > library > file/type > member/object.",
+        "  Library / view   Choose an AS/400 library or an aggregate recovery view.",
+        "  File / type      Choose a file or MI object type within that scope.",
+        "  Member / object  Choose the concrete member, object, or [dir] identity.",
+        "  Inspector        Summary / Data / Keys / Storage / Evidence / Raw.",
+        "",
+        "Inspector views",
+        "  Summary   Human-facing identity, role, and high-value recovery status.",
+        "  Data      Source lines, database records, or decoded document metadata.",
+        "  Keys      QDDSI keyed access paths or a library context machine index.",
+        "  Storage   QDDS/QDDSI relationships and recovered segment groups.",
+        "  Evidence  Why the browser assigned an identity/library; disagreements.",
+        "  Raw       Bounded hex/EBCDIC forensic bytes; never interpreted as source.",
+        "  A dim view has no meaningful data for the current selection. It remains",
+        "  selectable so the browser can explicitly explain the absence.",
+        "",
+        "Recovery terminology",
+        "  recovered primary/object",
+        "    The object's primary on-disk structure and identity were recovered.",
+        "    This does NOT guarantee every secondary/owned byte of the original",
+        "    object survives on the imaged disk.",
+        "  [dir]  Directory-only identity. The library context proves the object",
+        "    existed and preserves useful name/type/address evidence, but its",
+        "    primary object is not recovered on this image.",
+        "  [ctx]  The recovered primary's library assignment comes from the",
+        "    context index because the EPA back-pointer direction was unavailable.",
+        "  !      Independent EPA and context-index membership evidence disagrees.",
+        "  member-only",
+        "    A member cursor survived even though its owning *FILE primary did not.",
+        "",
+        "AS/400 storage/database terms",
+        "  context / library",
+        "    A permanent context is the MI namespace underlying an AS/400 library.",
+        "    Its machine index maps named objects to internal addresses.",
+        "  member cursor",
+        "    The 0D/50 object representing a database/source file member and its",
+        "    links to backing storage such as QDDS and QDDSI.",
+        "  QDDS",
+        "    Data Space backing member records/source data when independently",
+        "    recoverable.",
+        "  QDDSI",
+        "    Data Space Index describing keyed access paths into QDDS records.",
+        "  DENT",
+        "    Data Space Entry Status byte. 0x80 and 0xC0 have validated live/deleted",
+        "    behavior on the real V2R3 corpus; other bit meanings remain cautious.",
+        "  keyed order",
+        "    Record order reconstructed from QDDSI. Keys can occasionally be partial",
+        "    when the physical index stores compressed/indirect key material.",
+        "  arrival / RRN order",
+        "    Independent physical/logical record-number order from the QDDS stream.",
+        "",
+        "Navigation",
+        "  Tab / Left / Right       change pane",
+        "  Up / Down                move selection or scroll inspector/help",
+        "  PgUp / PgDn, Home / End  page or jump through the focused view",
+        "  Enter                    drill to the next pane / inspector",
+        "  [ / ]                    previous / next inspector view",
+        "  1..6                     Summary / Data / Keys / Storage / Evidence / Raw",
+        "  /                        search object/member/file names",
+        "  e                        export a validated QDOC/*DOCBSS workstation file",
+        "  o                        open another DASD image",
+        "  r                        rescan the current image",
+        "  ? or h                   this help",
+        "  q or Esc                 quit",
+        "",
+        "All DASD browsing is read-only. Export writes a separate output file and",
+        "never modifies the source disk image.",
+    ]
+
+
+def _tui_help(stdscr):
+    """Scrollable modal help/terminology page."""
+
+    import curses
+
+    lines = _tui_help_lines()
+    scroll = 0
+    while True:
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+        _tui_safe_addstr(
+            stdscr,
+            0,
+            0,
+            " AS/400 DASD Browser Help ",
+            curses.A_BOLD | curses.A_REVERSE,
+        )
+        visible = max(1, height - 3)
+        max_scroll = max(0, len(lines) - visible)
+        scroll = max(0, min(scroll, max_scroll))
+
+        for row, line in enumerate(lines[scroll : scroll + visible]):
+            attr = 0
+            if line and not line.startswith(" ") and line.isalpha():
+                attr = curses.A_BOLD
+            _tui_safe_addstr(stdscr, 1 + row, 0, line, attr)
+
+        _tui_safe_addstr(
+            stdscr,
+            height - 1,
+            0,
+            (
+                "Up/Down PgUp/PgDn Home/End scroll   "
+                "Enter/?/h/q/Esc close help"
+            ),
+            curses.A_REVERSE,
+        )
+        stdscr.refresh()
+        key = stdscr.getch()
+
+        if key in (
+            27,
+            10,
+            13,
+            curses.KEY_ENTER,
+            ord("?"),
+            ord("h"),
+            ord("H"),
+            ord("q"),
+            ord("Q"),
+        ):
+            return
+        if key == curses.KEY_UP:
+            scroll = max(0, scroll - 1)
+        elif key == curses.KEY_DOWN:
+            scroll = min(max_scroll, scroll + 1)
+        elif key == curses.KEY_PPAGE:
+            scroll = max(0, scroll - max(1, visible - 2))
+        elif key == curses.KEY_NPAGE:
+            scroll = min(max_scroll, scroll + max(1, visible - 2))
+        elif key == curses.KEY_HOME:
+            scroll = 0
+        elif key == curses.KEY_END:
+            scroll = max_scroll
+
+
 def _tui_file_picker(stdscr, start_dir):
     """Single-file curses picker for raw DASD images."""
     import curses
@@ -8190,7 +8333,7 @@ def _tui_browse(stdscr, initial_path=None):
             0,
             (
                 "Tab/←→ pane  ↑/↓ PgUp/PgDn navigate/scroll  "
-                "[/] view  1-6 view  / search"
+                "[/] view  1-6 view  / search  ? help"
                 f"{export_action}  o open  r rescan  q quit"
             ),
             curses.A_REVERSE,
@@ -8202,6 +8345,10 @@ def _tui_browse(stdscr, initial_path=None):
 
         if key in (27, ord("q"), ord("Q")):
             return
+
+        if key in (ord("?"), ord("h"), ord("H")):
+            _tui_help(stdscr)
+            continue
 
         if key == ord("["):
             name = _tui_cycle_inspector_tab(state, -1)
