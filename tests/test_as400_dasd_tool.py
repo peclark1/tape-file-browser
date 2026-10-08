@@ -705,6 +705,7 @@ class DASDToolTests(unittest.TestCase):
             is_member_cursor=False,
             name="FMPV000001",
             external_type_hint="*DOC",
+            library_name="QDOC",
             segment=SimpleNamespace(virtual_address=0x1000),
         )
         missing = SimpleNamespace(
@@ -717,6 +718,8 @@ class DASDToolTests(unittest.TestCase):
         )
 
         class Inventory:
+            objects = [recovered]
+
             def in_library(self, library):
                 return [recovered]
 
