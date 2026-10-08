@@ -4500,13 +4500,26 @@ def _tui_rebuild_from_mid(state):
                 info.member_type if info is not None else ""
             )
             suffix = f"  {source_type}" if source_type else ""
+            epa_library = getattr(member, "epa_library_name", None)
+            context_libraries = tuple(
+                getattr(member, "context_library_names", ()) or ()
+            )
+            marker = ""
+            if (
+                epa_library
+                and context_libraries
+                and epa_library not in context_libraries
+            ):
+                marker = "  !"
+            elif epa_library is None and len(context_libraries) == 1:
+                marker = "  [ctx]"
             result.append(
                 {
                     "kind": "member",
                     "object": member,
                     "file": selected,
                     "source_type": source_type,
-                    "label": f"{member.member_name}{suffix}",
+                    "label": f"{member.member_name}{suffix}{marker}",
                 }
             )
         state["right_items"] = result
@@ -7044,15 +7057,17 @@ def _tui_full_detail_lines(state):
                 "This view is especially useful on an incomplete multi-disk system.",
             ]
 
+        directory_only = state["inventory"].unresolved_context_entries()
         return [
-            "All recovered objects",
+            "All object identities",
+            "",
+            f"Recovered object primaries: {len(state['inventory'].objects):,}",
+            f"Directory-only identities:  {len(directory_only):,}",
             "",
             (
-                f"EPA objects: "
-                f"{len(state['inventory'].objects):,}"
+                "Select an MI object type in the middle pane; directory-only "
+                "entries are grouped beside recovered objects and marked [dir]."
             ),
-            "",
-            "Select an MI object type in the middle pane.",
         ]
 
     return ["No selection."]
