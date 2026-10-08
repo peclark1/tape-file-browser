@@ -2296,11 +2296,20 @@ class MachineIndexPageHeader:
     0x55.
 
     Secondary context pages also carry an observed six-byte backpointer area
-    immediately after this common prefix. The exact semantics of its three
-    two-byte words are not fully named: in 770/815 real child pages the first
-    and third words expand to a valid (origin-node, current-node) state in the
-    parent tree, and in 768 cases that pair is the immediate state containing
-    the page pointer. The middle word remains unresolved.
+    immediately after this common prefix. The two real images expose two
+    reproducible encodings rather than one universal three-word interpretation.
+
+    On the independent V2R3 image, treating the raw words as
+    (origin-low16, shared-high16, current-low16) reconstructs a pair of
+    segment-relative tree-state offsets. It maps 770/804 child pages to a valid
+    parent (origin-node, current-node) traversal state, with 768 equal to the
+    immediate state containing the page pointer.
+
+    The older B10 image uses a different compact form. Rotating the raw words
+    as (word2, word3, word1) yields a 48-bit virtual-address candidate; 7/11
+    child pages point to a node participating in the recovered parent tree.
+    Preserve both interpretations as evidence rather than pretending the
+    six-byte field has one release-independent layout.
 
     The context-specific current-tree storage area therefore begins at +0x08
     on the trunk and +0x0E on ordinary child pages. These offsets are observed
@@ -2365,6 +2374,45 @@ class MachineIndexPageHeader:
             int.from_bytes(self.backpointer_raw[index : index + 2], "big")
             for index in (0, 2, 4)
         )
+
+    @property
+    def shared_high16_node_pair_hint(self) -> tuple[int, int] | None:
+        """V2R3-observed pair of segment-relative parent tree-state offsets.
+
+        On Mark's V2R3 image the six bytes behave as three big-endian 16-bit
+        words: origin-low16, shared-high16, current-low16. Recombining the
+        shared high word with each low word reproduces valid parent traversal
+        states on 770/804 real child pages.
+
+        The older B10 image does not use this encoding, so callers must treat
+        this as a candidate interpretation and validate it against the parent
+        tree rather than assuming it is universal.
+        """
+
+        words = self.backpointer_words
+        if words is None:
+            return None
+        origin_low, shared_high, current_low = words
+        return (
+            (shared_high << 16) | origin_low,
+            (shared_high << 16) | current_low,
+        )
+
+    @property
+    def rotated_virtual_address_hint(self) -> int | None:
+        """Older-B10-observed 48-bit backpointer-address candidate.
+
+        On the B10 image the same six raw bytes behave as a rotated three-word
+        virtual address: high16=word2, middle16=word3, low16=word1. Seven of
+        eleven recovered child pages then point to nodes in the parent tree.
+        V2R3 pages instead use the shared-high16 two-offset form above.
+        """
+
+        words = self.backpointer_words
+        if words is None:
+            return None
+        low16, high16, middle16 = words
+        return (high16 << 32) | (middle16 << 16) | low16
 
     @property
     def current_tree_offset_hint(self) -> int | None:
