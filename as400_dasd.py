@@ -2002,6 +2002,7 @@ class ContextMachineIndexTraversal:
 
     entries: tuple[ContextMachineIndexTerminal, ...]
     root_offset: int
+    page_offsets: tuple[int, ...] = ()
     page_pointers: tuple["MachineIndexPagePointerRef", ...] = ()
     complete: bool = False
     warnings: tuple[str, ...] = ()
@@ -2009,6 +2010,16 @@ class ContextMachineIndexTraversal:
     @property
     def entry_count(self) -> int:
         return len(self.entries)
+
+    @property
+    def page_count(self) -> int:
+        return len(self.page_offsets)
+
+    @property
+    def unresolved_page_pointers(self) -> tuple["MachineIndexPagePointerRef", ...]:
+        return tuple(
+            pointer for pointer in self.page_pointers if not pointer.followed
+        )
 
 
 @dataclass(frozen=True)
@@ -2128,18 +2139,19 @@ def decode_context_machine_index(
     *,
     root_offset: int = CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
 ) -> ContextMachineIndexTraversal:
-    """Traverse an ordinary permanent-context machine index in one segment.
+    """Traverse an ordinary permanent-context release-2 machine index.
 
     IBM documents permanent contexts as using the general release-2 machine
     index. The node/common-text/text-element mechanics are therefore shared
     with QDDSI, but context placement is validated independently: non-empty
-    eight-page 04/01 contexts on both real images place the active root at
-    +0x800.
+    ordinary eight-page 04/01 contexts on both real images place the active
+    root at +0x800.
 
-    This first context walker deliberately does not follow page pointers.
-    It recovers the complete terminal paths reachable from the root inside the
-    supplied segment and reports any page-pointer elements as unresolved
-    evidence for the next traversal stage.
+    Real V2R3 QGPL independently validates context page pointers whose segment
+    table index is zero: their low field is in 256-byte units within the
+    recovered context segment, the same physical pointer encoding seen in
+    QDDSI. Nonzero segment-table indexes remain unresolved and are preserved as
+    evidence rather than guessed.
     """
 
     if root_offset < 0 or root_offset + 3 > len(data):
@@ -2150,6 +2162,7 @@ def decode_context_machine_index(
         return ContextMachineIndexTraversal(
             entries=(),
             root_offset=root_offset,
+            page_offsets=(),
             complete=True,
         )
     if root.kind != "node":
@@ -2157,8 +2170,10 @@ def decode_context_machine_index(
 
     entries: list[ContextMachineIndexTerminal] = []
     pointers: list[MachineIndexPagePointerRef] = []
+    page_offsets: list[int] = []
     warnings: list[str] = []
-    visited: set[tuple[int, int]] = set()
+    visited_nodes: set[tuple[int, int, int]] = set()
+    visited_pages: set[int] = set()
     emitted: set[bytes] = set()
     complete = True
 
@@ -2168,124 +2183,215 @@ def decode_context_machine_index(
         if message not in warnings:
             warnings.append(message)
 
-    def read_text(
-        element: MachineIndexElement,
-        *,
-        element_offset: int,
-    ) -> bytes | None:
-        displacement = element.text_displacement
-        length = element.text_storage_length
-        if displacement is None or length is None or displacement == 0:
-            return None
-        end = displacement + length
-        if displacement < 0 or end > len(data):
-            mark_incomplete(
-                f"context text at 0x{element_offset:04X} points outside segment"
-            )
-            return None
-        return data[displacement:end]
+    def expand_low16(page_start: int, low_value: int) -> int:
+        result = (page_start & ~0xFFFF) | low_value
+        if result < page_start:
+            result += 0x10000
+        return result
 
-    def emit_terminal(
+    def walk_page(
+        page_start: int,
         prefix: bytes,
-        element: MachineIndexElement,
-        element_offset: int,
+        page_depth: int = 0,
     ) -> None:
-        text = read_text(element, element_offset=element_offset)
-        if text is None:
+        if page_depth > 256:
+            mark_incomplete("context machine-index page depth exceeded safety limit")
             return
-        raw = prefix + text
-        if raw in emitted:
-            return
-        emitted.add(raw)
-        entries.append(
-            ContextMachineIndexTerminal(
-                raw=raw,
-                terminal_element_offset=element_offset,
-            )
-        )
-
-    def walk_node(
-        node_offset: int,
-        origin_node_offset: int,
-        prefix: bytes,
-        depth: int = 0,
-    ) -> None:
-        if depth > 512:
-            mark_incomplete("context machine-index node depth exceeded safety limit")
-            return
-        visit_key = (node_offset, origin_node_offset)
-        if visit_key in visited:
+        if page_start in visited_pages:
             mark_incomplete(
-                f"context machine-index node loop detected at 0x{node_offset:04X}"
+                f"context machine-index page loop detected at 0x{page_start:04X}"
             )
             return
-        visited.add(visit_key)
-
-        if node_offset < 0 or node_offset + 3 > len(data):
+        if page_start < 0 or page_start + 3 > len(data):
             mark_incomplete(
-                f"context node offset 0x{node_offset:04X} is outside segment"
+                f"context machine-index page 0x{page_start:04X} is outside segment"
             )
             return
-        node = MachineIndexElement(data[node_offset : node_offset + 3])
-        if node.kind != "node" or node.xor_displacement is None:
-            mark_incomplete(f"expected context node at 0x{node_offset:04X}")
-            return
 
-        cluster_offset = (
-            (origin_node_offset & 0xFFFF) ^ node.xor_displacement
-        )
-        required = 9 if node.common_text_present else 6
-        if cluster_offset < 0 or cluster_offset + required > len(data):
+        page_root = MachineIndexElement(data[page_start : page_start + 3])
+        if page_root.kind != "node":
             mark_incomplete(
-                f"context node at 0x{node_offset:04X} points outside segment"
+                f"context machine-index page 0x{page_start:04X} "
+                "does not begin with a node"
             )
             return
 
-        branch_prefix = prefix
-        if node.common_text_present:
-            common_offset = cluster_offset + 6
-            common = MachineIndexElement(data[common_offset : common_offset + 3])
-            if common.kind != "text":
+        visited_pages.add(page_start)
+        page_offsets.append(page_start)
+
+        def read_text(
+            element: MachineIndexElement,
+            *,
+            element_offset: int,
+        ) -> bytes | None:
+            displacement = element.text_displacement
+            length = element.text_storage_length
+            if displacement is None or length is None or displacement == 0:
+                return None
+            text_offset = expand_low16(page_start, displacement)
+            end = text_offset + length
+            if text_offset < 0 or end > len(data):
                 mark_incomplete(
-                    f"context common-text slot 0x{common_offset:04X} is not text"
+                    f"context text at 0x{element_offset:04X} "
+                    "points outside recovered segment"
                 )
-                return
-            common_text = read_text(common, element_offset=common_offset)
-            if common_text is None:
-                return
-            branch_prefix += common_text
+                return None
+            return data[text_offset:end]
 
-        for branch_offset in (cluster_offset, cluster_offset + 3):
-            branch = MachineIndexElement(data[branch_offset : branch_offset + 3])
-            if branch.kind == "text":
-                if branch.text_displacement:
-                    emit_terminal(branch_prefix, branch, branch_offset)
-            elif branch.kind == "node":
-                walk_node(
-                    branch_offset,
-                    node_offset,
-                    branch_prefix,
-                    depth + 1,
+        def emit_terminal(
+            branch_prefix: bytes,
+            element: MachineIndexElement,
+            element_offset: int,
+        ) -> None:
+            text = read_text(element, element_offset=element_offset)
+            if text is None:
+                return
+            raw = branch_prefix + text
+            if raw in emitted:
+                return
+            emitted.add(raw)
+            entries.append(
+                ContextMachineIndexTerminal(
+                    raw=raw,
+                    terminal_element_offset=element_offset,
                 )
-            else:
-                pointers.append(
-                    MachineIndexPagePointerRef(
-                        element_offset=branch_offset,
-                        segment_table_index=branch.segment_table_index or 0,
-                        page_offset=branch.page_offset or 0,
-                        key_prefix=branch_prefix,
-                        followed=False,
+            )
+
+        def walk_node(
+            node_offset: int,
+            origin_node_offset: int,
+            node_prefix: bytes,
+            depth: int = 0,
+        ) -> None:
+            if depth > 512:
+                mark_incomplete(
+                    "context machine-index node depth exceeded safety limit"
+                )
+                return
+            visit_key = (page_start, node_offset, origin_node_offset)
+            if visit_key in visited_nodes:
+                mark_incomplete(
+                    "context machine-index node loop detected at "
+                    f"0x{node_offset:04X}"
+                )
+                return
+            visited_nodes.add(visit_key)
+
+            if node_offset < 0 or node_offset + 3 > len(data):
+                mark_incomplete(
+                    f"context node offset 0x{node_offset:04X} is outside segment"
+                )
+                return
+            node = MachineIndexElement(data[node_offset : node_offset + 3])
+            if node.kind != "node" or node.xor_displacement is None:
+                mark_incomplete(f"expected context node at 0x{node_offset:04X}")
+                return
+
+            cluster_low = (
+                (origin_node_offset & 0xFFFF) ^ node.xor_displacement
+            )
+            cluster_offset = expand_low16(page_start, cluster_low)
+            required = 9 if node.common_text_present else 6
+            if cluster_offset < 0 or cluster_offset + required > len(data):
+                mark_incomplete(
+                    f"context node at 0x{node_offset:04X} points outside segment"
+                )
+                return
+
+            branch_prefix = node_prefix
+            if node.common_text_present:
+                common_offset = cluster_offset + 6
+                common = MachineIndexElement(
+                    data[common_offset : common_offset + 3]
+                )
+                if common.kind != "text":
+                    mark_incomplete(
+                        "context common-text slot "
+                        f"0x{common_offset:04X} is not text"
                     )
+                    return
+                common_text = read_text(
+                    common,
+                    element_offset=common_offset,
                 )
-                mark_incomplete(
-                    "context machine-index page pointer encountered; "
-                    "pointer following is not yet validated"
-                )
+                if common_text is None:
+                    return
+                branch_prefix += common_text
 
-    walk_node(root_offset, root_offset, b"")
+            for branch_offset in (cluster_offset, cluster_offset + 3):
+                branch = MachineIndexElement(
+                    data[branch_offset : branch_offset + 3]
+                )
+                if branch.kind == "text":
+                    if branch.text_displacement:
+                        emit_terminal(
+                            branch_prefix,
+                            branch,
+                            branch_offset,
+                        )
+                elif branch.kind == "node":
+                    walk_node(
+                        branch_offset,
+                        node_offset,
+                        branch_prefix,
+                        depth + 1,
+                    )
+                else:
+                    segment_index = branch.segment_table_index or 0
+                    pointer_value = branch.page_offset or 0
+                    target_offset = pointer_value << 8
+                    can_follow = (
+                        segment_index == 0
+                        and target_offset not in visited_pages
+                        and target_offset + 3 <= len(data)
+                        and MachineIndexElement(
+                            data[target_offset : target_offset + 3]
+                        ).kind
+                        == "node"
+                    )
+                    pointers.append(
+                        MachineIndexPagePointerRef(
+                            element_offset=branch_offset,
+                            segment_table_index=segment_index,
+                            page_offset=pointer_value,
+                            key_prefix=branch_prefix,
+                            followed=can_follow,
+                        )
+                    )
+                    if segment_index != 0:
+                        mark_incomplete(
+                            "context machine-index page pointer uses unresolved "
+                            f"segment-table index {segment_index}"
+                        )
+                    elif target_offset in visited_pages:
+                        mark_incomplete(
+                            "context machine-index page pointer loops to "
+                            f"0x{target_offset:04X}"
+                        )
+                    elif target_offset + 3 > len(data):
+                        mark_incomplete(
+                            "context machine-index page pointer target "
+                            f"0x{target_offset:04X} is outside recovered segment"
+                        )
+                    elif not can_follow:
+                        mark_incomplete(
+                            "context machine-index page pointer target "
+                            f"0x{target_offset:04X} does not begin with a node"
+                        )
+                    else:
+                        walk_page(
+                            target_offset,
+                            branch_prefix,
+                            page_depth + 1,
+                        )
+
+        walk_node(page_start, page_start, prefix)
+
+    walk_page(root_offset, b"")
     return ContextMachineIndexTraversal(
         entries=tuple(entries),
         root_offset=root_offset,
+        page_offsets=tuple(page_offsets),
         page_pointers=tuple(pointers),
         complete=complete,
         warnings=tuple(warnings),
