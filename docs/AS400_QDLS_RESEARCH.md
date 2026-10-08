@@ -167,12 +167,22 @@ Examples already observed during this project include:
 
   The field names are preserved exactly; the tooling does not invent
   expansions for them.
-- A full-image scan found 1,987 printable MI `06/C1` objects. For 1,972
-  of them, a conservative ordinary layout passes all current checks: the
-  16-bit values at +0x106 and +0x112 agree, the declared payload fits after the
-  first 512-byte page, and the nonzero allocation value at +0x10A is a
-  512-byte multiple large enough for the payload. Fifteen objects need separate
-  study rather than being forced through this layout.
+- The earlier broad full-image scan found 1,987 printable **EPA-like**
+  `06/C1` signatures at the expected within-page offset. That count was too
+  permissive to call every hit an object: it did not require a page-aligned
+  storage header or require the segment-group owner address to equal the
+  candidate primary virtual address.
+- Re-running the classification with those structural primary-object checks
+  leaves **1,832 page-aligned primary candidates**. Of those, **1,826** use the
+  conservative ordinary layout and **6** are the validated overflow family
+  described below.
+- The remaining **9** members of the old "15 unusual" set are not alternate
+  DOCBSS layouts. Every one sits on a storage header whose virtual address is
+  256 bytes off a 512-byte page boundary, and every one has a segment-group
+  owner address different from that header virtual address. They are therefore
+  raw EPA-like byte coincidences/non-primary data, not structurally valid
+  DOCBSS primaries. Their apparent duplicate-length mismatches must not be used
+  to invent another export format.
 - Two known PC Support examples independently validate the ordinary layout.
   `FMPV082760F` declares 2,688 payload bytes; the next page begins with an
   `MZ` DOS executable header and the DOS header itself also describes a
@@ -258,8 +268,11 @@ blindly concatenated. Continuations are consumed only when the declared payload
 requires bytes beyond the primary capacity.
 
 This resolves the clearly validated overflow family and expands both CLI and
-TUI export coverage. The other unusual DOCBSS cases should still be inspected
-individually before calling every recovered layout universal.
+TUI export coverage. With the nine raw false-positive signatures removed by
+normal primary-segment structural checks, **all structurally valid DOCBSS
+primary candidates in the current V2R3 corpus are now classified as ordinary
+or overflow-continuation form**. This is a corpus result, not a claim that all
+AS/400 releases must use only these two physical forms.
 
 ## Deleted QAOSSS14 tail records
 
@@ -357,9 +370,9 @@ meaning of the surrounding bytes.
    SYSOBJNAM is present in the 193-byte record.
 5. Validate QAOSSS14 anchor reconstruction over a larger random sample of QDOC
    documents and folders, including non-PC-Support content.
-6. Continue classifying the remaining unusual `*DOCBSS` layouts. The
-   validated overflow family now exports through contiguous owner-matched
-   `0F90` continuation segments, but other non-ordinary cases remain.
+6. Keep DOCBSS classification release-scoped. The current V2R3 corpus is now
+   fully classified after removing nine non-page-aligned/non-primary raw
+   signatures; future images may still expose additional physical forms.
 7. Once the user-facing-folder mapping is understood, add optional recursive
    export that mirrors the recovered QDLS directory tree while continuing to
    preserve internal SYSOBJNAM metadata.
