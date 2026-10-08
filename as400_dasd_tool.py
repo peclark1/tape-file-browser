@@ -4389,34 +4389,59 @@ def _tui_library_items(state, library_name):
 
 
 def _tui_object_type_items(state):
+    """Group recovered and directory-only objects by MI type/subtype."""
+
     inventory = state["inventory"]
     groups = {}
     for obj in inventory.objects:
         key = (obj.object_type, obj.object_subtype)
-        groups.setdefault(key, []).append(obj)
+        groups.setdefault(key, {"objects": [], "entries": []})["objects"].append(
+            obj
+        )
+    for entry in inventory.unresolved_context_entries():
+        key = (entry.object_type, entry.object_subtype)
+        groups.setdefault(key, {"objects": [], "entries": []})["entries"].append(
+            entry
+        )
 
     result = []
     for key in sorted(groups):
         objects = sorted(
-            groups[key],
+            groups[key]["objects"],
             key=lambda obj: (
                 obj.library_name or "",
                 obj.name,
                 obj.segment.virtual_address,
             ),
         )
-        sample = objects[0]
-        hint = sample.external_type_hint or ""
+        entries = sorted(
+            groups[key]["entries"],
+            key=lambda entry: (
+                entry.library_name,
+                entry.display_name_hint or "",
+                (
+                    entry.object_address.address
+                    if entry.object_address is not None
+                    else 0
+                ),
+            ),
+        )
+        sample = objects[0] if objects else None
+        hint = sample.external_type_hint if sample is not None else ""
         suffix = f" {hint}" if hint else ""
+        count_text = f"{len(objects):,}"
+        if entries:
+            count_text += f" + {len(entries):,} dir"
         result.append(
             {
                 "kind": "object-type",
                 "type": key[0],
                 "subtype": key[1],
                 "objects": objects,
+                "entries": entries,
                 "label": (
                     f"{key[0]:02X}/{key[1]:02X}"
-                    f"{suffix:<10}  {len(objects):,}"
+                    f"{suffix:<10}  {count_text}"
                 ),
             }
         )
@@ -6843,11 +6868,13 @@ def _tui_full_detail_lines(state):
                 "Select a result in the right pane.",
             ]
 
+        directory_count = len(mid.get("entries", ()))
         return [
             f"Object type: {mid['type']:02X}/{mid['subtype']:02X}",
-            f"Recovered objects: {len(mid['objects']):,}",
+            f"Recovered objects:       {len(mid['objects']):,}",
+            f"Directory-only entries:  {directory_count:,}",
             "",
-            "Select an object in the right pane to inspect it.",
+            "Select an object/directory entry in the right pane to inspect it.",
         ]
 
     if left is not None:
