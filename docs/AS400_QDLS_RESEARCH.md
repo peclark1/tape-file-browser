@@ -215,6 +215,64 @@ Printable strings inside a QDOC object are **hints**, not automatically
 authoritative path metadata. The `DPWN524712` case is stronger because the
 document's own error-log text explicitly supplies both document and folder names.
 
+## Extended DOCBSS continuation segments
+
+The first non-ordinary `*DOCBSS` family is now decoded far enough for safe
+read-only export.
+
+Six real V2R3 objects have duplicated payload lengths that are valid but exceed
+the bytes available after the primary segment's first 512-byte metadata page:
+
+- `FMPV131790F` — 65,428 bytes;
+- `FMPV160496F` — 65,026 bytes;
+- `FMPV181282F` — 65,428 bytes;
+- `FMPV205432F` — 65,116 bytes;
+- `FMPV252046F` — 65,428 bytes;
+- `GNGT110572F` — 65,504 bytes.
+
+Each of these has an owner-matched secondary segment group of type `0F90`
+immediately following the 128-page primary in virtual storage. The secondary
+segment independently carries one 512-byte metadata/header page, and the
+workstation byte stream resumes at secondary offset `+0x200`.
+
+The text examples continue readable ASCII exactly across that boundary; the
+binary examples likewise continue their binary stream. This makes the observed
+logical payload form:
+
+```text
+primary 06/C1:  bytes +0x200 .. end
+continuation 0F90: bytes +0x200 .. end
+[next contiguous 0F90 continuation if required]
+stop exactly at the duplicated declared payload length
+```
+
+The implementation now follows that form conservatively. It uses only
+owner-matched `0F90` segment groups in virtual-address order, requires the
+needed continuation groups to be contiguous, skips each continuation group's
+first metadata page, and stops at the declared payload length rather than
+including allocation padding.
+
+Many ordinary DOCBSS objects also own `0F90` segment groups even though their
+declared payload already fits in the primary. Those extra groups are **not**
+blindly concatenated. Continuations are consumed only when the declared payload
+requires bytes beyond the primary capacity.
+
+This resolves the clearly validated overflow family and expands both CLI and
+TUI export coverage. The other unusual DOCBSS cases should still be inspected
+individually before calling every recovered layout universal.
+
+## Deleted QAOSSS14 tail records
+
+The former "three unresolved parent gaps" at RRNs 1883-1885 are no longer
+treated as live hierarchy failures. All three have DENT status `0xC0`, the
+same deleted-entry form independently excluded from the live QAOSSS14 QDDSI
+access path.
+
+Their shared `WOSEPLDN` parent value occurs only in those three deleted
+records and has no surviving live leading-key anchor. They are therefore best
+preserved as historical/deleted records with an unavailable deleted parent,
+not counted among the live QAOSSS14 hierarchy gaps.
+
 ## Current tooling
 
 `as400-dasd dlos IMAGE`
@@ -287,9 +345,9 @@ meaning of the surrounding bytes.
 1. Apply the same direct recovery approach to `QAOSSS10`-`QAOSSS13`,
    `QAOSSS15`, `QAOSSS17`, and `QAOSSS18`, preserving each recovered
    WOSFMT descriptor before assigning semantics.
-2. Investigate the remaining unresolved QAOSSS14 parent key used by RRNs
-   1883-1885; all other nonzero parent links currently resolve through leading
-   record keys.
+2. Keep deleted QAOSSS14 RRNs 1883-1885 as forensic history rather than live
+   hierarchy gaps; their shared parent anchor is not present among the live
+   recovered records.
 3. Determine where the user-facing folder name differs from the QAOSSS14
    anchor short name (for example `BULLETIN` versus `QGFSWOF1`) and which
    QAOSS/QDOC structure carries that mapping.
@@ -299,8 +357,9 @@ meaning of the surrounding bytes.
    SYSOBJNAM is present in the 193-byte record.
 5. Validate QAOSSS14 anchor reconstruction over a larger random sample of QDOC
    documents and folders, including non-PC-Support content.
-6. Decode the fifteen extended/non-ordinary `*DOCBSS` layouts before
-   broadening export beyond the conservatively validated ordinary form.
+6. Continue classifying the remaining unusual `*DOCBSS` layouts. The
+   validated overflow family now exports through contiguous owner-matched
+   `0F90` continuation segments, but other non-ordinary cases remain.
 7. Once the user-facing-folder mapping is understood, add optional recursive
    export that mirrors the recovered QDLS directory tree while continuing to
    preserve internal SYSOBJNAM metadata.
