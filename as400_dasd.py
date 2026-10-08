@@ -1436,6 +1436,11 @@ class FormatField:
             0x02: "ZONED",
             0x03: "PACKED",
             0x04: "CHAR",
+            # Real V2R3 19/51 descriptors use type 0x06 for fields whose
+            # recovered DDS definitions independently specify data type O.
+            # IBM DDS terminology calls O "DBCS Open". Keep value decoding
+            # raw until the field CCSID/shift-state representation is proven.
+            0x06: "DBCS-OPEN",
         }.get(self.type_code, f"TYPE-{self.type_code:02X}")
 
     def raw_value(self, record: bytes) -> bytes:
@@ -1511,6 +1516,9 @@ class FormatField:
                 self.decimal_positions,
             )
 
+        # DBCS Open (0x06) deliberately remains raw. The real V2R3 image
+        # independently establishes the DDS type, but a reliable text decode
+        # also needs the applicable DBCS CCSID and shift-state semantics.
         return raw.hex().upper()
 
 
