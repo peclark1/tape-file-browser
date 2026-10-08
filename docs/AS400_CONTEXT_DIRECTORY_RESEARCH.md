@@ -678,6 +678,31 @@ trunks. The backend now exposes the validated 1,024-byte context page size,
 tail/non-tail free-space accounting, child backpointer bytes, and observed tree
 storage boundaries without assigning names to the unresolved words.
 
+### Backpointer purpose versus physical encoding
+
+IBM's published System/38 machine-index patent material resolves an important
+semantic question about the child-page exceptions. The page-header
+**backpointer information is used when processing of a child page is complete
+to back out to the parent page and resume the search/traversal there**. The
+worked example explicitly returns from a completed child page to a node in its
+parent page.
+
+That means the six-byte child-page field should not be expected to be a simple
+copy of the incoming page-pointer source state. The 768 immediate-state matches
+on Mark's V2R3 image are strong structural corroboration, while the remaining
+valid-parent/non-immediate cases are compatible with a saved resume/backtrack
+state. Cases that point into other current-tree material likewise do not justify
+renaming the raw words as fixed "parent node" fields.
+
+This closes the semantic part of the exception: the field's **purpose** is
+parent-page backtracking/resume state. The exact release-specific word names and
+encodings remain open pending the missing System/38 VMC data-area definition
+(for example SY21-0892) or another authoritative layout source.
+
+Reference: IBM patent US4774657A, *Index key range estimator*, Appendix A and
+the traversal discussion describing use of page-header backpointer information
+to return from a child page to its parent.
+
 ### What is still deliberately unresolved
 
 The terminal byte stream is **not** being forced into the documented expanded
