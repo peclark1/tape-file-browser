@@ -595,6 +595,57 @@ The backend now exposes this validated eight-byte prefix as
 `MachineIndexPageHeader` rather than continuing to leave all page-header bytes
 opaque.
 
+### Context page size, free space, and child backpointer area
+
+A second corpus-wide pass over every page reached by the context walker narrows
+the physical page layout further.
+
+All **815** real page-pointer targets are aligned on 1,024-byte boundaries from
+the ordinary trunk origin at `+0x800`, and every decoded first-free address
+falls within that 1,024-byte page. Together with the 51 traversed trunk pages,
+the current two-image context corpus therefore contains **866 independently
+validated 1,024-byte in-use context pages**.
+
+The documented free-byte and first-free fields have a reproducible relationship:
+on all 866 pages, the total free-byte value is at least the unused tail from
+first-free through the end of the 1,024-byte page. The excess is retained as
+**non-tail free space** rather than being assigned an undocumented allocator
+meaning. This explains why treating `free_bytes` as simply "bytes after
+first-free" failed on some pages.
+
+Child page type `0x55` has a six-byte area immediately after the common
+eight-byte prefix:
+
+```text
++0x00..+0x02   root node
++0x03          page type = 0x55
++0x04..+0x05   total free-byte value
++0x06..+0x07   first-free low address
++0x08..+0x0D   six-byte backpointer area
++0x0E...       current-tree storage
+```
+
+The six bytes are preserved as three raw 16-bit words. Their exact field names
+remain unresolved, but their structural role is no longer speculative. When
+the first and third words are expanded in the parent page, **770/815** child
+pages produce a valid parent `(origin-node, current-node)` traversal state.
+For **768/815**, that pair is exactly the immediate node state containing the
+page pointer. The exceptions are important: IBM documents the backpointer as
+the state used to resume a search in the parent after a child page is exhausted,
+so it must not be mislabeled as merely "the page-pointer source."
+
+The middle 16-bit word is still unresolved. Ordinary examples are often small,
+while some real system contexts contain substantially larger values. Until a
+data-area definition or an independent behavioral correlation is found, the
+backend exposes all three words only as raw backpointer evidence.
+
+Trunk page type `0xCC` has no corresponding six-byte child-backpointer area;
+its current-tree storage can begin immediately after the common prefix at
+`+0x08`. This is reproduced by the reachable-tree layout in 48/51 non-empty
+trunks. The backend now exposes the validated 1,024-byte context page size,
+tail/non-tail free-space accounting, child backpointer bytes, and observed tree
+storage boundaries without assigning names to the unresolved words.
+
 ### What is still deliberately unresolved
 
 The terminal byte stream is **not** being forced into the documented expanded
