@@ -443,6 +443,44 @@ object identity/addressability that the EPA-primary inventory alone cannot.
 The remaining unmatched PPSITEST terminals include `19/01 *FILE` candidates
 whose primaries/owned groups do not survive on this disk.
 
+### Larger-context page-pointer validation
+
+Mark's V2R3 `QGPL` provides the first multi-page context traversal. Its
+recovered 56-page primary context segment is assembled from four virtual-order
+extents (8 + 16 + 16 + 16 pages). Starting from the ordinary root at
+`+0x800`, the tree encounters 13 page-pointer elements.
+
+All 13 have segment-table index zero. Their low field is in the same observed
+256-byte units already validated for QDDSI, producing targets such as
+`+0x0C00`, `+0x1000`, `+0x1800`, and `+0x4400`. Every target begins with
+a release-2 node and a page-type byte; the secondary pages use `0x55` while
+the trunk/root page uses `0xCC`.
+
+Following those pointers, while carrying the accumulated common-text prefix
+into the child page, reconstructs **165 terminal entries** with no structural
+warning. That exactly equals the 165 QGPL objects previously assigned through
+the independent EPA back-pointer direction.
+
+All **165/165** terminal compact references resolve recovered object primaries,
+and all 165 reconstructed leading type/subtype pairs agree with those objects.
+
+This is the first complete two-way library-directory cross-check:
+
+```text
+object EPA -> QGPL context        165 objects
+QGPL context -> compact object    165 objects
+agreement                          165 / 165
+```
+
+It also validates one important generic page-header observation. The ordinary
+QGPL trunk starts at `+0x800`; pointer targets fall on 1024-byte boundaries
+from that base. The bytes immediately following each three-byte root node fit
+the documented page-type position (`0xCC` trunk, `0x55` secondary). The
+subsequent free-byte/first-free fields still are not assigned hard-coded
+semantics until the missing data-area definition is located, because the trunk
+can contain internal free regions and its raw free count need not equal only
+the unused tail.
+
 ### What is still deliberately unresolved
 
 The terminal byte stream is **not** being forced into the documented expanded
