@@ -358,12 +358,12 @@ identify the page-header/root-node boundary or reconstruct a complete context
 entry, so 512/origin-0x1E0/phase-2 remains a strongly supported PPSITEST working
 model rather than an architectural constant.
 
-That checkpoint has now been resumed. Ordinary small-context root placement,
-node/common-text traversal, and compact context-derived object references are
-validated across both real images. The remaining context work is page-pointer
-following for larger contexts, exact page-header data-area semantics, and
-turning validated context-derived references into a second membership source
-for the browser.
+That checkpoint has now been resumed. Ordinary root placement,
+node/common-text traversal, same-segment page-pointer following, and compact
+context-derived object references are validated across both real images.
+Validated context references are now a second membership source in the browser;
+the remaining structural work is exact page-header data-area semantics and any
+nonzero segment-table-index pointer form that a future image exposes.
 
 ## First real context-tree traversal
 
@@ -394,8 +394,8 @@ validated for QDDSI work without alteration:
 - text displacements are absolute low-16 segment offsets in these small
   one-segment contexts.
 
-The walker deliberately stops at page-pointer elements. Pointer following
-remains a separate validation step for larger contexts.
+The initial walker stopped at page-pointer elements. Same-segment pointer
+following has since been validated on larger contexts as described below.
 
 ### Independent V2R3 validation
 
@@ -481,13 +481,92 @@ semantics until the missing data-area definition is located, because the trunk
 can contain internal free regions and its raw free count need not equal only
 the unused tail.
 
+### Corpus-wide traversal and compact-name validation
+
+The QGPL result generalizes across the recovered context population rather than
+being a one-library special case.
+
+Across Mark's independent V2R3 image:
+
+- 40 permanent `04/01` contexts are recovered;
+- their context trees yield **21,592 terminal entries**;
+- **804** machine-index page pointers are encountered;
+- every observed page pointer has segment-table index **0**;
+- **21,531** terminals resolve a recovered primary with matching MI
+  type/subtype;
+- 61 references do not have a recovered primary, and 59 of those addresses
+  still own one or more recovered secondary segment groups.
+
+Across Pete's surviving B10 disk:
+
+- 16 permanent `04/01` contexts are recovered;
+- their trees yield **391 terminal entries**;
+- **11** page pointers are encountered, again all segment-table index **0**;
+- **206** terminals resolve surviving primaries with matching MI type/subtype;
+- 185 directory references point to primaries absent from this disk, with 57
+  of those inferred addresses still owning recovered secondary segment groups.
+
+The current two-image corpus therefore supplies **815 real context page
+pointers and zero nonzero-segment-table-index examples**. There is nothing
+responsible to reverse-engineer for that form yet; support remains explicitly
+deferred until another image provides a real specimen.
+
+The physical terminal also exposes a highly reproducible compact name form.
+For ordinary single-component object names, EBCDIC blank padding is represented
+by `40 + positive-count`. The `0D/50 *MEM` key uses two fixed ten-byte name
+components: the first component can use `40 + F6..FF` as an observed
+two's-complement padding count, and the second uses a positive trailing blank
+count.
+
+A conservative decoder that handles only those two observed forms round-trips
+the exact 30-byte EPA name for **21,715 / 21,737** resolved context terminals
+across the two images. The remaining 22 Mark entries are special composite-key
+object types and are deliberately left undecoded. On Pete's partial disk the
+decoder also yields name hints for **all 185/185** directory references whose
+primaries are absent.
+
+That makes the missing-primary evidence directly useful. Examples include
+ordinary `*FILE`, `*PGM`, and `*MEM` references such as
+`PPSITEST/QDDSSRC(ADDFUNDD)` and
+`PPSITEST/QLBLSRC(ADDFUND)`, even when no EPA primary survives.
+
+### Browser integration
+
+`ObjectInventory` now retains the reconstructed context-directory terminals
+alongside recovered EPA objects. Recovered primaries preserve two independent
+membership provenance fields:
+
+- EPA back-pointer membership;
+- one or more context-index memberships.
+
+A unique context-index membership can supply the resolved library when the EPA
+direction is absent. If the two directions disagree, the existing EPA
+assignment is preserved rather than silently reconciled, while the conflicting
+context evidence remains visible.
+
+The curses browser now shows, for each library:
+
+- total context-index entries;
+- references resolved to recovered primaries;
+- directory-only references;
+- EPA/context agreement, EPA-only, context-only, and conflict counts;
+- context traversal warnings.
+
+Directory-only entries appear as a separate library group. Their detail view
+shows the compact name hint when supported, type/subtype, inferred object
+address, surviving owned secondary segments, and the raw terminal bytes.
+Global browser search includes those directory-only names as well, so objects
+known only from a surviving library directory remain discoverable on partial
+images.
+
 ### What is still deliberately unresolved
 
 The terminal byte stream is **not** being forced into the documented expanded
-logical `T S NL N @` representation. The physical machine index clearly uses
-a compact address form and additional control/length bytes, and member cursors
-carry composite file/member key material. Those physical encodings need their
-own documentation/validation.
+logical `T S NL N @` representation. The ordinary compact address and name
+forms are now independently validated enough for conservative browser hints,
+but the 22 special V2R3 composite-key terminals remain raw. Their separators/
+control bytes need their own documentation or repeated structural evidence
+before being named.
 
 Likewise, the exact widths/semantics of the bytes after the root node and page
 type in the physical page header remain open. The new evidence establishes a
@@ -516,16 +595,18 @@ and
 
 `context machine index -> object`.
 
-## TUI implications
+## TUI status
 
-When context traversal is reliable, the browser should be able to explain more
-than just a library's friendly description. Useful evidence to show includes:
+The browser now exposes the context-directory evidence directly:
 
 - membership source: context index, EPA back-pointer, or both;
 - disagreement/incomplete-recovery warnings;
 - recovered context entry count;
-- unresolved/dangling context entries;
+- unresolved/directory-only entries;
+- surviving owned segments for a missing primary;
+- compact name/type/address hints with raw-terminal fallback;
 - documented library purpose from the editable library catalog.
 
 This keeps the semantic browsing model useful while preserving the forensic
-evidence behind it.
+evidence behind it. Directory-only references are also included in global
+search, which is especially useful on Pete's partial multi-disk image.
