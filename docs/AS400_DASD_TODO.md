@@ -176,10 +176,23 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       (length 124, displacement `0x02`) covering the `PROTO` tail at
       `0x5B`. Preserve 512/origin-0x1E0/phase-2 as a strongly supported
       PPSITEST working model, not yet a full page/trunk decoder.
-- [ ] Resume context traversal now by identifying the page header/root-node
-      boundary and following one node/page-pointer path. Reuse the validated
-      QDDSI tree-walking lessons but independently establish context page
-      placement/header semantics.
+- [x] Resume context traversal and independently establish the ordinary
+      small-context root boundary. Non-empty eight-page 04/01 contexts on both
+      real images place a release-2 root node at segment +0x800; the first
+      conservative walker follows nodes/common text/terminal text without
+      assuming the unresolved page-header field widths.
+- [x] Validate context -> object references independently. Mark's V2R3 image
+      yields 229/229 small-context terminal entries whose compact six-byte
+      references resolve recovered object primaries with matching MI type/
+      subtype. Pete's partial B10 disk yields 141 terminals, 80 direct-primary
+      matches, and PPSITEST additionally identifies two missing primaries through
+      surviving owned secondary segment groups.
+- [ ] Follow and validate one context machine-index page pointer in a larger
+      context, then generalize traversal beyond the one-segment small-context
+      case without assuming QDDSI page placement.
+- [ ] Promote validated context-derived references into an independent
+      library-membership source in CLI/TUI, preserving EPA back-pointer versus
+      context-index provenance and disagreement warnings.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
@@ -246,13 +259,19 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Decode IBM's documented release-2 three-byte machine-index element
       primitives.
 - [x] Add `context-page` forensic probing against recovered context segments.
-- [ ] Locate the context machine-index page header and trunk automatically.
-- [ ] Follow machine-index page pointers.
-- [ ] Reconstruct front-end-compressed keys.
-- [ ] Traverse context -> object entries.
-- [ ] Cross-check context -> object results against EPA object -> context
-      back-pointers.
-- [ ] Use the context index to recover currently unresolved object membership.
+- [x] Locate the ordinary small-context machine-index root/trunk at +0x800
+      by independent cross-image validation; exact generic page-header field
+      widths remain unresolved.
+- [ ] Follow machine-index page pointers in larger contexts.
+- [x] Reconstruct node/common-text/terminal-text paths in ordinary small
+      contexts.
+- [x] Traverse ordinary small context -> object compact references.
+- [x] Cross-check context -> object results against EPA object -> context
+      back-pointers on both real images.
+- [x] Demonstrate recovery of unresolved object membership/addressability:
+      PPSITEST terminals identify two missing member-cursor primaries whose
+      inferred addresses own surviving secondary segment groups.
+- [ ] Integrate context-index membership into the browser inventory model.
 
 ## Database decoding
 
