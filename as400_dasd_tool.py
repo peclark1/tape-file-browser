@@ -4296,7 +4296,13 @@ def _tui_file_items(state, library_name):
 
 
 def _tui_library_items(state, library_name):
-    """Files plus non-file object groups for one recovered library."""
+    """Files plus object-type groups for one recovered library.
+
+    Directory-only context terminals are grouped beside recovered objects by
+    MI type/subtype instead of being hidden in a separate catch-all bucket.
+    This lets an incomplete disk present the namespace the AS/400 knew while
+    still marking entries whose primary object is not recovered.
+    """
 
     inventory = state["inventory"]
     result = _tui_file_items(state, library_name)
@@ -4310,42 +4316,51 @@ def _tui_library_items(state, library_name):
         ):
             continue
         key = (obj.object_type, obj.object_subtype)
-        groups.setdefault(key, []).append(obj)
+        groups.setdefault(key, {"objects": [], "entries": []})["objects"].append(
+            obj
+        )
+
+    for entry in inventory.unresolved_context_entries(library_name):
+        key = (entry.object_type, entry.object_subtype)
+        groups.setdefault(key, {"objects": [], "entries": []})["entries"].append(
+            entry
+        )
 
     for key in sorted(groups):
         objects = sorted(
-            groups[key],
+            groups[key]["objects"],
             key=lambda obj: (
                 obj.name,
                 obj.segment.virtual_address,
             ),
         )
-        sample = objects[0]
-        hint = sample.external_type_hint or ""
+        entries = sorted(
+            groups[key]["entries"],
+            key=lambda entry: (
+                entry.display_name_hint or "",
+                (
+                    entry.object_address.address
+                    if entry.object_address is not None
+                    else 0
+                ),
+            ),
+        )
+        sample = objects[0] if objects else None
+        hint = sample.external_type_hint if sample is not None else ""
         suffix = f" {hint}" if hint else ""
+        count_text = f"{len(objects):,}"
+        if entries:
+            count_text += f" + {len(entries):,} dir"
         result.append(
             {
                 "kind": "library-object-type",
                 "type": key[0],
                 "subtype": key[1],
                 "objects": objects,
+                "entries": entries,
                 "label": (
-                    f"[objects] {key[0]:02X}/{key[1]:02X}"
-                    f"{suffix:<10}  {len(objects):,}"
-                ),
-            }
-        )
-
-    directory_only = inventory.unresolved_context_entries(library_name)
-    if directory_only:
-        result.append(
-            {
-                "kind": "context-directory",
-                "entries": directory_only,
-                "library": library_name,
-                "label": (
-                    f"[directory-only]  {len(directory_only):,} "
-                    "context reference(s)"
+                    f"{key[0]:02X}/{key[1]:02X}"
+                    f"{suffix:<10}  {count_text}"
                 ),
             }
         )
@@ -4476,12 +4491,41 @@ def _tui_rebuild_from_mid(state):
         for obj in selected["objects"]:
             library = obj.library_name or "<orphan>"
             hint = obj.external_type_hint or obj.type_code
+            epa_library = getattr(obj, "epa_library_name", None)
+            context_libraries = tuple(
+                getattr(obj, "context_library_names", ()) or ()
+            )
+            marker = ""
+            if (
+                epa_library
+                and context_libraries
+                and epa_library not in context_libraries
+            ):
+                marker = "  !"
+            elif epa_library is None and len(context_libraries) == 1:
+                marker = "  [ctx]"
             result.append(
                 {
                     "kind": "object",
                     "object": obj,
                     "label": (
-                        f"{library}/{obj.name}  {hint}"
+                        f"{library}/{obj.name}  {hint}{marker}"
+                    ),
+                }
+            )
+        for entry in selected.get("entries", ()):
+            name = entry.display_name_hint or "<name undecoded>"
+            surviving = (
+                " +seg"
+                if entry.owned_segment_count
+                else ""
+            )
+            result.append(
+                {
+                    "kind": "context-entry",
+                    "entry": entry,
+                    "label": (
+                        f"[dir] {name}  {entry.type_code}{surviving}"
                     ),
                 }
             )
