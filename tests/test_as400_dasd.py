@@ -12,6 +12,8 @@ from as400_dasd import (
     SECTOR_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DataSpaceIndexKeyField,
+    DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
     DataSpaceLayout,
     DocumentByteStringInfo,
@@ -429,6 +431,8 @@ class DASDHeaderTests(unittest.TestCase):
         entry = traversal.entries[0]
         self.assertEqual(entry.user_key.decode("cp037"), "*PUBLIC   ")
         self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
+        self.assertEqual(entry.dkey_index, 0)
+        self.assertEqual(entry.data_space_number_hint, 0)
         self.assertEqual(entry.ordinal_hint, 1)
 
     def test_qddsi_multi_dkey_one_populated_row_traversal(self):
@@ -464,38 +468,98 @@ class DASDHeaderTests(unittest.TestCase):
         )
         self.assertEqual(traversal.entries[0].ordinal_hint, 1)
 
-    def test_qddsi_multi_dkey_uniform_populated_rows_traversal(self):
-        data, _layout = make_qddsi_root_fixture(
-            "97 00 08 CC 07 DA 10 26 "
-            "86 00 1C 60 00 00 "
-            "40 40 40 40 40 40 40 40 40 40 00 00 00 01 "
-            "00 10 1B 00 10 25 0C 10 0E 02",
-            key_count=1,
-            user_key_length=10,
-            machine_key_length=14,
-        )
-        primary = bytearray(data)
-        primary[0x11E:0x120] = (2).to_bytes(2, "big")
-        first = memoryview(primary)[0x400:0x440]
-        first[0x10:0x14] = (1).to_bytes(4, "big")
-        second = memoryview(primary)[0x440:0x480]
-        second[0:8] = make_internal_address(1, 0x001000000000)
-        second[0x10:0x14] = (1).to_bytes(4, "big")
-        second[0x18:0x1A] = (0).to_bytes(2, "big")
-        second[0x1A:0x1C] = (10).to_bytes(2, "big")
-        second[0x1C:0x1E] = (14).to_bytes(2, "big")
+    def test_qddsi_mixed_key_shapes_and_fork_rows(self):
+        def field(length, location):
+            return DataSpaceIndexKeyField(
+                sequence_attributes=0,
+                field_attributes=0x30,
+                length_or_fork=length,
+                relative_offset=0,
+                location=location,
+                field_ordinal_hint=1,
+                raw=bytes(0x20),
+            )
 
-        layout = DataSpaceIndexLayout.from_primary_segment(
-            bytes(primary),
-            virtual_address=0x001000000000,
+        def fork():
+            return DataSpaceIndexKeyField(
+                sequence_attributes=0x40,
+                field_attributes=0,
+                length_or_fork=0,
+                relative_offset=0,
+                location=0,
+                field_ordinal_hint=0,
+                raw=bytes(0x20),
+            )
+
+        def spec(user_length, machine_length, fields):
+            return DataSpaceIndexKeySpec(
+                data_space=InternalAddress(1, 0x000F00000000),
+                field_table_pointer=InternalAddress(1, 0),
+                key_count=6,
+                auxiliary_scalar_raw=0,
+                key_field_count=len(fields),
+                user_key_length=user_length,
+                machine_key_length=machine_length,
+                dkyt_address=0,
+                fields=tuple(fields),
+                raw=bytes(0x40),
+            )
+
+        layout = DataSpaceIndexLayout(
+            dkey_count=3,
+            dkey_address=0,
+            keys=(
+                spec(8, 13, (field(1, 1), fork(), field(3, 2), field(4, 5))),
+                spec(1, 6, (field(1, 1), fork())),
+                spec(4, 9, (field(1, 1), fork(), field(3, 2))),
+            ),
         )
-        traversal = decode_data_space_index_root(bytes(primary), layout)
+
+        # Real V2R3 QASULE01 root-page shape. This compact system-index fixture
+        # exercises three populated DKEY rows with different machine-key
+        # lengths and interleaved fork/control bytes.
+        root = bytes.fromhex(
+            "92 00 37 CC 07 02 11 04 60 00 00 8E 00 CE "
+            "E3 01 F0 F0 F1 40 C3 F0 F0 00 00 00 01 "
+            "0B 10 0F 9F 00 22 00 10 0E 02 01 00 00 01 "
+            "04 10 24 07 10 2F 03 F0 F0 F1 02 00 00 01 "
+            "96 00 84 9D 00 D5 C3 01 F0 F0 F2 C3 E2 F0 F4 00 00 00 02 "
+            "87 00 34 9F 00 DF 00 10 3D 02 01 00 00 02 "
+            "85 00 8C 8D 00 86 03 F0 F0 F2 02 00 00 02 "
+            "00 10 49 00 10 6F 03 10 45 03 00 10 57 00 10 79 "
+            "03 10 53 03 00 10 65 00 10 83 06 10 5E 03 "
+            "86 00 A0 8E 00 7D C1 01 F0 F0 F2 40 C2 F0 F4 00 00 00 04 "
+            "0B 10 8B 9F 00 21 00 10 8A 02 01 00 00 04 "
+            "04 10 A0 07 10 AB 03 F0 F0 F2 02 00 00 04 "
+            "87 00 2C 04 10 BC 06 10 3E F5 00 00 00 05 "
+            "97 00 28 00 10 CA 03 10 53 05 97 00 21 00 10 D4 "
+            "06 10 5E 05 97 00 32 8E 00 D2 "
+            "E4 01 F0 F0 F2 C4 E2 F0 F1 00 00 00 06 "
+            "0B 10 DC 9F 00 2E 00 10 DB 02 01 00 00 06 "
+            "04 10 F1 07 10 FC 03 F0 F0 F2 02 00 00 06"
+        )
+        data = bytearray(0x1800)
+        data[0x1000 : 0x1000 + len(root)] = root
+
+        traversal = decode_data_space_index_root(bytes(data), layout)
         self.assertTrue(traversal.complete)
-        self.assertEqual(traversal.expected_entries, 2)
-        self.assertEqual(traversal.entry_count, 2)
+        self.assertEqual(traversal.expected_entries, 18)
+        self.assertEqual(traversal.entry_count, 18)
         self.assertEqual(
-            [entry.ordinal_hint for entry in traversal.entries],
-            [1, 2],
+            {entry.dkey_index for entry in traversal.entries},
+            {0, 1, 2},
+        )
+        self.assertEqual(
+            sorted(
+                entry.ordinal_hint
+                for entry in traversal.entries
+                if entry.dkey_index == 1
+            ),
+            [1, 2, 3, 4, 5, 6],
+        )
+        self.assertEqual(
+            {len(entry.user_key) for entry in traversal.entries},
+            {1, 4, 8},
         )
 
     def test_qddsi_multi_dkey_all_empty_is_complete(self):
