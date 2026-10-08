@@ -264,22 +264,37 @@ Or start with the file picker:
 as400-dasd browse
 ```
 
-The upper half of the terminal has three navigation panes:
+The upper half of the terminal keeps the proven three-pane navigation model,
+but the presentation now follows the recovered AS/400 object model more closely:
 
-1. **Libraries / views** — recovered libraries plus `<ALL OBJECTS>` and
+1. **Library / view** — recovered libraries plus `<ALL OBJECTS>` and
    `<ORPHANS / MEMBER-ONLY>`.
-2. **Files / MI object types** — files for a selected library, or grouped MI
-   types in the object view.
-3. **Members / objects** — member cursors for a selected file, or individual
-   objects for a selected MI type.
+2. **File / object type** — files for a selected library or grouped MI object
+   types.
+3. **Member / object** — member cursors, recovered objects, and context-directory
+   entries whose primary object is missing.
 
-The lower pane displays the selected content. Standard source members are shown
-as source lines. Other QDDS members show the recovered field layout plus decoded
-records; when all decoded fields are blank, the browser now includes raw EBCDIC
-and hexadecimal bytes instead of leaving an apparently empty RRN line. The
-leading per-entry byte is labeled **DENT** (Data Space Entry Status) rather than
-generic "status"; IBM documents valid/deleted/cross-segment state in that byte,
-while the bit assignments remain intentionally undecoded.
+A breadcrumb immediately below the title keeps the complete navigation path
+visible, for example `marks.hda > QGPL > QCLSRC > REFRESH2`.
+Directory-only context terminals are now grouped beside recovered objects by MI
+type rather than hidden in a separate catch-all bucket; they remain explicitly
+marked `[dir]`.
+
+The lower pane is a purpose-specific inspector with six views:
+**Summary, Data, Keys, Storage, Evidence, and Raw**. Summary emphasizes what the
+selected AS/400 object is; Data shows source/database or decoded document
+content; Keys isolates QDDSI/context-index evidence; Storage shows QDDS/QDDSI
+and recovered segment groups; Evidence keeps EPA/context provenance and
+incomplete-media reasoning separate from normal browsing; Raw retains bounded
+hex/EBCDIC forensic access.
+
+Standard source members are shown as source lines in the Data view. Other QDDS
+members show the recovered field layout plus decoded records; when all decoded
+fields are blank, the browser includes raw EBCDIC and hexadecimal bytes instead
+of leaving an apparently empty RRN line. The leading per-entry byte is labeled
+**DENT** (Data Space Entry Status) rather than generic "status"; IBM documents
+valid/deleted/cross-segment state in that byte, while the remaining bit
+assignments stay intentionally conservative.
 
 Program objects (`*PGM`) now get a forensic program view: recovered owned
 segments, printable EBCDIC strings from the primary-segment prefix, and a
@@ -295,18 +310,15 @@ Other object types without a specialized decoder get a smaller hex/EBCDIC
 raw-object prefix so they are still inspectable instead of producing metadata
 only. Format objects show their recovered field descriptions.
 
-Three contextual information rows above the normal status line explain the
-current selection in **each** navigation pane independently: library/view,
-file/object type, and member/object. Selecting the first file or member
-automatically therefore no longer hides the meaning of its parent library.
-The row corresponding to the focused pane is emphasized. The full lower
-**Content / details** pane also follows the focused hierarchy level: focus the
-left pane to see the selected library's role and recovery summary, the middle
-pane for file/object-type details, or the right pane for the selected
-member/object. Focusing the lower content pane retains the deepest selected
-item. Library descriptions
-are loaded from the editable `as400_libraries.json` catalog rather than being
-hard coded in the TUI. The catalog is seeded with every library currently recovered in
+The breadcrumb plus three navigation panes keep parent context visible even
+when a child item is automatically selected. The inspector follows the focused
+hierarchy level: focus the left pane for the selected library, the middle pane
+for a file/object type, or the right pane for the selected member/object.
+Focusing the inspector retains the deepest selected item. Inspector views can
+be changed with `[`/`]` or directly with keys `1` through `6`.
+
+Library descriptions are loaded from the editable `as400_libraries.json`
+catalog rather than being hard coded in the TUI. The catalog is seeded with every library currently recovered in
 the Mark-P02 file/member inventory, plus several common system libraries such as
 QDOC, QUSRSYS, QHLPSYS, and QTEMP. Descriptions are researched from period IBM
 documentation where possible. Each catalog entry also carries a functional
@@ -354,10 +366,12 @@ Keys:
 
 ```text
 ← / → / Tab     change pane
-↑ / ↓           move selection or scroll content
-PgUp / PgDn     page through lists/content
-Home / End      first/last item or top/bottom of content
-Enter           drill into the next pane
+↑ / ↓           move selection or scroll inspector content
+PgUp / PgDn     page through lists/inspector content
+Home / End      first/last item or top/bottom of inspector content
+Enter           drill into the next pane / inspector
+[ / ]           previous / next inspector view
+1 .. 6          Summary / Data / Keys / Storage / Evidence / Raw
 /               search names across recovered objects/members
 e               export selected QDOC document / *DOCBSS workstation bytes
 o               open another DASD image
