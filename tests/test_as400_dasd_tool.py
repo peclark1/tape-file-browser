@@ -5,7 +5,11 @@ from types import SimpleNamespace
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from as400_dasd import PAGE_SIZE
+from as400_dasd import (
+    CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+    CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
+    PAGE_SIZE,
+)
 from as400_dasd_tool import (
     _DLO_MODEL_FILES,
     _DLO_RUNTIME_INDEX_FILES,
@@ -239,8 +243,24 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("backpointer information", text)
         self.assertIn("current tree", text)
         self.assertIn("pointer to next free page", text)
-        self.assertIn("field widths/byte offsets", text)
-        self.assertIn("does not decode this header yet", text)
+        self.assertIn("1,024-byte logical pages", text)
+        self.assertIn("six raw backpointer bytes", text)
+        self.assertIn("middle backpointer word remain unresolved", text)
+
+    def test_context_page_defaults_use_validated_context_layout(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            ["context-page", "disk.hda", "QGPL", "0"]
+        )
+        self.assertEqual(
+            args.page_size,
+            CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+        )
+        self.assertEqual(
+            args.origin,
+            CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
+        )
+        self.assertEqual(args.offset, 0)
 
     def test_object_owned_segments_and_cross_segment_pattern_search(self):
         owner_key = (1, 0x1000)
