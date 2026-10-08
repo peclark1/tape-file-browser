@@ -414,6 +414,16 @@ to this CISC release.
       a library or file shows its own view even when a child is automatically
       selected; separate human-facing summary/data from storage/evidence/raw
       forensic views.
+- [ ] Add an in-TUI help/guide page (for example `?` or `h`) that explains
+      the screen layout, navigation panes, breadcrumb, inspector views, and
+      context-sensitive keys without requiring the README.
+- [ ] Include a concise terminology glossary in TUI help for recovery-specific
+      concepts such as recovered primary/object, directory-only `[dir]`,
+      context-index-only `[ctx]`, evidence conflict `!`, QDDS/QDDSI, DENT,
+      member cursor, context/library, keyed versus arrival/RRN order, and raw
+      forensic views. Keep definitions evidence-aware so "recovered" means
+      what the browser actually proved or reconstructed rather than implying
+      the entire original object necessarily survives.
 - [x] Add validated `*DOCBSS` workstation-file export to the TUI with
       explicit destination prompting and overwrite confirmation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
