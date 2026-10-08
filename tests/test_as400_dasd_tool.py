@@ -26,6 +26,7 @@ from as400_dasd_tool import (
     _qddsi_key_field_labels,
     _scan_ebcdic_sysobjnam,
     _tui_context_lines,
+    _tui_context_traversal,
     _tui_file_context,
     _find_pattern_offsets,
     _find_pattern_segment_locations,
@@ -144,6 +145,36 @@ class DASDToolTests(unittest.TestCase):
         unknown = _data_space_status_note(0x40)
         self.assertIn("raw", unknown.lower())
         self.assertIn("not yet decoded", unknown)
+
+    def test_tui_context_traversal_is_cached_per_library(self):
+        expected = SimpleNamespace(
+            complete=True,
+            page_count=2,
+            page_pointers=(),
+            page_headers=(),
+            unresolved_page_pointers=(),
+        )
+
+        class FakeImage:
+            def __init__(self):
+                self.calls = 0
+
+            def read_context_machine_index(self, context):
+                self.calls += 1
+                return expected
+
+        image = FakeImage()
+        state = {
+            "image": image,
+            "inventory": SimpleNamespace(
+                libraries=[SimpleNamespace(name="QTEST")]
+            ),
+        }
+        first = _tui_context_traversal(state, "qtest")
+        second = _tui_context_traversal(state, "QTEST")
+        self.assertIs(first, expected)
+        self.assertIs(second, expected)
+        self.assertEqual(image.calls, 1)
 
     def test_tui_context_describes_known_as400_roles(self):
         qdoc = _tui_library_context("QDOC")
