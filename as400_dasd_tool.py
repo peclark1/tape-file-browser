@@ -3916,6 +3916,163 @@ def _tui_draw_list(
     return start
 
 
+def _tui_inspector_selection_key(state):
+    """Stable key for the hierarchy item currently owning the inspector."""
+
+    target = _tui_viewer_target(state)
+    if target == "right":
+        item = _tui_selected(state, "right")
+        if item is None:
+            return ("right", None)
+        if item["kind"] in ("member", "object"):
+            obj = item["object"]
+            return (
+                "right",
+                item["kind"],
+                obj.segment.virtual_address,
+            )
+        if item["kind"] == "context-entry":
+            entry = item["entry"]
+            address = (
+                entry.object_address.address
+                if entry.object_address is not None
+                else -1
+            )
+            return (
+                "right",
+                "context-entry",
+                entry.library_name,
+                address,
+                entry.terminal_element_offset,
+            )
+        return ("right", item.get("kind"), item.get("label"))
+
+    if target == "mid":
+        item = _tui_selected(state, "mid")
+        if item is None:
+            return ("mid", None)
+        return (
+            "mid",
+            item.get("kind"),
+            item.get("library"),
+            item.get("name"),
+            item.get("type"),
+            item.get("subtype"),
+        )
+
+    item = _tui_selected(state, "left")
+    if item is None:
+        return ("left", None)
+    return (
+        "left",
+        item.get("kind"),
+        item.get("library"),
+        item.get("label"),
+    )
+
+
+def _tui_inspector_availability(state):
+    """Return meaningful-data availability for each inspector view."""
+
+    key = _tui_inspector_selection_key(state)
+    cache = state.setdefault("inspector_availability_cache", {})
+    if key in cache:
+        return cache[key]
+
+    available = {name: False for name in _TUI_INSPECTOR_TABS}
+    available["Summary"] = True
+    target = _tui_viewer_target(state)
+
+    if target == "right":
+        item = _tui_selected(state, "right")
+        if item is not None:
+            if item["kind"] == "member":
+                # One decode gives us a conservative capability map that
+                # mirrors what the Data/Keys views can actually display.
+                try:
+                    detail = _tui_member_lines(state, item)
+                except Exception:
+                    detail = []
+                available["Data"] = any(
+                    line.strip().startswith(("Source records:", "Database records"))
+                    for line in detail
+                )
+                available["Keys"] = any(
+                    line.strip() == "Recovered keyed access path"
+                    for line in detail
+                )
+                available["Storage"] = any(
+                    line.strip() == "Recovered storage"
+                    for line in detail
+                )
+                available["Evidence"] = True
+                available["Raw"] = True
+            elif item["kind"] == "object":
+                obj = item["object"]
+                try:
+                    detail = _tui_object_lines(state, obj)
+                except Exception:
+                    detail = []
+                available["Data"] = any(
+                    line.strip().startswith(("QDLS anchor metadata", "DLO export:"))
+                    for line in detail
+                )
+                available["Storage"] = True
+                available["Evidence"] = True
+                available["Raw"] = True
+            elif item["kind"] == "context-entry":
+                entry = item["entry"]
+                available["Storage"] = bool(entry.owned_segment_count)
+                available["Evidence"] = True
+                available["Raw"] = True
+
+    elif target == "left":
+        item = _tui_selected(state, "left")
+        if item is not None and item["kind"] == "library":
+            available["Evidence"] = True
+            available["Storage"] = item.get("object") is not None
+            available["Raw"] = item.get("object") is not None
+            try:
+                available["Keys"] = (
+                    _tui_context_traversal(state, item["library"]) is not None
+                )
+            except Exception:
+                available["Keys"] = False
+
+    cache[key] = available
+    return available
+
+
+def _tui_preferred_inspector_tab(state):
+    """Choose the most useful view for the current logical selection."""
+
+    available = _tui_inspector_availability(state)
+    target = _tui_viewer_target(state)
+    if target == "right":
+        item = _tui_selected(state, "right")
+        if item is not None:
+            if item["kind"] == "member" and available["Data"]:
+                return "Data"
+            if item["kind"] == "context-entry" and available["Evidence"]:
+                return "Evidence"
+            if item["kind"] == "object" and available["Data"]:
+                return "Data"
+
+    for name in ("Summary", "Data", "Evidence", "Storage", "Keys", "Raw"):
+        if available.get(name):
+            return name
+    return "Summary"
+
+
+def _tui_apply_default_inspector(state):
+    """Apply a context-sensitive default after the logical selection changes."""
+
+    preferred = _tui_preferred_inspector_tab(state)
+    state["inspector_tab"] = _TUI_INSPECTOR_TABS.index(preferred)
+    state["viewer_scroll"] = 0
+    return preferred
+
+
 def _tui_draw_inspector_tabs(screen, y, width, state, focused):
     """Draw compact inspector tabs and return the rendered text width."""
 
@@ -3923,11 +4080,19 @@ def _tui_draw_inspector_tabs(screen, y, width, state, focused):
 
     x = 0
     active = _tui_inspector_tab(state)
+    availability = _tui_inspector_availability(state)
     for index, name in enumerate(_TUI_INSPECTOR_TABS):
         label = f" {index + 1}:{name} "
-        attr = curses.A_BOLD if name == active else curses.A_DIM
+        if name == active:
+            # Selection stays unmistakable even while keyboard focus remains
+            # in one of the navigation panes.
+            attr = curses.A_BOLD | curses.A_REVERSE
+        elif availability.get(name, False):
+            attr = curses.A_NORMAL
+        else:
+            attr = curses.A_DIM
         if focused and name == active:
-            attr |= curses.A_REVERSE
+            attr |= curses.A_UNDERLINE
         if x + len(label) >= width:
             break
         _tui_safe_addstr(screen, y, x, label, attr)
@@ -4197,6 +4362,7 @@ def _tui_build_state(stdscr, path):
         "focus": 0,
         "viewer_scroll": 0,
         "inspector_tab": 0,
+        "inspector_availability_cache": {},
         "viewer_cache": {},
         "left_items": [],
         "mid_items": [],
