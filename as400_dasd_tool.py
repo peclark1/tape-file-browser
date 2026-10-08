@@ -2471,13 +2471,30 @@ def cmd_dlo_parent_gaps(args):
         )
 
     gaps = _qaosss14_unresolved_parent_records(records)
+    deleted_with_parent = tuple(
+        record
+        for record in records
+        if (
+            getattr(record, "is_deleted_hint", False)
+            and record.parent_key != b"\x00" * 8
+        )
+    )
     print(f"Disk:       {image.path}")
     print(
         f"QAOSSS14:  {member.library_name or '<unresolved>'}/"
         f"{member.member_file_name}({member.member_name})"
     )
     print(f"Records:    {len(records):,}")
-    print(f"Parent gaps:{len(gaps):,}")
+    print(f"Live parent gaps: {len(gaps):,}")
+    print(f"Deleted records with parent keys: {len(deleted_with_parent):,}")
+    if deleted_with_parent:
+        print(
+            "  "
+            + ", ".join(
+                f"RRN {record.rrn:,} ({record.short_name or '-'})"
+                for record in deleted_with_parent[:12]
+            )
+        )
     print()
 
     object_by_owner = {}
@@ -2566,9 +2583,14 @@ def cmd_dlo_parent_gaps(args):
 
     if not gaps:
         print(
-            "Every nonzero QAOSSS14 parent key resolves uniquely through "
-            "another record's leading key."
+            "Every live nonzero QAOSSS14 parent key resolves uniquely through "
+            "another live record's leading key."
         )
+        if deleted_with_parent:
+            print(
+                "Deleted DENT 0xC0 records are retained as forensic evidence "
+                "but are not reported as live hierarchy gaps."
+            )
     elif not args.raw_scan:
         print(
             "Use --raw-scan to locate each unresolved 8-byte parent key "
