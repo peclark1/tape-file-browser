@@ -105,10 +105,15 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       backpointer information, and current tree; free pages carry page type,
       free-chain count, and next-free-page pointer. Expose this context in
       `context-page` without guessing field widths or byte offsets.
-- [ ] Establish the exact release-2 page-header field widths/byte offsets and
-      trunk placement from an authoritative data-area/layout source (ideally
-      `SY21-0892`) or independent real-image corroboration before automatic
-      header decoding.
+- [x] Establish the first eight bytes of the in-use release-2 page header by
+      independent real-image corroboration: +0x00 root node (3 bytes), +0x03
+      page type (1), +0x04 free-byte value (2), +0x06 first-free low address
+      (2). Across both images 51 context roots are type 0xCC and all 815
+      pointer-target pages are type 0x55. The backend now exposes this prefix
+      conservatively as `MachineIndexPageHeader`.
+- [ ] Establish the exact widths/semantics of the subsequent documented
+      backpointer information and current-tree/page-management area, ideally
+      from `SY21-0892` or an equivalent authoritative data-area source.
 - [x] Add `context-xref`, a read-only diagnostic that correlates objects already
       assigned through EPA back-pointers with the documented logical context
       entry form `T S NL N @` and reports raw address/name-entry occurrences
