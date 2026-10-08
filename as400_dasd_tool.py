@@ -4679,6 +4679,7 @@ def _tui_library_items(state, library_name):
         result.append(
             {
                 "kind": "library-object-type",
+                "library": library_name,
                 "type": key[0],
                 "subtype": key[1],
                 "objects": objects,
