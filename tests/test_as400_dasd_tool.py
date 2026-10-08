@@ -31,6 +31,7 @@ from as400_dasd_tool import (
     _tui_cycle_inspector_tab,
     _tui_inspector_tab,
     _tui_file_context,
+    _tui_group_right_items,
     _find_pattern_offsets,
     _find_pattern_segment_locations,
     _key_tail_location_map,
@@ -697,6 +698,49 @@ class DASDToolTests(unittest.TestCase):
         self.assertEqual(state["viewer_scroll"], 0)
         self.assertEqual(_tui_cycle_inspector_tab(state, -1), "Summary")
         self.assertEqual(_tui_cycle_inspector_tab(state, -1), "Raw")
+
+    def test_tui_group_right_items_sorts_identity_before_recovery_state(self):
+        def recovered(name, address):
+            return SimpleNamespace(
+                library_name="QGPL",
+                name=name,
+                external_type_hint="*TEST",
+                type_code="19/00",
+                epa_library_name="QGPL",
+                context_library_names=("QGPL",),
+                segment=SimpleNamespace(virtual_address=address),
+            )
+
+        def directory(name, address):
+            return SimpleNamespace(
+                library_name="QGPL",
+                display_name_hint=name,
+                type_code="19/00",
+                owned_segment_count=0,
+                object_address=SimpleNamespace(address=address),
+            )
+
+        items = _tui_group_right_items(
+            {
+                "objects": (
+                    recovered("BETA", 0x3000),
+                    recovered("ALPHA", 0x1000),
+                ),
+                "entries": (
+                    directory("ALPHA", 0x2000),
+                    directory("GAMMA", 0x4000),
+                ),
+            }
+        )
+        self.assertEqual(
+            [item["kind"] for item in items],
+            ["object", "context-entry", "object", "context-entry"],
+        )
+        self.assertIn("/ALPHA", items[0]["label"])
+        self.assertIn("/ALPHA", items[1]["label"])
+        self.assertIn("[dir]", items[1]["label"])
+        self.assertIn("/BETA", items[2]["label"])
+        self.assertIn("/GAMMA", items[3]["label"])
 
     def test_tui_library_groups_directory_only_entries_by_type(self):
         recovered = SimpleNamespace(
