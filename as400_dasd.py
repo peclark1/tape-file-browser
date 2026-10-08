@@ -916,6 +916,59 @@ class DataSpaceIndexKeySpec:
     def appended_key_bytes(self) -> int:
         return max(0, self.machine_key_length - self.user_key_length)
 
+    def split_machine_key(
+        self,
+        machine_key: bytes,
+    ) -> tuple[bytes, bytes] | None:
+        """Separate recovered user-key bytes from the four-byte DB reference.
+
+        Ordinary one-data-space indexes store user-key bytes followed directly
+        by the documented database-relative address. Multi-DKEY indexes can
+        interleave additional one-byte ordering controls between DKYT fields.
+        IBM documents fork-character rows for exactly that purpose.
+
+        Real V2R3 indexes show those non-field rows as zero-length,
+        zero-location DKYT rows. Consume one machine-key byte for each such row
+        while concatenating only the actual field bytes into the user key.
+        """
+
+        if len(machine_key) != self.machine_key_length:
+            return None
+        if self.machine_key_length < 4:
+            return None
+
+        database_reference = machine_key[-4:]
+        key_body = machine_key[:-4]
+
+        if len(key_body) == self.user_key_length:
+            return key_body, database_reference
+
+        cursor = 0
+        user_key = bytearray()
+        for field in self.fields:
+            if field.location > 0 and field.length_or_fork > 0:
+                end = cursor + field.length_or_fork
+                if end > len(key_body):
+                    return None
+                user_key.extend(key_body[cursor:end])
+                cursor = end
+                continue
+
+            if field.location == 0 and field.length_or_fork == 0:
+                # Observed non-field DKYT row. IBM documents that DKYT may
+                # contain fork-character rows; consume its one ordering byte
+                # without assigning any still-unknown attribute bits.
+                if cursor >= len(key_body):
+                    return None
+                cursor += 1
+                continue
+
+            return None
+
+        if cursor != len(key_body) or len(user_key) != self.user_key_length:
+            return None
+        return bytes(user_key), database_reference
+
 
 @dataclass(frozen=True)
 class DataSpaceIndexLayout:
@@ -1907,20 +1960,37 @@ class DataSpaceIndexEntry:
     user_key: bytes
     database_reference: bytes
     terminal_element_offset: int
+    dkey_index: int = 0
 
     @property
-    def ordinal_hint(self) -> int | None:
-        """Observed RRN/ordinal value for ordinary four-byte DB references.
+    def data_space_number_hint(self) -> int | None:
+        """Observed adjusted data-space number in an ordinary DB reference.
 
-        IBM documents a machine-supplied database-relative-address suffix.
-        In the ordinary one-data-space indexes validated so far, a four-byte
-        suffix resolves directly to the QDDS ordinal/RRN. Keep this explicitly
-        as a hint until every flag/data-space-number variant is decoded.
+        IBM documents an adjusted data-space number followed by an encoded
+        ordinal in the database-relative address. Across the ordinary V2R3
+        indexes validated so far, byte zero of the four-byte suffix equals the
+        zero-based DKEY row number.
         """
 
         if len(self.database_reference) != 4:
             return None
-        return int.from_bytes(self.database_reference, "big")
+        return self.database_reference[0]
+
+    @property
+    def ordinal_hint(self) -> int | None:
+        """Observed QDDS ordinal/RRN from an ordinary four-byte DB reference.
+
+        The ordinary V2R3 form validated against more than 100,000 recovered
+        index entries uses byte zero for the DKEY/data-space number and the
+        final three bytes for the ordinal. Keep this as a hint because IBM also
+        documents ordering/internal-flag variants that are not all decoded.
+        """
+
+        if len(self.database_reference) != 4:
+            return None
+        if self.data_space_number_hint != self.dkey_index:
+            return None
+        return int.from_bytes(self.database_reference[1:], "big")
 
 
 @dataclass(frozen=True)
@@ -1984,7 +2054,9 @@ def decode_data_space_index_root(
             complete=True,
         )
     active_specs = tuple(
-        spec for spec in layout.keys if spec.key_count > 0
+        (index, spec)
+        for index, spec in enumerate(layout.keys)
+        if spec.key_count > 0
     )
     if not active_specs:
         return DataSpaceIndexTraversal(
@@ -1997,24 +2069,16 @@ def decode_data_space_index_root(
             first_free_offset=None,
             complete=True,
         )
-    key_shapes = {
-        (spec.user_key_length, spec.machine_key_length)
-        for spec in active_specs
-    }
-    if len(key_shapes) != 1:
-        raise ValueError(
-            "QDDSI traversal does not yet support populated DKEY rows "
-            "with different key lengths"
-        )
 
-    # A QDDSI can carry multiple DKEY rows. Real V2R3 examples show that when
-    # all populated rows use the same user/machine key lengths, one machine
-    # index contains the sum of their reported key counts. Zero-count rows are
-    # retained in the decoded layout but do not contribute expected entries.
-    spec = active_specs[0]
-    expected_entries = sum(item.key_count for item in active_specs)
-    if spec.user_key_length > spec.machine_key_length:
-        raise ValueError("QDDSI user key is longer than machine key")
+    # IBM permits one index to cover multiple data spaces with different key
+    # lengths. Real V2R3 machine keys identify the zero-based DKEY row in byte
+    # zero of the ordinary four-byte database-relative address, so terminal
+    # keys can be matched to their own DKEY shape instead of forcing one global
+    # key length.
+    expected_entries = sum(spec.key_count for _, spec in active_specs)
+    for _, spec in active_specs:
+        if spec.user_key_length > spec.machine_key_length:
+            raise ValueError("QDDSI user key is longer than machine key")
     if len(data) < root_offset + 8:
         raise ValueError("QDDSI segment has no complete root-page header")
 
@@ -2117,22 +2181,50 @@ def decode_data_space_index_root(
             )
             return
         machine_key = prefix + data[text_offset:text_end]
-        if len(machine_key) != spec.machine_key_length:
+        if len(machine_key) < 4:
             mark_incomplete(
-                "terminal key at "
-                f"0x{element_offset:04X} has {len(machine_key)} bytes; "
-                f"expected {spec.machine_key_length}"
+                f"terminal key at 0x{element_offset:04X} is shorter than "
+                "the ordinary four-byte database reference"
             )
             return
+
+        dkey_index = machine_key[-4]
+        if dkey_index >= len(layout.keys):
+            mark_incomplete(
+                "terminal key at "
+                f"0x{element_offset:04X} names DKEY row {dkey_index}, "
+                f"but only {len(layout.keys)} row(s) are decoded"
+            )
+            return
+        spec = layout.keys[dkey_index]
+        if spec.key_count <= 0 or len(machine_key) != spec.machine_key_length:
+            mark_incomplete(
+                "terminal key at "
+                f"0x{element_offset:04X} has {len(machine_key)} bytes for "
+                f"DKEY {dkey_index}; expected {spec.machine_key_length}"
+            )
+            return
+
+        split = spec.split_machine_key(machine_key)
+        if split is None:
+            mark_incomplete(
+                "terminal key at "
+                f"0x{element_offset:04X} does not match DKEY {dkey_index} "
+                "field/fork structure"
+            )
+            return
+        user_key, database_reference = split
+
         if machine_key in emitted_keys:
             return
         emitted_keys.add(machine_key)
         entries.append(
             DataSpaceIndexEntry(
                 machine_key=machine_key,
-                user_key=machine_key[: spec.user_key_length],
-                database_reference=machine_key[spec.user_key_length :],
+                user_key=user_key,
+                database_reference=database_reference,
                 terminal_element_offset=element_offset,
+                dkey_index=dkey_index,
             )
         )
 
@@ -2322,6 +2414,14 @@ def decode_data_space_index_root(
             f"recovered {len(entries)} machine-index key(s); "
             f"populated DKEY rows report {expected_entries}"
         )
+
+    entries_by_dkey = Counter(entry.dkey_index for entry in entries)
+    for dkey_index, spec in active_specs:
+        if entries_by_dkey[dkey_index] != spec.key_count:
+            mark_incomplete(
+                f"DKEY {dkey_index} recovered {entries_by_dkey[dkey_index]} "
+                f"key(s); row reports {spec.key_count}"
+            )
 
     return DataSpaceIndexTraversal(
         entries=tuple(entries),
