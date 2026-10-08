@@ -384,6 +384,12 @@ to this CISC release.
 - [x] Promote directory-only context terminals into normal per-library MI-type
       groups beside recovered objects while retaining explicit `[dir]`
       provenance markers and context-only/conflict evidence.
+- [ ] Make navigation-list ordering identity-first rather than recovery-state-first:
+      sort mixed file/member/object/directory entries by logical AS/400 name,
+      use recovery state only as a secondary tie-breaker, and remove plain
+      "recovered" as if it were a completeness grade. Reserve compact markers
+      for exceptional states such as `[dir]`, `[ctx]`, member-only/partial,
+      and evidence conflict `!`.
 - [x] Add forensic `*PGM` browsing with owned-segment summary, printable
       strings, and a bounded hex/EBCDIC primary-segment preview.
 - [x] Add a generic bounded raw-object fallback for object classes without a
