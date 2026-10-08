@@ -56,8 +56,22 @@ the same documentation-first method before naming on-disk fields; see
       QAQAATPY 99/99, QAEBAUDL 584/584, and QADBXDIC 2615/2615 keys,
       with each recovered four-byte ordinal set forming exactly `1..N`.
       Nonzero segment-table-index pointers remain deliberately unresolved.
-- [ ] Surface documented access-path/key context and recovered keyed-order
-      evidence in the TUI while retaining a raw fallback for undecoded indexes.
+- [x] Surface documented access-path/key context and recovered keyed-order
+      evidence in the CLI/TUI while retaining arrival/RRN order and raw/partial
+      diagnostics for undecoded indexes.
+- [x] Join DKYT field locations/lengths to friendly recovered 19/51 field
+      names when the match is exact; retain raw field evidence otherwise.
+- [x] Follow the observed QDDSI active-root pointer instead of assuming a
+      fixed +0x1000 root. On Mark's V2R3 image the 110 non-empty indexes use
+      +0x1000 (102), +0x1800 (7), and +0x2800 (1).
+- [x] Decode mixed-key-shape multi-DKEY indexes by matching the ordinary
+      four-byte database-relative address back to its zero-based DKEY row and
+      reconstructing user-key bytes around documented fork/control rows.
+- [ ] Decode the eight remaining long/compressed-key QDDSI variants
+      (QAOKLAKA, QAOKLDKA, QAOKL10A, QAOKS01A, QAOKS02A,
+      QAOKS03A, QAOKS04A, and QAOKS05A) before treating keyed traversal as
+      universal. Their tree entry counts are recovered, but complete machine
+      keys are represented indirectly/compressed.
 
 ### Permanent-context directory reconstruction — parked checkpoint
 
@@ -248,8 +262,8 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Traverse ordinary QDDSI machine-index roots and same-segment secondary
       pages in keyed order; preserve nonzero segment-table-index pointers as
       unresolved evidence rather than guessing their target segment.
-- [ ] Join DKYT key fields to friendly recovered 19/51 format-field names in
-      CLI/TUI presentation.
+- [x] Join DKYT key fields to friendly recovered 19/51 format-field names in
+      CLI/TUI presentation when offset/length matches are exact.
 
 ## Storage-directory / recovery internals
 
