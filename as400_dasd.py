@@ -506,6 +506,8 @@ class RecoveredObject:
     segment: RecoveredSegment
     epa: EPAHeader
     library_name: str | None = None
+    epa_library_name: str | None = None
+    context_library_names: tuple[str, ...] = ()
 
     @property
     def name(self) -> str:
@@ -612,10 +614,86 @@ class RecoveredObject:
         )
 
 
+@dataclass(frozen=True)
+class ContextDirectoryEntry:
+    """One reconstructed terminal reference from a permanent *LIB context.
+
+    The terminal bytes are the physical release-2 machine-index representation,
+    not the documented expanded T+S+NL+N+@ form. object_address and name_raw_hint
+    are therefore explicitly observed/reconstructed hints. The address form has
+    been validated against tens of thousands of real recovered primaries; the
+    name decoder is limited to the ordinary simple-name and 0D/50 member-key
+    encodings that can be round-tripped against recovered EPA names.
+    """
+
+    library_name: str
+    context_address: InternalAddress
+    raw: bytes
+    object_type: int | None
+    object_subtype: int | None
+    object_address: InternalAddress | None
+    name_raw_hint: bytes | None
+    terminal_element_offset: int
+    owned_segment_count: int = 0
+
+    @property
+    def type_code(self) -> str:
+        if self.object_type is None or self.object_subtype is None:
+            return "??/??"
+        return f"{self.object_type:02X}/{self.object_subtype:02X}"
+
+    @property
+    def name_hint(self) -> str:
+        if self.name_raw_hint is None:
+            return ""
+        return (
+            self.name_raw_hint.decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def is_member_cursor(self) -> bool:
+        return (
+            self.object_type == 0x0D
+            and self.object_subtype == 0x50
+            and self.name_raw_hint is not None
+        )
+
+    @property
+    def member_file_name_hint(self) -> str:
+        if not self.is_member_cursor:
+            return ""
+        return (
+            self.name_raw_hint[:10]
+            .decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def member_name_hint(self) -> str:
+        if not self.is_member_cursor:
+            return ""
+        return (
+            self.name_raw_hint[10:20]
+            .decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def display_name_hint(self) -> str:
+        if self.is_member_cursor:
+            file_name = self.member_file_name_hint or "?"
+            member_name = self.member_name_hint or "?"
+            return f"{file_name}({member_name})"
+        return self.name_hint
+
+
 @dataclass
 class ObjectInventory:
     objects: list[RecoveredObject]
     contexts_by_key: dict[tuple[int, int], RecoveredObject]
+    context_entries: tuple[ContextDirectoryEntry, ...] = ()
+    context_warnings: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def libraries(self) -> list[RecoveredObject]:
@@ -632,6 +710,49 @@ class ObjectInventory:
     @property
     def assigned_objects(self) -> list[RecoveredObject]:
         return [obj for obj in self.objects if obj.library_name is not None]
+
+    def context_entries_for_library(
+        self,
+        name: str,
+    ) -> list[ContextDirectoryEntry]:
+        wanted = name.upper()
+        return [
+            entry
+            for entry in self.context_entries
+            if entry.library_name.upper() == wanted
+        ]
+
+    def resolve_context_entry(
+        self,
+        entry: ContextDirectoryEntry,
+    ) -> RecoveredObject | None:
+        if entry.object_address is None:
+            return None
+        for obj in self.objects:
+            if obj.object_address.key != entry.object_address.key:
+                continue
+            if (
+                entry.object_type is not None
+                and entry.object_subtype is not None
+                and (obj.object_type, obj.object_subtype)
+                != (entry.object_type, entry.object_subtype)
+            ):
+                continue
+            return obj
+        return None
+
+    def unresolved_context_entries(
+        self,
+        library: str | None = None,
+    ) -> list[ContextDirectoryEntry]:
+        wanted = library.upper() if library else None
+        result = []
+        for entry in self.context_entries:
+            if wanted is not None and entry.library_name.upper() != wanted:
+                continue
+            if self.resolve_context_entry(entry) is None:
+                result.append(entry)
+        return result
 
     def in_library(self, name: str) -> list[RecoveredObject]:
         wanted = name.upper()
