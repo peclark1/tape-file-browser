@@ -23,6 +23,7 @@ from as400_dasd import (
     HeaderSnapshot,
     InternalAddress,
     MachineIndexElement,
+    MachineIndexPageHeader,
     MemberStoragePointers,
     RecoveredObject,
     RecoveredSegment,
@@ -575,6 +576,21 @@ class DASDHeaderTests(unittest.TestCase):
                 inventory.unresolved_context_entries("QTEST")
             )
 
+    def test_machine_index_page_header_prefix(self):
+        data = bytes.fromhex(
+            "93 00 08 CC 00 23 0B DD"
+        )
+        header = MachineIndexPageHeader.from_bytes(data)
+        self.assertEqual(header.page_type, 0xCC)
+        self.assertEqual(header.free_bytes, 0x0023)
+        self.assertEqual(header.first_free_low16, 0x0BDD)
+        self.assertEqual(header.first_free_offset(), 0x0BDD)
+
+        with self.assertRaisesRegex(ValueError, "begin with a node"):
+            MachineIndexPageHeader.from_bytes(
+                bytes.fromhex("01 00 00 CC 00 00 00 00")
+            )
+
     def test_context_machine_index_single_terminal(self):
         data = bytearray(0x1000)
         # Synthetic one-entry release-2 tree rooted at the independently
@@ -597,6 +613,9 @@ class DASDHeaderTests(unittest.TestCase):
         traversal = decode_context_machine_index(bytes(data))
         self.assertTrue(traversal.complete)
         self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(len(traversal.page_headers), 1)
+        self.assertEqual(traversal.page_headers[0].offset, 0x800)
+        self.assertEqual(traversal.page_headers[0].page_type, 0xCC)
         entry = traversal.entries[0]
         self.assertEqual(entry.object_type, 0x19)
         self.assertEqual(entry.object_subtype, 0x01)
@@ -636,6 +655,10 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertTrue(traversal.complete)
         self.assertEqual(traversal.page_offsets, (0x800, 0xC00))
         self.assertEqual(traversal.page_count, 2)
+        self.assertEqual(
+            [header.page_type for header in traversal.page_headers],
+            [0xCC, 0x55],
+        )
         self.assertEqual(len(traversal.page_pointers), 1)
         self.assertTrue(traversal.page_pointers[0].followed)
         self.assertEqual(
