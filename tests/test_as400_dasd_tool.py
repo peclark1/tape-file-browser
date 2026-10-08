@@ -30,8 +30,11 @@ from as400_dasd_tool import (
     _tui_context_traversal,
     _tui_cycle_inspector_tab,
     _tui_inspector_tab,
+    _tui_inspector_availability,
+    _tui_inspector_selection_key,
     _tui_file_context,
     _tui_group_right_items,
+    _tui_help_lines,
     _find_pattern_offsets,
     _find_pattern_segment_locations,
     _key_tail_location_map,
@@ -49,8 +52,10 @@ from as400_dasd_tool import (
     _tui_msgq_profile_link,
     _tui_object_type_context,
     _tui_rebuild_from_mid,
+    _tui_apply_default_inspector,
     _tui_same_name_objects,
     _tui_viewer_target,
+    _tui_viewer_lines,
     build_parser,
     main,
 )
@@ -687,6 +692,80 @@ class DASDToolTests(unittest.TestCase):
             _tui_breadcrumb(state),
             "marks.hda > QGPL > QCLSRC > REFRESH2",
         )
+
+    def test_tui_help_explains_recovery_terms_and_inspector(self):
+        text = "\n".join(_tui_help_lines())
+        self.assertIn("recovered primary/object", text)
+        self.assertIn("[dir]", text)
+        self.assertIn("[ctx]", text)
+        self.assertIn("QDDSI", text)
+        self.assertIn("DENT", text)
+        self.assertIn("Summary / Data / Keys / Storage / Evidence / Raw", text)
+
+    def test_tui_directory_only_defaults_to_evidence_and_dims_data(self):
+        entry = SimpleNamespace(
+            library_name="PPSITEST",
+            display_name_hint="MISSING",
+            object_address=SimpleNamespace(address=0x12340000),
+            terminal_element_offset=0x20,
+            owned_segment_count=0,
+            raw=b"abc",
+        )
+        state = {
+            "focus": 2,
+            "right_items": [{"kind": "context-entry", "entry": entry}],
+            "right_index": 0,
+            "mid_items": [],
+            "mid_index": 0,
+            "left_items": [],
+            "left_index": 0,
+            "viewer_scroll": 11,
+            "inspector_tab": 0,
+            "inspector_availability_cache": {},
+        }
+        availability = _tui_inspector_availability(state)
+        self.assertTrue(availability["Summary"])
+        self.assertTrue(availability["Evidence"])
+        self.assertTrue(availability["Raw"])
+        self.assertFalse(availability["Data"])
+        self.assertFalse(availability["Keys"])
+        self.assertFalse(availability["Storage"])
+
+        self.assertEqual(_tui_apply_default_inspector(state), "Evidence")
+        self.assertEqual(_tui_inspector_tab(state), "Evidence")
+        self.assertEqual(state["viewer_scroll"], 0)
+
+        state["inspector_tab"] = 1
+        lines = _tui_viewer_lines(state)
+        self.assertIn("No meaningful data", "\n".join(lines))
+
+    def test_tui_member_prefers_data_when_capability_is_available(self):
+        member = SimpleNamespace(
+            segment=SimpleNamespace(virtual_address=0x1234),
+        )
+        state = {
+            "focus": 2,
+            "right_items": [{"kind": "member", "object": member}],
+            "right_index": 0,
+            "mid_items": [],
+            "mid_index": 0,
+            "left_items": [],
+            "left_index": 0,
+            "viewer_scroll": 5,
+            "inspector_tab": 0,
+            "inspector_availability_cache": {},
+        }
+        key = _tui_inspector_selection_key(state)
+        state["inspector_availability_cache"][key] = {
+            "Summary": True,
+            "Data": True,
+            "Keys": False,
+            "Storage": True,
+            "Evidence": True,
+            "Raw": True,
+        }
+        self.assertEqual(_tui_apply_default_inspector(state), "Data")
+        self.assertEqual(_tui_inspector_tab(state), "Data")
 
     def test_tui_inspector_tabs_cycle_and_reset_scroll(self):
         state = {
