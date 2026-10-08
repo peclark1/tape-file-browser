@@ -264,11 +264,10 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       points to QAOSSS14 RRN 1870 by its leading record key. RRN 1870's
       anchor short name is `QGFSWOF1`; the independently observed
       user-facing folder name remains `BULLETIN`.
-- [ ] Resolve the three remaining QAOSSS14 records (RRNs 1883-1885) whose
-      nonzero parent key has no matching leading key in the recovered
-      QAOSSS14 record set. A `dlo-parent-gaps --raw-scan` diagnostic now
-      locates those keys elsewhere in the raw image and classifies recovered
-      containing objects for the next evidence pass.
+- [x] Resolve the apparent QAOSSS14 parent gaps at RRNs 1883-1885 as deleted
+      historical rows rather than live hierarchy failures. All three have the
+      validated deleted DENT form 0xC0 and their shared parent key has no live
+      leading-key anchor; deleted rows remain available for forensic display.
 - [ ] Determine the semantics of the remaining WOSFMT14 binary/field values;
       do not expand identifiers such as `WOSEFILD`/`WOSEPLDN` from their
       spelling alone.
@@ -280,8 +279,14 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       duplicate 16-bit payload-length fields at +0x106/+0x112.
 - [x] Add conservative read-only `dlo-export` for `*DOCBSS` objects whose
       duplicated lengths agree and fit the recovered segment/allocation.
-- [ ] Decode the small set of large/extended `*DOCBSS` variants that fail the
-      conservative ordinary-layout checks before treating export as universal.
+- [x] Decode the validated overflow `*DOCBSS` family: when the duplicated
+      payload length exceeds primary capacity, owner-matched contiguous 0F90
+      segment groups continue the stream after their own first 512-byte metadata
+      page. CLI/TUI export now consumes only the continuation bytes required by
+      the declared payload length.
+- [ ] Classify the remaining unusual `*DOCBSS` layouts before treating export
+      as universal; do not concatenate auxiliary 0F90 segments when the declared
+      payload already fits in the primary.
 
 ## Permanent-context directory cross-check
 
