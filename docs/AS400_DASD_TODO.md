@@ -187,9 +187,14 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       subtype. Pete's partial B10 disk yields 141 terminals, 80 direct-primary
       matches, and PPSITEST additionally identifies two missing primaries through
       surviving owned secondary segment groups.
-- [ ] Follow and validate one context machine-index page pointer in a larger
-      context, then generalize traversal beyond the one-segment small-context
-      case without assuming QDDSI page placement.
+- [x] Follow and validate context machine-index page pointers in a larger
+      context. Mark's 56-page QGPL context follows 13 segment-table-index-zero
+      pointers to same-segment child pages and reconstructs exactly 165 terminal
+      entries; all 165 resolve the same recovered objects/type-subtypes as the
+      independent EPA back-pointer direction.
+- [ ] Validate nonzero context segment-table-index pointers, if present in
+      larger contexts, before traversing machine-index pages that reside in
+      additional context-owned segment groups.
 - [ ] Promote validated context-derived references into an independent
       library-membership source in CLI/TUI, preserving EPA back-pointer versus
       context-index provenance and disagreement warnings.
@@ -262,7 +267,11 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Locate the ordinary small-context machine-index root/trunk at +0x800
       by independent cross-image validation; exact generic page-header field
       widths remain unresolved.
-- [ ] Follow machine-index page pointers in larger contexts.
+- [x] Follow same-segment (segment-table-index-zero) machine-index page
+      pointers in larger contexts; QGPL validates 13 pointers and 165/165
+      context-derived object references.
+- [ ] Decode/follow nonzero segment-table-index context page pointers when a
+      real example is isolated.
 - [x] Reconstruct node/common-text/terminal-text paths in ordinary small
       contexts.
 - [x] Traverse ordinary small context -> object compact references.
