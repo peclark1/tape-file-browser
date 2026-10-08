@@ -7011,6 +7011,450 @@ def _tui_full_detail_lines(state):
     return ["No selection."]
 
 
+def _tui_section(lines, start_prefixes, stop_prefixes=()):
+    """Extract one named section from legacy detail lines."""
+
+    start = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if any(stripped.startswith(prefix) for prefix in start_prefixes):
+            start = index
+            break
+    if start is None:
+        return []
+
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if any(stripped.startswith(prefix) for prefix in stop_prefixes):
+            end = index
+            break
+    return lines[start:end]
+
+
+def _tui_object_evidence_lines(obj):
+    epa_library = getattr(obj, "epa_library_name", None)
+    context_libraries = tuple(
+        getattr(obj, "context_library_names", ()) or ()
+    )
+    if epa_library is None and not hasattr(obj, "epa_library_name"):
+        epa_library = obj.library_name
+
+    lines = [
+        "Library membership evidence",
+        f"  EPA back-pointer: {epa_library or '<not resolved>'}",
+        (
+            "  Context index:    "
+            + (
+                ", ".join(context_libraries)
+                if context_libraries
+                else "<not resolved>"
+            )
+        ),
+    ]
+    if epa_library is not None and context_libraries == (epa_library,):
+        lines.append("  Resolution:       both directions agree")
+    elif epa_library is None and len(context_libraries) == 1:
+        lines.append("  Resolution:       context-index-only membership")
+    elif epa_library is not None and not context_libraries:
+        lines.append(
+            "  Resolution:       EPA-only membership; no recovered context terminal matched"
+        )
+    elif (
+        epa_library is not None
+        and context_libraries
+        and epa_library not in context_libraries
+    ):
+        lines.append("  Resolution:       CONFLICT — EPA and context index disagree")
+    elif len(context_libraries) > 1:
+        lines.append(
+            "  Resolution:       ambiguous — multiple context indexes refer to this object"
+        )
+    else:
+        lines.append("  Resolution:       membership unresolved")
+    return lines
+
+
+def _tui_object_storage_lines(state, obj):
+    owned = _tui_owned_segments(state, obj)
+    lines = [
+        f"Object storage: {(obj.library_name or '<orphan>')}/{obj.name}",
+        (
+            f"Primary: type {obj.segment.header.segment_type:04X}  "
+            f"VA {obj.segment.virtual_address:012X}  "
+            f"LBA {obj.segment.start_lba:,}  {obj.segment.pages:,} page(s)"
+        ),
+        f"Owner:   {obj.segment.header.owner}",
+        f"Owned segment groups: {len(owned):,}",
+        "",
+    ]
+    for segment in owned[:64]:
+        role = "primary" if segment.is_primary else "secondary"
+        lines.append(
+            f"  {segment.header.segment_type:04X}  "
+            f"VA {segment.virtual_address:012X}  "
+            f"LBA {segment.start_lba:>9,}  "
+            f"{segment.pages:>6,} pages  {role}"
+        )
+    if len(owned) > 64:
+        lines.append(f"... {len(owned) - 64:,} additional segment group(s)")
+    return lines
+
+
+def _tui_raw_object_lines(state, obj):
+    try:
+        prefix = _tui_segment_prefix(state["image"], obj.segment, limit=1024)
+    except Exception as exc:
+        return ["Raw view unavailable:", str(exc)]
+    return [
+        (
+            f"Raw primary-segment prefix: {(obj.library_name or '<orphan>')}/"
+            f"{obj.name}"
+        ),
+        "Offset    Hex                                              EBCDIC",
+        *_tui_hex_lines(prefix),
+    ]
+
+
+def _tui_member_summary_lines(state, item):
+    member = item["object"]
+    full = _tui_member_lines(state, item)
+    lines = []
+    for line in full:
+        if line == "Recovered storage":
+            break
+        lines.append(line)
+
+    storage = _tui_section(
+        full,
+        ("Recovered storage",),
+        ("Recovered keyed access path", "Source records:", "Database records"),
+    )
+    if storage:
+        lines.extend(["", *storage])
+
+    traversal_line = next(
+        (line for line in full if line.strip().startswith("Traversal:")),
+        None,
+    )
+    source_line = next(
+        (line for line in full if line.strip().startswith("Source records:")),
+        None,
+    )
+    database_index = next(
+        (
+            index
+            for index, line in enumerate(full)
+            if line.strip() == "Database records"
+        ),
+        None,
+    )
+    if traversal_line:
+        lines.extend(["", "Access path", traversal_line])
+    if source_line:
+        lines.extend(["", source_line])
+    elif database_index is not None:
+        summary = ["", "Database records"]
+        for line in full[database_index + 1 : database_index + 8]:
+            if line.strip().startswith(("Keyed-order", "Arrival/RRN-order")):
+                break
+            summary.append(line)
+        lines.extend(summary)
+    return lines
+
+
+def _tui_member_data_lines(state, item):
+    full = _tui_member_lines(state, item)
+    source = _tui_section(full, ("Source records:",))
+    if source:
+        return source
+
+    database = _tui_section(full, ("Database records",))
+    if not database:
+        return [
+            "Data",
+            "",
+            "No recoverable source or fixed-length database records for this member.",
+        ]
+
+    result = []
+    skipping_keyed = False
+    for line in database:
+        stripped = line.strip()
+        if stripped.startswith("Keyed-order records"):
+            skipping_keyed = True
+            continue
+        if skipping_keyed and stripped.startswith("Arrival/RRN-order"):
+            skipping_keyed = False
+        if not skipping_keyed:
+            result.append(line)
+    return result
+
+
+def _tui_member_key_lines(state, item):
+    full = _tui_member_lines(state, item)
+    access = _tui_section(
+        full,
+        ("Recovered keyed access path",),
+        ("Source records:", "Database records"),
+    )
+    keyed = _tui_section(
+        full,
+        ("Keyed-order records",),
+        ("Arrival/RRN-order",),
+    )
+    if not access and not keyed:
+        return [
+            "Keys / access path",
+            "",
+            "No decoded QDDSI keyed access path is available for this member.",
+        ]
+    lines = list(access)
+    if keyed:
+        lines.extend(["", *keyed])
+    return lines
+
+
+def _tui_member_storage_lines(state, item):
+    full = _tui_member_lines(state, item)
+    storage = _tui_section(
+        full,
+        ("Recovered storage",),
+        ("Recovered keyed access path", "Source records:", "Database records"),
+    )
+    return storage or [
+        "Storage",
+        "",
+        "No recoverable member storage relationship is available.",
+    ]
+
+
+def _tui_summary_lines(state):
+    target = _tui_viewer_target(state)
+    right = _tui_selected(state, "right")
+    mid = _tui_selected(state, "mid")
+
+    if target == "right" and right is not None:
+        if right["kind"] == "member":
+            return _tui_member_summary_lines(state, right)
+        if right["kind"] == "context-entry":
+            entry = right["entry"]
+            name = entry.display_name_hint or "<name undecoded>"
+            return [
+                f"Directory object: {entry.library_name}/{name}",
+                f"MI type:          {entry.type_code}",
+                "Recovery:         primary object not recovered",
+                (
+                    f"Object address~: {entry.object_address}"
+                    if entry.object_address is not None
+                    else "Object address~: unavailable"
+                ),
+                f"Owned segments:   {entry.owned_segment_count:,}",
+                "",
+                "The library context preserves this object's name/type/addressability.",
+            ]
+        if right["kind"] == "object":
+            obj = right["object"]
+            meaning = _tui_object_type_context(
+                obj.object_type,
+                obj.object_subtype,
+            )
+            lines = [
+                f"Object:   {(obj.library_name or '<orphan>')}/{obj.name}",
+                (
+                    f"Type:     {obj.external_type_hint or obj.type_code}"
+                    + (
+                        f"  ({obj.type_code})"
+                        if obj.external_type_hint
+                        else ""
+                    )
+                ),
+            ]
+            if meaning:
+                lines.append(f"Role:     {meaning}")
+            lines.extend(
+                [
+                    f"Primary:  recovered, {obj.segment.pages:,} page(s)",
+                    *_tui_object_evidence_lines(obj)[1:],
+                ]
+            )
+            dlo = _tui_dlo_anchor_info(state, obj)
+            if dlo and dlo.get("record") is not None:
+                record = dlo["record"]
+                lines.extend(
+                    [
+                        "",
+                        "QDLS",
+                        f"  Short name: {record.short_name or '-'}",
+                        f"  Anchor path: {dlo.get('anchor_path') or '-'}",
+                    ]
+                )
+            return lines
+
+    return _tui_full_detail_lines(state)
+
+
+def _tui_data_lines(state):
+    target = _tui_viewer_target(state)
+    right = _tui_selected(state, "right")
+    if target == "right" and right is not None:
+        if right["kind"] == "member":
+            return _tui_member_data_lines(state, right)
+        if right["kind"] == "context-entry":
+            return [
+                "Data",
+                "",
+                "The object primary is not recovered, so no object payload can be decoded.",
+            ]
+        if right["kind"] == "object":
+            obj = right["object"]
+            if (
+                (obj.object_type, obj.object_subtype) in {
+                    (0x19, 0x0E),
+                    (0x06, 0xC1),
+                }
+            ):
+                full = _tui_object_lines(state, obj)
+                section = _tui_section(
+                    full,
+                    ("QDLS anchor metadata",),
+                )
+                if section:
+                    return section
+            return [
+                "Data",
+                "",
+                "No dedicated decoded data view is available for this object type.",
+                "Use Summary, Storage, Evidence, or Raw for the recovered object.",
+            ]
+    return _tui_full_detail_lines(state)
+
+
+def _tui_key_lines(state):
+    target = _tui_viewer_target(state)
+    right = _tui_selected(state, "right")
+    left = _tui_selected(state, "left")
+
+    if target == "right" and right is not None and right["kind"] == "member":
+        return _tui_member_key_lines(state, right)
+
+    if target == "left" and left is not None and left["kind"] == "library":
+        traversal = _tui_context_traversal(state, left["library"])
+        if traversal is None:
+            return [
+                "Context machine index",
+                "",
+                "No traversable recovered context index is available.",
+            ]
+        page_types = sorted(
+            {header.page_type for header in traversal.page_headers}
+        )
+        return [
+            f"Context machine index: {left['library']}",
+            (
+                f"Traversal: {'complete' if traversal.complete else 'partial'}; "
+                f"{traversal.entry_count:,} terminal(s)"
+            ),
+            f"Pages:     {traversal.page_count:,}",
+            f"Pointers:  {len(traversal.page_pointers):,}",
+            (
+                "Types:     "
+                + ", ".join(f"0x{value:02X}" for value in page_types)
+            ),
+            (
+                f"Unresolved pointers: "
+                f"{len(traversal.unresolved_page_pointers):,}"
+            ),
+        ]
+
+    return [
+        "Keys / index",
+        "",
+        "No keyed/index view applies to the current selection.",
+    ]
+
+
+def _tui_storage_lines(state):
+    target = _tui_viewer_target(state)
+    right = _tui_selected(state, "right")
+    left = _tui_selected(state, "left")
+
+    if target == "right" and right is not None:
+        if right["kind"] == "member":
+            return _tui_member_storage_lines(state, right)
+        if right["kind"] == "object":
+            return _tui_object_storage_lines(state, right["object"])
+        if right["kind"] == "context-entry":
+            return _tui_context_directory_entry_lines(state, right["entry"])
+
+    if target == "left" and left is not None and left["kind"] == "library":
+        obj = left.get("object")
+        if obj is not None:
+            return _tui_object_storage_lines(state, obj)
+
+    return [
+        "Storage",
+        "",
+        "Select a recovered object/member to inspect its storage.",
+    ]
+
+
+def _tui_evidence_lines(state):
+    target = _tui_viewer_target(state)
+    right = _tui_selected(state, "right")
+    if target == "right" and right is not None:
+        if right["kind"] == "context-entry":
+            return _tui_context_directory_entry_lines(state, right["entry"])
+        if right["kind"] in ("member", "object"):
+            return _tui_object_evidence_lines(right["object"])
+    return _tui_full_detail_lines(state)
+
+
+def _tui_raw_lines(state):
+    target = _tui_viewer_target(state)
+    right = _tui_selected(state, "right")
+    left = _tui_selected(state, "left")
+
+    if target == "right" and right is not None:
+        if right["kind"] in ("member", "object"):
+            return _tui_raw_object_lines(state, right["object"])
+        if right["kind"] == "context-entry":
+            entry = right["entry"]
+            return [
+                "Raw context-directory terminal",
+                "",
+                entry.raw.hex(" ").upper(),
+            ]
+
+    if target == "left" and left is not None and left["kind"] == "library":
+        obj = left.get("object")
+        if obj is not None:
+            return _tui_raw_object_lines(state, obj)
+
+    return [
+        "Raw",
+        "",
+        "Select a recovered object/member to inspect raw bytes.",
+    ]
+
+
+def _tui_viewer_lines(state):
+    """Return the active inspector-tab view for the current selection."""
+
+    tab = _tui_inspector_tab(state)
+    if tab == "Summary":
+        return _tui_summary_lines(state)
+    if tab == "Data":
+        return _tui_data_lines(state)
+    if tab == "Keys":
+        return _tui_key_lines(state)
+    if tab == "Storage":
+        return _tui_storage_lines(state)
+    if tab == "Evidence":
+        return _tui_evidence_lines(state)
+    return _tui_raw_lines(state)
+
+
 def _tui_prompt_search(stdscr, state):
     import curses
 
