@@ -111,9 +111,16 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       (2). Across both images 51 context roots are type 0xCC and all 815
       pointer-target pages are type 0x55. The backend now exposes this prefix
       conservatively as `MachineIndexPageHeader`.
-- [ ] Establish the exact widths/semantics of the subsequent documented
-      backpointer information and current-tree/page-management area, ideally
-      from `SY21-0892` or an equivalent authoritative data-area source.
+- [x] Establish the context-specific 1,024-byte logical page size and the
+      physical child-page boundary: type-0x55 pages carry six backpointer bytes
+      at +0x08..+0x0D and current-tree storage begins at +0x0E; type-0xCC
+      trunks can begin tree storage at +0x08. All 866 traversed context pages
+      validate first-free within the page and total free bytes >= unused tail.
+- [ ] Resolve the exact semantics of the three two-byte child-backpointer words,
+      especially the middle word and the 45 non-immediate resume-state cases.
+      770/815 real child pages map word 1 + word 3 to a valid parent
+      (origin-node,current-node) state, but preserve them raw until a data-area
+      definition or independent behavioral correlation supports field names.
 - [x] Add `context-xref`, a read-only diagnostic that correlates objects already
       assigned through EPA back-pointers with the documented logical context
       entry form `T S NL N @` and reports raw address/name-entry occurrences
