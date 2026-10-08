@@ -1780,10 +1780,20 @@ def cmd_dlo_export(args):
     )
     print(f"Bytes:      {len(payload):,}")
     print(f"Allocated:  {info.allocated_length:,}")
-    print(
-        "Validation: duplicate length fields agree; declared payload fits "
-        "inside recovered segment"
+    extended = (
+        info.payload_length
+        > companion.segment.pages * PAGE_SIZE - info.payload_offset
     )
+    if extended:
+        print(
+            "Validation: duplicate length fields agree; payload continues "
+            "through contiguous owner-matched 0F90 segment storage"
+        )
+    else:
+        print(
+            "Validation: duplicate length fields agree; declared payload fits "
+            "inside the recovered primary segment"
+        )
     print(f"Prefix:     {prefix.hex(' ').upper()}  {ascii_prefix}")
     print(f"Output:     {output}")
     return 0
@@ -5913,6 +5923,18 @@ def _tui_object_lines(state, obj):
                         f"QDOC document: {doc.name}",
                         f"DOCBSS:        {companion.name}",
                         f"Payload bytes: {info.payload_length:,}",
+                        (
+                            f"Storage:       "
+                            + (
+                                "extended 0F90 continuation"
+                                if (
+                                    info.payload_length
+                                    > companion.segment.pages * PAGE_SIZE
+                                    - info.payload_offset
+                                )
+                                else "primary DOCBSS segment"
+                            )
+                        ),
                         (
                             f"Allocation:    "
                             f"{info.allocated_length:,} bytes"
