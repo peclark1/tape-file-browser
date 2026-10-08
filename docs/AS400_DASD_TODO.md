@@ -192,12 +192,20 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       pointers to same-segment child pages and reconstructs exactly 165 terminal
       entries; all 165 resolve the same recovered objects/type-subtypes as the
       independent EPA back-pointer direction.
-- [ ] Validate nonzero context segment-table-index pointers, if present in
-      larger contexts, before traversing machine-index pages that reside in
-      additional context-owned segment groups.
-- [ ] Promote validated context-derived references into an independent
-      library-membership source in CLI/TUI, preserving EPA back-pointer versus
-      context-index provenance and disagreement warnings.
+- [ ] Decode/follow nonzero context segment-table-index pointers when a real
+      example is isolated. A corpus-wide pass over both images now covers 56
+      recovered contexts, 21,983 terminal entries, and 815 page pointers; all
+      815 observed pointers use segment-table index zero, so there is currently
+      no specimen from which to infer the nonzero form.
+- [x] Promote validated context-derived references into an independent
+      library-membership source. ObjectInventory preserves EPA and context-index
+      provenance separately, uses a unique context-only membership when the EPA
+      direction is absent, and retains disagreement evidence rather than
+      silently reconciling it.
+- [x] Surface directory-only context entries in the TUI. Missing primaries can
+      retain type/subtype, compact address, ordinary/member name hints, surviving
+      owned-segment evidence, and raw terminal bytes; global search includes
+      these directory-only names.
 
 ### QDLS / document-library reconstruction (follow-up cleanup)
 
@@ -271,7 +279,8 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       pointers in larger contexts; QGPL validates 13 pointers and 165/165
       context-derived object references.
 - [ ] Decode/follow nonzero segment-table-index context page pointers when a
-      real example is isolated.
+      real example is isolated; neither real image contains one among the 815
+      context page pointers recovered so far.
 - [x] Reconstruct node/common-text/terminal-text paths in ordinary small
       contexts.
 - [x] Traverse ordinary small context -> object compact references.
@@ -280,7 +289,9 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Demonstrate recovery of unresolved object membership/addressability:
       PPSITEST terminals identify two missing member-cursor primaries whose
       inferred addresses own surviving secondary segment groups.
-- [ ] Integrate context-index membership into the browser inventory model.
+- [x] Integrate context-index membership into the browser inventory model and
+      expose EPA/context provenance plus directory-only missing-primary entries
+      in the TUI/search workflow.
 
 ## Database decoding
 
