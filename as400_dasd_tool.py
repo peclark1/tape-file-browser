@@ -3606,7 +3606,8 @@ def cmd_member(args):
                         else f"dbref {entry.database_reference.hex().upper()}"
                     )
                     print(
-                        f"      key {entry.user_key.hex().upper()}  "
+                        f"      DKEY {entry.dkey_index}  "
+                        f"key {entry.user_key.hex().upper()}  "
                         f"[{preview}]  {ordinal}"
                     )
                 if traversal.entry_count > 32:
@@ -5944,7 +5945,8 @@ def _tui_member_lines(state, member_item):
                         else entry.database_reference.hex().upper()
                     )
                     lines.append(
-                        f"  {key_hex}  [{key_text}] -> {rrn}"
+                        f"  DKEY {entry.dkey_index}  "
+                        f"{key_hex}  [{key_text}] -> {rrn}"
                     )
                 if traversal.entry_count > 20:
                     lines.append(
@@ -6072,10 +6074,28 @@ def _tui_member_lines(state, member_item):
             )
         if traversal is not None and traversal.entries:
             by_rrn = {record.rrn: record for record in records}
+            current_dkeys = set()
+            if index_layout is not None and storage.data_space_address is not None:
+                current_dkeys = {
+                    index
+                    for index, spec in enumerate(index_layout.keys)
+                    if spec.data_space == storage.data_space_address
+                }
+
+            member_entries = [
+                entry
+                for entry in traversal.entries
+                if (
+                    entry.ordinal_hint is not None
+                    and (
+                        not current_dkeys
+                        or entry.dkey_index in current_dkeys
+                    )
+                )
+            ]
             keyed_rows = [
                 (entry, by_rrn.get(entry.ordinal_hint))
-                for entry in traversal.entries
-                if entry.ordinal_hint is not None
+                for entry in member_entries
             ]
             resolved_rows = [
                 (entry, record)
@@ -6093,17 +6113,26 @@ def _tui_member_lines(state, member_item):
             )
             for entry, record in resolved_rows[:50]:
                 key_hex = entry.user_key.hex().upper()
-                lines.append(f"Key {key_hex} -> RRN {record.rrn:,}")
+                lines.append(
+                    f"DKEY {entry.dkey_index}  "
+                    f"Key {key_hex} -> RRN {record.rrn:,}"
+                )
                 for field in fields:
                     value = field.decode_value(record.data)
                     if value:
                         lines.append(f"  {field.name:<10} {value}")
                 lines.append("")
-            if len(resolved_rows) < traversal.entry_count:
+            if len(resolved_rows) < len(member_entries):
                 lines.append(
-                    f"  {traversal.entry_count - len(resolved_rows):,} "
-                    "index entry/entries do not currently resolve to a "
-                    "recovered QDDS RRN."
+                    f"  {len(member_entries) - len(resolved_rows):,} "
+                    "index entry/entries for this QDDS do not currently "
+                    "resolve to a recovered RRN."
+                )
+            if traversal.entry_count > len(member_entries):
+                lines.append(
+                    f"  {traversal.entry_count - len(member_entries):,} "
+                    "additional index entry/entries refer to other DKEY "
+                    "data spaces in this access path."
                 )
             if len(resolved_rows) > 50:
                 lines.append(
