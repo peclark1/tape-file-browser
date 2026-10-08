@@ -2275,12 +2275,69 @@ def decode_context_terminal_name_hint(raw: bytes) -> bytes | None:
 
 
 @dataclass(frozen=True)
+class MachineIndexPageHeader:
+    """Observed release-2 in-use machine-index page header prefix.
+
+    IBM's System/38 machine-index material documents the in-use logical-page
+    fields in this order: root node, page type, number of free bytes, and
+    offset to the first free byte, followed by backpointer information and the
+    current tree.
+
+    QDDSI already validated the first eight physical bytes as a three-byte root
+    node, one-byte page type, two-byte free-byte value, and two-byte first-free
+    low address. A corpus-wide context pass across both real images independently
+    reproduces the same byte positions on trunk and secondary context pages.
+    The free-byte value's exact accounting semantics remain conservative: many
+    pages include internal free/tree-management areas, so callers must not infer
+    page size from free_bytes alone.
+    """
+
+    offset: int
+    root: MachineIndexElement
+    page_type: int
+    free_bytes: int
+    first_free_low16: int
+
+    @classmethod
+    def from_bytes(
+        cls,
+        data: bytes,
+        *,
+        offset: int = 0,
+    ) -> "MachineIndexPageHeader":
+        if offset < 0 or offset + 8 > len(data):
+            raise ValueError("machine-index page header requires eight bytes")
+        root = MachineIndexElement(data[offset : offset + 3])
+        if root.kind != "node":
+            raise ValueError("machine-index in-use page does not begin with a node")
+        return cls(
+            offset=offset,
+            root=root,
+            page_type=data[offset + 3],
+            free_bytes=int.from_bytes(data[offset + 4 : offset + 6], "big"),
+            first_free_low16=int.from_bytes(
+                data[offset + 6 : offset + 8],
+                "big",
+            ),
+        )
+
+    def first_free_offset(self) -> int:
+        """Expand the observed low-16 first-free value into segment offset."""
+
+        result = (self.offset & ~0xFFFF) | self.first_free_low16
+        if result < self.offset:
+            result += 0x10000
+        return result
+
+
+@dataclass(frozen=True)
 class ContextMachineIndexTraversal:
     """Conservative one-segment permanent-context traversal result."""
 
     entries: tuple[ContextMachineIndexTerminal, ...]
     root_offset: int
     page_offsets: tuple[int, ...] = ()
+    page_headers: tuple[MachineIndexPageHeader, ...] = ()
     page_pointers: tuple["MachineIndexPagePointerRef", ...] = ()
     complete: bool = False
     warnings: tuple[str, ...] = ()
@@ -2449,6 +2506,7 @@ def decode_context_machine_index(
     entries: list[ContextMachineIndexTerminal] = []
     pointers: list[MachineIndexPagePointerRef] = []
     page_offsets: list[int] = []
+    page_headers: list[MachineIndexPageHeader] = []
     warnings: list[str] = []
     visited_nodes: set[tuple[int, int, int]] = set()
     visited_pages: set[int] = set()
@@ -2486,16 +2544,21 @@ def decode_context_machine_index(
             )
             return
 
-        page_root = MachineIndexElement(data[page_start : page_start + 3])
-        if page_root.kind != "node":
+        try:
+            page_header = MachineIndexPageHeader.from_bytes(
+                data,
+                offset=page_start,
+            )
+        except ValueError:
             mark_incomplete(
                 f"context machine-index page 0x{page_start:04X} "
-                "does not begin with a node"
+                "does not have a valid in-use page header"
             )
             return
 
         visited_pages.add(page_start)
         page_offsets.append(page_start)
+        page_headers.append(page_header)
 
         def read_text(
             element: MachineIndexElement,
@@ -2670,6 +2733,7 @@ def decode_context_machine_index(
         entries=tuple(entries),
         root_offset=root_offset,
         page_offsets=tuple(page_offsets),
+        page_headers=tuple(page_headers),
         page_pointers=tuple(pointers),
         complete=complete,
         warnings=tuple(warnings),
