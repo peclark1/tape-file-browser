@@ -330,7 +330,12 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [x] Recover MI `19/51` field descriptors.
 - [x] Decode verified character, binary, zoned-decimal, and packed-decimal
       fields.
-- [ ] Decode additional verified MI `19/51` field types.
+- [x] Decode the additional verified V2R3 MI `19/51` type `0x06` as
+      DDS `O` / DBCS Open, independently cross-checked against recovered DDS
+      metadata. Preserve values as raw hex until the applicable DBCS
+      CCSID/shift-state representation is established.
+- [ ] Decode any further MI `19/51` field-type bytes only when a real format
+      plus independent DDS/IBM evidence establishes their meaning.
 - [ ] Refine FCB -> format resolution for logical and multiple-format files.
 - [ ] Decode the data-space entry-status byte beyond preserving its raw value.
       IBM documents flags for valid/deleted/cross-segment-boundary states, but
