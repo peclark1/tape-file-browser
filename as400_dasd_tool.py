@@ -6839,17 +6839,9 @@ def _tui_prompt_search(stdscr, state):
 def _tui_rebuild_search_safe_from_left(state):
     selected = _tui_selected(state, "left")
     if selected and selected["kind"] == "search-view":
-        matches = selected["objects"]
-        state["mid_items"] = [
-            {
-                "kind": "search-group",
-                "label": f"Results  {len(matches):,}",
-                "objects": matches,
-                "type": 0,
-                "subtype": 0,
-            }
-        ]
-        state["right_items"] = [
+        objects = selected.get("objects", [])
+        entries = selected.get("entries", [])
+        search_items = [
             {
                 "kind": "object",
                 "object": obj,
@@ -6859,8 +6851,32 @@ def _tui_rebuild_search_safe_from_left(state):
                     f"  {obj.external_type_hint or obj.type_code}"
                 ),
             }
-            for obj in matches
+            for obj in objects
         ]
+        search_items.extend(
+            {
+                "kind": "context-entry",
+                "entry": entry,
+                "label": (
+                    f"{entry.library_name}/"
+                    f"{entry.display_name_hint or '<name undecoded>'}  "
+                    f"{entry.type_code}  [directory-only]"
+                ),
+            }
+            for entry in entries
+        )
+        state["mid_items"] = [
+            {
+                "kind": "search-group",
+                "label": f"Results  {len(search_items):,}",
+                "objects": objects,
+                "entries": entries,
+                "search_items": search_items,
+                "type": 0,
+                "subtype": 0,
+            }
+        ]
+        state["right_items"] = search_items
         state["mid_index"] = 0
         state["right_index"] = 0
         state["viewer_scroll"] = 0
