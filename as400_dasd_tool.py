@@ -561,7 +561,7 @@ def _print_objects(image, inventory, args):
 
 def cmd_objects(args):
     image = _open(args.image)
-    _, _, inventory = _recover_all(image)
+    _, segments, inventory = _recover_all(image)
     return _print_objects(image, inventory, args)
 
 
@@ -1745,7 +1745,10 @@ def cmd_dlo_export(args):
         )
 
     companion = companions[0]
-    info, payload = image.read_document_byte_string(companion)
+    info, payload = image.read_document_byte_string(
+        companion,
+        segments,
+    )
 
     output = Path(args.output).expanduser()
     image_path = Path(args.image).expanduser().resolve()
@@ -4650,7 +4653,8 @@ def _tui_export_selected_dlo(stdscr, state, current_dir):
 
     try:
         info, payload = state["image"].read_document_byte_string(
-            companion
+            companion,
+            state["segments"],
         )
     except (OSError, ValueError) as exc:
         state["status"] = f"Export validation failed: {exc}"
@@ -5900,7 +5904,8 @@ def _tui_object_lines(state, obj):
         if companion is not None and not export_error:
             try:
                 info, _payload = state["image"].read_document_byte_string(
-                    companion
+                    companion,
+                    state["segments"],
                 )
                 lines.extend(
                     [
