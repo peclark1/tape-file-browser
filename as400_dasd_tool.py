@@ -22,6 +22,8 @@ from as400_dasd import (
     SEGMENT_HEADER_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DENT_V2_DELETED,
+    DENT_V2_LIVE,
     Extent,
     InternalAddress,
     ebcdic_preview,
@@ -1255,11 +1257,16 @@ def _load_qaosss14_anchor_records(image, inventory, segments):
 
 
 def _qaosss14_key_index(records):
-    """Index both observed QAOSSS14 8-byte identifiers used in QDOC objects."""
+    """Index live observed QAOSSS14 identifiers used in recovered QDOC objects."""
 
     index = {}
     zero = b"\x00" * 8
     for record in records:
+        # Deleted 0xC0 QAOSSS14 entries are not present in the ordinary QDDSI
+        # access path on the real V2R3 image. Do not let stale deleted anchors
+        # compete with live records when correlating recovered QDOC objects.
+        if getattr(record, "is_deleted_hint", False):
+            continue
         # Most PC Support records use the same value in the leading record
         # key and WOSEFILD. Other records (including the BULLET examples) do
         # not, and both values occur in their corresponding QDOC object.
@@ -1273,11 +1280,13 @@ def _qaosss14_key_index(records):
 
 
 def _qaosss14_link_index(records):
-    """Index the leading 8-byte record key used by observed parent links."""
+    """Index live leading 8-byte record keys used by observed parent links."""
 
     index = {}
     zero = b"\x00" * 8
     for record in records:
+        if getattr(record, "is_deleted_hint", False):
+            continue
         key = record.leading_key
         if key == zero:
             continue
@@ -2409,13 +2418,24 @@ def cmd_dlo_index_scan(args):
     return 0
 
 
-def _qaosss14_unresolved_parent_records(records):
-    """Return records whose nonzero parent key has no unique leading-key match."""
+def _qaosss14_unresolved_parent_records(records, *, include_deleted=False):
+    """Return live records whose nonzero parent lacks one unique live match.
+
+    V2R3 DENT 0xC0 records are independently validated as deleted and are
+    absent from the ordinary QAOSSS14 access path. They are retained in the raw
+    recovered record set for forensics but are not live hierarchy gaps unless
+    include_deleted is explicitly requested.
+    """
 
     link_index = _qaosss14_link_index(records)
     zero = b"\x00" * 8
     result = []
     for record in records:
+        if (
+            not include_deleted
+            and getattr(record, "is_deleted_hint", False)
+        ):
+            continue
         parent = record.parent_key
         if parent == zero:
             continue
@@ -5450,16 +5470,22 @@ def _tui_file_storage_evidence(state, file_item, *, formats=None):
     return lines
 
 def _data_space_status_note(status):
-    """Describe only what is documented/observed about the DENT byte."""
+    """Describe only documented semantics plus independently validated V2R3 forms."""
 
-    if status == 0x80:
+    if status == DENT_V2_LIVE:
         return (
-            "0x80 (high bit set; observed on normal recovered entries; "
-            "exact bit assignment not yet decoded)"
+            "0x80 (observed V2R3 live/valid entry form; ordinary access "
+            "paths include these entries)"
+        )
+    if status == DENT_V2_DELETED:
+        return (
+            "0xC0 (observed V2R3 deleted entry form; 0x40 is independently "
+            "validated as the deleted-state indicator in these files)"
         )
     return (
-        f"0x{status:02X} (raw Data Space Entry Status/DENT byte; "
-        "bit assignment not yet decoded)"
+        f"0x{status:02X} (raw Data Space Entry Status/DENT byte; IBM also "
+        "documents other status such as cross-segment state, whose bit "
+        "assignment is not yet decoded here)"
     )
 
 
@@ -6226,9 +6252,10 @@ def _tui_member_lines(state, member_item):
             "",
             "Database records",
             (
-                "  DENT byte:    IBM documents per-entry status flags for "
-                "valid/deleted/cross-segment states; exact bit positions "
-                "are not yet decoded."
+                "  DENT byte:    IBM documents per-entry valid/deleted/"
+                "cross-segment state. Real V2R3 access paths independently "
+                "validate 0x80 as the ordinary live form and 0xC0 as deleted; "
+                "other bit forms remain raw."
             ),
             f"  User entries:  {layout.entry_count:,}",
             f"  Record length: {layout.record_length:,}",
