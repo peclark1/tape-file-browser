@@ -562,6 +562,31 @@ class DASDHeaderTests(unittest.TestCase):
             {1, 4, 8},
         )
 
+    def test_qddsi_compact_long_key_preserves_reference_only(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 EC 10 14 "
+            "05 10 0E 60 00 00 "
+            "3F FF 00 00 00 01",
+            key_count=1,
+            user_key_length=66,
+            machine_key_length=102,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(traversal.complete_key_count, 0)
+        self.assertEqual(traversal.partial_key_count, 1)
+
+        entry = traversal.entries[0]
+        self.assertFalse(entry.key_complete)
+        self.assertEqual(entry.machine_key, b"")
+        self.assertEqual(entry.user_key, b"")
+        self.assertEqual(entry.key_evidence, bytes.fromhex("3FFF"))
+        self.assertEqual(entry.display_key_bytes, bytes.fromhex("3FFF"))
+        self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
+        self.assertEqual(entry.dkey_index, 0)
+        self.assertEqual(entry.ordinal_hint, 1)
+
     def test_qddsi_multi_dkey_all_empty_is_complete(self):
         data, _layout = make_qddsi_root_fixture(
             "",
