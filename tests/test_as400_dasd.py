@@ -16,6 +16,7 @@ from as400_dasd import (
     DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
     DataSpaceLayout,
+    DataSpaceRecord,
     DocumentByteStringInfo,
     EPAHeader,
     Extent,
@@ -1043,6 +1044,30 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertTrue(layout.v2_hints_present)
         self.assertFalse(layout.v2_hints_match)
         self.assertFalse(layout.standard_fixed_layout)
+
+    def test_v2_dent_live_and_deleted_hints(self):
+        live = DataSpaceRecord(
+            ordinal=1,
+            status=0x80,
+            data=b"A",
+        )
+        deleted = DataSpaceRecord(
+            ordinal=2,
+            status=0xC0,
+            data=b"B",
+        )
+        unknown = DataSpaceRecord(
+            ordinal=3,
+            status=0x40,
+            data=b"C",
+        )
+
+        self.assertTrue(live.is_live_hint)
+        self.assertFalse(live.is_deleted_hint)
+        self.assertFalse(deleted.is_live_hint)
+        self.assertTrue(deleted.is_deleted_hint)
+        self.assertFalse(unknown.is_live_hint)
+        self.assertFalse(unknown.is_deleted_hint)
 
     def test_generic_data_space_record_decoder_uses_header_count(self):
         layout = DataSpaceLayout(
