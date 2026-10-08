@@ -5048,6 +5048,85 @@ def _tui_dlo_anchor_info(state, obj):
     return object_cache[key]
 
 
+_TUI_INSPECTOR_TABS = (
+    "Summary",
+    "Data",
+    "Keys",
+    "Storage",
+    "Evidence",
+    "Raw",
+)
+
+
+def _tui_breadcrumb(state):
+    """Return the current image/navigation path in human-facing terms."""
+
+    image = state.get("image")
+    image_name = (
+        os.path.basename(image.path)
+        if image is not None and getattr(image, "path", None)
+        else "<image>"
+    )
+    parts = [image_name]
+
+    left = _tui_selected(state, "left")
+    mid = _tui_selected(state, "mid")
+    right = _tui_selected(state, "right")
+
+    if left is not None:
+        if left["kind"] == "library":
+            parts.append(left["library"])
+        elif left["kind"] == "orphans-view":
+            parts.append("ORPHANS")
+        elif left["kind"] == "objects-view":
+            parts.append("ALL OBJECTS")
+        elif left["kind"] == "search-view":
+            parts.append("SEARCH")
+
+    if mid is not None:
+        if mid["kind"] == "file":
+            parts.append(mid["name"])
+        elif mid["kind"] in ("library-object-type", "object-type"):
+            parts.append(
+                f"{mid.get('type', 0):02X}/{mid.get('subtype', 0):02X}"
+            )
+        elif mid["kind"] == "search-group":
+            parts.append("RESULTS")
+
+    if right is not None:
+        if right["kind"] == "member":
+            parts.append(right["object"].member_name)
+        elif right["kind"] == "object":
+            parts.append(right["object"].name)
+        elif right["kind"] == "context-entry":
+            entry = right["entry"]
+            parts.append(
+                entry.display_name_hint
+                or (
+                    str(entry.object_address)
+                    if entry.object_address is not None
+                    else "<directory entry>"
+                )
+            )
+
+    return " > ".join(parts)
+
+
+def _tui_inspector_tab(state):
+    index = int(state.get("inspector_tab", 0))
+    index = max(0, min(index, len(_TUI_INSPECTOR_TABS) - 1))
+    return _TUI_INSPECTOR_TABS[index]
+
+
+def _tui_cycle_inspector_tab(state, delta):
+    index = int(state.get("inspector_tab", 0))
+    state["inspector_tab"] = (
+        index + delta
+    ) % len(_TUI_INSPECTOR_TABS)
+    state["viewer_scroll"] = 0
+    return _tui_inspector_tab(state)
+
+
 def _tui_context_lines(state):
     """Return one contextual explanation for each navigation pane.
 
@@ -6639,7 +6718,7 @@ def _tui_viewer_target(state):
     return "left"
 
 
-def _tui_viewer_lines(state):
+def _tui_full_detail_lines(state):
     right = _tui_selected(state, "right")
     mid = _tui_selected(state, "mid")
     left = _tui_selected(state, "left")
