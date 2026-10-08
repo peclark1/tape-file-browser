@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 
 from as400_dasd import (
+    CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+    CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
     EPA_MIN_SIZE,
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
@@ -26,6 +28,7 @@ from as400_dasd import (
     DENT_V2_LIVE,
     Extent,
     InternalAddress,
+    MachineIndexPageHeader,
     ebcdic_preview,
     format_hex,
 )
@@ -2620,27 +2623,32 @@ _MACHINE_INDEX_FREE_PAGE_FIELDS = (
 
 
 def _machine_index_page_structure_lines():
-    """Document what IBM names in a release-2 machine-index page header.
-
-    IBM patent US4774657A reproduces the System/38 machine-index element/page
-    model.  The English text confirms the logical page range and use of page
-    backpointer information; the German family publication DE3788750T2
-    preserves the field labels for in-use and free logical pages in searchable
-    text.  The source figures carry field widths graphically, but those widths
-    are not reliably available in the text source used here, so this helper
-    intentionally reports names/order only and performs no byte decoding.
-    """
+    """Summarize documented and independently validated page-header facts."""
 
     lines = [
-        "Documented logical-page header fields (names/order only):",
-        "  In-use page: "
+        "Release-2 machine-index logical-page structure:",
+        "  IBM-documented in-use order: "
         + " | ".join(_MACHINE_INDEX_USED_PAGE_FIELDS),
-        "  Free page:   "
+        "  IBM-documented free-page order: "
         + " | ".join(_MACHINE_INDEX_FREE_PAGE_FIELDS),
         (
-            "  Caution: field widths/byte offsets are not yet independently "
-            "corroborated for the recovered V2R3 CISC pages, so the browser "
-            "does not decode this header yet."
+            "  Context pages validated on both real images: root node +0x00..02; "
+            "page type +0x03; free-byte value +0x04..05; "
+            "first-free low address +0x06..07."
+        ),
+        (
+            "  Recovered permanent contexts use 1,024-byte logical pages: "
+            "trunk type 0xCC at +0x800; child type 0x55."
+        ),
+        (
+            "  Child type-0x55 pages carry six raw backpointer bytes at "
+            "+0x08..0x0D; tree storage begins at +0x0E. "
+            "The three two-byte backpointer words remain only partly decoded."
+        ),
+        (
+            "  Trunk type-0xCC tree storage can begin at +0x08. "
+            "The exact semantics of non-tail free space and the middle "
+            "backpointer word remain unresolved."
         ),
     ]
     return lines
@@ -3354,6 +3362,18 @@ def cmd_context_page(args):
         )
     context = libraries[0]
 
+    page_start = args.origin + args.page * args.page_size
+    context_data = image.read_segment_bytes(context.segment)
+    page_header = None
+    if page_start + 8 <= len(context_data):
+        try:
+            page_header = MachineIndexPageHeader.from_bytes(
+                context_data,
+                offset=page_start,
+            )
+        except ValueError:
+            page_header = None
+
     probes = image.probe_machine_index_page(
         context,
         args.page,
@@ -3374,6 +3394,41 @@ def cmd_context_page(args):
         f"Logical page {args.page}  size {args.page_size:,}  "
         f"origin 0x{args.origin:X}  element offset 0x{args.offset:X}"
     )
+    if page_header is not None:
+        first_free = page_header.first_free_offset()
+        tail_free = page_header.tail_free_bytes(page_size=args.page_size)
+        internal_free = page_header.non_tail_free_bytes_hint(
+            page_size=args.page_size,
+        )
+        print(
+            f"Page header: type 0x{page_header.page_type:02X}  "
+            f"free {page_header.free_bytes:,}  "
+            f"first-free 0x{first_free:X}"
+        )
+        if tail_free is not None:
+            internal_text = (
+                "unknown"
+                if internal_free is None
+                else f"{internal_free:,}"
+            )
+            print(
+                f"             tail-free {tail_free:,}  "
+                f"non-tail-free {internal_text}"
+            )
+        if page_header.backpointer_words is not None:
+            words = page_header.backpointer_words
+            print(
+                "Backpointer: raw "
+                f"{page_header.backpointer_raw.hex().upper()}  "
+                f"words {words[0]:04X} {words[1]:04X} {words[2]:04X}"
+            )
+        if page_header.current_tree_offset_hint is not None:
+            print(
+                "Tree start:  observed storage boundary "
+                f"0x{page_header.current_tree_offset_hint:X}"
+            )
+    else:
+        print("Page header: not recognized as an in-use machine-index page")
     print()
     print(
         "Offset  Raw     Kind          Details"
@@ -3409,8 +3464,9 @@ def cmd_context_page(args):
         "three-byte machine-index format."
     )
     print(
-        "The context's page-header/trunk location is still under "
-        "reverse engineering, so page/offset selection is explicit."
+        "For ordinary permanent contexts, +0x800 trunk placement and the "
+        "1,024-byte page size are independently validated across both images; "
+        "explicit options remain available for forensic probing."
     )
     print()
     for line in _machine_index_page_structure_lines():
@@ -7810,16 +7866,19 @@ def build_parser():
     context_page.add_argument(
         "--page-size",
         type=int,
-        default=512,
-        help="logical index-page size; multiple of 512 (default: 512)",
+        default=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+        help=(
+            "logical index-page size; multiple of 512 "
+            f"(default: {CONTEXT_MACHINE_INDEX_PAGE_SIZE})"
+        ),
     )
     context_page.add_argument(
         "--origin",
         type=lambda value: int(value, 0),
-        default=0,
+        default=CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
         help=(
             "byte offset of logical page 0 within the recovered context "
-            "segment (default: 0)"
+            f"segment (default: 0x{CONTEXT_MACHINE_INDEX_ROOT_OFFSET:X})"
         ),
     )
     context_page.add_argument(
