@@ -3916,6 +3916,25 @@ def _tui_draw_list(
     return start
 
 
+def _tui_draw_inspector_tabs(screen, y, width, state, focused):
+    """Draw compact inspector tabs and return the rendered text width."""
+
+    import curses
+
+    x = 0
+    active = _tui_inspector_tab(state)
+    for index, name in enumerate(_TUI_INSPECTOR_TABS):
+        label = f" {index + 1}:{name} "
+        attr = curses.A_BOLD if name == active else curses.A_DIM
+        if focused and name == active:
+            attr |= curses.A_REVERSE
+        if x + len(label) >= width:
+            break
+        _tui_safe_addstr(screen, y, x, label, attr)
+        x += len(label) + 1
+    return x
+
+
 def _tui_picker_entries(directory):
     directory = Path(directory).resolve()
     directories = []
@@ -4177,6 +4196,7 @@ def _tui_build_state(stdscr, path):
         "right_index": 0,
         "focus": 0,
         "viewer_scroll": 0,
+        "inspector_tab": 0,
         "viewer_cache": {},
         "left_items": [],
         "mid_items": [],
