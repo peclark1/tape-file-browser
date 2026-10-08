@@ -4786,6 +4786,16 @@ def _tui_rebuild_from_left(state):
     _tui_rebuild_from_mid(state)
 
 
+def _tui_object_display_identity(obj):
+    """Human-facing logical identity used for navigation/sorting."""
+
+    if getattr(obj, "is_member_cursor", False):
+        file_name = getattr(obj, "member_file_name", "") or "<file?>"
+        member_name = getattr(obj, "member_name", "") or obj.name
+        return f"{file_name}({member_name})"
+    return obj.name
+
+
 def _tui_group_right_items(selected):
     """Build one identity-first mixed recovered/directory object list."""
 
@@ -4806,14 +4816,15 @@ def _tui_group_right_items(selected):
             marker = "  !"
         elif epa_library is None and len(context_libraries) == 1:
             marker = "  [ctx]"
+        identity = _tui_object_display_identity(obj)
         result.append(
             {
                 "kind": "object",
                 "object": obj,
-                "label": f"{library}/{obj.name}  {hint}{marker}",
+                "label": f"{library}/{identity}  {hint}{marker}",
                 "_sort": (
                     library.upper(),
-                    obj.name.upper(),
+                    identity.upper(),
                     0,
                     obj.segment.virtual_address,
                 ),
@@ -7957,29 +7968,11 @@ def _tui_prompt_search(stdscr, state):
         )
     )
 
-    search_items = [
+    search_items = _tui_group_right_items(
         {
-            "kind": "object",
-            "object": obj,
-            "label": (
-                f"{obj.library_name or '<orphan>'}/"
-                f"{obj.member_file_name + '(' + obj.member_name + ')' if obj.is_member_cursor else obj.name}"
-                f"  {obj.external_type_hint or obj.type_code}"
-            ),
+            "objects": object_matches,
+            "entries": directory_matches,
         }
-        for obj in object_matches
-    ]
-    search_items.extend(
-        {
-            "kind": "context-entry",
-            "entry": entry,
-            "label": (
-                f"{entry.library_name}/"
-                f"{entry.display_name_hint or '<name undecoded>'}  "
-                f"{entry.type_code}  [directory-only]"
-            ),
-        }
-        for entry in directory_matches
     )
 
     state["left_items"].insert(
@@ -8021,29 +8014,11 @@ def _tui_rebuild_search_safe_from_left(state):
     if selected and selected["kind"] == "search-view":
         objects = selected.get("objects", [])
         entries = selected.get("entries", [])
-        search_items = [
+        search_items = _tui_group_right_items(
             {
-                "kind": "object",
-                "object": obj,
-                "label": (
-                    f"{obj.library_name or '<orphan>'}/"
-                    f"{obj.member_file_name + '(' + obj.member_name + ')' if obj.is_member_cursor else obj.name}"
-                    f"  {obj.external_type_hint or obj.type_code}"
-                ),
+                "objects": objects,
+                "entries": entries,
             }
-            for obj in objects
-        ]
-        search_items.extend(
-            {
-                "kind": "context-entry",
-                "entry": entry,
-                "label": (
-                    f"{entry.library_name}/"
-                    f"{entry.display_name_hint or '<name undecoded>'}  "
-                    f"{entry.type_code}  [directory-only]"
-                ),
-            }
-            for entry in entries
         )
         state["mid_items"] = [
             {
