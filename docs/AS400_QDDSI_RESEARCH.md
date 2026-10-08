@@ -364,6 +364,27 @@ A nonzero segment-table index is retained and reported as unresolved evidence;
 no cross-segment interpretation is guessed until a real example or IBM layout
 documents it.
 
+## Additional MI 19/51 field type: DBCS Open
+
+A full-segment pass over recovered V2R3 `19/51` record-format objects exposes
+field type byte `0x06` in formats where the shorter first-page probes did not.
+
+The important independent cross-check comes from recovered DDS metadata on the
+same V2R3 image: fields whose `19/51` descriptors use internal type `0x06`
+are defined with DDS data type **O**. IBM DDS terminology identifies `O` as
+**DBCS Open**. This is stronger than guessing from record bytes because some of
+the real values happen to contain ordinary SBCS-looking digits or text while
+others contain mixed/binary-looking data.
+
+The backend therefore labels `0x06` as `DBCS-OPEN`, but deliberately does
+**not** decode its value bytes as code page 037. Reliable rendering requires the
+applicable DBCS CCSID and shift-state representation; until those are recovered,
+the browser preserves the field value as raw hexadecimal evidence.
+
+This mapping is an observed V2R3 result independently corroborated by the
+recovered DDS definition. It should not be generalized to additional unknown
+internal type bytes without the same level of evidence.
+
 ## Next implementation steps
 
 1. Keep the eight long/compact QAOK variants as an explicit partial-key
