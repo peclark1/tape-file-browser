@@ -873,6 +873,12 @@ QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET = 0x13A
 QDDSI_MACHINE_INDEX_CONTROL_ROOT_POINTER_OFFSET = 0x20
 QDDSI_MACHINE_INDEX_ROOT_OFFSET = 0x1000
 
+# Ordinary permanent-context (*LIB / MI 04/01) objects on both real images
+# independently place the active release-2 machine-index root at segment offset
+# +0x800 when the index fits in the recovered eight-page primary segment.
+# This is an observed placement, not yet a published data-area field.
+CONTEXT_MACHINE_INDEX_ROOT_OFFSET = 0x800
+
 
 @dataclass(frozen=True)
 class DataSpaceIndexKeyField:
@@ -1940,6 +1946,72 @@ class MachineIndexElementProbe:
     element: MachineIndexElement
 
 @dataclass(frozen=True)
+class ContextMachineIndexTerminal:
+    """One terminal key recovered from a permanent-context machine index.
+
+    The System/38 VMC manual documents the logical context entry as
+    T + S + NL + N + @. Real CISC images store that information in the general
+    release-2 machine index with front-end/common-text compression, so the
+    reconstructed terminal bytes below are preserved without forcing them into
+    the documented expanded layout.
+
+    Across both real images, the final six bytes of ordinary terminal keys are
+    a compact object reference: two-byte segment extender plus the high four
+    bytes of the 48-bit page-aligned object address. Re-appending two zero
+    bytes resolves recovered object primaries exactly in the validation set.
+    """
+
+    raw: bytes
+    terminal_element_offset: int
+
+    @property
+    def object_type(self) -> int | None:
+        return self.raw[0] if len(self.raw) >= 2 else None
+
+    @property
+    def object_subtype(self) -> int | None:
+        return self.raw[1] if len(self.raw) >= 2 else None
+
+    @property
+    def compact_object_reference(self) -> bytes | None:
+        if len(self.raw) < 8:
+            return None
+        return self.raw[-6:]
+
+    @property
+    def object_address_hint(self) -> InternalAddress | None:
+        compact = self.compact_object_reference
+        if compact is None:
+            return None
+        return InternalAddress(
+            extender=int.from_bytes(compact[:2], "big"),
+            address=int.from_bytes(compact[2:], "big") << 16,
+        )
+
+    @property
+    def key_bytes(self) -> bytes:
+        compact = self.compact_object_reference
+        if compact is None:
+            return self.raw
+        return self.raw[:-6]
+
+
+@dataclass(frozen=True)
+class ContextMachineIndexTraversal:
+    """Conservative one-segment permanent-context traversal result."""
+
+    entries: tuple[ContextMachineIndexTerminal, ...]
+    root_offset: int
+    page_pointers: tuple["MachineIndexPagePointerRef", ...] = ()
+    complete: bool = False
+    warnings: tuple[str, ...] = ()
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.entries)
+
+
+@dataclass(frozen=True)
 class MachineIndexPagePointerRef:
     """Page pointer encountered while walking a QDDSI machine index."""
 
@@ -2049,6 +2121,175 @@ class DataSpaceIndexTraversal:
     @property
     def unresolved_page_pointers(self) -> tuple[MachineIndexPagePointerRef, ...]:
         return tuple(pointer for pointer in self.page_pointers if not pointer.followed)
+
+
+def decode_context_machine_index(
+    data: bytes,
+    *,
+    root_offset: int = CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
+) -> ContextMachineIndexTraversal:
+    """Traverse an ordinary permanent-context machine index in one segment.
+
+    IBM documents permanent contexts as using the general release-2 machine
+    index. The node/common-text/text-element mechanics are therefore shared
+    with QDDSI, but context placement is validated independently: non-empty
+    eight-page 04/01 contexts on both real images place the active root at
+    +0x800.
+
+    This first context walker deliberately does not follow page pointers.
+    It recovers the complete terminal paths reachable from the root inside the
+    supplied segment and reports any page-pointer elements as unresolved
+    evidence for the next traversal stage.
+    """
+
+    if root_offset < 0 or root_offset + 3 > len(data):
+        raise ValueError("context machine-index root is outside recovered segment")
+
+    root = MachineIndexElement(data[root_offset : root_offset + 3])
+    if root.raw == b"\x00\x00\x00":
+        return ContextMachineIndexTraversal(
+            entries=(),
+            root_offset=root_offset,
+            complete=True,
+        )
+    if root.kind != "node":
+        raise ValueError("context machine-index root does not begin with a node")
+
+    entries: list[ContextMachineIndexTerminal] = []
+    pointers: list[MachineIndexPagePointerRef] = []
+    warnings: list[str] = []
+    visited: set[tuple[int, int]] = set()
+    emitted: set[bytes] = set()
+    complete = True
+
+    def mark_incomplete(message: str) -> None:
+        nonlocal complete
+        complete = False
+        if message not in warnings:
+            warnings.append(message)
+
+    def read_text(
+        element: MachineIndexElement,
+        *,
+        element_offset: int,
+    ) -> bytes | None:
+        displacement = element.text_displacement
+        length = element.text_storage_length
+        if displacement is None or length is None or displacement == 0:
+            return None
+        end = displacement + length
+        if displacement < 0 or end > len(data):
+            mark_incomplete(
+                f"context text at 0x{element_offset:04X} points outside segment"
+            )
+            return None
+        return data[displacement:end]
+
+    def emit_terminal(
+        prefix: bytes,
+        element: MachineIndexElement,
+        element_offset: int,
+    ) -> None:
+        text = read_text(element, element_offset=element_offset)
+        if text is None:
+            return
+        raw = prefix + text
+        if raw in emitted:
+            return
+        emitted.add(raw)
+        entries.append(
+            ContextMachineIndexTerminal(
+                raw=raw,
+                terminal_element_offset=element_offset,
+            )
+        )
+
+    def walk_node(
+        node_offset: int,
+        origin_node_offset: int,
+        prefix: bytes,
+        depth: int = 0,
+    ) -> None:
+        if depth > 512:
+            mark_incomplete("context machine-index node depth exceeded safety limit")
+            return
+        visit_key = (node_offset, origin_node_offset)
+        if visit_key in visited:
+            mark_incomplete(
+                f"context machine-index node loop detected at 0x{node_offset:04X}"
+            )
+            return
+        visited.add(visit_key)
+
+        if node_offset < 0 or node_offset + 3 > len(data):
+            mark_incomplete(
+                f"context node offset 0x{node_offset:04X} is outside segment"
+            )
+            return
+        node = MachineIndexElement(data[node_offset : node_offset + 3])
+        if node.kind != "node" or node.xor_displacement is None:
+            mark_incomplete(f"expected context node at 0x{node_offset:04X}")
+            return
+
+        cluster_offset = (
+            (origin_node_offset & 0xFFFF) ^ node.xor_displacement
+        )
+        required = 9 if node.common_text_present else 6
+        if cluster_offset < 0 or cluster_offset + required > len(data):
+            mark_incomplete(
+                f"context node at 0x{node_offset:04X} points outside segment"
+            )
+            return
+
+        branch_prefix = prefix
+        if node.common_text_present:
+            common_offset = cluster_offset + 6
+            common = MachineIndexElement(data[common_offset : common_offset + 3])
+            if common.kind != "text":
+                mark_incomplete(
+                    f"context common-text slot 0x{common_offset:04X} is not text"
+                )
+                return
+            common_text = read_text(common, element_offset=common_offset)
+            if common_text is None:
+                return
+            branch_prefix += common_text
+
+        for branch_offset in (cluster_offset, cluster_offset + 3):
+            branch = MachineIndexElement(data[branch_offset : branch_offset + 3])
+            if branch.kind == "text":
+                if branch.text_displacement:
+                    emit_terminal(branch_prefix, branch, branch_offset)
+            elif branch.kind == "node":
+                walk_node(
+                    branch_offset,
+                    node_offset,
+                    branch_prefix,
+                    depth + 1,
+                )
+            else:
+                pointers.append(
+                    MachineIndexPagePointerRef(
+                        element_offset=branch_offset,
+                        segment_table_index=branch.segment_table_index or 0,
+                        page_offset=branch.page_offset or 0,
+                        key_prefix=branch_prefix,
+                        followed=False,
+                    )
+                )
+                mark_incomplete(
+                    "context machine-index page pointer encountered; "
+                    "pointer following is not yet validated"
+                )
+
+    walk_node(root_offset, root_offset, b"")
+    return ContextMachineIndexTraversal(
+        entries=tuple(entries),
+        root_offset=root_offset,
+        page_pointers=tuple(pointers),
+        complete=complete,
+        warnings=tuple(warnings),
+    )
 
 
 def decode_data_space_index_root(
@@ -2664,6 +2905,23 @@ class DASDImage:
         start = info.payload_offset
         end = start + info.payload_length
         return info, data[start:end]
+
+    def read_context_machine_index(
+        self,
+        context: RecoveredObject,
+    ) -> ContextMachineIndexTraversal | None:
+        """Traverse the ordinary machine-index root of a permanent context."""
+
+        if (
+            context.object_type != 0x04
+            or context.object_subtype != 0x01
+        ):
+            raise ValueError("target object is not a permanent context/library")
+        data = self.read_segment_bytes(context.segment)
+        try:
+            return decode_context_machine_index(data)
+        except ValueError:
+            return None
 
     def probe_machine_index_page(
         self,
