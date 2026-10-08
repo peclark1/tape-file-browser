@@ -5455,6 +5455,85 @@ def _data_space_status_note(status):
     )
 
 
+def _tui_context_directory_entry_lines(state, entry):
+    """Explain a context-index reference whose object primary is not recovered."""
+
+    name = entry.display_name_hint or "<name undecoded>"
+    lines = [
+        f"Directory entry: {entry.library_name}/{name}",
+        f"MI type:         {entry.type_code}",
+        "Recovery state:  object primary not recovered on this image",
+        f"Context:         {entry.context_address}",
+    ]
+    if entry.object_address is not None:
+        lines.append(f"Object address~: {entry.object_address}")
+    else:
+        lines.append("Object address~: unavailable")
+
+    if entry.name_raw_hint is not None:
+        if entry.is_member_cursor:
+            lines.extend(
+                [
+                    f"File hint:       {entry.member_file_name_hint}",
+                    f"Member hint:     {entry.member_name_hint}",
+                ]
+            )
+        else:
+            lines.append(f"Name hint:       {entry.name_hint}")
+        lines.append(
+            "Name evidence:   observed compact context-key blank-run decoding; "
+            "not the published expanded T+S+NL+N+@ byte layout."
+        )
+    else:
+        lines.append(
+            "Name evidence:   compact/special key form is not decoded; raw "
+            "terminal bytes are preserved below."
+        )
+
+    owned = []
+    if entry.object_address is not None:
+        owned = sorted(
+            [
+                segment
+                for segment in state["segments"].segments
+                if segment.owner_key == entry.object_address.key
+            ],
+            key=lambda segment: (
+                segment.virtual_address,
+                segment.start_lba,
+            ),
+        )
+    lines.append(f"Surviving owned segments: {len(owned):,}")
+    for segment in owned[:24]:
+        role = "primary" if segment.is_primary else "secondary"
+        lines.append(
+            f"  type {segment.header.segment_type:04X}  "
+            f"VA {segment.virtual_address:012X}  "
+            f"LBA {segment.start_lba:>9,}  "
+            f"{segment.pages:>6,} pages  {role}"
+        )
+    if len(owned) > 24:
+        lines.append(
+            f"  ... {len(owned) - 24:,} additional owned segments"
+        )
+
+    lines.extend(
+        [
+            "",
+            (
+                "Forensic note: this entry survives in the library/context "
+                "machine index even though the referenced EPA primary does not. "
+                "On a partial multi-disk image this can preserve object name, "
+                "type, and addressability after the primary was lost."
+            ),
+            "",
+            "Raw context terminal:",
+            "  " + entry.raw.hex(" ").upper(),
+        ]
+    )
+    return lines
+
+
 def _tui_object_lines(state, obj):
     meaning = _tui_object_type_context(
         obj.object_type,
@@ -5485,6 +5564,57 @@ def _tui_object_lines(state, obj):
         f"EPA context:  {obj.epa.context}",
         ]
     )
+
+    epa_library = getattr(obj, "epa_library_name", None)
+    context_libraries = tuple(
+        getattr(obj, "context_library_names", ()) or ()
+    )
+    if epa_library is None and not hasattr(obj, "epa_library_name"):
+        epa_library = obj.library_name
+
+    lines.append("")
+    lines.append("Library membership evidence")
+    lines.append(
+        "  EPA back-pointer: "
+        + (epa_library or "<not resolved>")
+    )
+    lines.append(
+        "  Context index:    "
+        + (
+            ", ".join(context_libraries)
+            if context_libraries
+            else "<not resolved>"
+        )
+    )
+    if (
+        epa_library is not None
+        and context_libraries == (epa_library,)
+    ):
+        lines.append("  Resolution:       both directions agree")
+    elif epa_library is None and len(context_libraries) == 1:
+        lines.append(
+            "  Resolution:       context-index-only membership"
+        )
+    elif epa_library is not None and not context_libraries:
+        lines.append(
+            "  Resolution:       EPA-only membership; no recovered context "
+            "terminal matched"
+        )
+    elif (
+        epa_library is not None
+        and context_libraries
+        and epa_library not in context_libraries
+    ):
+        lines.append(
+            "  Resolution:       CONFLICT — EPA and context index disagree"
+        )
+    elif len(context_libraries) > 1:
+        lines.append(
+            "  Resolution:       ambiguous — multiple context indexes refer "
+            "to this object"
+        )
+    else:
+        lines.append("  Resolution:       membership unresolved")
 
     if obj.object_type == 0x02 and obj.object_subtype == 0x01:
         owned = _tui_owned_segments(state, obj)
@@ -6314,6 +6444,27 @@ def _tui_viewer_lines(state):
                     right["object"],
                 )
             return state["viewer_cache"][key]
+        if right["kind"] == "context-entry":
+            entry = right["entry"]
+            address_key = (
+                entry.object_address.key
+                if entry.object_address is not None
+                else (0, 0)
+            )
+            key = (
+                "context-entry",
+                entry.library_name,
+                address_key,
+                entry.terminal_element_offset,
+            )
+            if key not in state["viewer_cache"]:
+                state["viewer_cache"][key] = (
+                    _tui_context_directory_entry_lines(
+                        state,
+                        entry,
+                    )
+                )
+            return state["viewer_cache"][key]
 
     if (
         target in ("right", "mid")
@@ -6331,6 +6482,25 @@ def _tui_viewer_lines(state):
                     mid,
                 )
             return state["viewer_cache"][key]
+
+        if mid["kind"] == "context-directory":
+            surviving = sum(
+                1
+                for entry in mid["entries"]
+                if entry.owned_segment_count
+            )
+            return [
+                "Directory-only context references",
+                "",
+                f"Entries without recovered primaries: {len(mid['entries']):,}",
+                f"Entries with surviving owned segments: {surviving:,}",
+                "",
+                (
+                    "These names/type/address references were reconstructed "
+                    "from the library's own machine index. Select an entry "
+                    "to inspect the surviving forensic evidence."
+                ),
+            ]
 
         return [
             f"Object type: {mid['type']:02X}/{mid['subtype']:02X}",
@@ -6355,24 +6525,91 @@ def _tui_viewer_lines(state):
             members = state["inventory"].members(
                 library=left["library"]
             )
+            directory_entries = (
+                state["inventory"].context_entries_for_library(
+                    left["library"]
+                )
+            )
+            directory_only = (
+                state["inventory"].unresolved_context_entries(
+                    left["library"]
+                )
+            )
+            resolved_directory = (
+                len(directory_entries) - len(directory_only)
+            )
+            both = sum(
+                1
+                for obj in objects
+                if (
+                    getattr(obj, "epa_library_name", None)
+                    == left["library"]
+                    and left["library"]
+                    in getattr(obj, "context_library_names", ())
+                )
+            )
+            context_only = sum(
+                1
+                for obj in objects
+                if (
+                    getattr(obj, "epa_library_name", None) is None
+                    and left["library"]
+                    in getattr(obj, "context_library_names", ())
+                )
+            )
+            epa_only = sum(
+                1
+                for obj in objects
+                if (
+                    getattr(obj, "epa_library_name", None)
+                    == left["library"]
+                    and left["library"]
+                    not in getattr(obj, "context_library_names", ())
+                )
+            )
+            conflicts = sum(
+                1
+                for obj in objects
+                if (
+                    getattr(obj, "epa_library_name", None)
+                    and getattr(obj, "context_library_names", ())
+                    and getattr(obj, "epa_library_name", None)
+                    not in getattr(obj, "context_library_names", ())
+                )
+            )
+            warning_count = len(
+                state["inventory"].context_warnings.get(
+                    left["library"],
+                    (),
+                )
+            )
             return [
                 f"Library: {left['library']}",
                 "Role:    " + _tui_library_context(left["library"]),
                 f"Recovered objects: {len(objects):,}",
                 f"Recovered *FILE objects: {len(files):,}",
                 f"Recovered members: {len(members):,}",
+                f"Context-index entries: {len(directory_entries):,}",
+                f"  resolved to primaries: {resolved_directory:,}",
+                f"  directory-only:         {len(directory_only):,}",
+                f"Membership cross-check:  both={both:,}  "
+                f"EPA-only={epa_only:,}  context-only={context_only:,}  "
+                f"conflicts={conflicts:,}",
+                f"Context traversal warnings: {warning_count:,}",
                 "",
                 (
                     "MI context: a library is a context namespace whose "
                     "machine index stores addressability to named system objects."
                 ),
                 (
-                    "Membership evidence: currently recovered from each "
-                    "object's EPA context back-pointer; independent context-index "
-                    "traversal is the current research milestone."
+                    "Membership evidence now uses both independent directions: "
+                    "object EPA -> context and context machine index -> object."
                 ),
                 "",
-                "Select a file or object type in the middle pane.",
+                (
+                    "Select a file/object type or [directory-only] group in "
+                    "the middle pane."
+                ),
             ]
 
         if left["kind"] == "orphans-view":
@@ -6386,6 +6623,9 @@ def _tui_viewer_lines(state):
                 for obj in state["inventory"].members()
                 if obj.library_name is None
             ]
+            directory_only = (
+                state["inventory"].unresolved_context_entries()
+            )
             return [
                 "Orphans / member-only recovery",
                 "",
@@ -6395,6 +6635,10 @@ def _tui_viewer_lines(state):
                 ),
                 f"Orphaned objects: {len(orphans):,}",
                 f"Orphaned members: {len(members):,}",
+                (
+                    "Directory-only references (shown under their recovered "
+                    f"libraries): {len(directory_only):,}"
+                ),
                 "",
                 "This view is especially useful on an incomplete multi-disk system.",
             ]
