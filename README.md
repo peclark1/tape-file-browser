@@ -276,9 +276,11 @@ but the presentation now follows the recovered AS/400 object model more closely:
 
 A breadcrumb immediately below the title keeps the complete navigation path
 visible, for example `marks.hda > QGPL > QCLSRC > REFRESH2`.
-Directory-only context terminals are now grouped beside recovered objects by MI
-type rather than hidden in a separate catch-all bucket; they remain explicitly
-marked `[dir]`.
+Directory-only context terminals are now grouped beside primary-backed objects
+by MI type rather than hidden in a separate catch-all bucket; they remain
+explicitly marked `[dir]`. Mixed lists are sorted by logical AS/400 identity
+first, with recovery state used only as a secondary distinction; normal
+primary-backed entries therefore do not carry a generic "recovered" badge.
 
 The lower pane is a purpose-specific inspector with six views:
 **Summary, Data, Keys, Storage, Evidence, and Raw**. Summary emphasizes what the
@@ -286,7 +288,12 @@ selected AS/400 object is; Data shows source/database or decoded document
 content; Keys isolates QDDSI/context-index evidence; Storage shows QDDS/QDDSI
 and recovered segment groups; Evidence keeps EPA/context provenance and
 incomplete-media reasoning separate from normal browsing; Raw retains bounded
-hex/EBCDIC forensic access.
+hex/EBCDIC forensic access. The active view is always highlighted; views with
+no meaningful data for the current selection are dimmed but remain selectable
+so the browser can explain why that view does not apply. When the logical
+selection changes, the browser chooses a useful default (for example Data for a
+recoverable source/database member and Evidence for a directory-only object);
+manual view changes remain in effect until the selection changes again.
 
 Standard source members are shown as source lines in the Data view. Other QDDS
 members show the recovered field layout plus decoded records; when all decoded
@@ -372,6 +379,7 @@ Home / End      first/last item or top/bottom of inspector content
 Enter           drill into the next pane / inspector
 [ / ]           previous / next inspector view
 1 .. 6          Summary / Data / Keys / Storage / Evidence / Raw
+? / h           built-in help, terminology, and recovery-state glossary
 /               search names across recovered objects/members
 e               export selected QDOC document / *DOCBSS workstation bytes
 o               open another DASD image
