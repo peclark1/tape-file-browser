@@ -901,18 +901,14 @@ class DocumentByteStringInfo:
     def duplicate_length_matches(self) -> bool:
         return self.payload_length == self.duplicate_payload_length
 
-    def validate_for_export(self, segment_bytes: int) -> None:
+    def validate_metadata(self) -> None:
+        """Validate duplicated length/allocation metadata without assuming one segment."""
+
         if not self.duplicate_length_matches:
             raise ValueError(
                 "DOCBSS duplicate payload lengths disagree "
                 f"({self.payload_length} != "
                 f"{self.duplicate_payload_length})"
-            )
-        end = self.payload_offset + self.payload_length
-        if end > segment_bytes:
-            raise ValueError(
-                f"DOCBSS payload length {self.payload_length} exceeds "
-                f"recovered segment capacity {max(0, segment_bytes - self.payload_offset)}"
             )
         if self.allocated_length:
             if self.allocated_length % PAGE_SIZE:
@@ -924,6 +920,58 @@ class DocumentByteStringInfo:
                     f"DOCBSS payload length {self.payload_length} exceeds "
                     f"declared allocation {self.allocated_length}"
                 )
+
+    def validate_for_export(self, segment_bytes: int) -> None:
+        """Validate the ordinary single-segment DOCBSS layout."""
+
+        self.validate_metadata()
+        end = self.payload_offset + self.payload_length
+        if end > segment_bytes:
+            raise ValueError(
+                f"DOCBSS payload length {self.payload_length} exceeds "
+                f"recovered segment capacity {max(0, segment_bytes - self.payload_offset)}"
+            )
+
+
+def assemble_document_byte_string(
+    info: DocumentByteStringInfo,
+    primary_data: bytes,
+    continuation_data: tuple[bytes, ...] = (),
+) -> bytes:
+    """Assemble an observed V2R3 DOCBSS payload across segment groups.
+
+    Ordinary DOCBSS payload starts at +0x200 in the primary segment. Real
+    extended objects continue at +0x200 in each virtual-order 0F90-owned
+    segment group. Each segment therefore contributes all bytes after its first
+    512-byte metadata page; assembly stops at the duplicated declared payload
+    length and never returns allocation padding.
+    """
+
+    info.validate_metadata()
+    chunks = [primary_data]
+    chunks.extend(continuation_data)
+
+    payload = bytearray()
+    remaining = info.payload_length
+    for data in chunks:
+        if remaining <= 0:
+            break
+        if len(data) < info.payload_offset:
+            raise ValueError(
+                "DOCBSS segment is shorter than the observed one-page "
+                "metadata prefix"
+            )
+        available = data[info.payload_offset:]
+        take = min(remaining, len(available))
+        payload.extend(available[:take])
+        remaining -= take
+
+    if remaining:
+        raise ValueError(
+            f"DOCBSS payload is missing {remaining} byte(s) from recovered "
+            "primary/continuation segments"
+        )
+    return bytes(payload)
 
 
 @dataclass(frozen=True)
@@ -3485,8 +3533,15 @@ class DASDImage:
     def read_document_byte_string(
         self,
         obj: RecoveredObject,
+        segment_result: SegmentRecoveryResult | None = None,
     ) -> tuple[DocumentByteStringInfo, bytes]:
-        """Read a conservatively validated IBM *DOCBSS workstation byte stream."""
+        """Read a conservatively validated IBM *DOCBSS workstation byte stream.
+
+        The ordinary form fits after the primary segment's first metadata page.
+        A small real V2R3 extended family overflows into owner-matched 0F90
+        segment groups in virtual-address order; those groups independently
+        reproduce the same one-page metadata prefix before continuation bytes.
+        """
 
         if (
             obj.object_type != 0x06
@@ -3494,12 +3549,73 @@ class DASDImage:
         ):
             raise ValueError("target object is not IBM *DOCBSS (MI 06/C1)")
 
-        data = self.read_segment_bytes(obj.segment)
-        info = DocumentByteStringInfo.from_primary_segment(data)
-        info.validate_for_export(len(data))
-        start = info.payload_offset
-        end = start + info.payload_length
-        return info, data[start:end]
+        primary = self.read_segment_bytes(obj.segment)
+        info = DocumentByteStringInfo.from_primary_segment(primary)
+        info.validate_metadata()
+
+        primary_capacity = max(0, len(primary) - info.payload_offset)
+        if info.payload_length <= primary_capacity:
+            return info, assemble_document_byte_string(info, primary)
+
+        if segment_result is None:
+            raise ValueError(
+                "DOCBSS payload extends beyond the primary segment; "
+                "recovered segment inventory is required for continuation"
+            )
+
+        continuations = sorted(
+            (
+                segment
+                for segment in segment_result.segments
+                if (
+                    segment.owner_key == obj.segment.owner_key
+                    and segment.virtual_address != obj.segment.virtual_address
+                    and segment.header.segment_type == 0x0F90
+                    and segment.virtual_address > obj.segment.virtual_address
+                )
+            ),
+            key=lambda segment: (
+                segment.virtual_address,
+                segment.start_lba,
+            ),
+        )
+
+        needed = info.payload_length - primary_capacity
+        expected_va = (
+            obj.segment.virtual_address
+            + obj.segment.pages * PAGE_SIZE
+        )
+        continuation_data: list[bytes] = []
+        available = 0
+        for segment in continuations:
+            if available >= needed:
+                break
+            if segment.virtual_address != expected_va:
+                raise ValueError(
+                    "DOCBSS continuation segment is not contiguous in "
+                    f"virtual storage: expected 0x{expected_va:012X}, "
+                    f"found 0x{segment.virtual_address:012X}"
+                )
+            data = self.read_segment_bytes(segment)
+            if len(data) < info.payload_offset:
+                raise ValueError(
+                    "DOCBSS continuation segment is shorter than one metadata page"
+                )
+            continuation_data.append(data)
+            available += len(data) - info.payload_offset
+            expected_va += segment.pages * PAGE_SIZE
+
+        if available < needed:
+            raise ValueError(
+                f"DOCBSS extended payload needs {needed} continuation byte(s); "
+                f"only {available} recovered"
+            )
+
+        return info, assemble_document_byte_string(
+            info,
+            primary,
+            tuple(continuation_data),
+        )
 
     def read_context_machine_index(
         self,
