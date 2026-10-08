@@ -863,10 +863,14 @@ QDDSI_DKEY_ROW_SIZE = 0x40
 QDDSI_DKYT_ROW_SIZE = 0x20
 QDDSI_LAYOUT_MIN_SIZE = QDDSI_DKEY_POINTER_OFFSET + 6
 
-# Ordinary recovered QDDSI primaries place the active machine-index root page
-# at the next 4-KB boundary. IBM documents that the data-space index contains
-# a general machine index; the page size itself is recovered from the root-page
-# free-byte and first-free fields rather than hard-coded here.
+# The early ordinary samples place the active machine-index root at +0x1000,
+# but larger/special real V2R3 indexes place it at +0x1800 or +0x2800. The
+# QDDSI object header carries an observed six-byte pointer at +0x13A to a
+# machine-index control area; that area's +0x20 six-byte pointer identifies the
+# active root page. Keep +0x1000 only as a synthetic/legacy fallback when the
+# caller does not supply the QDDSI primary virtual address.
+QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET = 0x13A
+QDDSI_MACHINE_INDEX_CONTROL_ROOT_POINTER_OFFSET = 0x20
 QDDSI_MACHINE_INDEX_ROOT_OFFSET = 0x1000
 
 
@@ -2025,14 +2029,17 @@ class DataSpaceIndexTraversal:
 def decode_data_space_index_root(
     data: bytes,
     layout: DataSpaceIndexLayout,
+    *,
+    virtual_address: int | None = None,
 ) -> DataSpaceIndexTraversal:
     """Walk an ordinary QDDSI release-2 machine index in keyed order.
 
     IBM says a data-space index contains a general release-2 machine index.
-    Real V2R3 QDDSIs establish the physical details used here: the active
-    root page begins at segment offset 0x1000; free-byte/first-free fields
-    constrain each logical page; node displacements XOR with the originating
-    node offset; and text length is encoded as byte-count minus one.
+    Real V2R3 QDDSIs establish the physical details used here: the object
+    header points to a machine-index control area whose +0x20 pointer identifies
+    the active root page; free-byte/first-free fields constrain each logical
+    page; node displacements XOR with the originating node offset; and text
+    length is encoded as byte-count minus one.
 
     Page pointers with segment-table index zero are also validated on four
     multi-page real indexes. Their low field is in 256-byte units within the
@@ -2079,6 +2086,40 @@ def decode_data_space_index_root(
     for _, spec in active_specs:
         if spec.user_key_length > spec.machine_key_length:
             raise ValueError("QDDSI user key is longer than machine key")
+
+    if virtual_address is not None:
+        control_end = QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET + 6
+        if len(data) < control_end:
+            raise ValueError("QDDSI segment has no machine-index control pointer")
+        control_address = int.from_bytes(
+            data[
+                QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET :
+                control_end
+            ],
+            "big",
+        )
+        control_offset = control_address - virtual_address
+        root_pointer_offset = (
+            control_offset + QDDSI_MACHINE_INDEX_CONTROL_ROOT_POINTER_OFFSET
+        )
+        if (
+            control_address == 0
+            or control_offset < 0
+            or root_pointer_offset + 6 > len(data)
+        ):
+            raise ValueError("QDDSI machine-index control area is not recovered")
+        root_address = int.from_bytes(
+            data[root_pointer_offset : root_pointer_offset + 6],
+            "big",
+        )
+        root_offset = root_address - virtual_address
+        if (
+            root_address == 0
+            or root_offset < 0
+            or root_offset + 8 > len(data)
+        ):
+            raise ValueError("QDDSI active machine-index root is not recovered")
+
     if len(data) < root_offset + 8:
         raise ValueError("QDDSI segment has no complete root-page header")
 
@@ -2962,7 +3003,11 @@ class DASDImage:
             return None
         data = self.read_segment_bytes(storage.data_index.segment)
         try:
-            return decode_data_space_index_root(data, layout)
+            return decode_data_space_index_root(
+                data,
+                layout,
+                virtual_address=storage.data_index.segment.virtual_address,
+            )
         except ValueError:
             return None
 
