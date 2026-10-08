@@ -722,35 +722,52 @@ class ObjectInventory:
             if entry.library_name.upper() == wanted
         ]
 
+    def _context_object_index(
+        self,
+    ) -> dict[tuple[tuple[int, int], int, int], RecoveredObject]:
+        return {
+            (obj.object_address.key, obj.object_type, obj.object_subtype): obj
+            for obj in self.objects
+        }
+
     def resolve_context_entry(
         self,
         entry: ContextDirectoryEntry,
     ) -> RecoveredObject | None:
-        if entry.object_address is None:
+        if (
+            entry.object_address is None
+            or entry.object_type is None
+            or entry.object_subtype is None
+        ):
             return None
-        for obj in self.objects:
-            if obj.object_address.key != entry.object_address.key:
-                continue
-            if (
-                entry.object_type is not None
-                and entry.object_subtype is not None
-                and (obj.object_type, obj.object_subtype)
-                != (entry.object_type, entry.object_subtype)
-            ):
-                continue
-            return obj
-        return None
+        return self._context_object_index().get(
+            (
+                entry.object_address.key,
+                entry.object_type,
+                entry.object_subtype,
+            )
+        )
 
     def unresolved_context_entries(
         self,
         library: str | None = None,
     ) -> list[ContextDirectoryEntry]:
         wanted = library.upper() if library else None
+        index = self._context_object_index()
         result = []
         for entry in self.context_entries:
             if wanted is not None and entry.library_name.upper() != wanted:
                 continue
-            if self.resolve_context_entry(entry) is None:
+            if (
+                entry.object_address is None
+                or entry.object_type is None
+                or entry.object_subtype is None
+                or (
+                    entry.object_address.key,
+                    entry.object_type,
+                    entry.object_subtype,
+                ) not in index
+            ):
                 result.append(entry)
         return result
 
