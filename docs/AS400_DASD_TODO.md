@@ -384,7 +384,7 @@ to this CISC release.
 - [x] Promote directory-only context terminals into normal per-library MI-type
       groups beside recovered objects while retaining explicit `[dir]`
       provenance markers and context-only/conflict evidence.
-- [ ] Make navigation-list ordering identity-first rather than recovery-state-first:
+- [x] Make navigation-list ordering identity-first rather than recovery-state-first:
       sort mixed file/member/object/directory entries by logical AS/400 name,
       use recovery state only as a secondary tie-breaker, and remove plain
       "recovered" as if it were a completeness grade. Reserve compact markers
@@ -420,24 +420,24 @@ to this CISC release.
       a library or file shows its own view even when a child is automatically
       selected; separate human-facing summary/data from storage/evidence/raw
       forensic views.
-- [ ] Add an in-TUI help/guide page (for example `?` or `h`) that explains
+- [x] Add an in-TUI help/guide page (for example `?` or `h`) that explains
       the screen layout, navigation panes, breadcrumb, inspector views, and
       context-sensitive keys without requiring the README.
-- [ ] Include a concise terminology glossary in TUI help for recovery-specific
+- [x] Include a concise terminology glossary in TUI help for recovery-specific
       concepts such as recovered primary/object, directory-only `[dir]`,
       context-index-only `[ctx]`, evidence conflict `!`, QDDS/QDDSI, DENT,
       member cursor, context/library, keyed versus arrival/RRN order, and raw
       forensic views. Keep definitions evidence-aware so "recovered" means
       what the browser actually proved or reconstructed rather than implying
       the entire original object necessarily survives.
-- [ ] Make inspector-tab state visually unambiguous. Give the active
+- [x] Make inspector-tab state visually unambiguous. Give the active
       Summary/Data/Keys/Storage/Evidence/Raw view a persistent selected style
       even when another pane has keyboard focus, show applicable-but-inactive
       views normally, and visibly dim/mark views for which the current
       selection has no meaningful data. Keep unavailable views selectable so
       they can explain why no data is available rather than silently doing
       nothing.
-- [ ] Choose a context-sensitive default inspector view when the selection
+- [x] Choose a context-sensitive default inspector view when the selection
       changes, based on what is most useful for that AS/400 item. For example,
       open recovered source members (CL/RPG/COBOL/DDS/etc.) directly in Data,
       database members in Data, library/object containers in Summary, and
