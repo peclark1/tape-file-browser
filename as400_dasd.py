@@ -2481,7 +2481,7 @@ class ContextMachineIndexTraversal:
 
 @dataclass(frozen=True)
 class MachineIndexPagePointerRef:
-    """Page pointer encountered while walking a QDDSI machine index."""
+    """Page pointer encountered while walking a release-2 machine index."""
 
     element_offset: int
     segment_table_index: int
@@ -3525,18 +3525,19 @@ class DASDImage:
         *,
         element_offset: int = 0,
         count: int = 32,
-        page_size: int = PAGE_SIZE,
-        page_origin: int = 0,
+        page_size: int = CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+        page_origin: int = CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
     ) -> list[MachineIndexElementProbe]:
-        """Decode three-byte machine-index elements from one context page.
+        """Decode three-byte elements from one recovered context index page.
 
-        This is intentionally a forensic/reverse-engineering helper rather
-        than a full index traversal. IBM documents release-2 indexes as
-        three-byte elements and logical pages from 512 through 32768 bytes.
-        Until the context object's index-page header/trunk location is decoded,
-        the caller explicitly selects the page origin, page, and element-stream
-        offset. The element offset may use any modulo-3 phase because the page
-        header/trunk length is not yet known.
+        The default context layout is now independently validated across both
+        real images: a +0x800 trunk origin and 1,024-byte logical pages. The
+        caller may still override either value for forensic probing because IBM
+        permits other release-2 machine-index page sizes generally.
+
+        element_offset remains explicit and may use any modulo-3 phase; zero
+        includes the root node while the decoded page header exposes the
+        observed current-tree storage boundary.
         """
 
         if (
