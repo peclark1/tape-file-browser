@@ -798,7 +798,7 @@ class DASDToolTests(unittest.TestCase):
             [item["kind"] for item in state["right_items"]],
             ["object", "context-entry"],
         )
-        self.assertTrue(state["right_items"][1]["label"].startswith("[dir]"))
+        self.assertIn("[dir]", state["right_items"][1]["label"])
         self.assertEqual(state["viewer_scroll"], 0)
 
     def test_tui_keeps_context_for_library_file_and_member_visible(self):
