@@ -1545,6 +1545,17 @@ def decode_format_fields(
     return tuple(sorted(result, key=lambda field: (field.offset, field.name)))
 
 
+# IBM documents the leading Data Space Entry Status (DENT) byte as carrying
+# valid/deleted/cross-segment state. The period manual available to this project
+# does not give the individual bit positions. Real V2R3 validation is much
+# stronger for two ordinary forms: across 486,376 complete user entries only
+# 0x80 and 0xC0 occur, and ordinary QDDSI key counts consistently include 0x80
+# entries while excluding 0xC0 entries. Preserve all other status values raw.
+DENT_V2_LIVE = 0x80
+DENT_V2_DELETED = 0xC0
+DENT_V2_DELETED_BIT = 0x40
+
+
 @dataclass(frozen=True)
 class DataSpaceRecord:
     """One ordinal-addressed data-space entry."""
@@ -1559,6 +1570,25 @@ class DataSpaceRecord:
         """Relative record number; zero is the data-space default entry."""
 
         return self.ordinal
+
+    @property
+    def is_live_hint(self) -> bool:
+        """True for the ordinary V2R3 live/valid DENT form (0x80)."""
+
+        return self.status == DENT_V2_LIVE
+
+    @property
+    def is_deleted_hint(self) -> bool:
+        """True for the independently validated V2R3 deleted DENT form.
+
+        IBM documents a deleted-entry state in the DENT byte. On the real V2R3
+        image, 0xC0 differs from the ordinary live 0x80 form only by bit 0x40;
+        ordinary access-path key counts exclude exactly those 0xC0 entries
+        across several unrelated physical files. Keep this as an observed V2R3
+        interpretation rather than claiming every possible DENT bit is decoded.
+        """
+
+        return self.status == DENT_V2_DELETED
 
     @property
     def ebcdic_preview(self) -> str:
@@ -1627,6 +1657,14 @@ class QAOSSS14AnchorRecord:
     @property
     def rrn(self) -> int:
         return self.ordinal
+    @property
+    def is_live_hint(self) -> bool:
+        return self.status == DENT_V2_LIVE
+
+    @property
+    def is_deleted_hint(self) -> bool:
+        return self.status == DENT_V2_DELETED
+
 
     def field(self, name: str) -> bytes:
         key = name.upper()
