@@ -449,6 +449,45 @@ class DASDHeaderTests(unittest.TestCase):
             InternalAddress(0x0001, 0x000012340000),
         )
 
+    def test_context_machine_index_follows_same_segment_page_pointer(self):
+        data = bytearray(0x1200)
+        data[0x800:0x808] = bytes.fromhex(
+            "97 00 08 CC 00 00 00 00"
+        )
+        data[0x808:0x80E] = bytes.fromhex(
+            "C0 00 0C 60 00 00"
+        )
+
+        data[0xC00:0xC08] = bytes.fromhex(
+            "97 00 08 55 00 00 00 00"
+        )
+        terminal = (
+            bytes([0x19, 0x01])
+            + "TEST".encode("cp037")
+            + bytes([0x14])
+            + bytes.fromhex("000100001234")
+        )
+        data[0xC08:0xC0E] = bytes.fromhex(
+            "0C 0C 0E 60 00 00"
+        )
+        data[0xC0E:0xC0E + len(terminal)] = terminal
+
+        traversal = decode_context_machine_index(bytes(data))
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.page_offsets, (0x800, 0xC00))
+        self.assertEqual(traversal.page_count, 2)
+        self.assertEqual(len(traversal.page_pointers), 1)
+        self.assertTrue(traversal.page_pointers[0].followed)
+        self.assertEqual(
+            traversal.page_pointers[0].target_offset,
+            0xC00,
+        )
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(
+            traversal.entries[0].object_address_hint,
+            InternalAddress(0x0001, 0x000012340000),
+        )
+
     def test_context_machine_index_empty_root(self):
         traversal = decode_context_machine_index(bytes(0x1000))
         self.assertTrue(traversal.complete)
