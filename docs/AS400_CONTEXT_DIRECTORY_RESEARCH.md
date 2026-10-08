@@ -358,12 +358,103 @@ identify the page-header/root-node boundary or reconstruct a complete context
 entry, so 512/origin-0x1E0/phase-2 remains a strongly supported PPSITEST working
 model rather than an architectural constant.
 
-That is the planned checkpoint for this research pass. The remaining context
-tasks—page-header/root-node placement, node/page-pointer traversal,
-front-end/common-text reconstruction, and context-derived membership—are
-preserved for a later return. The active DASD-browser effort now moves to
-database/QDDSI and keyed-file reconstruction rather than extending this one
-reverse-engineering thread indefinitely.
+That checkpoint has now been resumed. Ordinary small-context root placement,
+node/common-text traversal, and compact context-derived object references are
+validated across both real images. The remaining context work is page-pointer
+following for larger contexts, exact page-header data-area semantics, and
+turning validated context-derived references into a second membership source
+for the browser.
+
+## First real context-tree traversal
+
+Returning to this work after the QDDSI machine-index milestone produced the
+first direct `context -> object` traversal.
+
+### Ordinary small-context root placement
+
+The earlier `0x1E0` page-origin scoring was useful for locating text evidence,
+but direct tree walking exposed a stronger structure. In ordinary non-empty
+eight-page `04/01` context segments, both real images independently place a
+release-2 node at **segment offset `+0x800`**, followed immediately by page
+type `0xCC`.
+
+This is not being promoted to an architecture-wide constant for every context
+size. It is, however, strongly reproduced for the ordinary eight-page context
+population and is now the conservative default used by the first context
+walker.
+
+### Tree mechanics
+
+Starting at `+0x800`, the same IBM-documented release-2 node mechanics already
+validated for QDDSI work without alteration:
+
+- node XOR displacement locates the two-branch cluster;
+- common-text elements supply shared leading bytes;
+- terminal-text elements supply the remaining bytes;
+- text displacements are absolute low-16 segment offsets in these small
+  one-segment contexts.
+
+The walker deliberately stops at page-pointer elements. Pointer following
+remains a separate validation step for larger contexts.
+
+### Independent V2R3 validation
+
+On Mark's V2R3 image, 17 non-empty ordinary eight-page contexts traverse from
+`+0x800` without a node/text structural warning. They yield **229 terminal
+entries**.
+
+For all **229/229**, the final six terminal bytes identify a recovered object
+primary and the first two reconstructed bytes agree with that object's MI
+type/subtype.
+
+The six-byte object reference is observed as:
+
+```text
+2-byte segment extender
+4 high bytes of the 48-bit object address
+```
+
+Appending two zero address bytes therefore reconstructs the page-aligned
+eight-byte internal object address. Keep this as an observed compact context
+reference until the exact period data-area definition is located.
+
+### B10/PPSITEST validation and recovery value
+
+Pete's surviving B10 disk provides the important partial-volume cross-check.
+Across its ordinary small contexts the walker reconstructs **141 terminal
+entries**; **80** point to object primaries that are present on the surviving
+disk and all 80 type/subtype pairs agree.
+
+For `PPSITEST` specifically, the tree contains **13 terminal entries**.
+Six resolve directly to the six EPA-assigned recovered primaries already known
+from the reverse direction.
+
+Two additional terminals do something more useful: their compact references
+point to object primaries that are absent, but surviving segment groups have
+YYSGHDR owners exactly equal to the inferred addresses:
+
+- `QDDSSRC / ADDFUNDD` member cursor candidate ->
+  `00ED:001C35000000`;
+- `QLBLSRC / ADDFUND` member cursor candidate ->
+  `00EC:0005D9000000`.
+
+That is the first concrete demonstration that the context index can recover
+object identity/addressability that the EPA-primary inventory alone cannot.
+The remaining unmatched PPSITEST terminals include `19/01 *FILE` candidates
+whose primaries/owned groups do not survive on this disk.
+
+### What is still deliberately unresolved
+
+The terminal byte stream is **not** being forced into the documented expanded
+logical `T S NL N @` representation. The physical machine index clearly uses
+a compact address form and additional control/length bytes, and member cursors
+carry composite file/member key material. Those physical encodings need their
+own documentation/validation.
+
+Likewise, the exact widths/semantics of the bytes after the root node and page
+type in the physical page header remain open. The new evidence establishes a
+reproducible root boundary and a working one-segment tree traversal, not the
+complete generic page-header data area.
 
 ## Real-image validation plan
 Once the documentation model is firm:
