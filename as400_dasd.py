@@ -2116,6 +2116,108 @@ class ContextMachineIndexTerminal:
             return self.raw
         return self.raw[:-6]
 
+    @property
+    def name_raw_hint(self) -> bytes | None:
+        return decode_context_terminal_name_hint(self.raw)
+
+
+def decode_context_terminal_name_hint(raw: bytes) -> bytes | None:
+    """Decode the observed ordinary compact context-name representation.
+
+    This is not the documented logical T+S+NL+N+@ layout. Real context
+    terminals compact blank padding inside the name key. Ordinary simple names
+    use a 0x40 + positive-count blank run; 0D/50 member cursors additionally
+    use a high-byte marker to pad the fixed ten-byte file-name component before
+    the member-name component.
+
+    The decoder deliberately rejects other high-marker composite encodings
+    rather than guessing their semantics.
+    """
+
+    if len(raw) < 8:
+        return None
+    key = raw[2:-6]
+    object_type = raw[0]
+    object_subtype = raw[1]
+
+    def printable_name(value: bytes) -> bool:
+        decoded = value.decode("cp037", errors="replace").rstrip(" \x00")
+        return bool(decoded) and all(
+            32 <= ord(character) <= 126
+            for character in decoded
+        )
+
+    if (object_type, object_subtype) == (0x0D, 0x50):
+        output = bytearray()
+        offset = 0
+
+        # The member key has two fixed ten-byte name components. A file name
+        # shorter than ten bytes is followed by 0x40 and a two's-complement
+        # negative blank count (F6..FF); a full ten-byte file name has no
+        # separator marker.
+        while offset < len(key) and len(output) < 10:
+            if (
+                offset + 1 < len(key)
+                and key[offset] == 0x40
+                and 0xF6 <= key[offset + 1] <= 0xFF
+            ):
+                output.extend(
+                    b"\x40" * (0x100 - key[offset + 1])
+                )
+                offset += 2
+                break
+            output.append(key[offset])
+            offset += 1
+
+        if len(output) != 10:
+            return None
+
+        # The second component is followed by a positive blank count covering
+        # member padding plus the final ten bytes of the 30-byte EPA name.
+        while offset < len(key) and len(output) < 30:
+            if (
+                offset + 1 < len(key)
+                and key[offset] == 0x40
+                and 1 <= key[offset + 1] <= 20
+            ):
+                output.extend(b"\x40" * key[offset + 1])
+                offset += 2
+                break
+            output.append(key[offset])
+            offset += 1
+
+        if offset != len(key) or len(output) != 30:
+            return None
+        result = bytes(output)
+        return result if printable_name(result) else None
+
+    # Other ordinary object names are one 30-byte EPA name field. Composite
+    # special object keys also use high-marker forms; leave those undecoded.
+    if any(
+        key[index] == 0x40 and 0xF6 <= key[index + 1] <= 0xFF
+        for index in range(max(0, len(key) - 1))
+    ):
+        return None
+
+    output = bytearray()
+    offset = 0
+    while offset < len(key) and len(output) < 30:
+        if (
+            offset + 1 < len(key)
+            and key[offset] == 0x40
+            and 1 <= key[offset + 1] <= 30
+        ):
+            output.extend(b"\x40" * key[offset + 1])
+            offset += 2
+            continue
+        output.append(key[offset])
+        offset += 1
+
+    if offset != len(key) or len(output) != 30:
+        return None
+    result = bytes(output)
+    return result if printable_name(result) else None
+
 
 @dataclass(frozen=True)
 class ContextMachineIndexTraversal:
