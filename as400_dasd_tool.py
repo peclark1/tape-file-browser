@@ -4677,7 +4677,11 @@ def _tui_group_right_items(selected):
         )
 
     for entry in selected.get("entries", ()):
-        library = entry.library_name or "<unknown>"
+        library = (
+            getattr(entry, "library_name", None)
+            or selected.get("library")
+            or "<unknown>"
+        )
         name = entry.display_name_hint or "<name undecoded>"
         surviving = " +seg" if entry.owned_segment_count else ""
         result.append(
