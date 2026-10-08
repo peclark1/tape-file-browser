@@ -4293,11 +4293,7 @@ def _tui_file_items(state, library_name):
                 obj.segment.virtual_address,
             ),
         )
-        marker = (
-            "recovered"
-            if file_obj is not None
-            else "member-only"
-        )
+        marker = "" if file_obj is not None else "  [member-only]"
         result.append(
             {
                 "kind": "file",
@@ -4307,7 +4303,7 @@ def _tui_file_items(state, library_name):
                 "members": file_members,
                 "label": (
                     f"{name:<10}  "
-                    f"{len(file_members):>4}  "
+                    f"{len(file_members):>4}"
                     f"{marker}"
                 ),
             }
@@ -4480,6 +4476,68 @@ def _tui_rebuild_from_left(state):
     _tui_rebuild_from_mid(state)
 
 
+def _tui_group_right_items(selected):
+    """Build one identity-first mixed recovered/directory object list."""
+
+    result = []
+    for obj in selected.get("objects", ()):
+        library = obj.library_name or "<orphan>"
+        hint = obj.external_type_hint or obj.type_code
+        epa_library = getattr(obj, "epa_library_name", None)
+        context_libraries = tuple(
+            getattr(obj, "context_library_names", ()) or ()
+        )
+        marker = ""
+        if (
+            epa_library
+            and context_libraries
+            and epa_library not in context_libraries
+        ):
+            marker = "  !"
+        elif epa_library is None and len(context_libraries) == 1:
+            marker = "  [ctx]"
+        result.append(
+            {
+                "kind": "object",
+                "object": obj,
+                "label": f"{library}/{obj.name}  {hint}{marker}",
+                "_sort": (
+                    library.upper(),
+                    obj.name.upper(),
+                    0,
+                    obj.segment.virtual_address,
+                ),
+            }
+        )
+
+    for entry in selected.get("entries", ()):
+        library = entry.library_name or "<unknown>"
+        name = entry.display_name_hint or "<name undecoded>"
+        surviving = " +seg" if entry.owned_segment_count else ""
+        result.append(
+            {
+                "kind": "context-entry",
+                "entry": entry,
+                "label": f"{library}/{name}  {entry.type_code}  [dir]{surviving}",
+                "_sort": (
+                    library.upper(),
+                    name.upper(),
+                    1,
+                    (
+                        entry.object_address.address
+                        if entry.object_address is not None
+                        else 0
+                    ),
+                ),
+            }
+        )
+
+    result.sort(key=lambda item: item["_sort"])
+    for item in result:
+        item.pop("_sort", None)
+    return result
+
+
 def _tui_rebuild_from_mid(state):
     mid_items = state["mid_items"]
     if not mid_items:
@@ -4545,49 +4603,7 @@ def _tui_rebuild_from_mid(state):
     elif selected["kind"] == "search-group":
         state["right_items"] = list(selected.get("search_items", ()))
     else:
-        result = []
-        for obj in selected["objects"]:
-            library = obj.library_name or "<orphan>"
-            hint = obj.external_type_hint or obj.type_code
-            epa_library = getattr(obj, "epa_library_name", None)
-            context_libraries = tuple(
-                getattr(obj, "context_library_names", ()) or ()
-            )
-            marker = ""
-            if (
-                epa_library
-                and context_libraries
-                and epa_library not in context_libraries
-            ):
-                marker = "  !"
-            elif epa_library is None and len(context_libraries) == 1:
-                marker = "  [ctx]"
-            result.append(
-                {
-                    "kind": "object",
-                    "object": obj,
-                    "label": (
-                        f"{library}/{obj.name}  {hint}{marker}"
-                    ),
-                }
-            )
-        for entry in selected.get("entries", ()):
-            name = entry.display_name_hint or "<name undecoded>"
-            surviving = (
-                " +seg"
-                if entry.owned_segment_count
-                else ""
-            )
-            result.append(
-                {
-                    "kind": "context-entry",
-                    "entry": entry,
-                    "label": (
-                        f"[dir] {name}  {entry.type_code}{surviving}"
-                    ),
-                }
-            )
-        state["right_items"] = result
+        state["right_items"] = _tui_group_right_items(selected)
 
     state["right_index"] = 0
     state["viewer_scroll"] = 0
