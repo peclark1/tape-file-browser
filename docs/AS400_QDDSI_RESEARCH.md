@@ -226,7 +226,7 @@ machine-index entries. For every one of those entries:
 - the number of entries attributed to each DKEY equals that row's reported
   key count.
 
-The eight remaining populated indexes are a much narrower exception family:
+The final eight populated indexes form a narrow long/compact-key family:
 
 - `QAOKLAKA`
 - `QAOKLDKA`
@@ -237,17 +237,29 @@ The eight remaining populated indexes are a much narrower exception family:
 - `QAOKS04A`
 - `QAOKS05A`
 
-Their tree entry counts are already recovered exactly, and their terminal
-suffixes still carry plausible DKEY/ordinal references, but the reconstructed
-terminal paths are far shorter than the DKEY machine-key lengths. Repeated
-`3FFF`-like values and very large declared key fields indicate an
-indirect/compressed representation that is not yet decoded. Do not pad or
-invent the missing user-key bytes.
+Their terminal paths are shorter than the DKEY machine-key lengths, so the
+full user-key bytes are not reconstructed. That is no longer treated as a
+failed traversal. IBM's machine-index description permits compressed/common
+text and documents a maximum machine-index entry length of 128 bytes, while
+some of these DKEY layouts report larger machine-key lengths. The conservative
+decoder therefore preserves only the tree text actually present and the
+ordinary four-byte database reference; it does not pad or invent omitted key
+bytes. Repeated `3FFF`-like values remain raw evidence with no assigned
+meaning.
 
-This changes the remaining problem substantially: ordinary QDDSI traversal,
-multi-page traversal, dynamic root selection, and mixed-key multi-DKEY
-selection are now validated. The database/index research blocker is the small
-eight-index long/compressed-key family rather than general tree walking.
+Across these eight indexes the tree yields 156 terminal database references.
+Every reference selects a valid populated DKEY row and resolves to one of the
+13 recovered QDDS ordinals for the shared `QAOKP09A` data space. Including
+the 128,191 complete-key entries from the other 102 populated indexes, all 110
+populated recovered V2R3 QDDSIs now enumerate **128,347 keyed terminal
+references** in tree order.
+
+This completes the functional QDDSI/keyed-record milestone: ordinary and
+multi-DKEY access paths can be enumerated in keyed order, and the browser can
+resolve their database references to QDDS RRNs without pretending that every
+compressed index exposes the full literal user key. Recovering the omitted
+user-key bytes for the eight long/compact variants remains a useful research
+follow-up rather than a prerequisite for keyed navigation.
 
 ## FUNDDEF surviving key evidence
 
@@ -354,17 +366,15 @@ documents it.
 
 ## Next implementation steps
 
-1. Characterize the eight remaining long/compressed-key QDDSIs without
-   guessing the meaning of their `3FFF`-like references.
-2. Determine whether their omitted key material is represented through another
-   documented binary-tree/reference structure, and validate any interpretation
-   against the associated QDDS records.
-3. Keep DKEY-aware keyed-record presentation in the CLI/TUI: only map an index
-   entry to the currently displayed member when that entry's DKEY row points to
-   the member's QDDS.
-4. Once the eight-index exception family is understood or conservatively
-   classified, call the QDDSI/keyed-file milestone complete and resume the
-   permanent context/library machine-index traversal.
+1. Keep the eight long/compact QAOK variants as an explicit partial-key
+   research follow-up; preserve their tree evidence and complete database
+   references without inventing omitted user-key bytes.
+2. Keep DKEY-aware keyed-record presentation in the CLI/TUI: only map an index
+   entry to the displayed member when its DKEY row points to that member's
+   QDDS, and label partial key evidence explicitly.
+3. Resume the permanent context/library machine-index work using the validated
+   QDDSI lessons: dynamic roots, node XOR links, common/terminal text,
+   page-pointer traversal, and conservative handling of compressed keys.
 
 ## Research discipline
 
