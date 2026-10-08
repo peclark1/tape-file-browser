@@ -7959,6 +7959,20 @@ def _tui_browse(stdscr, initial_path=None):
         if key in (27, ord("q"), ord("Q")):
             return
 
+        if key == ord("["):
+            name = _tui_cycle_inspector_tab(state, -1)
+            state["status"] = f"Inspector: {name}"
+            continue
+        if key == ord("]"):
+            name = _tui_cycle_inspector_tab(state, 1)
+            state["status"] = f"Inspector: {name}"
+            continue
+        if ord("1") <= key <= ord("6"):
+            state["inspector_tab"] = key - ord("1")
+            state["viewer_scroll"] = 0
+            state["status"] = f"Inspector: {_tui_inspector_tab(state)}"
+            continue
+
         if key in (ord("e"), ord("E")):
             _tui_export_selected_dlo(
                 stdscr,
