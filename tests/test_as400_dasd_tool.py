@@ -128,11 +128,18 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("E:", lines[0])
         self.assertNotIn("A:", lines[0])
 
-    def test_dent_status_note_is_cautious(self):
-        note = _data_space_status_note(0x80)
-        self.assertIn("observed", note)
-        self.assertIn("not yet decoded", note)
-        self.assertNotIn("deleted", note.lower())
+    def test_dent_status_note_distinguishes_validated_v2_forms(self):
+        live = _data_space_status_note(0x80)
+        self.assertIn("live/valid", live)
+        self.assertNotIn("deleted", live.lower())
+
+        deleted = _data_space_status_note(0xC0)
+        self.assertIn("deleted", deleted.lower())
+        self.assertIn("0x40", deleted)
+
+        unknown = _data_space_status_note(0x40)
+        self.assertIn("raw", unknown.lower())
+        self.assertIn("not yet decoded", unknown)
 
     def test_tui_context_describes_known_as400_roles(self):
         qdoc = _tui_library_context("QDOC")
@@ -912,13 +919,27 @@ class DASDToolTests(unittest.TestCase):
             leading_key=bytes.fromhex("3132333435363738"),
             parent_key=missing_key,
         )
+        deleted_gap = SimpleNamespace(
+            rrn=4,
+            leading_key=bytes.fromhex("4142434445464748"),
+            parent_key=missing_key,
+            is_deleted_hint=True,
+        )
 
         unresolved = _qaosss14_unresolved_parent_records(
-            (root, child, gap)
+            (root, child, gap, deleted_gap)
         )
         self.assertEqual(len(unresolved), 1)
         self.assertIs(unresolved[0][0], gap)
         self.assertEqual(unresolved[0][1], ())
+        including_deleted = _qaosss14_unresolved_parent_records(
+            (root, child, gap, deleted_gap),
+            include_deleted=True,
+        )
+        self.assertEqual(
+            [item[0].rrn for item in including_deleted],
+            [3, 4],
+        )
 
     def test_dlo_parent_gaps_subcommand(self):
         parser = build_parser()
