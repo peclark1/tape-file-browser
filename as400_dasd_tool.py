@@ -3590,25 +3590,33 @@ def cmd_member(args):
                     if traversal.page_size is not None
                     else ""
                 )
+                partial_note = (
+                    f"  partial keys {traversal.partial_key_count:,}"
+                    if traversal.partial_key_count
+                    else ""
+                )
                 print(
                     f"  QDDSI keyed entries: {traversal.entry_count:,}/"
                     f"{traversal.expected_entries:,}  {state}{page_note}  "
-                    f"pages {traversal.page_count:,}"
+                    f"pages {traversal.page_count:,}{partial_note}"
                 )
                 for entry in traversal.entries[:32]:
+                    key_bytes = entry.display_key_bytes
                     preview = ebcdic_preview(
-                        entry.user_key,
-                        limit=len(entry.user_key),
+                        key_bytes,
+                        limit=len(key_bytes),
                     )
                     ordinal = (
                         f"RRN~{entry.ordinal_hint:,}"
                         if entry.ordinal_hint is not None
                         else f"dbref {entry.database_reference.hex().upper()}"
                     )
+                    key_label = "key" if entry.key_complete else "tree-key evidence"
+                    partial = "" if entry.key_complete else "  (partial key)"
                     print(
                         f"      DKEY {entry.dkey_index}  "
-                        f"key {entry.user_key.hex().upper()}  "
-                        f"[{preview}]  {ordinal}"
+                        f"{key_label} {key_bytes.hex().upper()}  "
+                        f"[{preview}]  {ordinal}{partial}"
                     )
                 if traversal.entry_count > 32:
                     print(
@@ -5921,10 +5929,15 @@ def _tui_member_lines(state, member_item):
                 )
         if traversal is not None:
             state_text = "complete" if traversal.complete else "partial"
+            key_state = (
+                f", {traversal.partial_key_count:,} partial key(s)"
+                if traversal.partial_key_count
+                else ""
+            )
             lines.append(
                 f"  Traversal: {traversal.entry_count:,}/"
                 f"{traversal.expected_entries:,} entries ({state_text}), "
-                f"{traversal.page_count:,} page(s)"
+                f"{traversal.page_count:,} page(s){key_state}"
             )
             if traversal.page_pointers:
                 lines.append(
@@ -5934,19 +5947,22 @@ def _tui_member_lines(state, member_item):
             if traversal.entries:
                 lines.extend(["", "Key preview (first 20)"])
                 for entry in traversal.entries[:20]:
-                    key_hex = entry.user_key.hex().upper()
+                    key_bytes = entry.display_key_bytes
+                    key_hex = key_bytes.hex().upper()
                     key_text = ebcdic_preview(
-                        entry.user_key,
-                        limit=len(entry.user_key),
+                        key_bytes,
+                        limit=len(key_bytes),
                     )
                     rrn = (
                         f"RRN~{entry.ordinal_hint:,}"
                         if entry.ordinal_hint is not None
                         else entry.database_reference.hex().upper()
                     )
+                    key_label = "key" if entry.key_complete else "tree evidence"
+                    partial = "" if entry.key_complete else " (partial key)"
                     lines.append(
-                        f"  DKEY {entry.dkey_index}  "
-                        f"{key_hex}  [{key_text}] -> {rrn}"
+                        f"  DKEY {entry.dkey_index}  {key_label} "
+                        f"{key_hex}  [{key_text}] -> {rrn}{partial}"
                     )
                 if traversal.entry_count > 20:
                     lines.append(
@@ -6112,10 +6128,13 @@ def _tui_member_lines(state, member_item):
                 ]
             )
             for entry, record in resolved_rows[:50]:
-                key_hex = entry.user_key.hex().upper()
+                key_bytes = entry.display_key_bytes
+                key_hex = key_bytes.hex().upper()
+                key_label = "Key" if entry.key_complete else "Tree-key evidence"
+                partial = "" if entry.key_complete else " (partial key)"
                 lines.append(
                     f"DKEY {entry.dkey_index}  "
-                    f"Key {key_hex} -> RRN {record.rrn:,}"
+                    f"{key_label} {key_hex} -> RRN {record.rrn:,}{partial}"
                 )
                 for field in fields:
                     value = field.decode_value(record.data)
