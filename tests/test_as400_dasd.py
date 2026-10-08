@@ -313,6 +313,29 @@ class DASDHeaderTests(unittest.TestCase):
             ],
         )
 
+    def test_observed_v2_dbcs_open_format_field_type(self):
+        # Synthetic descriptor shaped like the validated V2R3 19/51 fields
+        # whose independently recovered DDS definitions use data type O.
+        descriptor = bytearray(34)
+        descriptor[0] = 0x01
+        descriptor[1:11] = "DBCSFIELD".encode("cp037").ljust(10, b"\x40")
+        descriptor[11:21] = descriptor[1:11]
+        descriptor[21] = 0x00
+        descriptor[22] = 0x06
+        descriptor[23] = 0x03
+        descriptor[24:26] = (0).to_bytes(2, "big")
+        descriptor[26:28] = (0).to_bytes(2, "big")
+        descriptor[28:30] = (30).to_bytes(2, "big")
+        descriptor[30:32] = (0).to_bytes(2, "big")
+        descriptor[32:34] = (0).to_bytes(2, "big")
+
+        fields = decode_format_fields(bytes(descriptor), record_length=30)
+        self.assertEqual(len(fields), 1)
+        self.assertEqual(fields[0].type_name, "DBCS-OPEN")
+
+        raw = bytes(range(30))
+        self.assertEqual(fields[0].decode_value(raw), raw.hex().upper())
+
     def test_format_field_value_decoding(self):
         fixture = load_format_field_fixture(FORMAT_FIELD_FIXTURE)
         fields = {
