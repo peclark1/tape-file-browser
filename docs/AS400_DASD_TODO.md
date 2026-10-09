@@ -129,6 +129,21 @@ key evidence while still providing complete DKEY/ordinal references. See
 - [x] Decode mixed-key-shape multi-DKEY indexes by matching the ordinary
       four-byte database-relative address back to its zero-based DKEY row and
       reconstructing user-key bytes around documented fork/control rows.
+- [x] Add an evidence-only `audit_partial_data_space_index_keys` helper
+      and member report: per-DKEY counts, observed tree-key body lengths,
+      numerical shortfalls from nominal DKEY machine-key lengths,
+      and four-byte ordinal-reference ranges, with synthetic tests.
+      No missing literal key bytes are invented.
+- [x] Independently locate all eight actual `0C/90` QAOK primaries
+      in Mark's V2R3 image by MI type + exact EBCDIC header name.
+      Cross-check direct DKEY table pointers (+0x400), active root
+      offsets (+0x1000 for LAKA/LDKA/L10A/S01A; +0x1800 for
+      S02A..S05A), root type 0xCC and declared key counts:
+      `13+13+13+13+26+26+26+26=156`. The declared DKEY
+      machine-key lengths include 132, 164, 181 and 178 bytes,
+      confirming that key-length semantics need more research.
+      These are primary-metadata validations, not decoded
+      compact-key storage or full virtual segment recovery.
 - [ ] Decode the eight remaining long/compressed-key QDDSI variants
       (QAOKLAKA, QAOKLDKA, QAOKL10A, QAOKS01A, QAOKS02A,
       QAOKS03A, QAOKS04A, and QAOKS05A) before treating keyed traversal as
