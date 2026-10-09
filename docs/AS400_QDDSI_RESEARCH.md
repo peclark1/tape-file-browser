@@ -784,6 +784,37 @@ no longer printed as a QDDS record offset unless a recovered 19/51 format
 field independently matches both offset and length. Uncorroborated locations
 are now explicitly labelled raw/unverified.
 
+#### Independent physical-object identity check (read-only, 2026-10-09)
+
+A fresh exact-byte search of the original 1,004,257,800-byte
+`marks.hda` image (1,931,265 physical sectors at 520 bytes each)
+located the following header-validated primary pages. Matches require
+the eight-byte CP037 name at physical sector byte +0x2C (payload +0x24)
+**and** the expected MI type/subtype at physical byte +0x2A
+(payload +0x22), rather than searching names alone.
+
+| Physical LBA | Raw type/subtype | Name |
+| ---: | --- | --- |
+| 1,632,236 | `0B/90` | `QAOKP09A` |
+| 1,578,864 | `0C/90` | `QAOKP09A` |
+| 1,588,704 | `0C/90` | `QAOKS02A` |
+| 1,588,144 | `0C/90` | `QAOKS03A` |
+| 1,588,800 | `0C/90` | `QAOKS04A` |
+| 1,588,832 | `0C/90` | `QAOKS05A` |
+
+This confirms a practical disambiguation requirement: `QAOKP09A`
+occurs as **both** a QDDS data-space primary (`0B/90`) and a QDDSI
+index primary (`0C/90`). Name-only scans can silently select the
+wrong object. The `0B/90` first page has a segment-group size field
+of 20 pages, consistent with the previously reconstructed 20-page
+logical primary. The immediately following physical sectors do not
+show monotonically increasing logical page headers, and nearby LBAs
+also contain other objects; **physical contiguity is not a valid
+replacement for the recovered virtual-segment map**. This check
+corroborates object identity only. It does not uniquely associate
+the indirect DKYT locations in S02..S05 with QDDS source fields and
+does not resolve the raw `3FFF` pattern.
+
 #### Raw pair-position diagnostic (incremental)
 
 The partial-key audit additionally records the minimum and maximum **byte
