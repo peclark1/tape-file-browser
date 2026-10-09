@@ -96,11 +96,7 @@ class Guided5250Tests(unittest.TestCase):
                               _tui_object_type_context(object_type, subtype).lower())
 
     def test_recovered_nulls_are_displayed_safely_not_destroyed(self):
-        model = Guided5250(
-            FakeInventory(),
-            member_loader=lambda *_: ["Text\\x00after-null\\x1b[31m".replace(
-                "\\\\x00", "\\x00").replace("\\\\x1b", "\\x1b")],
-        )
+        model = Guided5250(FakeInventory())
         # Use an actual embedded NUL and ESC, not textual escape sequences.
         line = "ABC" + chr(0) + "DEF" + chr(27) + "[31m"
         model.member_loader = lambda *_: [line]
@@ -126,13 +122,13 @@ class Guided5250Tests(unittest.TestCase):
         screen = StrictScreen()
         _draw(screen, model)
         display = " ".join(screen.written)
-        self.assertIn(r"\\x00", display)
-        self.assertIn(r"\\x1B", display)
+        self.assertIn(r"\x00", display)
+        self.assertIn(r"\x1B", display)
         self.assertNotIn(chr(0), display)
         self.assertNotIn(chr(27), display)
         # Original bytes remain present in memory for forensic inspection.
         self.assertEqual([line], model.detail)
-        self.assertEqual(r"X\\x00Y\\x0AZ\\x7F", _safe_display_text(
+        self.assertEqual(r"X\x00Y\x0AZ\x7F", _safe_display_text(
             "X" + chr(0) + "Y" + chr(10) + "Z" + chr(127)))
 
     def test_catalog_supports_descriptions_and_search(self):
