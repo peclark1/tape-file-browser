@@ -3926,23 +3926,26 @@ def _tui_inspector_selection_key(state):
             return ("right", None)
         if item["kind"] in ("member", "object"):
             obj = item["object"]
+            owner = getattr(getattr(obj.segment, "header", None), "owner", None)
+            extender = getattr(owner, "extender", None)
             return (
                 "right",
                 item["kind"],
+                extender,
                 obj.segment.virtual_address,
             )
         if item["kind"] == "context-entry":
             entry = item["entry"]
-            address = (
-                entry.object_address.address
+            address_key = (
+                entry.object_address.key
                 if entry.object_address is not None
-                else -1
+                else (-1, -1)
             )
             return (
                 "right",
                 "context-entry",
                 entry.library_name,
-                address,
+                address_key,
                 entry.terminal_element_offset,
             )
         return ("right", item.get("kind"), item.get("label"))
