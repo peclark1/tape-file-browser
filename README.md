@@ -299,6 +299,17 @@ Other OS/400 commands, including live-job and destructive commands, are
 directory-only identities and **[member-only]** when member cursors survive
 without their file primary. Unrecoverable content is not fabricated.
 
+The guided renderer escapes any recovered NUL, ESC, or other control
+characters for **display only** (for example, `\\x00`); the source bytes
+are retained by the parser. This prevents damaged or unusual member contents
+from crashing the curses terminal interface.
+
+The type-label catalog also recognizes `19/E0` (`*ADO`), `0E/D1`
+(`*DRX`), `19/EE` (`*MSCSP`), `0E/02` (`*OUTQ`) and
+`19/06` (`*TBL`). The first three are **internal** system
+object types, not ordinary user-facing PDM objects; the labels are
+type identifications, not claims that their contents can be decoded.
+
 The guided UI and existing forensic UI remain separate during evaluation.
 No raw image contents are committed to public repository fixtures.
 
