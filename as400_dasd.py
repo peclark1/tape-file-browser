@@ -3077,6 +3077,94 @@ def audit_partial_index_literal_prefix_candidate(
     )
 
 
+
+@dataclass(frozen=True)
+class DataSpaceIndexCandidateOrderAudit:
+    """Per-DKEY ordering evidence for an unverified raw record field."""
+
+    dkey_index: int
+    observed_entries: int
+    compared_entries: int
+    distinct_candidate_values: int
+    adjacent_candidate_ties_in_observed_order: int
+    order_matches: bool | None
+
+
+def audit_partial_index_record_field_order(
+    traversal: DataSpaceIndexTraversal,
+    records: tuple[DataSpaceRecord, ...],
+    *,
+    record_offset: int,
+    field_length: int,
+    strip_ebcdic_blanks: bool = False,
+) -> tuple[DataSpaceIndexCandidateOrderAudit, ...]:
+    """Compare index RRN order with a CALLER-SUPPLIED source-field candidate.
+
+    A matching candidate order is NOT field identity: constant fields and
+    unrelated monotonically increasing values often match by coincidence.
+    If any partial entry lacks a live, full-width record or usable RRN hint,
+    the corresponding DKEY order result is unknown (None), never success.
+    Uses only raw candidate bytes and RRN ties; makes no recovered keys.
+    """
+
+    if record_offset < 0 or field_length <= 0:
+        raise ValueError("candidate field needs nonnegative offset and positive length")
+    by_ordinal: dict[int, DataSpaceRecord] = {}
+    for record in records:
+        if record.ordinal in by_ordinal:
+            raise ValueError("duplicate QDDS ordinal in candidate order audit")
+        by_ordinal[record.ordinal] = record
+
+    groups: dict[int, list[DataSpaceIndexEntry]] = {}
+    for entry in traversal.entries:
+        if not entry.key_complete:
+            groups.setdefault(entry.dkey_index, []).append(entry)
+
+    results: list[DataSpaceIndexCandidateOrderAudit] = []
+    for dkey_index, entries in sorted(groups.items()):
+        values: dict[int, bytes] = {}
+        observed_rrns: list[int] = []
+        missing = 0
+        for entry in entries:
+            rrn = entry.ordinal_hint
+            if rrn is None or rrn <= 0:
+                missing += 1
+                continue
+            if rrn in observed_rrns:
+                raise ValueError("duplicate RRN within one DKEY's partial index")
+            observed_rrns.append(rrn)
+            record = by_ordinal.get(rrn)
+            if (
+                record is None
+                or not record.is_live_hint
+                or record_offset + field_length > len(record.data)
+            ):
+                missing += 1
+                continue
+            value = record.data[record_offset : record_offset + field_length]
+            values[rrn] = value.rstrip(b"\x40") if strip_ebcdic_blanks else value
+
+        compared = len(values)
+        ties = sum(
+            1 for a, b in zip(observed_rrns, observed_rrns[1:])
+            if a in values and b in values and values[a] == values[b]
+        )
+        order_matches: bool | None = None
+        if missing == 0 and compared == len(entries):
+            expected = sorted(observed_rrns, key=lambda rrn: (values[rrn], rrn))
+            order_matches = expected == observed_rrns
+
+        results.append(DataSpaceIndexCandidateOrderAudit(
+            dkey_index=dkey_index,
+            observed_entries=len(entries),
+            compared_entries=compared,
+            distinct_candidate_values=len(set(values.values())),
+            adjacent_candidate_ties_in_observed_order=ties,
+            order_matches=order_matches,
+        ))
+    return tuple(results)
+
+
 def decode_context_machine_index(
     data: bytes,
     *,
