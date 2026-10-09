@@ -394,6 +394,19 @@ follow-ups, not prerequisites for the current browser milestone. See
       126 times as a target). These remain candidate compiled-module
       references, not an active SMVT or directory. Add `virtual-xref-map`
       with synthetic address/target-prefix/name regressions.
+- [x] Identify IBM SY21-0889-5's explicit auxiliary-storage initialization
+      write of the SMVT and orderly-shutdown SMVT checkpoint; distinguish
+      this persisted data from compiled `#SMSMVTN` name references.
+- [x] Compare read-only bootstrap physical LBAs 0..63 in Mark V2R3 and
+      Pete B10. Identify seven nonzero sectors on Mark versus three on
+      Pete; preserve exact observed labels (DASD UNIT DESC, DCT,
+      REALLOCATION CONTROL SECTOR, DCTX, MSD SEC, DMDMAIN).
+      Add bounded `bootstrap-map` and synthetic image non-modification
+      and range regression coverage; these remain labels, not decoded
+      structures.
+- [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
+      through independently corroborated startup loader or control-block
+      references (not EBCDIC module-name counts).
 - [ ] Identify SMVT/static-directory and permanent-directory root candidates
       by independently corroborated real-image evidence.
 - [ ] Traverse the identified permanent-directory machine index, preserving
