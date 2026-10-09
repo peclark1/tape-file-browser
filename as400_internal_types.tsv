@@ -2,8 +2,10 @@
 # https://www.ibm.com/docs/en/i/7.5.0?topic=concepts-internal-object-types
 # Additional cross-check: 2007 System i Programming API overview and concepts, Internal object types, pp 64-69.
 # Columns: MI hex type+subtype | IBM internal object type | English type description
-# IBM web table prints *EDTIDX as OED0 and *OWCUR as ODED (letter O), not valid hex.
-# Those two are deliberately not guessed or silently rewritten; see catalog documentation.
+# IBM i web table prints EDTIDX/OWCUR as OED0/ODED (letter O): invalid hexadecimal.
+# Their valid 0ED0/0DED values were independently verified in IBM's V5R4 PDF:
+# https://public.dhe.ibm.com/systems/power/docs/systemi/v5r4/en_US/api.pdf
+# All three catalog entries EDTIDX, EPTAB, OWCUR match the older IBM PDF.
 # This is a MODERN reference catalog, not a certified OS/400 V2R3 inventory.
 19F0|*ACNAME|Auto-configuration names
 19E0|*ADO|Asynchronous distribution object
@@ -42,6 +44,8 @@
 19E9|*DSNXO|DSNX system object
 19E2|*DTO|Distribution tracking object
 19E3|*DUO|Document unit object
+0ED0|*EDTIDX|Element description index
+19D7|*EPTAB|Data management entry point table
 1953|*EXITSP|Exit registration space
 0EC6|*FACB|File available control block
 0ECA|*FCNUL|Function usage list
@@ -96,6 +100,7 @@
 06A0|*OPTBSS|Optical byte string
 1EED|*OPTSTMF|Optical stream file
 19E4|*OSSCB|Session control block
+0DED|*OWCUR|Database operational wrapper cursor
 19CC|*PCCR|Problem change control record
 19C7|*PDT|Process definition template
 1EB2|*POBSF|Print Object Byte Stream File
