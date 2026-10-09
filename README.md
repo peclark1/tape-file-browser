@@ -179,6 +179,7 @@ as400-dasd sector disk.hda 12345
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
 as400-dasd virtual-xref disk.hda 65600 68860 376
+as400-dasd virtual-xref-map disk.hda 65600 --alignment 2 --top 16
 as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
@@ -402,6 +403,14 @@ After the TUI/browser milestone, the next phase is reconstruction of the
 storage-management **permanent directory** and its auxiliary-storage directory
 entries (ASDEs). That directory maps permanent virtual addresses to disk
 extents; it is **not** the library/context object-name index.
+
+The companion `virtual-xref-map IMAGE EXTENT_START_LBA` command
+scans a caller-selected physical extent for six-byte numeric values inside
+that extent's derived virtual range. It summarizes recurring source/target
+offset patterns and independently reads each in-range target to count raw
+`02 00 00 00 7B` name-record-prefix matches; it does **not** claim those
+values are documented pointers or storage-directory entries. Use
+`--source-start-lba` and `--sectors` to bound a large experiment.
 
 The read-only `virtual-xref IMAGE EXTENT_START_LBA SOURCE_LBA OFFSET` helper
 reads an explicitly selected six-byte candidate virtual pointer and resolves it
