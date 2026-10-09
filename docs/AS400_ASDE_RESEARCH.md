@@ -599,6 +599,42 @@ tests cannot provide a pointer chain, the project should
 pause speculative ASDE parsing and advance the next
 bounded backlog item (eight compressed QDDSI key families).
 
+## Checkpoint pointer gate (2026-10-09) — research paused
+
+A focused, read-only follow-up compared the small populated physical
+pre-relative-record-zero records on Mark and Pete with the **independently
+verified physical extent-start LBAs**. Tested 4-byte and 6-byte
+big-endian representations of established starts in the recorded
+bootstrap payloads, with no change to either image.
+
+On Mark's low-level payloads, the exact matches for known starts
+were only the already-understood **physical origin 64**, including
+LBA-32 descriptor +0x00 and its already discussed +0x0C word.
+One additional raw occurrence of the value 64 exists in the small
+LBA-0 bootstrap payload at byte offset +0x07 in four-byte matching;
+the surrounding unknown bytes do not identify this as a checkpoint
+pointer. Pete's physical LBA-32 descriptor repeats its verified
+**origin 2,112**, with no other exact verified extent starts detected
+in these low-level records. Searching only those records cannot rule
+out a translated or indirect pointer elsewhere in managed storage.
+
+**Source boundary:** IBM's *AS/400 Disk Storage Topics and Tools*,
+SG24-5693, appendix B, p.194, calls the **static directory** persistent
+VLIC storage containing locations of the permanent directory; it
+does **not** supply the checkpoint's physical LBA or a binary
+record layout. The System/38 chapter-7 shutdown passage proves only
+the System/38 write/checkpoint mechanism, **not** where OS/400 V2R3
+stores its SMVT.
+
+**Decision:** No checkpoint, initialized SMVT data table, or
+permanent-directory root can currently be established from these
+observations. Rather than turn these raw coincidences into field
+definitions, **pause speculative ASDE decoding** and continue the
+separate, bounded eight-variant QDDSI compressed-key research.
+Resume storage-directory work if an independently corroborated CISC
+loader/startup data reference or checkpoint page becomes available.
+Keep this PR draft and preserve its tested diagnostics.
+
 ## Next reproducible experiments (read-only)
 
 1. Inventory candidate VMC/SMVT/static-directory locations from period
