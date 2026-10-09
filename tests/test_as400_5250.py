@@ -1,8 +1,11 @@
 """Synthetic tests for the guided offline AS/400 command browser."""
 import unittest
 from types import SimpleNamespace as NS
+from unittest.mock import patch
 
-from as400_5250 import Guided5250, command_matches, parse_command
+from as400_5250 import (
+    Guided5250, _back_or_edit_option, command_matches, parse_command, run_curses,
+)
 from as400_dasd_tool import build_parser
 
 
@@ -138,6 +141,32 @@ class Guided5250Tests(unittest.TestCase):
         self.assertIn("primary absent", " ".join(model.detail))
         self.assertFalse(model.open_row(0, "9"))
         self.assertIn("No entry selected", model.status)
+
+    def test_backspace_edits_pending_option_or_returns_to_previous_screen(self):
+        model = self.make_model()
+        self.assertTrue(model.run_command("WRKOBJPDM LIB(QGPL)"))
+        self.assertEqual("1", _back_or_edit_option(model, "12"))
+        self.assertEqual("objects", model.screen)
+        self.assertEqual("", _back_or_edit_option(model, ""))
+        self.assertEqual("libraries", model.screen)
+
+    def test_ctrl_b_navigates_back_without_f12_key(self):
+        import curses
+
+        model = self.make_model()
+        self.assertTrue(model.run_command("WRKOBJPDM LIB(QGPL)"))
+
+        class FakeScreen:
+            def __init__(self):
+                self.keys = iter((2, curses.KEY_F3))
+            def keypad(self, enabled):
+                return None
+            def getch(self):
+                return next(self.keys)
+
+        with patch("as400_5250._draw"), patch("curses.curs_set"):
+            run_curses(FakeScreen(), model)
+        self.assertEqual("libraries", model.screen)
 
     def test_missing_member_data_is_reported_not_fabricated(self):
         model = Guided5250(FakeInventory(), member_loader=lambda *_: [])
