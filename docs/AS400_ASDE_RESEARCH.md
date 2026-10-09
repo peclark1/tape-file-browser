@@ -95,6 +95,12 @@ image contents are committed.
 
 ### Targeted VMC/SMVT symbol reconnaissance
 
+The read-only command `as400-dasd storage-labels IMAGE --symbol '#SMSMVT'`
+reproduces literal CP037 matches. It can restrict physical LBAs with
+`--start-lba` and `--sectors`, and shows header bytes plus payload offsets
+without claiming a real directory location. No recovered payloads are logged
+in the research note.
+
 A byte-for-byte **EBCDIC CP037 literal** search of sector payloads (never
 counting sector headers, and not assuming program/source semantics) finds on
 Mark's V2R3 image:
