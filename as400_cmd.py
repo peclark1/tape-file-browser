@@ -67,6 +67,42 @@ def embedded_ebcdic_text(primary_prefix, *, scan_bytes=8192, max_items=64):
     return tuple(result)
 
 
+def candidate_command_description(primary_prefix, command_name):
+    """Find a tentative description by repeated V2R3 positional correlation.
+
+    On six independently sampled IBM commands (ADDACC, ADDAJE, ADDPFM,
+    CRTCMD, DSPCMD, CALL), a printable descriptor containing the *whole*
+    command name and *LIBL or *NONE is followed 0xB8 bytes later by a
+    human-readable command heading. The relation is EMPIRICAL, not an IBM
+    published on-disk field definition. Return no candidate if conflicting
+    values or invalid structure appear.
+    """
+    name = str(command_name).strip().upper()
+    if not _NAME.fullmatch(name):
+        return None
+    data = bytes(primary_prefix[:8192])
+    decoded = data.decode("cp037", errors="replace")
+    found = set()
+    for match in _RUN.finditer(decoded, 0x160):
+        possible = match.group()
+        if "*LIBL" not in possible and "*NONE" not in possible:
+            continue
+        if not re.search(rf"(?<![A-Z0-9#$@_]){re.escape(name)}(?![A-Z0-9#$@_])", possible):
+            continue
+        begin = match.start() + 0xB8
+        if begin >= len(decoded):
+            continue
+        end = begin
+        while end < len(decoded) and end - begin < 80 and "\x20" <= decoded[end] <= "\x7e":
+            end += 1
+        text = decoded[begin:end].strip()
+        if 4 <= len(text) <= 80 and sum(c.isalpha() for c in text) >= 3:
+            found.add(text)
+    if len(found) != 1:
+        return None
+    return next(iter(found))
+
+
 def command_information_lines(obj, primary_prefix):
     """Read-only 5250-style screen lines based on independently observed data."""
     name = getattr(obj, "name", "<unknown>")
@@ -90,6 +126,13 @@ def command_information_lines(obj, primary_prefix):
         "  Parameters         : Not yet structurally decoded",
         "  Defaults/prompting  : Not yet structurally decoded",
     ]
+    tentative_description = candidate_command_description(primary_prefix, name)
+    if tentative_description:
+        lines.extend([
+            "",
+            "Candidate description (empirical V2R3 text relation, not decoded)",
+            f"  {tentative_description}",
+        ])
     maybe = candidate_processor(primary_prefix)
     if maybe:
         lines.extend([
