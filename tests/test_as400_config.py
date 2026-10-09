@@ -144,10 +144,52 @@ class ConfigurationViewTests(unittest.TestCase):
             self.assertEqual("objects", model.screen)
         self.assertEqual(all_objects, viewed)
 
+    def test_original_display_commands_are_read_only_and_exact_type_only(self):
+        profile = make_obj("USERA", (8, 1))
+        device = make_obj("DSP01", (16, 1), lba=25)
+        mode = make_obj("MODEA", (21, 1), lba=30)
+        inventory = NS(
+            libraries=[],
+            objects=[profile, device, mode],
+            in_library=lambda name: [],
+            members=lambda **kw: [],
+            unresolved_context_entries=lambda name: [],
+            context_entries=[],
+        )
+        model = Guided5250(
+            inventory, config_info_loader=lambda obj: [f"Read-only {obj.name}"])
+        for command, expected in (
+            ("DSPUSRPRF USRPRF(USERA)", "USERA"),
+            ("DSPDEVD DEVD(DSP01)", "DSP01"),
+            ("DSPMODD MODD(MODEA)", "MODEA"),
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(model.run_command(command))
+                self.assertEqual("config_info", model.screen)
+                self.assertIn(expected, model.detail[0])
+                self.assertTrue(model.back())
+        for command in (
+            "DSPUSRPRF USRPRF(DSP01)",
+            "DSPDEVD DEVD(USERA)",
+            "DSPMODD MODD(USERA)",
+            "DSPUSRPRF USRPRF(NOUSER)",
+            "DSPDEVD DEVD(QSYS/DSP01)",
+            "DSPMODD MODD(MODEA) BADARG(X)",
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(model.run_command(command))
+                self.assertNotEqual("config_info", model.screen)
+        # Same-name duplicates are not silently chosen by pointer/order.
+        duplicate = make_obj("USERA", (8, 1), lba=160)
+        inventory.objects.append(duplicate)
+        self.assertFalse(model.run_command("DSPUSRPRF USRPRF(USERA)"))
+        self.assertIn("matching USERA objects", model.status)
+        self.assertNotEqual("config_info", model.screen)
+
     def test_wrong_type_and_truncated_data_do_not_fabricate_fields(self):
         unrelated = make_obj("WHATEVER", (25, 5))
         self.assertIsNone(config_type(unrelated))
-        self.assertIn("not", configuration_information_lines(unrelated)[0])
+        self.assertIn("not", configuration_information_lines(unrelated)[0].lower())
         mode = make_obj("SAMPLE", (21, 1))
         screen = "\n".join(configuration_information_lines(mode, bytes(30)))
         self.assertIn("not yet structurally decoded", screen)
