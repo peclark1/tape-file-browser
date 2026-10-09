@@ -8839,6 +8839,37 @@ def cmd_browse5250(args):
     return 0
 
 
+def cmd_object_types(args):
+    """List/identify MI types without opening an image or changing its data."""
+    from as400_object_types import catalog, lookup
+
+    if args.code:
+        entry = lookup(args.code)
+        if entry is None:
+            raise ValueError(
+                f"unknown MI object code: {args.code} "
+                "(no unverified type label assigned)"
+            )
+        entries = [entry]
+    else:
+        entries = sorted(catalog().values(), key=lambda item: item.code)
+
+    shown = 0
+    for entry in entries:
+        if args.category != "all" and entry.category != args.category:
+            continue
+        print(f"{entry.display_code:<5}  {entry.name:<12} "
+              f"{entry.category:<8} {entry.description}")
+        shown += 1
+
+    if args.code and shown:
+        print(f"Source: {entries[0].source}")
+    elif not args.code:
+        print(f"\n{shown} IBM documented types; modern catalog, "
+              "OS/400 V2R3 availability unverified.")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="as400-dasd",
@@ -8869,6 +8900,18 @@ def build_parser():
         help="raw 520-byte DASD image; omit to use the file picker",
     )
     guided.set_defaults(func=cmd_browse5250)
+
+    types = sub.add_parser(
+        "types", help="look up IBM MI type/subtype codes without opening a disk image",
+    )
+    types.add_argument(
+        "code", nargs="?", help="MI code, e.g. 19/D4, 1905, or 0E/C4",
+    )
+    types.add_argument(
+        "--category", choices=("all", "internal", "external"), default="all",
+        help="filter catalog entries by IBM object category",
+    )
+    types.set_defaults(func=cmd_object_types)
 
     info = sub.add_parser("info", help="show image geometry without a full scan")
     info.add_argument("images", nargs="+")
