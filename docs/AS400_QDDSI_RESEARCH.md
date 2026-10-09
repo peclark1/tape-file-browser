@@ -834,10 +834,10 @@ table independently report the following length/location pairs:
 
 | Zero-based descriptor row | Raw type | Raw length | Raw location |
 | ---: | --- | ---: | ---: |
-| 7 | `0x0009` | 64 | 50 |
+| 7 | `0x0004` | 64 | 50 |
 | 10 | `0x0009` | 40 | 60 |
-| 17 | `0x0009` | 10 | 160 |
-| 20 | `0x0009` | 10 | 178 |
+| 17 | `0x0004` | 10 | 160 |
+| 20 | `0x0004` | 10 | 178 |
 | 21 | `0x0004` | 18 | 188 |
 | 24 | `0x0009` | 40 | 212 |
 | 27 | `0x0004` | 64 | 254 |
@@ -999,6 +999,78 @@ partial *logical keys*: further work must establish the middle/final
 +0x14 transform without synthesizing maximum-length padding. The
 S02/S03 tree bodies are marker-only and can match empty candidate
 fields, which does not uniquely identify their source descriptors.
+
+#### Candidate two-byte current-length words and inactive overlapping storage
+
+A third independent read-only inspection of the original Mark V2R3
+\`QAOKP09A\` QDDS field-descriptor table and all **13 user RRN records**
+tests a more precise interpretation of the raw 0x0080 descriptor flag at
+row offset +0x06. At each candidate descriptor's **one-based location**
+\`L\`, two raw bytes at zero-based QDDS *record-data* offsets
+\`[L-1:L+1]\` act as an unsigned big-endian current-length candidate.
+The actual current text follows from zero-based offset \`L+1\` and is
+bounded by the descriptor's raw maximum length. These are record payload
+coordinates; the separate 0x80 DENT status byte is not included.
+
+All **11** descriptor rows with the raw +0x06 word **0x0080** were checked,
+yielding **11 × 13 = 143** in-range observations. No candidate current
+length exceeded its descriptor maximum or the recovered record boundary.
+
+| Descriptor rows with raw +0x06 = 0x0080 | Raw maximum sizes | Current-length results across 13 RRNs |
+| --- | --- | --- |
+| 7, 10, 11, 12, 13, 14, 24, 26, 27, 35 | 64, 40, 20, 20, 20, 26, 40, 20, 64, 2000 | **Zero in 130/130 observations** |
+| 34 | 47 | **Nonzero in 13/13**, minimum 7, maximum 17 |
+
+The strongest **positive control** is descriptor row 34, raw length 47
+at one-based location 326: its current-length word is record-data
+\`[325:327]\`, and its currently stored value occupies
+\`[327:327+current_length]\`. Independently walking the actual
+\`QAOKLAKA\` machine-index root at +0x1000, and matching database
+RRNs, reproduces the entire recovered tree body as
+\`record_value[:current_length] + raw_3FFF_pair\` for **13/13** user
+records. This is an actual variable-length-value correlation, not
+just a zero-word observation.
+
+The crucial **negative control** is descriptor row 27, maximum 64
+at one-based location 254. Its two-byte word is zero for **13/13**
+records even though its following raw storage is nonzero and differs
+across all 13 records. The same zero-word/nonzero-backing combination
+occurs in all 13 records for rows 14 and 35. This is not proof that
+the logical field's current length is positive: the QDDS descriptors
+give overlapping views into shared record bytes, including the
+separately verified row-27/row-30/row-31 overlap. Treat current-length
+zero and inactive raw backing storage as distinct observations.
+
+This reconciles an earlier apparent conflict: a varying raw 64-byte
+region does **not** rule out a marker-only S02/S03 key field if the
+candidate's current value is empty. It does not, however, prove that
+the S02/S03 DKYT 40/64 components select rows 7/10, 24/27 or another
+intermediate mapping. All four relevant 40/64 candidates have zero
+current-length words in the 13-record corpus.
+
+A new bounded, *opt-in diagnostic* helper,
+\`audit_qdds_current_length_word_candidate\`, records only aggregated
+word counts, invalid/truncated candidates and zero-length words with
+nonzero backing storage; it never decodes missing machine-index keys.
+Synthetic regressions expressly check the nonzero-inactive-storage
+case. Separate \`audit_partial_index_record_field_order\` checks
+candidate bytewise sort order per DKEY and counts equal-value ties.
+In these real indexes, **S02 and S03 have identical raw tree bodies
+within each DKEY** and ascending RRNs 1..13. S04/S05 sorting by their
+previously identified trimmed 8-byte source fields plus RRN exactly
+matches traversed order for both DKEY rows, but such order agreement
+alone is weaker evidence than the exact 52/52 tree-body byte matches.
+The S02/S03 candidate 40-byte zeros and the (nominally varying)
+row-27 64-byte backing region likewise sort in ascending RRN order;
+neither ordering coincidence establishes source identity.
+
+**Scope and terminology:** descriptor flag \`0x0080\` is only a raw
+field-table flag, and the two-byte word is a corpus-supported current-
+length candidate. The historical documentation does not establish its
+complete V2R3 descriptor-bit semantics. The observed \`3FFF\` pair
+remains uninterpreted. No missing maximum-width padding or unobserved
+key values are synthesized, and all 156 database references remain
+independently navigable.
 
 #### Raw pair-position diagnostic (incremental)
 
