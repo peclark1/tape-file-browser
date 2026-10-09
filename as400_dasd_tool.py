@@ -4035,6 +4035,14 @@ def _tui_inspector_availability(state):
                 available["Evidence"] = True
                 available["Raw"] = True
 
+    elif target == "mid":
+        item = _tui_selected(state, "mid")
+        if item is not None and item["kind"] == "file":
+            file_obj = item.get("object")
+            available["Storage"] = bool(file_obj is not None or item.get("members"))
+            available["Evidence"] = True
+            available["Raw"] = file_obj is not None
+
     elif target == "left":
         item = _tui_selected(state, "left")
         if item is not None and item["kind"] == "library":
@@ -7799,6 +7807,29 @@ def _tui_storage_lines(state):
         if right["kind"] == "context-entry":
             return _tui_context_directory_entry_lines(state, right["entry"])
 
+    if target == "mid":
+        mid = _tui_selected(state, "mid")
+        if mid is not None and mid["kind"] == "file":
+            formats = []
+            file_obj = mid.get("object")
+            if file_obj is not None:
+                try:
+                    formats = state["image"].resolve_file_formats(
+                        file_obj,
+                        state["inventory"],
+                    )
+                except Exception:
+                    formats = []
+            return [
+                f"File storage: {(mid.get('library') or '<orphan>')}/{mid['name']}",
+                "",
+                *_tui_file_storage_evidence(
+                    state,
+                    mid,
+                    formats=formats,
+                ),
+            ]
+
     if target == "left" and left is not None and left["kind"] == "library":
         obj = left.get("object")
         if obj is not None:
@@ -7807,7 +7838,7 @@ def _tui_storage_lines(state):
     return [
         "Storage",
         "",
-        "Select a recovered object/member to inspect its storage.",
+        "Select an object/member/file with storage evidence to inspect it.",
     ]
 
 
@@ -7819,6 +7850,24 @@ def _tui_evidence_lines(state):
             return _tui_context_directory_entry_lines(state, right["entry"])
         if right["kind"] in ("member", "object"):
             return _tui_object_evidence_lines(right["object"])
+
+    if target == "mid":
+        mid = _tui_selected(state, "mid")
+        if mid is not None and mid["kind"] == "file":
+            file_obj = mid.get("object")
+            if file_obj is not None:
+                return _tui_object_evidence_lines(file_obj)
+            return [
+                f"File evidence: {(mid.get('library') or '<orphan>')}/{mid['name']}",
+                "",
+                "Primary *FILE object is absent on this image.",
+                f"Surviving member cursors: {len(mid.get('members', ())):,}",
+                (
+                    "The file identity is reconstructed from surviving member "
+                    "cursor names rather than a present *FILE primary."
+                ),
+            ]
+
     return _tui_full_detail_lines(state)
 
 
@@ -7838,6 +7887,13 @@ def _tui_raw_lines(state):
                 entry.raw.hex(" ").upper(),
             ]
 
+    if target == "mid":
+        mid = _tui_selected(state, "mid")
+        if mid is not None and mid["kind"] == "file":
+            obj = mid.get("object")
+            if obj is not None:
+                return _tui_raw_object_lines(state, obj)
+
     if target == "left" and left is not None and left["kind"] == "library":
         obj = left.get("object")
         if obj is not None:
@@ -7846,7 +7902,7 @@ def _tui_raw_lines(state):
     return [
         "Raw",
         "",
-        "Select a recovered object/member to inspect raw bytes.",
+        "Select an object/member/file primary to inspect raw bytes.",
     ]
 
 
