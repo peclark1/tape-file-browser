@@ -310,6 +310,115 @@ def cmd_regions(args):
     return 0
 
 
+
+# These EBCDIC byte strings are observed image labels, not decoded boot
+# control-block types. Do not assign IPL or storage-directory semantics.
+_BOOTSTRAP_LITERAL_LABELS = (
+    "IMD1",
+    "DASD  UNIT  DESC",
+    "DCT ",
+    "REALLOCATION CONTROL SECTOR",
+    "DCTX",
+    "MSD  SEC",
+    "DMDMAIN",
+)
+
+
+def _bootstrap_sector_inventory(image, start_lba=0, count=64, *, max_rows=64):
+    """Inspect a bounded physical LBA window without scanning for ASDEs.
+
+    Unlike managed sector/extent discovery, early physical sectors may carry
+    useful data with an all-zero eight-byte storage header. This function
+    reports exact CP037 literal label offsets as raw evidence; a label alone
+    does not identify a checkpoint page or any IBM-specific record structure.
+    """
+    if start_lba < 0 or start_lba >= image.sector_count:
+        raise ValueError("bootstrap start LBA outside image")
+    if count < 1 or count > 4096:
+        raise ValueError("bootstrap count must be between 1 and 4096 sectors")
+    if max_rows < 0:
+        raise ValueError("--max-rows must be non-negative")
+
+    stop = min(image.sector_count, start_lba + count)
+    labels = tuple((name, name.encode("cp037")) for name in _BOOTSTRAP_LITERAL_LABELS)
+    rows = []
+    nonzero_payloads = zero_header_nonzero = 0
+    literal_hits = Counter()
+    with open(image.path, "rb") as handle:
+        handle.seek(start_lba * SECTOR_SIZE)
+        for lba in range(start_lba, stop):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short sector read at LBA {lba}")
+            header, payload = raw[:HEADER_SIZE], raw[HEADER_SIZE:]
+            if not any(payload):
+                continue
+            nonzero_payloads += 1
+            if header == bytes(HEADER_SIZE):
+                zero_header_nonzero += 1
+            found = []
+            for name, pattern in labels:
+                search_from = 0
+                while True:
+                    offset = payload.find(pattern, search_from)
+                    if offset < 0:
+                        break
+                    found.append((name, offset))
+                    literal_hits[name] += 1
+                    search_from = offset + 1
+            if len(rows) < max_rows:
+                rows.append((lba, header, sum(bool(b) for b in payload), tuple(found)))
+    return {
+        "start_lba": start_lba,
+        "stop_lba": stop,
+        "nonzero_payloads": nonzero_payloads,
+        "zero_header_nonzero": zero_header_nonzero,
+        "literal_hits": literal_hits,
+        "rows": tuple(rows),
+    }
+
+
+def cmd_bootstrap_map(args):
+    """Report raw early-physical-sector evidence, without layout claims."""
+    image = _open(args.image)
+    result = _bootstrap_sector_inventory(
+        image, args.start_lba, args.sectors, max_rows=args.max_rows,
+    )
+    print(f"Image: {image.path}")
+    print(
+        f"Physical LBAs: {result['start_lba']:,}..{result['stop_lba'] - 1:,}"
+        " (read-only; no storage origin assumed)"
+    )
+    print(f"Sectors with nonzero payloads: {result['nonzero_payloads']:,}")
+    print(
+        "Of those, sectors with zero storage header: "
+        f"{result['zero_header_nonzero']:,}"
+    )
+    print("Selected raw EBCDIC literal labels:")
+    if result["literal_hits"]:
+        for name, count in sorted(result["literal_hits"].items()):
+            print(f"  {name!r}: {count:,} matches")
+    else:
+        print("  none")
+    print("First nonzero-payload physical sectors:")
+    for lba, header, nonzero, found in result["rows"]:
+        where = ", ".join(f"{name!r}@+0x{off:03X}" for name, off in found)
+        print(
+            f"  LBA {lba:>9,} header {header.hex(' ').upper()}"
+            f" nonzero {nonzero:>3} label evidence: {where or '-'}"
+        )
+    if result["nonzero_payloads"] > len(result["rows"]):
+        print(
+            f"  ... {result['nonzero_payloads'] - len(result['rows']):,}"
+            " further nonzero-payload sectors not listed"
+        )
+    print(
+        "Labels are observed bytes, not proof of SMVT checkpoint,"
+        " boot control-block schema, or permanent-directory root."
+    )
+    return 0
+
+
 def cmd_sector(args):
     image = _open(args.image)
     sector = image.read_sector(args.lba)
@@ -9049,6 +9158,22 @@ def build_parser():
     sector.add_argument("--preview", type=int, default=128)
     sector.add_argument("--hex-bytes", type=int, default=256)
     sector.set_defaults(func=cmd_sector)
+
+    bootstrap = sub.add_parser(
+        "bootstrap-map",
+        help="inventory a bounded raw pre-/early-storage physical LBA window",
+    )
+    bootstrap.add_argument("image")
+    bootstrap.add_argument("--start-lba", type=int, default=0)
+    bootstrap.add_argument(
+        "--sectors", type=int, default=64,
+        help="physical sectors to examine; 1..4096 (default 64)",
+    )
+    bootstrap.add_argument(
+        "--max-rows", type=int, default=64,
+        help="maximum nonzero-payload rows to show (default 64)",
+    )
+    bootstrap.set_defaults(func=cmd_bootstrap_map)
 
     asde = sub.add_parser(
         "asde-probe",
