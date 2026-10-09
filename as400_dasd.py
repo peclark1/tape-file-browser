@@ -2754,6 +2754,14 @@ class DataSpaceIndexPartialKeyAudit:
     observed_tree_body_max: int
     machine_length_shortfall_min: int
     machine_length_shortfall_max: int
+    positive_length_field_count: int
+    raw_3fff_occurrences_min: int
+    raw_3fff_occurrences_max: int
+    raw_3fff_field_count_match_entries: int
+    non_3fff_bytes_min: int
+    non_3fff_bytes_max: int
+    trailing_3fff_run_min: int
+    trailing_3fff_run_max: int
     ordinal_hints_present: int
     distinct_ordinal_hints: int
     min_ordinal_hint: int | None
@@ -2792,6 +2800,43 @@ def audit_partial_data_space_index_keys(
         ]
         if min(shortfalls) < 0:
             raise ValueError("partial QDDSI evidence exceeds nominal machine key")
+
+        # The unresolved QAOK family repeatedly contains the literal byte pair
+        # 3F FF in its recovered tree text. Inventory that raw evidence only:
+        # no meaning (delimiter, terminator, length code, etc.) is assigned.
+        raw_pair = b"\x3f\xff"
+        raw_pair_counts = [
+            entry.key_evidence.count(raw_pair)
+            for entry in entries
+        ]
+        non_pair_lengths = [
+            len(entry.key_evidence) - 2 * count
+            for entry, count in zip(entries, raw_pair_counts, strict=True)
+        ]
+
+        def trailing_pair_run(value: bytes) -> int:
+            count = 0
+            while value.endswith(raw_pair):
+                count += 1
+                value = value[:-2]
+            return count
+
+        trailing_pair_runs = [
+            trailing_pair_run(entry.key_evidence)
+            for entry in entries
+        ]
+        fields = getattr(spec, "fields", ())
+        positive_length_field_count = sum(
+            1
+            for field in fields
+            if getattr(field, "length_or_fork", 0) > 0
+        )
+        raw_pair_field_count_matches = sum(
+            1
+            for count in raw_pair_counts
+            if count == positive_length_field_count
+        )
+
         ordinals = [
             value for entry in entries
             if (value := entry.ordinal_hint) is not None
@@ -2806,6 +2851,14 @@ def audit_partial_data_space_index_keys(
                 observed_tree_body_max=max(lengths),
                 machine_length_shortfall_min=min(shortfalls),
                 machine_length_shortfall_max=max(shortfalls),
+                positive_length_field_count=positive_length_field_count,
+                raw_3fff_occurrences_min=min(raw_pair_counts),
+                raw_3fff_occurrences_max=max(raw_pair_counts),
+                raw_3fff_field_count_match_entries=raw_pair_field_count_matches,
+                non_3fff_bytes_min=min(non_pair_lengths),
+                non_3fff_bytes_max=max(non_pair_lengths),
+                trailing_3fff_run_min=min(trailing_pair_runs),
+                trailing_3fff_run_max=max(trailing_pair_runs),
                 ordinal_hints_present=len(ordinals),
                 distinct_ordinal_hints=len(set(ordinals)),
                 min_ordinal_hint=min(ordinals) if ordinals else None,

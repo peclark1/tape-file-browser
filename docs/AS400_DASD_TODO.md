@@ -55,10 +55,25 @@ depending on experimental ASDE changes.
       This rejects naïve raw record slicing, not an index-specific
       VARLEN representation. IBM later VARLEN documentation is a
       plausible analogy only, not a V2R3 field-code definition.
-- [ ] Resolve the actual two extra bytes per selected DKYT row
-      and the full long/compact tree text encoding by verifying
-      independent QDDS row evidence and observed tree-key order.
-      Do not synthesize missing user keys.
+- [x] Run the compact-key audit across all eight real tree traversals.
+      All **156/156** partial terminal bodies contain exactly one raw
+      `3FFF` byte pair per positive-length DKYT row selected by their DKEY.
+      Add a bounded code/CLI audit of pair counts, non-pair bytes and trailing
+      runs; preserve the pair as uninterpreted evidence.
+- [x] Verify the repeated `3FFF` evidence is stored in the machine index,
+      not introduced by traversal: seven of eight access paths carry the pair
+      inside raw common-text storage, and all eight carry it in reconstructed
+      terminal paths. Retain common-text traversal unchanged.
+- [x] Cross-check two nonzero-location cases against QAOKP09A records:
+      QAOKLDKA preserves the candidate 18-byte zero region literally before
+      its first pair for 13/13 RRNs; QAOKL10A's candidate ten-byte
+      blank-filled region contributes no literal bytes before its first pair.
+      Treat this as compaction/materialization evidence, not a generalized
+      record-offset decoder.
+- [ ] Resolve the field-materialization/compaction rule behind the raw
+      `3FFF` pairs and literal prefixes, including the location-zero rows
+      and QAOKLAKA, by verifying independent QDDS row evidence and observed
+      tree-key order. Do not synthesize missing user keys.
 
 ### Storage-directory / ASDE — paused at evidence gate
 

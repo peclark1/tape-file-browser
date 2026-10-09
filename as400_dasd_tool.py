@@ -3780,6 +3780,25 @@ def cmd_member(args):
                             f"{group.machine_length_shortfall_min}.."
                             f"{group.machine_length_shortfall_max}"
                         )
+                        if group.raw_3fff_occurrences_max:
+                            print(
+                                f"      raw 3FFF byte-pairs: "
+                                f"{group.raw_3fff_occurrences_min}.."
+                                f"{group.raw_3fff_occurrences_max}; "
+                                f"positive-length DKYT rows "
+                                f"{group.positive_length_field_count}; "
+                                f"exact-count terminals "
+                                f"{group.raw_3fff_field_count_match_entries:,}/"
+                                f"{group.observed_partial_entries:,}"
+                            )
+                            print(
+                                f"      bytes other than counted 3FFF pairs: "
+                                f"{group.non_3fff_bytes_min}.."
+                                f"{group.non_3fff_bytes_max}; "
+                                f"trailing 3FFF run "
+                                f"{group.trailing_3fff_run_min}.."
+                                f"{group.trailing_3fff_run_max}"
+                            )
                         print(
                             f"      4-byte reference ordinal hints: "
                             f"{group.ordinal_hints_present:,} present, "
@@ -3788,8 +3807,9 @@ def cmd_member(args):
                             f"..{group.max_ordinal_hint}"
                         )
                     print(
-                        "    Shortfall does not establish missing key "
-                        "byte positions or reversible compression."
+                        "    Shortfall and raw 3FFF counts do not establish "
+                        "missing-key positions, marker semantics, or "
+                        "reversible compression."
                     )
                 for entry in traversal.entries[:32]:
                     key_bytes = entry.display_key_bytes

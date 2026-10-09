@@ -1131,6 +1131,14 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[0].observed_tree_body_max, 2)
         self.assertEqual(audit[0].machine_length_shortfall_min, 96)
         self.assertEqual(audit[0].machine_length_shortfall_max, 96)
+        self.assertEqual(audit[0].positive_length_field_count, 0)
+        self.assertEqual(audit[0].raw_3fff_occurrences_min, 1)
+        self.assertEqual(audit[0].raw_3fff_occurrences_max, 1)
+        self.assertEqual(audit[0].raw_3fff_field_count_match_entries, 0)
+        self.assertEqual(audit[0].non_3fff_bytes_min, 0)
+        self.assertEqual(audit[0].non_3fff_bytes_max, 0)
+        self.assertEqual(audit[0].trailing_3fff_run_min, 1)
+        self.assertEqual(audit[0].trailing_3fff_run_max, 1)
         self.assertEqual(audit[0].ordinal_hints_present, 1)
         self.assertEqual(audit[0].distinct_ordinal_hints, 1)
         self.assertEqual(audit[0].min_ordinal_hint, 1)
@@ -1187,6 +1195,92 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[1].min_ordinal_hint, 3)
         self.assertTrue(all(not entry.machine_key for entry in traversal.entries))
         self.assertTrue(all(not entry.user_key for entry in traversal.entries))
+
+    def test_qddsi_partial_key_audit_counts_raw_3fff_without_decoding_it(self):
+        marker = bytes.fromhex("3FFF")
+        keys = (
+            SimpleNamespace(
+                key_count=2,
+                machine_key_length=60,
+                fields=(
+                    SimpleNamespace(length_or_fork=8),
+                    SimpleNamespace(length_or_fork=40),
+                    SimpleNamespace(length_or_fork=64),
+                ),
+            ),
+            SimpleNamespace(
+                key_count=1,
+                machine_key_length=80,
+                fields=(
+                    SimpleNamespace(length_or_fork=18),
+                    SimpleNamespace(length_or_fork=0),
+                    SimpleNamespace(length_or_fork=64),
+                ),
+            ),
+        )
+        layout = DataSpaceIndexLayout(
+            dkey_count=2, dkey_address=0, keys=keys
+        )
+        entries = (
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000001"), 0x100,
+                dkey_index=0, key_complete=False,
+                key_evidence=b"ABC" + marker * 3,
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000002"), 0x140,
+                dkey_index=0, key_complete=False,
+                key_evidence=b"ABCDEFGH" + marker * 3,
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("01000001"), 0x180,
+                dkey_index=1, key_complete=False,
+                key_evidence=b"\x00" * 18 + marker + b"\x01" + marker,
+            ),
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries,
+            expected_entries=3,
+            root_offset=0x1000,
+            page_size=2048,
+            page_type=0xCC,
+            free_bytes=0,
+            first_free_offset=0,
+            complete=True,
+        )
+
+        audit = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual(len(audit), 2)
+        self.assertEqual(audit[0].positive_length_field_count, 3)
+        self.assertEqual(
+            (audit[0].raw_3fff_occurrences_min, audit[0].raw_3fff_occurrences_max),
+            (3, 3),
+        )
+        self.assertEqual(audit[0].raw_3fff_field_count_match_entries, 2)
+        self.assertEqual(
+            (audit[0].non_3fff_bytes_min, audit[0].non_3fff_bytes_max),
+            (3, 8),
+        )
+        self.assertEqual(
+            (audit[0].trailing_3fff_run_min, audit[0].trailing_3fff_run_max),
+            (3, 3),
+        )
+        self.assertEqual(audit[1].positive_length_field_count, 2)
+        self.assertEqual(
+            (audit[1].raw_3fff_occurrences_min, audit[1].raw_3fff_occurrences_max),
+            (2, 2),
+        )
+        self.assertEqual(audit[1].raw_3fff_field_count_match_entries, 1)
+        self.assertEqual(
+            (audit[1].non_3fff_bytes_min, audit[1].non_3fff_bytes_max),
+            (19, 19),
+        )
+        self.assertEqual(
+            (audit[1].trailing_3fff_run_min, audit[1].trailing_3fff_run_max),
+            (1, 1),
+        )
+        self.assertTrue(all(not entry.user_key for entry in entries))
+        self.assertTrue(all(not entry.machine_key for entry in entries))
 
     def test_qddsi_multi_dkey_all_empty_is_complete(self):
         data, _layout = make_qddsi_root_fixture(

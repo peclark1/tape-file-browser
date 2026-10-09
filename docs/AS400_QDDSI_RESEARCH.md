@@ -642,12 +642,66 @@ of reference, hence **96 bytes numerical shortfall**), plus a
 two-DKEY synthetic partial-index case. The values are *synthetic
 fixture checks*, not eight real-image audit results.
 
-**Next actual decoding gate:** run this report on each of the eight
-real V2R3 access paths, compare the bounded length/ordinal
-distributions against each DKYT field layout and recovered QDDS
-record *metadata*, and look for an independently corroborated
-common- or long-key encoding. Do **not** manufacture an inferred
-literal key from the ordinal or from a repeated `3FFF` marker.
+### Third independent check: the raw `3FFF` pair tracks DKYT field count
+
+The per-DKEY audit was then run against the **actual recovered tree text** for
+all eight V2R3 QAOK access paths. This produced a new corpus-wide relationship
+without reconstructing a single missing user-key byte:
+
+- every one of the **156 partial terminal bodies** contains exactly one raw
+  non-overlapping `3F FF` byte pair for each **positive-length DKYT row**
+  belonging to its selected DKEY;
+- equivalently, the field-count relation holds for **156/156 terminals**;
+- `QAOKS01A`, `QAOKS02A`, and `QAOKS03A` have terminal bodies made only
+  from one, two, or three such byte pairs before the four-byte database
+  reference;
+- `QAOKS04A` and `QAOKS05A` carry a varying literal prefix followed by
+  three pairs; `QAOKLAKA` carries a varying literal prefix followed by one;
+- `QAOKLDKA` and `QAOKL10A` each have two pairs with one intervening
+  byte associated with their existing zero-length fork/control-row shape.
+
+This is an inventory of a **raw byte pattern**, not a declaration that
+`3FFF` is a delimiter, terminator, length word, or any other field. The
+production code therefore reports the pair count, the number of
+positive-length DKYT rows, the number of terminals where those counts agree,
+the non-`3FFF` byte range, and the trailing-pair run. It does **not** strip
+the pairs or use them to synthesize a key.
+
+A direct raw-page check also rules out a traversal artifact. Stored
+**common-text** regions themselves contain these `3FFF` pairs in seven of
+the eight access paths (and terminal text carries the pair in all eight).
+The missing bytes therefore are not explained by an unvisited common-text
+element in the current tree walker.
+
+There is a useful period-documentation boundary here. SY21-0889-5, pp.
+2-16 through 2-18, says database management builds each key field before
+inserting the resulting bit strings into the general machine index, applying
+field-specific force/collating/numeric/order conversions as required. That
+supports treating the machine-index text as a **materialized key
+representation**, not as a guaranteed byte-for-byte copy of the QDDS record.
+The manual does not define this observed V2R3 `3FFF` pattern, so its meaning
+remains open.
+
+Two record-level correlations narrow the next experiment while staying
+within already nonzero DKYT-location evidence:
+
+- for all 13 active `QAOKLDKA` RRNs, the candidate 18-byte record region at
+  the nonzero DKYT location is all zero and the tree body preserves exactly
+  18 zero bytes before its first `3FFF` pair;
+- for all 13 active `QAOKL10A` RRNs, the analogous ten-byte region is
+  EBCDIC blank-filled, while the tree body has no literal field bytes before
+  its first pair.
+
+Those are correlations, not a generalized decoder. They are consistent with
+a compact/materialized field representation that can omit padding, but the
+location-zero rows and `QAOKLAKA` still prevent a defensible architecture-wide
+record-to-key rule.
+
+**Next actual decoding gate:** determine the field-materialization/compaction
+rule that produces the literal prefixes and raw `3FFF` pairs, and validate it
+against both the QDDS row bytes and actual machine-index ordering for every
+RRN. Do **not** manufacture an inferred literal key from the ordinal or from
+the repeated pair.
 
 ## Next implementation steps
 
