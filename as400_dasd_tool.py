@@ -5367,6 +5367,11 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "OS/400 *TBL table object (not a database physical file); "
         "its internal contents are not currently decoded"
     ),
+    (0x19, 0xD4): (
+        "IBM internal *DBRCVR Database Recovery Object; associated with "
+        "database recovery, not a user physical file; internal contents "
+        "are not currently decoded"
+    ),
     (0x19, 0xE0): (
         "IBM internal *ADO Asynchronous Distribution Object; "
         "contents are not currently decoded"
