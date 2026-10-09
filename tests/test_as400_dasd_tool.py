@@ -168,6 +168,53 @@ class DASDToolTests(unittest.TestCase):
                 self.assertEqual(main(["virtual-xref", str(p), "0", "1", "24"]), 1)
             self.assertIn("outside chosen extent", err.getvalue())
 
+    def test_virtual_xref_map_counts_repeating_patterns_without_writes(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            p = Path(dirname) / "patterns.hda"
+            base = 0x11000000
+            hdr = (base >> 8).to_bytes(5, "big") + bytes((2, 0, 0))
+            pages = [bytearray(PAGE_SIZE) for _ in range(4)]
+            for index in (0, 1):
+                page_va = base + index * PAGE_SIZE
+                pages[index][0xF8:0xFE] = (page_va + 0x108).to_bytes(6, "big")
+                pages[index][0x178:0x17E] = (page_va + 0x188).to_bytes(6, "big")
+            pages[0][0x1F8:0x1FE] = (base + 512 + 8).to_bytes(6, "big")
+            p.write_bytes(b"".join(hdr + bytes(page) for page in pages))
+            before = p.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc = main([
+                    "virtual-xref-map", str(p), "0",
+                    "--source-start-lba", "0",
+                    "--sectors", "2",
+                    "--top", "3",
+                    "--examples", "3",
+                ])
+            self.assertEqual(rc, 0)
+            output = out.getvalue()
+            self.assertIn("Candidate values within extent: 5", output)
+            self.assertIn("+0x0F8 -> page +0, +0x108    2 occurrences", output)
+            self.assertIn("+0x178 -> page +0, +0x188    2 occurrences", output)
+            self.assertIn("+0x1F8 -> page +1, +0x008    1 occurrences", output)
+            self.assertIn("not verified pointer fields", output)
+            self.assertEqual(p.read_bytes(), before)
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                rc = main(["virtual-xref-map", str(p), "0", "--sectors", "0"])
+            self.assertEqual(rc, 1)
+            self.assertIn("sectors must be positive", err.getvalue())
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                rc = main([
+                    "virtual-xref-map", str(p), "0",
+                    "--source-start-lba", "4",
+                ])
+            self.assertEqual(rc, 1)
+            self.assertIn("outside chosen extent", err.getvalue())
+
     def test_asde_probe_reads_only_bounded_candidate_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "synthetic.hda"
