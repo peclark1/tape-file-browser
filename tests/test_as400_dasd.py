@@ -15,6 +15,7 @@ from as400_dasd import (
     SECTOR_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DASDUnitDescriptorEvidence,
     DataSpaceIndexKeyField,
     DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
@@ -231,6 +232,27 @@ class ASDEEvidenceTests(unittest.TestCase):
             with self.subTest(length=size):
                 with self.assertRaisesRegex(ValueError, "ASDE candidate length"):
                     ASDEEntryEvidence(bytes(size))
+
+
+class DASDDescriptorEvidenceTests(unittest.TestCase):
+    def test_both_image_geometry_models_with_exact_cp037_label(self):
+        for origin, count in ((64, 1931201), (2112, 614280)):
+            page = bytearray(PAGE_SIZE)
+            page[0:4] = origin.to_bytes(4, "big")
+            page[4:8] = count.to_bytes(4, "big")
+            page[0x40:0x50] = "DASD  UNIT  DESC".encode("cp037")
+            evidence = DASDUnitDescriptorEvidence(bytes(page))
+            self.assertEqual(evidence.candidate_origin_lba, origin)
+            self.assertEqual(evidence.candidate_managed_sector_count, count)
+            self.assertEqual(evidence.candidate_physical_end, origin + count)
+            self.assertTrue(evidence.agrees_with_image_size(origin + count))
+            self.assertFalse(evidence.agrees_with_image_size(origin + count - 1))
+
+    def test_disk_descriptor_evidence_requires_full_page_and_exact_label(self):
+        with self.assertRaisesRegex(ValueError, "512 bytes"):
+            DASDUnitDescriptorEvidence(bytes(10))
+        with self.assertRaisesRegex(ValueError, "exact EBCDIC"):
+            DASDUnitDescriptorEvidence(bytes(PAGE_SIZE))
 
 
 class DASDHeaderTests(unittest.TestCase):
