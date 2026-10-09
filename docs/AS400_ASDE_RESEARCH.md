@@ -183,6 +183,61 @@ establish that the initialized SMVT table, static directory, or permanent
 directory root begins at this page. Further pointer-following must
 distinguish metadata linkage from actual directory contents.
 
+### Full VMC extent: recurring address-reference families
+
+A read-only two-byte-aligned scan of all 4,096 physical pages belonging to
+Mark's previously identified virtual `0x11000000` extent, interpreting
+**only** six-byte unsigned big-endian candidates whose value falls inside
+the extent's derived virtual span, records:
+
+- **5,216 numeric candidate references** from 2,872 different physical
+  source pages, targeting 2,849 distinct physical pages.
+- **5,213** of these candidate values begin at a four-byte-aligned source
+  offset. Alignment is an observation, not yet a documented pointer-layout
+  requirement.
+- Strong repeating source-to-target patterns, measured as
+  `(source payload offset -> target page delta, target payload offset)`:
+
+| Source offset | Target delta | Target payload offset | Matches |
+| --- | ---: | --- | ---: |
+| `+0x0F8` | 0 (same page) | `+0x108` | 1,077 |
+| `+0x1F8` | +1 (next page) | `+0x008` | 941 |
+| `+0x178` | 0 (same page) | `+0x188` | 313 |
+| `+0x078` | 0 (same page) | `+0x088` | 277 |
+
+**Reproduce** with
+`as400-dasd virtual-xref-map IMAGE 65600 --alignment 2 --top 16`
+or restrict to a physical subset using
+`--source-start-lba 68860 --sectors 1`.
+The command only accepts an **explicit caller-chosen extent** and checks
+numeric six-byte values: the statistics do not automatically classify
+each value as a genuine pointer, a static-directory entry or a VMC field.
+
+A useful difference between these families: the `+0x0F8` reference
+routinely lands at `+0x108`, where fixed-width EBCDIC module names
+and associated record bytes are visible; the `+0x1F8` reference
+commonly lands on a name/record continuation at `+0x008` of the next
+512-byte page. This independently corroborates a recurring **page-spanning
+module/reference layout**, but its field names and purpose remain
+hypotheses. Some source pages exhibit both local and next-page candidate
+references.
+
+**Header nuance:** the initial 4,096-page physical run is delimited
+by different virtual header prefixes immediately before LBA 65,600 and
+at LBA 69,696. Inside the run, **4,095/4,096** sector headers carry
+the common base virtual prefix `0x11000000`; sector 65,601 alone has
+prefix `0x11000200`. All 4,096 carry extent-order nibble `0xC`.
+Do **not** assume every sector header linearly increments its virtual
+field with physical LBA. The candidate target arithmetic uses the
+corroborated **extent start** plus page-index offsets, not the per-sector
+stored header as an absolute target-page VA.
+
+**Next evidence test:** use recurrent pointers and the linked name
+records to find independently corroborated roots, initializer
+structures, or a loader/module table that could lead to a resident
+SMVT *data structure*. No genuine permanent-directory machine-index
+root or ASDE has yet been established.
+
 ### Stronger evidence required
 
 Instead of following the first substring hit as a presumed SMVT location,
