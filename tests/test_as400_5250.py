@@ -65,8 +65,7 @@ class Guided5250Tests(unittest.TestCase):
 
     def test_named_params_are_parsed_conservatively(self):
         self.assertEqual(("WRKMBRPDM", {"FILE": "QGPL/QCLSRC"}),
-                         parse_command("wrk mbrpdm FILE(QGPL/QCLSRC)")
-                         if False else parse_command("wrkmbrpdm file(QGPL/QCLSRC)"))
+                         parse_command("wrkmbrpdm file(QGPL/QCLSRC)"))
         for command in ("WRKACTJOB", "DSPPFM FILE(QGPL/QCLSRC) MBR(X) EXTRA(Y)",
                         "WRKOBJ LIB(QGPL) LIB(QSYS)", "DSPPFM FILE()", "WRKOBJPDM QGPL",
                         "DSPPFM FILE(QGPL/QCLSRC);DLTF X"):
@@ -129,7 +128,7 @@ class Guided5250Tests(unittest.TestCase):
         self.assertTrue(model.open_row(index, "5"))
         self.assertIn("primary absent", " ".join(model.detail))
         self.assertFalse(model.open_row(0, "9"))
-        self.assertIn("not available", model.status)
+        self.assertIn("No entry selected", model.status)
 
     def test_missing_member_data_is_reported_not_fabricated(self):
         model = Guided5250(FakeInventory(), member_loader=lambda *_: [])
