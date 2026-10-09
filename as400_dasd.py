@@ -190,6 +190,58 @@ class OriginCandidate:
         return "MEDIUM"
 
 
+# IBM SY21-0889-5 chapter 7 records 11/16/21/26-byte permanent-directory
+# ASDE entries, one through four extents. These bytes are only *candidate*
+# evidence until an actual storage-directory machine index is identified.
+# Its chapter 8 narrative has inconsistent entry lengths (11/18/21/28);
+# do not promote the following arithmetic to a validated V2R3 field layout.
+ASDE_DOCUMENTED_CH7_SIZES = (11, 16, 21, 26)
+ASDE_CANDIDATE_PREFIX_BYTES = 6
+ASDE_CANDIDATE_DESCRIPTOR_BYTES = 5
+
+
+@dataclass(frozen=True)
+class ASDEEntryEvidence:
+    """One raw, caller-selected, chapter-7-shaped ASDE *candidate*.
+
+    This only partitions documented entry-length families into a six-byte
+    prefix and one to four five-byte raw pieces. It does not assert a recovered
+    directory location, virtual-address encoding, disk unit, or extent mapping.
+    """
+
+    raw: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.raw) not in ASDE_DOCUMENTED_CH7_SIZES:
+            raise ValueError(
+                "ASDE candidate length must be one of "
+                + ", ".join(str(size) for size in ASDE_DOCUMENTED_CH7_SIZES)
+                + " bytes (System/38 chapter 7 family)"
+            )
+
+    @property
+    def extent_count(self) -> int:
+        return (
+            len(self.raw) - ASDE_CANDIDATE_PREFIX_BYTES
+        ) // ASDE_CANDIDATE_DESCRIPTOR_BYTES
+
+    @property
+    def prefix_raw(self) -> bytes:
+        return self.raw[:ASDE_CANDIDATE_PREFIX_BYTES]
+
+    @property
+    def descriptors_raw(self) -> tuple[bytes, ...]:
+        data = self.raw[ASDE_CANDIDATE_PREFIX_BYTES:]
+        return tuple(
+            data[offset:offset + ASDE_CANDIDATE_DESCRIPTOR_BYTES]
+            for offset in range(
+                0,
+                len(data),
+                ASDE_CANDIDATE_DESCRIPTOR_BYTES,
+            )
+        )
+
+
 @dataclass(frozen=True)
 class Extent:
     start_lba: int
