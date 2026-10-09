@@ -4,6 +4,7 @@ from types import SimpleNamespace as NS
 
 from as400_config import (
     configuration_information_lines, config_text_evidence, config_type,
+    device_identity_candidates,
     mode_name_candidates,
 )
 from as400_5250 import Guided5250
@@ -37,6 +38,32 @@ def make_obj(name, pair, *, lba=20):
 
 
 class ConfigurationViewTests(unittest.TestCase):
+    def test_empirical_v2r3_device_identity_offsets(self):
+        for name, clazz, device_type, model in (
+            ("QCONSOLE", "11", "3197", "  D1"),
+            ("BABY", "11", "5251", "0011"),
+            ("ALAN", "31", "PEER", "0000"),
+            ("TAP02", "01", "6343", "0001"),
+        ):
+            with self.subTest(name=name):
+                prefix = bytearray(512)
+                prefix[0x100:0x102] = clazz.encode("cp037")
+                prefix[0x104:0x108] = device_type.encode("cp037")
+                prefix[0x108:0x10C] = model.encode("cp037")
+                got = device_identity_candidates(bytes(prefix))
+                self.assertEqual([0x100, 0x104, 0x108],
+                                 [offset for offset, _, _ in got])
+                self.assertEqual([clazz, device_type, model],
+                                 [value for _, value, _ in got])
+                self.assertEqual((), device_identity_candidates(prefix[:0x10B]))
+                lines = configuration_information_lines(
+                    make_obj(name, (16, 1)), prefix)
+                self.assertIn("field semantics remain provisional",
+                              "\\n".join(lines))
+        invalid = bytearray(512)
+        invalid[0x100:0x102] = b"\x00\x00"
+        self.assertEqual((), device_identity_candidates(invalid))
+
     def test_mode_candidate_fields_remain_tentative(self):
         prefix = bytearray(512)
         prefix[0x120:0x128] = "QRMTWSC".ljust(8).encode("cp037")
