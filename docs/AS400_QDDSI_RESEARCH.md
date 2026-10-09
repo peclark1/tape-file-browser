@@ -332,6 +332,88 @@ entries partial. No omitted bytes are padded, inferred, or
 used for sorting. Synthetic regressions reproduce all eight
 observed populated-row shapes and preserve negative cases.
 
+### Second independent check: DKYT field-location spacing (V2R3)
+
+A separate, read-only examination of every **populated DKEY row** in
+Mark's eight QAOK indexes found an additional relationship *within*
+the adjacent raw DKYT locations, not derived from the DKEY user-key
+length:
+
+`next_DKYT_location - current_DKYT_location
+   = current_DKYT_length + (2 if current_sequence_byte == 0x01 else 0)`
+
+The rule applies to consecutive positive-length rows only. The observed
+zero-length fork/control rows in `QAOKLDKA`/`QAOKL10A` interrupt the
+sequence, so no assumed contiguity across those rows is counted.
+
+| QAOK family | Raw DKYT lengths | Sequence bytes | Raw DKYT locations | Matching adjacent pairs per active DKEY |
+| --- | --- | --- | --- | ---: |
+| `QAOKS02A` | 40, 64 | 01, 01 | 0, 42 | 1 / 1 |
+| `QAOKS03A` | 10, 40, 64 | 00, 01, 01 | 0, 10, 52 | 2 / 2 |
+| `QAOKS04A` | 8, 40, 64 | 00, 01, 01 | 0, 8, 50 | 2 / 2 |
+| `QAOKS05A` | 8, 40, 64 | 00, 01, 01 | 0, 8, 50 | 2 / 2 |
+
+Each of these four indexes has **two populated DKEY rows with the same
+shape**. Across all eight rows, **14/14 adjacent field-location
+differences agree**, with no mismatches. The four other QAOK indexes
+have either only one positive-length row or an intervening zero-length
+fork/control row; no adjacent positive-length pair is scored for them.
+
+This is **independent** corroboration for two bytes of storage/key-layout
+overhead, because it uses raw DKYT location differences rather than
+the DKEY `user_key_length` scalar. The raw sequence byte `0x01`
+might identify an IBM variable-length format, but **that bit is not
+yet decoded**.
+
+**IBM documentation, later release / analogy only:** IBM's V5R2
+*DDS for Physical and Logical Files* and modern IBM i/RPG
+variable-length format descriptions explain that `VARLEN` fields
+can carry **two bytes of current-length information** in addition
+to their declared maximum field length. See IBM's
+`https://www.ibm.com/docs/en/i/7.4.0?topic=type-variable-length-character-graphic-ucs-2-formats`
+and V5R2 IBM DDS document
+`https://public.dhe.ibm.com/systems/power/docs/systemi/v5r2/pt_PT/rzakbmst.pdf`.
+Neither later source establishes what the V2R3 DKYT byte `0x01`
+means, or says that the *on-disk* QDDS row has exactly the same
+representation as an RPG in-memory variable-length field. Thus
+"two-byte length prefix" is now a **specific plausible hypothesis**,
+not a decoded key-field type.
+
+**Record-level countercheck — important negative result:** the
+`QAOKP09A` recovered data segment's logical 20 pages must be
+assembled in *virtual address order*, from a **4-page physical extent
+at LBA 1,632,280** and a **16-page physical extent at LBA
+1,632,160**. After excluding only the single 32-byte segment
+header, all 14 352-byte entries (default + 13 user RRNs) have
+the independently validated live DENT status `0x80`.
+If one naively interprets the raw `QAOKS02A` DKYT locations
+0 and 42 as literal offsets into each 351-byte record-data
+portion, their first two bytes do **not** both behave as
+two-byte big-endian lengths: for all 13 user records, the
+word at 0 is zero despite nonzero following data, while
+the word at 42 exceeds the respective 64-byte field
+maximum in every record. This **rejects that specific direct
+record-offset / unsigned-length-prefix model**. It does
+not reject the possibility of a length prefix in an
+intermediate machine-key representation. The recovered record
+bytes, actual names and field contents are not included in
+the repository.
+
+The backend now exposes `qaok_adjacent_stride_counts` as a
+**matched/tested evidence count** and the CLI/TUI displays that
+count when the prior length relation holds. It does not
+extract, synthesize, interpolate or alter the missing key
+bytes. A mixed success/failure synthetic pair and fork-row
+exclusion preserve that distinction.
+
+**Next evidence gate:** identify a format-specific key
+materialization or conversion rule from relevant CISC-era
+documentation, then independently validate the candidate
+against the QDDS record values and *actual* recovered
+machine-index key/order on all 13 user RRNs. Until then all
+156 QAOK database references remain navigable, with their
+literal keys clearly marked partial.
+
 **Next experiment:** compare the per-record key-field
 materializations to documented IBM key conversion rules,
 one field family at a time. Any recovered literal bytes

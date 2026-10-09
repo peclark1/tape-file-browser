@@ -1174,6 +1174,37 @@ class DataSpaceIndexKeySpec:
             == 2 * self.sequence_01_field_count
         )
 
+    @property
+    def qaok_adjacent_stride_counts(self) -> tuple[int, int]:
+        """Matched/tested *raw DKYT location differences* for adjacent fields.
+
+        For two adjacent positive-length DKYT rows with sequence byte 00/01
+        on the first, the observed QAOK family records:
+          next.location - current.location =
+              current.length_or_fork + (2 if sequence == 0x01 else 0)
+
+        A zero location is valid *raw evidence* for these QAOK indexes;
+        zero-length fork/control rows and other sequence variants are
+        excluded. These locations are NOT validated QDDS record offsets.
+        Passing this arithmetic check must not recover literal key bytes.
+        """
+        matched = tested = 0
+        for current, following in zip(self.fields, self.fields[1:]):
+            if (
+                current.length_or_fork <= 0
+                or following.length_or_fork <= 0
+                or current.sequence_attributes not in (0x00, 0x01)
+            ):
+                continue
+            tested += 1
+            expected = (
+                current.length_or_fork
+                + (2 if current.sequence_attributes == 0x01 else 0)
+            )
+            if following.location - current.location == expected:
+                matched += 1
+        return matched, tested
+
     def split_machine_key(
         self,
         machine_key: bytes,
