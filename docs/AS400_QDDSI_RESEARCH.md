@@ -861,6 +861,41 @@ record slot (including its status byte), with one default entry and
 It does not prove a mapping between any `seq=01` raw DKYT row and
 one of the descriptor candidates.
 
+### Thirteen-record candidate value census (read-only)
+
+The same independently reconstructed `03/B4` record space was compared
+record-by-record for user RRNs 1..13. For each descriptor row below, bytes
+were taken at its observed one-based location within the recovered record
+payload and for its raw declared length. The comparisons do not interpret
+raw descriptor type codes or translate the values into QDDSI key material.
+
+| QDDS descriptor row | Length / location | Distinct byte strings among 13 user RRNs | Observed characteristic |
+| ---: | --- | ---: | --- |
+| 7 | 64 / 50 | 1 | all zero bytes |
+| 10 | 40 / 60 | 1 | all zero bytes |
+| 17 | 10 / 160 | 1 | all EBCDIC blank bytes (`40`) |
+| 20 | 10 / 178 | 1 | all EBCDIC blank bytes (`40`) |
+| 21 | 18 / 188 | 1 | all zero bytes |
+| 24 | 40 / 212 | 1 | all zero bytes |
+| 27 | 64 / 254 | 13 | variable bytes |
+| 30 | 8 / 287 | 3 | 11 blanks and 2 differing nonblank strings |
+| 31 | 8 / 295 | 3 | 11 blanks and 2 differing nonblank strings |
+| 34 | 47 / 326 | 13 | variable bytes |
+
+For the two eight-byte rows, the two nonblank instances occur at user RRNs
+7 and 10 in **both** rows. This coincidence is useful evidence for a later
+paired-field hypothesis, but it does **not** establish that the two bytes
+sequences are interchangeable or that either field is selected by S04/S05.
+
+**Important negative result:** length-matched rows 10/24 (40 bytes) and
+17/20 (10 bytes) are observationally indistinguishable across the current
+13 records: a source-value match alone cannot uniquely identify them.
+Unlike those pairs, the two 64-byte candidates have different variability
+(row 7 all zero, row 27 distinct for every user RRN), which could reject
+a proposed source-field assignment when contrasted with the corresponding
+tree body. This is a bounded corpus result only. No automatic source
+mapping or compact-key reconstruction is justified yet.
+
 **Evidence gate:** before resolving S02..S05, distinguish the source
 fields using descriptor identity and 13-per-record value comparisons,
 not only raw length/location similarity. Preserve the existing 104
