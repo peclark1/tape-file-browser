@@ -178,6 +178,7 @@ as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
+as400-dasd virtual-xref disk.hda 65600 68860 376
 as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
@@ -401,6 +402,14 @@ After the TUI/browser milestone, the next phase is reconstruction of the
 storage-management **permanent directory** and its auxiliary-storage directory
 entries (ASDEs). That directory maps permanent virtual addresses to disk
 extents; it is **not** the library/context object-name index.
+
+The read-only `virtual-xref IMAGE EXTENT_START_LBA SOURCE_LBA OFFSET` helper
+reads an explicitly selected six-byte candidate virtual pointer and resolves it
+using the header of an **explicitly selected extent**, showing target LBA,
+payload offset, header, and bounded bytes. On Mark's V2R3 image the example
+above resolves a candidate at physical LBA 68,860 to data at payload +0x188,
+corroborating a real local pointer in compiled VMC module metadata. No actual
+SMVT/static-directory or permanent-directory schema is inferred.
 
 The `storage-labels IMAGE` command defaults to **complete EBCDIC
 space-padded eight-byte candidate names**, not prefix substrings: `#SMSMVT`
