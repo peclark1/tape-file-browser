@@ -6,13 +6,20 @@ repeatable real-image validation.
 
 ## Current priority
 
-### Permanent-context directory reconstruction
+### Browser milestone cleanup and merge preparation
 
-The functional database/QDDSI keyed-record milestone is now complete and the
-permanent-context work resumes as the current architectural priority. Apply the
-same documentation-first discipline before naming page-header fields; use the
-validated QDDSI machine-index traversal as implementation guidance without
-assuming that context indexes use identical placement or control structures.
+The database/QDDSI and permanent-context milestones are functionally complete
+for the current B10/V2R3 corpus, and the redesigned TUI has completed its main
+usability/terminology pass. The remaining work before merge is deliberately
+small: keep high-value user-visible decoder cleanup evidence-driven, maintain
+regression coverage, refresh milestone documentation, and avoid opening new
+architectural fronts inside this branch.
+
+The next major architecture phase after this browser milestone is
+**storage-directory / ASDE reconstruction**. Nonzero context segment-table-index
+pointers, the eight compressed/indirect QAOK QDDSI variants, exact context page
+header semantics beyond the independently established prefix, and MI program
+decompilation remain explicit follow-up research rather than merge blockers.
 
 ### Database / QDDSI and keyed-file reconstruction — milestone checkpoint
 
@@ -81,14 +88,14 @@ key evidence while still providing complete DKEY/ordinal references. See
       universal. Their tree entry counts are recovered, but complete machine
       keys are represented indirectly/compressed.
 
-### Permanent-context directory reconstruction — active checkpoint
+### Permanent-context directory reconstruction — milestone checkpoint
 
-The next architectural milestone is to reconstruct each permanent
-context/library's own directory and use it as an independent
-`context -> object` view. Before decoding a structure, survey the available
-period documentation for its purpose, terminology, and externally visible
-behavior; keep documented facts separate from real-image observations and
-hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
+The permanent-context milestone now reconstructs each ordinary recovered
+context/library's machine-index directory as an independent
+`context -> object` view and cross-checks it against EPA object -> context
+evidence. The remaining unchecked items below are intentionally evidence-bound
+follow-ups, not prerequisites for the current browser milestone. See
+`docs/AS400_DASD_RESEARCH_METHOD.md` and
 `docs/AS400_CONTEXT_DIRECTORY_RESEARCH.md`.
 
 - [x] Survey the current manual set for object/library, single-level-storage,
@@ -336,16 +343,21 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
       CCSID/shift-state representation is established.
 - [ ] Decode any further MI `19/51` field-type bytes only when a real format
       plus independent DDS/IBM evidence establishes their meaning.
-- [ ] Refine FCB -> format resolution for logical and multiple-format files.
-      The resolver now preserves every literal ten-byte 19/51 format-name
-      occurrence in FCB storage, independently notes exact internal-address
-      occurrences when present, and returns format objects in on-disk name
-      occurrence order rather than alphabetically. Use this evidence to isolate
-      real multiple-format/logical-file layouts before assigning fixed FCB
-      field offsets or semantics.
-- [ ] Decode the data-space entry-status byte beyond preserving its raw value.
-      IBM documents flags for valid/deleted/cross-segment-boundary states, but
-      the bit assignments still need independent confirmation.
+- [x] Refine FCB -> format resolution conservatively for logical and
+      multiple-format files. The resolver preserves every literal ten-byte
+      19/51 format-name occurrence in FCB storage, independently notes exact
+      internal-address occurrences when present, returns format objects in
+      on-disk name-occurrence order, and surfaces those literal offsets in the
+      TUI Evidence view. No undocumented FCB field offsets or semantics are
+      assigned.
+- [ ] Decode exact FCB field layout/semantics only if authoritative
+      documentation or independent real-image evidence establishes them.
+- [x] Decode the ordinary V2R3 data-space entry-status forms that are
+      independently established in the current corpus: 0x80 is the live/valid
+      form, 0xC0 is the deleted form, and the 0x40 difference is corroborated
+      by QDDSI access-path counts across unrelated files.
+- [ ] Decode any additional DENT bits/states (including cross-segment behavior)
+      only when independently validated; preserve all other values raw.
 - [x] Parse QDDSI/data-space-index DKEY/DKYT key specifications and preserve
       unresolved attributes as raw values.
 - [x] Traverse ordinary QDDSI machine-index roots and same-segment secondary
@@ -422,6 +434,9 @@ to this CISC release.
 - [x] Add `*FILE` storage-evidence summaries (source member types, resolved
       formats, QDDS/QDDSI counts) so source/database/logical-access-path cases
       are described from recovered evidence rather than guessed from names.
+- [x] Expose literal FCB record-format evidence in the file Evidence view:
+      format-name occurrence offsets plus independent internal-address
+      occurrence offsets when present, with no guessed FCB field names.
 - [x] Improve database-member presentation with recovered field layouts,
       DENT-byte terminology, and raw bytes when decoded fields are blank.
 - [x] Explain the documented QGPL/QAAPFILE logical-file case instead of
