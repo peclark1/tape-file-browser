@@ -429,6 +429,17 @@ follow-ups, not prerequisites for the current browser milestone. See
       LBAs 0..63; Pete 3 sectors/127 bytes across LBAs
       0..2111. These tiny payloads do not establish an SMVT
       checkpoint and emphasize the need for a real pointer chain.
+- [x] Compare exact shutdown-module name references across both images,
+      rather than assuming the absence of `#SMSMVTN` implies absent
+      storage-management code. `#SMSHTDN` appears 10 times on Mark's
+      V2R3 disk, once on Pete's B10 disk; late-image appearances of
+      `#SMDR2`, `#SMSHTDN` and neighboring names share a raw
+      `A0002D` virtual-prefix family on both disks. Add raw
+      eight-byte header grouping to `storage-labels` and synthetic
+      coverage. Keep `#SMSMVT1` (digit) and `#SMSMVTI` (letter)
+      distinct, acknowledging source glyph ambiguity.
+      These are probable code-symbol/linkage *references*, not checkpoint
+      data or static/permanent directory entries.
 - [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
       through independently corroborated startup loader or control-block
       references (not EBCDIC module-name counts).
