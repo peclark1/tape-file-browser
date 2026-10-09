@@ -809,6 +809,18 @@ def _qddsi_key_field_labels(spec, format_fields):
 
 
 
+def _qddsi_key_location_evidence(field, friendly_label=""):
+    """Describe a DKYT location without over-promoting it to a record offset."""
+
+    offset = field.record_offset_hint
+    if friendly_label and offset is not None:
+        return f"record +{offset} (format-field match)"
+    return (
+        f"raw location {field.location} "
+        "(record offset unverified)"
+    )
+
+
 def _qddsi_key_length_evidence(spec):
     """Describe raw DKYT length accounting without inventing key encoding.
 
@@ -833,6 +845,25 @@ def _qddsi_key_length_evidence(spec):
                 f"; adjacent DKYT location spacing {matching}/{examined}"
                 " matches raw +2 after seq01 / +0 after seq00"
                 " (not proven record offsets)"
+            )
+        raw12_matching, raw12_examined = spec.qaok_raw12_cumulative_counts
+        raw14_matching, raw14_examined = spec.qaok_raw14_step_counts
+        if raw12_examined:
+            message += (
+                f"; raw +0x12 running scalar {raw12_matching}/"
+                f"{raw12_examined} matches observed field/fork accounting"
+            )
+        if raw14_examined:
+            message += (
+                f"; raw +0x14 running scalar {raw14_matching}/"
+                f"{raw14_examined} matches observed length transform"
+            )
+        raw14_final = spec.qaok_raw14_plus_database_reference
+        if raw14_final is not None:
+            status = "matches" if spec.qaok_raw14_matches_machine_length else "differs from"
+            message += (
+                f"; final raw +0x14 + 4 = {raw14_final} {status} "
+                f"declared machine length {spec.machine_key_length}"
             )
     else:
         message += " [unexplained; no inferred key bytes]"
@@ -3727,12 +3758,8 @@ def cmd_member(args):
                     index_format_fields,
                 )
                 for field_number, field in enumerate(spec.fields, 1):
-                    location = (
-                        f"record +{field.record_offset_hint}"
-                        if field.record_offset_hint is not None
-                        else "record location unknown"
-                    )
                     label = field_labels[field_number - 1]
+                    location = _qddsi_key_location_evidence(field, label)
                     friendly = f" {label}" if label else ""
                     print(
                         f"      key field {field_number}{friendly}: "

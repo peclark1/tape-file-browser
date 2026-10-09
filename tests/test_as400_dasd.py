@@ -290,6 +290,121 @@ class QAOKKeyLengthEvidenceTests(unittest.TestCase):
                     total_tested += spec.qaok_adjacent_stride_counts[1]
         self.assertEqual((total_matched, total_tested), (14, 14))
 
+    def test_qaok_raw_dkyt_tail_scalars_are_evidence_only(self):
+        # Raw +0x12/+0x14 values independently observed on each populated
+        # DKEY shape. These assertions preserve arithmetic without naming
+        # either word or using it to synthesize key bytes.
+        samples = (
+            ("QAOKLAKA", ((1, 47, 47, 72),), 49, 76),
+            (
+                "QAOKLDKA",
+                ((0, 18, 18, 29), (0x40, 0, 19, 30), (1, 64, 83, 128)),
+                84,
+                132,
+            ),
+            (
+                "QAOKL10A",
+                ((0, 10, 10, 17), (0x40, 0, 11, 18), (1, 64, 75, 116)),
+                76,
+                120,
+            ),
+            ("QAOKS01A", ((1, 64, 64, 98),), 66, 102),
+            ("QAOKS02A", ((1, 40, 40, 62), (1, 64, 104, 160)), 108, 164),
+            (
+                "QAOKS03A",
+                ((0, 10, 10, 17), (1, 40, 50, 79), (1, 64, 114, 177)),
+                118,
+                181,
+            ),
+            (
+                "QAOKS04A",
+                ((0, 8, 8, 14), (1, 40, 48, 76), (1, 64, 112, 174)),
+                116,
+                178,
+            ),
+            (
+                "QAOKS05A",
+                ((0, 8, 8, 14), (1, 40, 48, 76), (1, 64, 112, 174)),
+                116,
+                178,
+            ),
+        )
+
+        for name, rows, user_length, machine_length in samples:
+            fields = []
+            for ordinal, (sequence, length, raw12, raw14) in enumerate(rows, 1):
+                raw = bytearray(0x20)
+                raw[0x12:0x14] = raw12.to_bytes(2, "big")
+                raw[0x14:0x16] = raw14.to_bytes(2, "big")
+                fields.append(
+                    DataSpaceIndexKeyField(
+                        sequence_attributes=sequence,
+                        field_attributes=0x30 if length else 0,
+                        length_or_fork=length,
+                        relative_offset=0,
+                        location=0,
+                        field_ordinal_hint=ordinal,
+                        raw=bytes(raw),
+                    )
+                )
+            spec = DataSpaceIndexKeySpec(
+                data_space=InternalAddress(1, 0x3D09000000),
+                field_table_pointer=InternalAddress(1, 0),
+                key_count=13,
+                auxiliary_scalar_raw=0,
+                key_field_count=len(fields),
+                user_key_length=user_length,
+                machine_key_length=machine_length,
+                dkyt_address=0,
+                fields=tuple(fields),
+                raw=bytes(0x40),
+            )
+            with self.subTest(index=name):
+                self.assertEqual(
+                    spec.qaok_raw12_cumulative_counts,
+                    (len(fields), len(fields)),
+                )
+                self.assertEqual(
+                    spec.qaok_raw14_step_counts,
+                    (len(fields), len(fields)),
+                )
+                self.assertEqual(
+                    spec.qaok_raw14_plus_database_reference,
+                    machine_length,
+                )
+                self.assertTrue(spec.qaok_raw14_matches_machine_length)
+                self.assertIsNone(spec.split_machine_key(bytes(4)))
+
+    def test_qaok_raw_dkyt_tail_negative_case_stays_unclassified(self):
+        raw = bytearray(0x20)
+        raw[0x12:0x14] = (9).to_bytes(2, "big")
+        raw[0x14:0x16] = (12).to_bytes(2, "big")
+        field = DataSpaceIndexKeyField(
+            sequence_attributes=1,
+            field_attributes=0x30,
+            length_or_fork=8,
+            relative_offset=0,
+            location=0,
+            field_ordinal_hint=1,
+            raw=bytes(raw),
+        )
+        spec = DataSpaceIndexKeySpec(
+            data_space=InternalAddress(1, 0),
+            field_table_pointer=InternalAddress(1, 0),
+            key_count=1,
+            auxiliary_scalar_raw=0,
+            key_field_count=1,
+            user_key_length=10,
+            machine_key_length=99,
+            dkyt_address=0,
+            fields=(field,),
+            raw=bytes(0x40),
+        )
+        self.assertEqual(spec.qaok_raw12_cumulative_counts, (0, 1))
+        self.assertEqual(spec.qaok_raw14_step_counts, (0, 1))
+        self.assertEqual(spec.qaok_raw14_plus_database_reference, 16)
+        self.assertFalse(spec.qaok_raw14_matches_machine_length)
+
     def test_qaok_stride_disagreement_and_fork_boundaries_are_explicit(self):
         mismatch = self._spec(
             (40, 64), (1, 1), 108, 164, locations=(0, 40)

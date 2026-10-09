@@ -64,16 +64,25 @@ depending on experimental ASDE changes.
       not introduced by traversal: seven of eight access paths carry the pair
       inside raw common-text storage, and all eight carry it in reconstructed
       terminal paths. Retain common-text traversal unchanged.
-- [x] Cross-check two nonzero-location cases against QAOKP09A records:
-      QAOKLDKA preserves the candidate 18-byte zero region literally before
-      its first pair for 13/13 RRNs; QAOKL10A's candidate ten-byte
-      blank-filled region contributes no literal bytes before its first pair.
-      Treat this as compaction/materialization evidence, not a generalized
-      record-offset decoder.
-- [ ] Resolve the field-materialization/compaction rule behind the raw
-      `3FFF` pairs and literal prefixes, including the location-zero rows
-      and QAOKLAKA, by verifying independent QDDS row evidence and observed
-      tree-key order. Do not synthesize missing user keys.
+- [x] Reconstruct four direct-mapped compact paths from independent QDDS
+      field/record evidence: QAOKLAKA, QAOKS01A, QAOKLDKA and QAOKL10A
+      reproduce **52/52** terminal bodies. QAOKLAKA directly proves a
+      two-byte current-length value for its 47-byte maximum field; S01's
+      corresponding length slot is zero; LDKA preserves its fixed zero bytes;
+      L10's blank padding is omitted by the compact representation.
+- [x] Parse no new semantic names, but expose three previously unnamed raw
+      DKYT tail words by byte offset. Across every populated QAOK DKEY,
+      raw +0x12 follows the observed cumulative field/fork count, raw +0x14
+      follows the repeatable `ceil(3*(L+1)/2)` step relation, and the final
+      +0x14 value + 4 equals the declared machine-key length. Add synthetic
+      positive/negative regressions.
+- [x] Stop presenting every positive DKYT location as a QDDS record offset.
+      Only print `record +N` when a recovered format field independently
+      matches both offset and length; otherwise label the value raw/unverified.
+- [ ] Resolve the intermediate/source-field mapping for QAOKS02A through
+      QAOKS05A and the architectural meaning of the per-field `3FFF` marker
+      / raw +0x14 transform. Do not synthesize missing maximum-field bytes or
+      promote the raw `seq=0x01` byte to VARLEN without independent proof.
 
 ### Storage-directory / ASDE — paused at evidence gate
 

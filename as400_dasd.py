@@ -1114,6 +1114,31 @@ class DataSpaceIndexKeyField:
             return None
         return self.location - 1
 
+    def raw_u16(self, offset: int) -> int | None:
+        """Return an otherwise-unnamed raw 16-bit DKYT word by byte offset."""
+
+        if offset < 0 or offset + 2 > len(self.raw):
+            return None
+        return int.from_bytes(self.raw[offset : offset + 2], "big")
+
+    @property
+    def raw_word_10(self) -> int | None:
+        """Unclassified DKYT word at raw byte offset +0x10."""
+
+        return self.raw_u16(0x10)
+
+    @property
+    def raw_word_12(self) -> int | None:
+        """Unclassified DKYT word at raw byte offset +0x12."""
+
+        return self.raw_u16(0x12)
+
+    @property
+    def raw_word_14(self) -> int | None:
+        """Unclassified DKYT word at raw byte offset +0x14."""
+
+        return self.raw_u16(0x14)
+
 
 @dataclass(frozen=True)
 class DataSpaceIndexKeySpec:
@@ -1204,6 +1229,85 @@ class DataSpaceIndexKeySpec:
             if following.location - current.location == expected:
                 matched += 1
         return matched, tested
+
+    @property
+    def qaok_raw12_cumulative_counts(self) -> tuple[int, int]:
+        """Matched/tested QAOK observations for the raw +0x12 DKYT word.
+
+        On the eight V2R3 long/compact QAOK indexes, +0x12 equals a running
+        count of positive length_or_fork values, with one additional byte for
+        each observed zero-length seq=0x40 fork/control row. The word remains
+        otherwise unnamed and is not used to construct keys.
+        """
+
+        cumulative = matched = tested = 0
+        for field in self.fields:
+            if field.length_or_fork > 0:
+                cumulative += field.length_or_fork
+            elif (
+                field.length_or_fork == 0
+                and field.sequence_attributes == 0x40
+            ):
+                cumulative += 1
+            else:
+                continue
+            observed = field.raw_word_12
+            if observed is None:
+                continue
+            tested += 1
+            if observed == cumulative:
+                matched += 1
+        return matched, tested
+
+    @property
+    def qaok_raw14_step_counts(self) -> tuple[int, int]:
+        """Matched/tested QAOK observations for the raw +0x14 DKYT word.
+
+        The compact family shows a second running raw scalar. A positive field
+        of length L advances it by ceil(3*(L+1)/2); an observed zero-length
+        seq=0x40 fork/control row advances it by one. This is deliberately
+        recorded as arithmetic evidence only; no encoding meaning is assigned.
+        """
+
+        cumulative = matched = tested = 0
+        for field in self.fields:
+            if field.length_or_fork > 0:
+                length = field.length_or_fork
+                cumulative += (3 * (length + 1) + 1) // 2
+            elif (
+                field.length_or_fork == 0
+                and field.sequence_attributes == 0x40
+            ):
+                cumulative += 1
+            else:
+                continue
+            observed = field.raw_word_14
+            if observed is None:
+                continue
+            tested += 1
+            if observed == cumulative:
+                matched += 1
+        return matched, tested
+
+    @property
+    def qaok_raw14_plus_database_reference(self) -> int | None:
+        """Observed final raw +0x14 scalar plus the four-byte DB reference."""
+
+        if not self.fields:
+            return None
+        final = self.fields[-1].raw_word_14
+        return None if final is None else final + 4
+
+    @property
+    def qaok_raw14_matches_machine_length(self) -> bool:
+        """Whether the final raw +0x14 scalar + 4 equals declared machine length.
+
+        This relationship holds on the populated V2R3 QAOK compact family but
+        is not promoted to a general machine-index length definition.
+        """
+
+        candidate = self.qaok_raw14_plus_database_reference
+        return candidate is not None and candidate == self.machine_key_length
 
     def split_machine_key(
         self,

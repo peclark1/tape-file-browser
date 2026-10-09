@@ -700,16 +700,95 @@ within already nonzero DKYT-location evidence:
   EBCDIC blank-filled, while the tree body has no literal field bytes before
   its first pair.
 
-Those are correlations, not a generalized decoder. They are consistent with
-a compact/materialized field representation that can omit padding, but the
-location-zero rows and `QAOKLAKA` still prevent a defensible architecture-wide
-record-to-key rule.
+Those correlations led to a stronger direct-field reconstruction.
 
-**Next actual decoding gate:** determine the field-materialization/compaction
-rule that produces the literal prefixes and raw `3FFF` pairs, and validate it
-against both the QDDS row bytes and actual machine-index ordering for every
-RRN. Do **not** manufacture an inferred literal key from the ordinal or from
-the repeated pair.
+### Direct QDDS-field reconstruction for four QAOK access paths
+
+The shared `QAOKP09A` QDDS primary itself is a 20-page logical segment.
+Its field-description area begins at logical +0x400 with a count of **36**,
+followed by repeated 32-byte descriptor rows. The descriptor semantics are
+still only partially decoded, but several rows can be independently joined to
+DKYT rows because **both the declared maximum/storage length and the nonzero
+one-based record location agree**.
+
+Four QAOK access paths have such direct joins:
+
+- `QAOKLAKA`: DKYT length 47 / location 326 agrees with QDDS descriptor
+  row 34. In every one of the 13 live user RRNs, the two bytes immediately
+  preceding the field's data area form a big-endian value in range 7..17.
+  That value equals the number of following literal field bytes represented
+  in the machine-index tree. The entire recovered compact tree body is
+  exactly those current bytes followed by one raw `3FFF` pair: **13/13**.
+  This gives a concrete corpus-level explanation for this row's
+  `47 + 2 = 49` declared user-key accounting: a two-byte current-length
+  value is physically present for the 47-byte maximum field.
+- `QAOKS01A`: its length-64 / location-50 DKYT row agrees with QDDS
+  descriptor row 7. The corresponding two-byte current-length slot is zero
+  in all 13 live RRNs; the compact tree body is just one raw `3FFF` pair:
+  **13/13**.
+- `QAOKLDKA`: the fixed 18-byte / location-188 row agrees with QDDS
+  descriptor row 21, while its length-64 / location-50 row again agrees with
+  row 7. All 13 records preserve the fixed 18 zero bytes literally, then the
+  raw pair, the existing one-byte fork/control value, and the empty
+  length-64 field's raw pair: **13/13**.
+- `QAOKL10A`: the fixed 10-byte / location-178 row agrees with QDDS
+  descriptor row 20, and the length-64 row again agrees with row 7. The
+  ten-byte source field is EBCDIC blank-filled in all 13 RRNs; its padding is
+  absent from the compact tree, which consists of a raw pair, the existing
+  fork/control byte, and the empty length-64 field's raw pair: **13/13**.
+
+Thus **52/52 terminal bodies** in these four indexes can now be reproduced
+from independently recovered QDDS record evidence without inventing omitted
+user-key bytes. This is stronger than the earlier length-only correlation.
+
+The later IBM AS/400 DDS/RPG descriptions of variable-length character data
+are useful corroboration only: they describe a two-byte current length in
+addition to the declared maximum data area. They do not prove that the raw
+V2R3 DKYT sequence byte `0x01` names that facility, nor do they define the
+observed `3FFF` compact-tree marker. The direct `QAOKLAKA` and
+`QAOKS01A` record bytes establish the two-byte current-length behavior
+independently for these real V2R3 fields.
+
+The four `QAOKS02A`..`QAOKS05A` layouts remain indirect: some positive
+DKYT locations are zero or behave as offsets within an intermediate key
+layout rather than literal QDDS record positions. Nevertheless, the QDDS
+field table supplies matching source *shapes*: an empty 40-byte
+variable-length candidate, the independently verified empty 64-byte field,
+blank-filled ten-byte candidates, and eight-byte fixed candidates. These
+explain why the S02/S03 bodies are marker-only and why S04/S05 carry one
+trimmed literal prefix followed by three markers, but the source-field
+mapping is not yet unique enough to promote into the decoder.
+
+### Additional raw DKYT tail scalars
+
+The previously unnamed DKYT tail also carries two repeatable numerical
+relationships across every populated QAOK DKEY. Production diagnostics now
+expose these only by raw byte offset:
+
+- raw word **+0x12** is a running count of positive `length_or_fork`
+  values, with +1 for the observed zero-length `seq=0x40` fork/control
+  row;
+- raw word **+0x14** advances by
+  `ceil(3 * (L + 1) / 2)` for each positive field of raw length `L`,
+  again +1 across the observed zero-length fork/control row;
+- for every populated compact QAOK DKEY, the **final +0x14 word + 4**
+  equals the DKEY-declared machine-key length.
+
+These words are *not named fields*. Ordinary indexes can carry similar raw
+values without using them as their literal machine-key length, so the
+relationship is recorded as QAOK corpus evidence rather than generalized
+architecture.
+
+One UI correction follows from the same work: a positive raw DKYT location is
+no longer printed as a QDDS record offset unless a recovered 19/51 format
+field independently matches both offset and length. Uncorroborated locations
+are now explicitly labelled raw/unverified.
+
+**Next actual decoding gate:** resolve the intermediate/source-field mapping
+for `QAOKS02A`..`QAOKS05A`, then determine what the `3FFF` field marker
+and raw +0x14 length transform represent architecturally. Any complete-key
+decoder must reproduce the real QDDS-to-tree materialization and ordering for
+all 156 RRNs without padding or interpolating missing maximum-field bytes.
 
 ## Next implementation steps
 
