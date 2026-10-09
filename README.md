@@ -177,6 +177,7 @@ as400-dasd map disk.hda
 as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd bootstrap-map disk.hda --sectors 64
+as400-dasd disk-descriptor disk.hda
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
 as400-dasd virtual-xref disk.hda 65600 68860 376
@@ -399,6 +400,14 @@ q / Esc         quit
 ```
 
 ### Storage-directory / ASDE research
+
+The `disk-descriptor IMAGE` diagnostic checks the exact CP037
+`DASD  UNIT  DESC` label at physical LBA 32. The first two BE u32
+payload values independently match the physical managed-region origin
+and managed-sector count on **both** Pete's B10 and Mark's V2R3 disks.
+It cross-checks their sum against image geometry, and tests the
+neighboring sector-header transition. The byte interpretation is an
+observed cross-image result, not yet an official IBM field definition.
 
 The `bootstrap-map IMAGE [--start-lba N --sectors N]` command reports
 bounded low-level physical-sector evidence before any storage-management
