@@ -178,7 +178,7 @@ as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd bootstrap-map disk.hda --sectors 64
 as400-dasd disk-descriptor disk.hda
-as400-dasd bootstrap-extents disk.hda --limit 8
+as400-dasd bootstrap-extents disk.hda --limit 8 --occupancy
 as400-dasd dct-evidence disk.hda
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
@@ -421,7 +421,9 @@ The companion read-only `bootstrap-extents IMAGE --limit N`
 diagnostic begins from the geometry-corroborated disk-unit descriptor
 origin and follows only bounded, physically adjacent extent-order
 candidates whose *first and last storage headers* independently
-share their base prefix. It stops when they disagree. Mark's
+share their base prefix. It stops when they disagree. Optional `--occupancy` counts
+zero, sparse, intermediate and dense payload pages without displaying
+or exporting raw contents. Mark's
 V2R3 load-source disk begins with two back-to-back 16,384-page
 runs (LBAs 64–16,447 and 16,448–32,831); IBM's System/38 manual
 mentions two defect-free areas reserved for HMC initial loading,
