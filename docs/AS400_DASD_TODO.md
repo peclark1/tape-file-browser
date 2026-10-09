@@ -337,6 +337,12 @@ hypotheses. See `docs/AS400_DASD_RESEARCH_METHOD.md` and
 - [ ] Decode any further MI `19/51` field-type bytes only when a real format
       plus independent DDS/IBM evidence establishes their meaning.
 - [ ] Refine FCB -> format resolution for logical and multiple-format files.
+      The resolver now preserves every literal ten-byte 19/51 format-name
+      occurrence in FCB storage, independently notes exact internal-address
+      occurrences when present, and returns format objects in on-disk name
+      occurrence order rather than alphabetically. Use this evidence to isolate
+      real multiple-format/logical-file layouts before assigning fixed FCB
+      field offsets or semantics.
 - [ ] Decode the data-space entry-status byte beyond preserving its raw value.
       IBM documents flags for valid/deleted/cross-segment-boundary states, but
       the bit assignments still need independent confirmation.
