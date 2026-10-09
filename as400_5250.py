@@ -321,6 +321,23 @@ class Guided5250:
         ]
 
 
+def _safe_display_text(value):
+    """Escape nonprintable characters from recovered data before curses output.
+
+    Some legitimate damaged/partially recovered AS/400 objects contain NUL
+    bytes. curses.addnstr() rejects embedded U+0000 with ValueError, which
+    previously escaped the UI and ended the entire browser. Preserve original
+    bytes in the parser/model; only escape the on-screen representation.
+    Escaping all C0/C1 controls also prevents control/escape sequences from
+    altering the terminal's display.
+    """
+    return re.sub(
+        r"[\x00-\x1f\x7f-\x9f]",
+        lambda match: f"\\x{ord(match.group(0)):02X}",
+        str(value),
+    )
+
+
 def _draw(screen, model, option="", command="", suggestions=None, active=False, suggestion_index=0):
     import curses
 
@@ -331,7 +348,7 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         screen.refresh()
         return
     put = lambda y, x, text, attr=0: screen.addnstr(
-        y, x, str(text), max(0, width - x - 1), attr)
+        y, x, _safe_display_text(text), max(0, width - x - 1), attr)
     put(0, 1, f" {model.title()} ", curses.A_BOLD | curses.A_REVERSE)
     put(1, 2, f"Location: {model.location()}")
     put(2, 2, "Type options, press Enter.  12=Work with  5=Display  8=Details")
