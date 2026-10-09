@@ -887,6 +887,28 @@ For the two eight-byte rows, the two nonblank instances occur at user RRNs
 paired-field hypothesis, but it does **not** establish that the two bytes
 sequences are interchangeable or that either field is selected by S04/S05.
 
+**Overlapping descriptor discovery (independently checked on every
+user record):** the raw location/length of descriptor row 27
+(64 bytes at one-based 254) encompasses **both** eight-byte descriptors:
+row 30 (287..294) and row 31 (295..302). Relative to the first byte of
+row 27, these are slices `[33:41]` and `[41:49]`, respectively.
+Byte-for-byte comparisons of each independently sliced value from the
+reconstructed 352-byte records agree for **13/13** RRNs for each of the
+two nested descriptors (**26/26** comparisons). The descriptor table
+therefore contains overlapping storage views here; the 64-byte row
+and two eight-byte rows must *not* be treated as three independent
+record-storage regions. Their field semantics and their roles in
+S04/S05 indexing remain unresolved.
+
+Among the 13 records, rows 30 and 31 have unusual nonblank contents
+at exactly RRNs 7 and 10; the overlap shows these occurrences are
+already inside the variable 64-byte region rather than independent
+corroborating values. Next compare the **actual recovered S04/S05
+tree prefixes** for these RRNs and all other ordinals before mapping
+any DKYT row to a particular QDDS descriptor. The overlap is
+structurally exact but does not yet establish a key-materialization
+rule or a meaning for `3FFF`.
+
 **Important negative result:** length-matched rows 10/24 (40 bytes) and
 17/20 (10 bytes) are observationally indistinguishable across the current
 13 records: a source-value match alone cannot uniquely identify them.
