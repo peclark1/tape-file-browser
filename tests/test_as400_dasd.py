@@ -37,6 +37,7 @@ from as400_dasd import (
     assemble_document_byte_string,
     audit_partial_data_space_index_keys,
     audit_partial_index_literal_prefix_candidate,
+    audit_partial_index_record_field_order,
     decode_context_machine_index,
     decode_context_terminal_name_hint,
     decode_data_space_index_root,
@@ -1261,6 +1262,63 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[0].distinct_ordinal_hints, 1)
         self.assertEqual(audit[0].min_ordinal_hint, 1)
         self.assertEqual(audit[0].max_ordinal_hint, 1)
+
+    def test_qddsi_candidate_order_checks_ties_and_wrong_field(self):
+        # Synthetic records: an exact source-field ordering match need not
+        # identify a field, since a constant alternative orders by RRN.
+        records = (
+            DataSpaceRecord(1, 0x80, b"C" + bytes([0x40]) * 3 + b"ZZZZ"),
+            DataSpaceRecord(2, 0x80, b"A" + bytes([0x40]) * 3 + b"ZZZZ"),
+            DataSpaceRecord(3, 0x80, b"B" + bytes([0x40]) * 3 + b"ZZZZ"),
+        )
+        def entry(rrn, dkey):
+            return DataSpaceIndexEntry(
+                b"", b"", bytes((dkey, 0, 0, rrn)), rrn * 0x10,
+                dkey_index=dkey, key_complete=False,
+                key_evidence=bytes.fromhex("3fff"),
+            )
+
+        traversal = DataSpaceIndexTraversal(
+            entries=(
+                entry(2, 0), entry(3, 0), entry(1, 0),
+                entry(1, 1), entry(2, 1), entry(3, 1),
+            ),
+            expected_entries=6, root_offset=0x1000, page_size=2048,
+            page_type=0xCC, free_bytes=0, first_free_offset=0,
+            complete=True,
+        )
+        source = audit_partial_index_record_field_order(
+            traversal, records, record_offset=0, field_length=4,
+            strip_ebcdic_blanks=True,
+        )
+        self.assertEqual([x.order_matches for x in source], [True, False])
+        self.assertEqual([x.distinct_candidate_values for x in source], [3, 3])
+        self.assertEqual([x.compared_entries for x in source], [3, 3])
+        self.assertEqual([x.adjacent_candidate_ties_in_observed_order
+                          for x in source], [0, 0])
+
+        constant = audit_partial_index_record_field_order(
+            traversal, records, record_offset=4, field_length=4,
+        )
+        self.assertEqual([x.order_matches for x in constant], [False, True])
+        self.assertEqual([x.distinct_candidate_values for x in constant], [1, 1])
+        self.assertEqual(constant[1].adjacent_candidate_ties_in_observed_order, 2)
+
+        missing = audit_partial_index_record_field_order(
+            traversal, records[:2], record_offset=0, field_length=4,
+        )
+        self.assertEqual([x.order_matches for x in missing], [None, None])
+        self.assertEqual([x.compared_entries for x in missing], [2, 2])
+
+        with self.assertRaises(ValueError):
+            audit_partial_index_record_field_order(
+                traversal, records, record_offset=0, field_length=0,
+            )
+        with self.assertRaises(ValueError):
+            audit_partial_index_record_field_order(
+                traversal, records + (records[0],),
+                record_offset=0, field_length=4,
+            )
 
     def test_qddsi_partial_literal_prefix_candidates_are_evidence_only(self):
         pair_run = bytes.fromhex("3fff") * 3
