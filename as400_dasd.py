@@ -615,6 +615,21 @@ class RecoveredObject:
 
 
 @dataclass(frozen=True)
+class FileFormatReference:
+    """Literal *FILE FCB evidence for one recovered MI 19/51 format object.
+
+    The FCB relationship is intentionally represented as exact byte evidence:
+    the recovered format's ten-byte EBCDIC name occurs at name_offsets, and its
+    eight-byte internal object address may independently occur at
+    address_offsets. No undocumented FCB field names are assigned here.
+    """
+
+    format_object: RecoveredObject
+    name_offsets: tuple[int, ...]
+    address_offsets: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
 class ContextDirectoryEntry:
     """One reconstructed terminal reference from a permanent *LIB context.
 
@@ -3709,17 +3724,18 @@ class DASDImage:
             offset += 3
         return probes
 
-    def resolve_file_formats(
+    def file_format_references(
         self,
         file_obj: RecoveredObject,
         inventory: ObjectInventory,
-    ) -> list[RecoveredObject]:
-        """Find format objects referenced by a recovered *FILE FCB.
+    ) -> list[FileFormatReference]:
+        """Return literal format-name/address evidence found in one *FILE FCB.
 
-        A physical/logical file's FCB carries the record-format name(s). Rather
-        than hard-code one FCB offset, search the recovered FCB segment for the
-        10-byte padded names of recovered MI 19/51 format objects. This handles
-        both simple source files and larger keyed file FCB layouts.
+        The current CISC corpus establishes that FCB storage contains the
+        ten-byte padded names of applicable MI 19/51 record-format objects.
+        Preserve every exact name occurrence and independently note exact
+        eight-byte internal-address occurrences when present. This improves
+        multiple-format diagnostics without assigning undocumented FCB fields.
         """
 
         if (
@@ -3735,13 +3751,27 @@ class DASDImage:
             if obj.object_type == 0x19 and obj.object_subtype == 0x51
         ]
 
-        matches: list[RecoveredObject] = []
+        def offsets(pattern: bytes) -> tuple[int, ...]:
+            if not pattern:
+                return ()
+            result = []
+            start = 0
+            while True:
+                found = file_data.find(pattern, start)
+                if found < 0:
+                    break
+                result.append(found)
+                start = found + 1
+            return tuple(result)
+
+        references: list[FileFormatReference] = []
         seen: set[tuple[int, int]] = set()
         for format_obj in formats:
             name10 = format_obj.epa.name_raw[:10]
             if not name10.strip(b"\x40\x00"):
                 continue
-            if name10 not in file_data:
+            name_offsets = offsets(name10)
+            if not name_offsets:
                 continue
             key = (
                 format_obj.segment.header.owner.extender,
@@ -3750,16 +3780,45 @@ class DASDImage:
             if key in seen:
                 continue
             seen.add(key)
-            matches.append(format_obj)
+            references.append(
+                FileFormatReference(
+                    format_object=format_obj,
+                    name_offsets=name_offsets,
+                    address_offsets=offsets(
+                        format_obj.object_address.to_bytes()
+                    ),
+                )
+            )
 
         return sorted(
-            matches,
-            key=lambda obj: (
-                obj.name,
-                obj.segment.virtual_address,
-                obj.segment.start_lba,
+            references,
+            key=lambda reference: (
+                reference.name_offsets[0],
+                reference.format_object.name,
+                reference.format_object.segment.virtual_address,
+                reference.format_object.segment.start_lba,
             ),
         )
+
+    def resolve_file_formats(
+        self,
+        file_obj: RecoveredObject,
+        inventory: ObjectInventory,
+    ) -> list[RecoveredObject]:
+        """Find recovered MI 19/51 formats named in a *FILE FCB.
+
+        Results retain FCB name-occurrence order rather than alphabetizing the
+        format objects. This is especially useful for logical/multiple-format
+        files while remaining conservative about the exact FCB field layout.
+        """
+
+        return [
+            reference.format_object
+            for reference in self.file_format_references(
+                file_obj,
+                inventory,
+            )
+        ]
 
     def read_format_fields(
         self,
