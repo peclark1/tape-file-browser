@@ -304,7 +304,8 @@ class Guided5250:
             "GUIDED 5250 EXPLORER — read-only disk-image browsing",
             "",
             "F4: Search supported commands and descriptions",
-            "F1: This help screen       F12: Previous screen",
+            "F1: This help screen       F12 or Backspace: Previous screen",
+            "Ctrl+B: Previous screen (terminal-safe alternative)",
             "Up/Down: Select row       Enter: Open selected row",
             "12 + Enter: Work with objects or members",
             "5 + Enter: Display selected member/object",
@@ -369,7 +370,7 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         put(height - 2, 2, "Esc=Cancel  F4/Tab=Insert selected  Enter=Run",
             curses.A_REVERSE)
     else:
-        put(height - 2, 2, "F1=Help  F3=Exit  F4=Commands  F12=Back  /=Command  PgUp/PgDn=Page",
+        put(height - 2, 2, "F12/BS=Back  F4=Commands  F1=Help  F3=Exit  /=Command  PgUp/Dn=Page",
             curses.A_REVERSE)
     screen.refresh()
 
@@ -404,6 +405,14 @@ def _command_input(stdscr, model, seed=""):
             selected = 0
 
 
+def _back_or_edit_option(model, option):
+    """Backspace erases a pending numeric option, else navigates back."""
+    if option:
+        return option[:-1]
+    model.back()
+    return ""
+
+
 def run_curses(stdscr, model):
     import curses
 
@@ -421,7 +430,7 @@ def run_curses(stdscr, model):
         if key in (curses.KEY_F1, ord("?")):
             model._goto("help", detail=model.help_lines())
             option = ""
-        elif key == curses.KEY_F12:
+        elif key in (curses.KEY_F12, 2):  # F12 or Ctrl+B
             model.back()
             option = ""
         elif key in (curses.KEY_F4, ord("/")) or (65 <= key <= 90) or (97 <= key <= 122):
@@ -448,4 +457,4 @@ def run_curses(stdscr, model):
                 model.open_row(model.selected, option or None)
             option = ""
         elif key in (curses.KEY_BACKSPACE, 8, 127):
-            option = option[:-1]
+            option = _back_or_edit_option(model, option)
