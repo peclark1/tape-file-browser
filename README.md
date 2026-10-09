@@ -283,7 +283,13 @@ first, with recovery state used only as a secondary distinction; normal
 primary-backed entries therefore do not carry a generic "recovered" badge.
 
 The lower pane is a purpose-specific inspector with six views:
-**Summary, Data, Keys, Storage, Evidence, and Raw**. Summary emphasizes what the
+**Summary, Data, Keys, Storage, Evidence, and Raw**. The selected view is always
+visually distinct; views with no meaningful information for the current
+selection are dimmed but remain selectable so the browser can explain why the
+view does not apply. When a new logical item is selected, the browser chooses a
+useful default (for example, source/database members open in Data and
+directory-only identities open in Evidence); an explicit manual view choice is
+left alone until the selection changes. Summary emphasizes what the
 selected AS/400 object is; Data shows source/database or decoded document
 content; Keys isolates QDDSI/context-index evidence; Storage shows QDDS/QDDSI
 and recovered segment groups; Evidence keeps EPA/context provenance and
