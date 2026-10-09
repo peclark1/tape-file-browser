@@ -667,6 +667,14 @@ positive-length DKYT rows, the number of terminals where those counts agree,
 the non-`3FFF` byte range, and the trailing-pair run. It does **not** strip
 the pairs or use them to synthesize a key.
 
+Crucially, this is **not the same relationship** as the earlier two-byte
+DKEY/DKYT length accounting. `QAOKS04A` and `QAOKS05A`, for example, have
+three positive-length fields and therefore three observed `3FFF` pairs, but
+only two fields have raw sequence byte `0x01`; their declared user-key
+length exceeds the sum of field lengths by four bytes, not six. Therefore a
+`3FFF` pair cannot simply be identified with the two extra bytes previously
+correlated with each `seq=01` row.
+
 A direct raw-page check also rules out a traversal artifact. Stored
 **common-text** regions themselves contain these `3FFF` pairs in seven of
 the eight access paths (and terminal text carries the pair in all eight).
