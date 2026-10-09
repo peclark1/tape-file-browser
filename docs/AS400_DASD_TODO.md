@@ -440,6 +440,19 @@ follow-ups, not prerequisites for the current browser milestone. See
       distinct, acknowledging source glyph ambiguity.
       These are probable code-symbol/linkage *references*, not checkpoint
       data or static/permanent directory entries.
+- [x] Independently map the earliest large disk extents using the
+      already cross-validated LBA-32 geometry and *both* endpoint
+      sector headers. Mark V2R3 has two adjacent 16,384-page
+      runs at LBAs 64..16,447 and 16,448..32,831 with agreeing
+      start/end virtual prefixes. The third 4,096-page candidate
+      has a differing first/last prefix, so the conservative
+      diagnostic stops rather than assuming contiguity. Pete's
+      non-load-source LBA 2,112 delimiter does not pass the same
+      endpoint check. Add read-only `bootstrap-extents` with
+      synthetic agreement/disagreement and input-preservation
+      tests. System/38 documentation mentions two HMC-IMPL
+      allocations; **do not** equate the V2R3 extents with these
+      allocations without additional evidence.
 - [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
       through independently corroborated startup loader or control-block
       references (not EBCDIC module-name counts).
