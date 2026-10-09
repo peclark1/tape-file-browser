@@ -29,6 +29,7 @@ from as400_dasd import (
     Extent,
     InternalAddress,
     MachineIndexPageHeader,
+    audit_partial_data_space_index_keys,
     ebcdic_preview,
     format_hex,
 )
@@ -3758,6 +3759,38 @@ def cmd_member(args):
                     f"{traversal.expected_entries:,}  {state}{page_note}  "
                     f"pages {traversal.page_count:,}{partial_note}"
                 )
+                if traversal.partial_key_count:
+                    groups = audit_partial_data_space_index_keys(
+                        index_layout, traversal
+                    )
+                    print(
+                        "  Partial-key audit (raw tree bytes; "
+                        "nominal-length shortfall is not a decoded field):"
+                    )
+                    for group in groups:
+                        print(
+                            f"    DKEY {group.dkey_index}: "
+                            f"{group.observed_partial_entries:,}/"
+                            f"{group.declared_entries:,} partial terminals, "
+                            f"tree text {group.observed_tree_body_min}.."
+                            f"{group.observed_tree_body_max} bytes, "
+                            f"nominal machine length "
+                            f"{group.nominal_machine_key_length}, "
+                            f"length shortfall "
+                            f"{group.machine_length_shortfall_min}.."
+                            f"{group.machine_length_shortfall_max}"
+                        )
+                        print(
+                            f"      4-byte reference ordinal hints: "
+                            f"{group.ordinal_hints_present:,} present, "
+                            f"{group.distinct_ordinal_hints:,} distinct, "
+                            f"range {group.min_ordinal_hint}"
+                            f"..{group.max_ordinal_hint}"
+                        )
+                    print(
+                        "    Shortfall does not establish missing key "
+                        "byte positions or reversible compression."
+                    )
                 for entry in traversal.entries[:32]:
                     key_bytes = entry.display_key_bytes
                     preview = ebcdic_preview(
