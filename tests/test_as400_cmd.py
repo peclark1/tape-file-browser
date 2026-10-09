@@ -4,6 +4,7 @@ from types import SimpleNamespace as NS
 
 from as400_cmd import (
     candidate_processor,
+    candidate_command_description,
     command_information_lines,
     embedded_ebcdic_text,
 )
@@ -33,6 +34,22 @@ class CommandEvidenceTests(unittest.TestCase):
         invalid = bytearray(sample)
         invalid[0x10C:0x116] = b"\x00" * 10
         self.assertIsNone(candidate_processor(invalid))
+
+    def test_candidate_description_requires_correlated_anchor_and_exact_name(self):
+        data = bytearray(self.sample())
+        anchor = "QTESTCMD   *LIBL     TESTCMD"
+        title = "Create Sample Command"
+        data[0x400:0x400 + len(anchor)] = anchor.encode("cp037")
+        data[0x4B8:0x4B8 + len(title)] = title.encode("cp037")
+        self.assertEqual(
+            title, candidate_command_description(bytes(data), "TESTCMD"))
+        self.assertIsNone(
+            candidate_command_description(bytes(data), "TEST"))
+        data[0x400:0x400 + len(anchor)] = b"\x00" * len(anchor)
+        self.assertIsNone(
+            candidate_command_description(bytes(data), "TESTCMD"))
+        # The original recovered bytes are not replaced with the heuristic.
+        self.assertEqual(self.sample(), self.sample())
 
     def test_bounded_text_scan_preserves_primary_byte_offsets(self):
         sample = self.sample()
