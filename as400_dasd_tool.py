@@ -506,6 +506,29 @@ def cmd_disk_descriptor(args):
             "Sum's second operand equals candidate origin: "
             + ("YES" if extra_b == origin else "NO")
         )
+        if boundary and at.header.extent_order <= 15:
+            pages = at.header.extent_pages
+            if pages <= image.sector_count - target_lba:
+                last_lba = target_lba + pages - 1
+                last = image.read_sector(last_lba)
+                print(
+                    f"Candidate boundary's extent-style order: "
+                    f"{at.header.extent_order} ({pages:,} pages)"
+                )
+                print(
+                    f"Last described page: LBA {last_lba:,}, "
+                    f"header {last.header.raw.hex(' ').upper()}"
+                )
+                following_lba = last_lba + 1
+                if following_lba < image.sector_count:
+                    following = image.read_sector(following_lba)
+                    deleted_marker = "DELETED EXTENT  ".encode("cp037")
+                    if following.data.startswith(deleted_marker):
+                        print(
+                            f"Observed following CP037 label: "
+                            f"'DELETED EXTENT' at physical LBA "
+                            f"{following_lba:,} (not decoded)"
+                        )
     else:
         print(
             "Uninterpreted sum not examined: one/both words are zero "
