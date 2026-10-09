@@ -3814,7 +3814,8 @@ class DASDImage:
 
         return [
             reference.format_object
-            for reference in self.file_format_references(
+            for reference in DASDImage.file_format_references(
+                self,
                 file_obj,
                 inventory,
             )
