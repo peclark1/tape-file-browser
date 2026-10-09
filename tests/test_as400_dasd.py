@@ -210,19 +210,21 @@ class QAOKKeyLengthEvidenceTests(unittest.TestCase):
     """Synthetic DKYT rows with length/attribute combinations observed on V2R3."""
 
     @staticmethod
-    def _spec(lengths, sequences, user_length, machine_length):
+    def _spec(lengths, sequences, user_length, machine_length, locations=None):
+        if locations is None:
+            locations = (0,) * len(lengths)
         fields = tuple(
             DataSpaceIndexKeyField(
                 sequence_attributes=sequence,
                 field_attributes=0x30 if length else 0,
                 length_or_fork=length,
                 relative_offset=0,
-                location=0,  # Some real QAOK positive-length rows have zero.
+                location=location,
                 field_ordinal_hint=index,
                 raw=bytes(0x20),
             )
-            for index, (length, sequence) in
-            enumerate(zip(lengths, sequences, strict=True), 1)
+            for index, (length, sequence, location) in
+            enumerate(zip(lengths, sequences, locations, strict=True), 1)
         )
         return DataSpaceIndexKeySpec(
             data_space=InternalAddress(1, 0x3D09000000),
@@ -261,6 +263,47 @@ class QAOKKeyLengthEvidenceTests(unittest.TestCase):
                 self.assertTrue(spec.qaok_two_byte_pattern_matches)
                 # This arithmetic does not recover omitted key bytes.
                 self.assertIsNone(spec.split_machine_key(bytes(4)))
+
+    def test_qaok_adjacent_dkyt_locations_independently_support_two_byte_overhead(self):
+        # Each of the four multi-field QAOKS* variants has two populated
+        # DKEY rows. All 14 independently observed adjacent-field pairs
+        # agree with raw +2 overhead after seq=01 rows and +0 after seq=00.
+        shapes = (
+            ("QAOKS02A", (40, 64), (1, 1), (0, 42), 108, 164, 1),
+            ("QAOKS03A", (10, 40, 64), (0, 1, 1), (0, 10, 52), 118, 181, 2),
+            ("QAOKS04A", (8, 40, 64), (0, 1, 1), (0, 8, 50), 116, 178, 2),
+            ("QAOKS05A", (8, 40, 64), (0, 1, 1), (0, 8, 50), 116, 178, 2),
+        )
+        total_matched = total_tested = 0
+        for name, lengths, sequence, location, user, machine, pairs in shapes:
+            for row in (0, 1):
+                with self.subTest(index=name, dkey=row):
+                    spec = self._spec(
+                        lengths, sequence, user, machine, locations=location
+                    )
+                    self.assertTrue(spec.qaok_two_byte_pattern_matches)
+                    self.assertEqual(spec.qaok_adjacent_stride_counts, (pairs, pairs))
+                    total_matched += spec.qaok_adjacent_stride_counts[0]
+                    total_tested += spec.qaok_adjacent_stride_counts[1]
+        self.assertEqual((total_matched, total_tested), (14, 14))
+
+    def test_qaok_stride_disagreement_and_fork_boundaries_are_explicit(self):
+        mismatch = self._spec(
+            (40, 64), (1, 1), 108, 164, locations=(0, 40)
+        )
+        self.assertTrue(mismatch.qaok_two_byte_pattern_matches)
+        self.assertEqual(mismatch.qaok_adjacent_stride_counts, (0, 1))
+        # A zero-length fork row makes adjacent location differences
+        # incomparable; do not count a skip as a successful match.
+        fork = self._spec(
+            (18, 0, 64), (0, 0x40, 1), 84, 132,
+            locations=(188, 0, 50)
+        )
+        self.assertTrue(fork.qaok_two_byte_pattern_matches)
+        self.assertEqual(fork.qaok_adjacent_stride_counts, (0, 0))
+        ordinary = self._spec((10, 2), (0, 0), 12, 16, locations=(1, 11))
+        self.assertEqual(ordinary.qaok_adjacent_stride_counts, (1, 1))
+        self.assertFalse(ordinary.qaok_two_byte_pattern_matches)
 
     def test_different_length_pattern_remains_unclassified(self):
         ordinary = self._spec((10,), (0,), 10, 14)
