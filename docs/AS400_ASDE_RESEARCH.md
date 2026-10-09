@@ -280,6 +280,66 @@ that cross-check known disk extents). Keep module-name references, resident
 SMVT identification, static-directory entries, and the pageable permanent
 machine-index root separate.
 
+### Persisted SMVT checkpoint: bootstrap-sector reconnaissance
+
+**IBM-documented (System/38, not yet proven identical on V2R3 CISC):**
+SY21-0889-5, Auxiliary Storage Management chapter 7, printed pp. 7-7
+to 7-8, states that auxiliary-storage initialization writes the SMVT
+onto drive 1, including the directory-valid bit, segment identifier
+generator, **static directory**, free-space values, and an auxiliary
+device configuration record. On orderly shutdown, module `#SMSHTDN`
+writes an **SMVT checkpoint page** and a directory-good bit. The same
+manual's Main Storage Management chapter 8 calls `#SMSMVT` a
+nucleus module containing an initialized SMVT and lookaside directory,
+while `#SMSMVTI` fixes the table for the link/loader. These are
+historical structural clues, not validated addresses in OS/400 V2R3.
+
+**Read-only observed physical sectors in the two images:** inspecting
+only physical LBAs **0..63**, without attempting to interpret each
+record's binary layout, gives:
+
+| Physical LBA | Mark load-source V2R3 | Pete non-load-source B10 |
+| ---: | --- | --- |
+| 0 | exact EBCDIC `IMD1` at payload +0 | zero payload |
+| 32 | exact `DASD  UNIT  DESC` at +0x40 | same label and offset |
+| 33 | `DCT 0300` at +0x18 | `DCT 0100` at +0x18 |
+| 52 | `REALLOCATION CONTROL SECTOR` at +0 | same label |
+| 54 | nonzero unlabeled binary data | zero payload |
+| 55 | exact `DCTX` at +0 | zero payload |
+| 60 | `MSD  SEC` at +0 and `DMDMAIN` at +0x18 | zero payload |
+
+Mark has **7** nonzero-payload sectors in this range
+(0, 32, 33, 52, 54, 55, 60), Pete has **3**
+(32, 33, 52). All these sector headers are eight bytes of zero
+in both images, so the existing managed-sector/extent scan correctly
+must **not** use the headers to infer their virtual addresses.
+The first page of Mark's previously established preassigned
+virtual extent begins at LBA 64.
+
+The repeated physical LBAs and literal labels give a concrete
+bootstrap/low-level record comparison. The different `DCT` trailing
+versions are *observed text*, not yet a decoded format version.
+Nothing here identifies an SMVT checkpoint: in particular,
+`DCTX` and `MSD  SEC` are labels and must **not** be assigned
+SMVT or directory meanings without more independent evidence.
+Nor should a System/38 statement that the checkpoint is on drive 1
+be used to assume it occupies the first 64 sectors on V2R3.
+
+**Reproduce:**
+`as400-dasd bootstrap-map IMAGE` for default physical LBAs 0..63.
+For a larger manually selected range use `--start-lba N --sectors N`
+(maximum 4096 per call). The tool records the number of nonzero payloads,
+zero-header/nonzero-payload sectors, and exact CP037 marker offsets;
+it does not decode system-record contents, persist them, or modify
+the image. Tests use only synthetic labels and bytes.
+
+**Next evidence test:** correlate boot/low-level record references and
+IBM CISC service/loading documentation to constrain where the
+checkpoint is read or written, then inspect any independently
+identified candidate for an actual static-directory table of
+single-extent ASDEs. Do not blindly search every random 11-byte
+window in these sectors as if a matching value were an ASDE.
+
 ## Next reproducible experiments (read-only)
 
 1. Inventory candidate VMC/SMVT/static-directory locations from period
