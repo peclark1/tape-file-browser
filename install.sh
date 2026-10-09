@@ -12,6 +12,7 @@ FORMAT_MODULE_PATH="${BIN_DIR}/tape_formats.py"
 TEXT_MODULE_PATH="${BIN_DIR}/tape_text.py"
 DASD_MODULE_PATH="${BIN_DIR}/as400_dasd.py"
 GUIDED_MODULE_PATH="${BIN_DIR}/as400_5250.py"
+CMD_MODULE_PATH="${BIN_DIR}/as400_cmd.py"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/tape-file-browser"
 LIBRARY_CATALOG_PATH="${DATA_DIR}/as400_libraries.json"
 DESKTOP_PATH="${APP_DIR}/${APP_ID}.desktop"
@@ -55,6 +56,7 @@ install -m 0644 "${SCRIPT_DIR}/tape_formats.py" "${FORMAT_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/tape_text.py" "${TEXT_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/as400_dasd.py" "${DASD_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/as400_5250.py" "${GUIDED_MODULE_PATH}"
+install -m 0644 "${SCRIPT_DIR}/as400_cmd.py" "${CMD_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/as400_libraries.json" "${LIBRARY_CATALOG_PATH}"
 
 if ! ${TEXT_MODE_ONLY}; then
@@ -102,6 +104,7 @@ echo "Tape core:     ${FORMAT_MODULE_PATH}"
 echo "Text helpers:  ${TEXT_MODULE_PATH}"
 echo "DASD core:     ${DASD_MODULE_PATH}"
 echo "Guided 5250:   ${GUIDED_MODULE_PATH}"
+echo "CMD evidence:  ${CMD_MODULE_PATH}"
 echo "DASD catalog:  ${LIBRARY_CATALOG_PATH}"
 
 if ${TEXT_MODE_ONLY}; then
