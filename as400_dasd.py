@@ -2862,6 +2862,8 @@ class DataSpaceIndexPartialKeyAudit:
     raw_3fff_occurrences_min: int
     raw_3fff_occurrences_max: int
     raw_3fff_field_count_match_entries: int
+    first_3fff_offset_min: int | None
+    first_3fff_offset_max: int | None
     non_3fff_bytes_min: int
     non_3fff_bytes_max: int
     trailing_3fff_run_min: int
@@ -2918,6 +2920,15 @@ def audit_partial_data_space_index_keys(
             for entry, count in zip(entries, raw_pair_counts, strict=True)
         ]
 
+        # Where the *raw pair* first appears helps distinguish a variable
+        # literal prefix from marker-only terminal paths. Offset zero is
+        # evidence of position, not proof of a field boundary or marker role.
+        first_pair_offsets = [
+            entry.key_evidence.find(raw_pair)
+            for entry in entries
+            if raw_pair in entry.key_evidence
+        ]
+
         def trailing_pair_run(value: bytes) -> int:
             count = 0
             while value.endswith(raw_pair):
@@ -2959,6 +2970,12 @@ def audit_partial_data_space_index_keys(
                 raw_3fff_occurrences_min=min(raw_pair_counts),
                 raw_3fff_occurrences_max=max(raw_pair_counts),
                 raw_3fff_field_count_match_entries=raw_pair_field_count_matches,
+                first_3fff_offset_min=(
+                    min(first_pair_offsets) if first_pair_offsets else None
+                ),
+                first_3fff_offset_max=(
+                    max(first_pair_offsets) if first_pair_offsets else None
+                ),
                 non_3fff_bytes_min=min(non_pair_lengths),
                 non_3fff_bytes_max=max(non_pair_lengths),
                 trailing_3fff_run_min=min(trailing_pair_runs),
