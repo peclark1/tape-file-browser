@@ -1134,6 +1134,46 @@ class DataSpaceIndexKeySpec:
     def appended_key_bytes(self) -> int:
         return max(0, self.machine_key_length - self.user_key_length)
 
+    @property
+    def declared_field_bytes(self) -> int:
+        """Raw sum of nonzero DKYT length/fork values, not decoded key bytes.
+
+        Zero-length fork/control rows contribute zero. On the real V2R3 QAOK
+        long-key family, some nonzero fields have location=0, so this does
+        not use a positive-location test or interpret the record offsets.
+        """
+        return sum(
+            field.length_or_fork for field in self.fields
+            if field.length_or_fork > 0
+        )
+
+    @property
+    def user_length_over_field_bytes(self) -> int:
+        """Unexplained user-key length after summing raw DKYT field lengths."""
+        return self.user_key_length - self.declared_field_bytes
+
+    @property
+    def sequence_01_field_count(self) -> int:
+        """Count positive-length DKYT rows with raw sequence byte exactly 01."""
+        return sum(
+            1 for field in self.fields
+            if field.length_or_fork > 0 and field.sequence_attributes == 0x01
+        )
+
+    @property
+    def qaok_two_byte_pattern_matches(self) -> bool:
+        """Arithmetic ONLY: observed extra 2 bytes per sequence-01 field.
+
+        The eight recovered V2R3 long/compact QAOK index family members
+        independently show this relation. The meaning of those extra
+        bytes is NOT established. This must not synthesize a user key.
+        """
+        return (
+            self.sequence_01_field_count > 0
+            and self.user_length_over_field_bytes
+            == 2 * self.sequence_01_field_count
+        )
+
     def split_machine_key(
         self,
         machine_key: bytes,
