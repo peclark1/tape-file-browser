@@ -5346,6 +5346,11 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "OS/400 *OUTQ output queue; holds spooled-file entries waiting "
         "for output processing (offline image does not represent live writers)"
     ),
+    (0x0E, 0xC4): (
+        "IBM internal *INTPRF Interactive Profile object; separate from "
+        "the user-visible *USRPRF, and its internal contents are not "
+        "currently decoded"
+    ),
     (0x0E, 0xD1): (
         "IBM internal *DRX Distribution Recipient Index, used in distribution "
         "services; contents are not currently decoded"
@@ -5362,6 +5367,11 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x19, 0x02): (
         "OS/400 message queue object used to receive messages for users, "
         "workstations, programs, or system functions"
+    ),
+    (0x19, 0x16): (
+        "OS/400 *MENU menu description; a menu definition for interactive "
+        "selection of actions. Compiled menu contents are not currently "
+        "decoded by the offline browser"
     ),
     (0x19, 0x06): (
         "OS/400 *TBL table object (not a database physical file); "
