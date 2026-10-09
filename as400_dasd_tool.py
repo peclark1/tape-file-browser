@@ -5913,6 +5913,16 @@ def _tui_segment_prefix(image, segment, limit=1024):
     return bytes(result[:limit])
 
 
+def _tui_command_information_lines(state, obj):
+    """Read only a bounded real *CMD primary for the guided 5250 inspector."""
+    from as400_cmd import command_information_lines
+
+    if (obj.object_type, obj.object_subtype) != (0x19, 0x05):
+        return ["Selected object is not a recovered *CMD primary."]
+    prefix = _tui_segment_prefix(state["image"], obj.segment, limit=8192)
+    return command_information_lines(obj, prefix)
+
+
 def _tui_hex_lines(data, *, base_offset=0):
     """Format bytes as offset + hex + EBCDIC for AS/400 forensic browsing."""
 
@@ -8764,7 +8774,6 @@ def cmd_browse5250(args):
         raise ValueError("the curses module is not available")
 
     from as400_5250 import Guided5250, run_curses
-    from as400_cmd import command_information_lines
 
     def launch(stdscr):
         path = args.image
@@ -8790,18 +8799,11 @@ def cmd_browse5250(args):
                 state, {"kind": "member", "object": member, "file": file_item}
             )
 
-        def command_data(obj):
-            # Inspect only bounded *CMD primary bytes, in virtual extent order.
-            if (obj.object_type, obj.object_subtype) != (0x19, 0x05):
-                return ["Selected object is not a recovered *CMD primary."]
-            prefix = _tui_segment_prefix(state["image"], obj.segment, limit=8192)
-            return command_information_lines(obj, prefix)
-
         browser = Guided5250(
             state["inventory"],
             member_info=state["image"].read_member_info,
             member_loader=member_data,
-            command_info_loader=command_data,
+            command_info_loader=lambda obj: _tui_command_information_lines(state, obj),
         )
         run_curses(stdscr, browser)
 
