@@ -665,6 +665,7 @@ def _scan_storage_symbol_literals(
         end_lba = min(end_lba, start_lba + sectors)
 
     totals = {symbol: 0 for symbol in patterns}
+    by_header = {symbol: Counter() for symbol in patterns}
     hits = []
     with open(image.path, "rb") as handle:
         handle.seek(start_lba * SECTOR_SIZE)
@@ -680,19 +681,22 @@ def _scan_storage_symbol_literals(
                     if offset < 0:
                         break
                     totals[symbol] += 1
+                    by_header[symbol][raw[:HEADER_SIZE]] += 1
                     if not limit or len(hits) < limit:
                         preceding = payload[offset - 4:offset] if offset >= 4 else b""
                         hits.append((symbol, lba, offset, raw[:HEADER_SIZE], preceding))
                     start = offset + 1
-    return totals, tuple(hits), end_lba
+    return totals, tuple(hits), end_lba, by_header
 
 
 def cmd_storage_labels(args):
     """Report literal storage-management symbol evidence in 512-byte payloads."""
 
+    if args.header_groups < 0:
+        raise ValueError("--header-groups must be non-negative")
     image = _open(args.image)
     symbols = args.symbols or _STORAGE_SYMBOLS
-    totals, hits, end_lba = _scan_storage_symbol_literals(
+    totals, hits, end_lba, by_header = _scan_storage_symbol_literals(
         image,
         symbols,
         start_lba=args.start_lba,
@@ -708,6 +712,17 @@ def cmd_storage_labels(args):
     print("Occurrences:")
     for symbol, total in totals.items():
         print(f"  {symbol}: {total:,}")
+    if args.header_groups:
+        print()
+        print("Raw sector-header groups per exact search symbol:")
+        for symbol in totals:
+            print(f"  {symbol}:")
+            for header, count in by_header[symbol].most_common(
+                args.header_groups
+            ):
+                print(f"    {header.hex(' ').upper()}: {count:,} occurrences")
+            if not by_header[symbol]:
+                print("    none")
     print()
     print("First matches:")
     for symbol, lba, offset, header, preceding in hits:
@@ -9398,6 +9413,12 @@ def build_parser():
             "use the old literal substring search instead of matching "
             "complete space-padded eight-byte names; may include other names"
         ),
+    )
+    labels.add_argument(
+        "--header-groups",
+        type=int,
+        default=0,
+        help="show N most frequent eight-byte sector headers per symbol",
     )
     labels.add_argument(
         "--limit",
