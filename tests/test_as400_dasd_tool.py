@@ -98,6 +98,7 @@ class DASDToolTests(unittest.TestCase):
                 b"\x00" * 8 + bytes(one)
                 + b"\x00" * 8 + bytes(two)
             )
+            original_image = image.read_bytes()
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
@@ -143,6 +144,7 @@ class DASDToolTests(unittest.TestCase):
                 ])
             self.assertEqual(rc, 1)
             self.assertIn("eight-byte name", stderr.getvalue())
+            self.assertEqual(image.read_bytes(), original_image)
 
     def test_asde_probe_reads_only_bounded_candidate_payload(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -151,6 +153,7 @@ class DASDToolTests(unittest.TestCase):
             payload = bytearray(PAGE_SIZE)
             payload[17:17 + len(entry)] = entry
             image.write_bytes(b"\x00" * 8 + bytes(payload))
+            original_image = image.read_bytes()
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
@@ -167,6 +170,7 @@ class DASDToolTests(unittest.TestCase):
                 rc = main(["asde-probe", str(image), "0", "495", "21"])
             self.assertEqual(rc, 1)
             self.assertIn("fit entirely", stderr.getvalue())
+            self.assertEqual(image.read_bytes(), original_image)
 
     def test_qddsi_key_field_labels_require_exact_offset_and_length(self):
         spec = SimpleNamespace(
