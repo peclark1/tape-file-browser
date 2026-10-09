@@ -635,6 +635,40 @@ Resume storage-directory work if an independently corroborated CISC
 loader/startup data reference or checkpoint page becomes available.
 Keep this PR draft and preserve its tested diagnostics.
 
+## Bounded post-QDDSI revisit (2026-10-09) — return to MI program research
+
+PR #13, merged into `main` as commit `8300908`, adds validated
+QDDSI compact/long-key evidence, source-record correlation and bounded
+diagnostics. Reviewing those findings against the previously recorded ASDE
+evidence gives **no new, independently verified checkpoint or directory-root
+locator**. This is a *review of already captured evidence*, not a new
+real-image search and not proof that a directory cannot be recovered.
+
+**Transferable only after a root is independently identified:** the
+machine-index root/node/common-text/page-pointer traversal, virtual-segment
+mapping, per-entry evidence preservation and independent cross-validation
+approach. QDDSI's object-local active-root pointer at +0x13A is **not** an
+established SMVT/global static-directory pointer; QDDSI key materialization,
+raw DKYT scalars and the unexplained `3FFF` pattern likewise do not
+locate storage-management metadata.
+
+The previous gates stand:
+- No surviving physical SMVT checkpoint, static-directory table or
+  permanent-directory machine-index root has been independently identified.
+- Neither an exact VMC module-name reference nor an extent boundary identifies
+  checkpoint contents.
+- The original B10 image is non-load-source; the Mark V2R3 load-source
+  image remains the more promising future bootstrap reference.
+- PR #10's experimental branch is kept **draft and unmerged**. After other
+  changes to `main`, GitHub currently does not report it cleanly mergeable.
+  Do not resolve that by force-merging an evidence-incomplete decoder.
+
+**Decision:** stop this review here and prioritize MI `*PGM` object-template
+identification on a new, independent branch from current `main`.
+Revisit PR #10 only when recovered program/loader material or an independently
+verified bootstrap data reference supplies a *specific physical or virtual
+candidate* to test. No speculative scan or ASDE decoder was added.
+
 ## Next reproducible experiments (read-only)
 
 1. Inventory candidate VMC/SMVT/static-directory locations from period
