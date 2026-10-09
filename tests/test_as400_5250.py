@@ -4,7 +4,8 @@ from types import SimpleNamespace as NS
 from unittest.mock import patch
 
 from as400_5250 import (
-    Guided5250, _back_or_edit_option, command_matches, parse_command, run_curses,
+    Guided5250, _back_or_edit_option, _draw, _safe_display_text, command_matches,
+    parse_command, run_curses,
 )
 from as400_dasd import RecoveredObject
 from as400_dasd_tool import _tui_object_type_context, build_parser
@@ -77,6 +78,62 @@ class Guided5250Tests(unittest.TestCase):
         msgf = NS(object_type=0x0E, object_subtype=0x03)
         self.assertEqual("*MSGF", RecoveredObject.external_type_hint.fget(msgf))
         self.assertIn("message file", _tui_object_type_context(0x0E, 0x03))
+
+    def test_five_historical_mi_object_type_labels_and_context(self):
+        expected = {
+            (0x19, 0xE0): ("*ADO", "Asynchronous Distribution Object"),
+            (0x0E, 0xD1): ("*DRX", "Distribution Recipient Index"),
+            (0x19, 0xEE): ("*MSCSP", "Permanent Miscellaneous Space"),
+            (0x0E, 0x02): ("*OUTQ", "output queue"),
+            (0x19, 0x06): ("*TBL", "table object"),
+        }
+        for (object_type, subtype), (label, meaning) in expected.items():
+            with self.subTest(type=f"{object_type:02X}/{subtype:02X}"):
+                stub = NS(object_type=object_type, object_subtype=subtype)
+                self.assertEqual(
+                    label, RecoveredObject.external_type_hint.fget(stub))
+                self.assertIn(meaning.lower(),
+                              _tui_object_type_context(object_type, subtype).lower())
+
+    def test_recovered_nulls_are_displayed_safely_not_destroyed(self):
+        model = Guided5250(
+            FakeInventory(),
+            member_loader=lambda *_: ["Text\\x00after-null\\x1b[31m".replace(
+                "\\\\x00", "\\x00").replace("\\\\x1b", "\\x1b")],
+        )
+        # Use an actual embedded NUL and ESC, not textual escape sequences.
+        line = "ABC" + chr(0) + "DEF" + chr(27) + "[31m"
+        model.member_loader = lambda *_: [line]
+        self.assertTrue(model.run_command(
+            "DSPPFM FILE(QGPL/QCLSRC) MBR(REFRESH2)"))
+        self.assertEqual([line], model.detail)
+
+        class StrictScreen:
+            def __init__(self):
+                self.written = []
+            def getmaxyx(self):
+                return (28, 120)
+            def erase(self):
+                pass
+            def refresh(self):
+                pass
+            def addnstr(self, y, x, text, count, attr=0):
+                if chr(0) in text:
+                    raise ValueError("embedded null character")
+                self.written.append(text[:count])
+
+        model.status = "Status" + chr(0) + "NUL"
+        screen = StrictScreen()
+        _draw(screen, model)
+        display = " ".join(screen.written)
+        self.assertIn(r"\\x00", display)
+        self.assertIn(r"\\x1B", display)
+        self.assertNotIn(chr(0), display)
+        self.assertNotIn(chr(27), display)
+        # Original bytes remain present in memory for forensic inspection.
+        self.assertEqual([line], model.detail)
+        self.assertEqual(r"X\\x00Y\\x0AZ\\x7F", _safe_display_text(
+            "X" + chr(0) + "Y" + chr(10) + "Z" + chr(127)))
 
     def test_catalog_supports_descriptions_and_search(self):
         matches = command_matches("wrk")
