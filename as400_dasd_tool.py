@@ -5547,18 +5547,18 @@ def _tui_context_lines(state):
         )
     elif left["kind"] == "orphans-view":
         left_line = (
-            "Library/view: <ORPHANS / MEMBER-ONLY> — objects or member "
-            "cursors whose library/context was not recovered."
+            "Library/view: <ORPHANS / MEMBER-ONLY> — object primaries or "
+            "member cursors whose library/context is unavailable on this image."
         )
     elif left["kind"] == "search-view":
         left_line = (
-            f"Library/view: {left['label']} — global recovered-name "
-            "search results across libraries and object classes."
+            f"Library/view: {left['label']} — global identity search "
+            "across libraries, object classes, and directory-only entries."
         )
     else:
         left_line = (
-            "Library/view: <ALL OBJECTS> — recovered AS/400 objects "
-            "grouped by MI type/subtype."
+            "Library/view: <ALL OBJECTS> — AS/400 object identities "
+            "grouped by MI type/subtype, including [dir] entries."
         )
 
     if mid is None:
@@ -5588,7 +5588,7 @@ def _tui_context_lines(state):
         else:
             mid_line = (
                 f"File/type: *FILE {mid['name']} — "
-                f"{len(mid['members']):,} recovered member(s)"
+                f"{len(mid['members']):,} member cursor(s)"
                 f"{source_suffix}; members are separate *MEM cursors."
             )
     elif mid["kind"] == "context-directory":
@@ -5600,8 +5600,8 @@ def _tui_context_lines(state):
     elif mid["kind"] == "search-group":
         mid_line = (
             "File/type: search results — "
-            f"{len(mid.get('search_items', ())):,} recovered object/"
-            "directory-reference match(es)."
+            f"{len(mid.get('search_items', ())):,} object/directory "
+            "identity match(es)."
         )
     else:
         meaning = _tui_object_type_context(
@@ -5619,7 +5619,7 @@ def _tui_context_lines(state):
             mid_line = f"File/type: {type_label} — {meaning}."
         else:
             mid_line = (
-                f"File/type: {type_label} — recovered MI object group."
+                f"File/type: {type_label} — MI object group."
             )
 
     if right is None:
@@ -5674,8 +5674,8 @@ def _tui_context_lines(state):
             )
         else:
             right_line = (
-                f"Member/object: {obj.name}  {type_label} — recovered "
-                "AS/400 object."
+                f"Member/object: {obj.name}  {type_label} — primary object "
+                "is present on this image."
             )
 
     return left_line, mid_line, right_line
@@ -6617,9 +6617,9 @@ def _tui_file_lines(state, file_item):
         f"File:    {library}/{file_item['name']}",
         f"Members: {len(members):,}",
         (
-            "Object:  recovered"
+            "Primary *FILE: present"
             if file_obj is not None
-            else "Object:  member-only (primary *FILE not recovered)"
+            else "Primary *FILE: absent; member cursor(s) survive"
         ),
     ]
 
@@ -7340,9 +7340,9 @@ def _tui_full_detail_lines(state):
             return [
                 f"Library: {left['library']}",
                 "Role:    " + _tui_library_context(left["library"]),
-                f"Recovered objects: {len(objects):,}",
-                f"Recovered *FILE objects: {len(files):,}",
-                f"Recovered members: {len(members):,}",
+                f"Object primaries present: {len(objects):,}",
+                f"*FILE primaries present:   {len(files):,}",
+                f"Member cursors present:    {len(members):,}",
                 f"Context-index entries: {len(directory_entries):,}",
                 f"  resolved to primaries: {resolved_directory:,}",
                 f"  directory-only:         {len(directory_only):,}",
@@ -7362,8 +7362,8 @@ def _tui_full_detail_lines(state):
                 ),
                 "",
                 (
-                    "Select a file/object type or [directory-only] group in "
-                    "the middle pane."
+                    "Select a file or MI object type in the middle pane; "
+                    "directory-only identities appear inline and are marked [dir]."
                 ),
             ]
 
@@ -7391,7 +7391,7 @@ def _tui_full_detail_lines(state):
                 f"Orphaned objects: {len(orphans):,}",
                 f"Orphaned members: {len(members):,}",
                 (
-                    "Directory-only references (shown under their recovered "
+                    "Directory-only identities (shown under their context "
                     f"libraries): {len(directory_only):,}"
                 ),
                 "",
@@ -7402,12 +7402,12 @@ def _tui_full_detail_lines(state):
         return [
             "All object identities",
             "",
-            f"Recovered object primaries: {len(state['inventory'].objects):,}",
+            f"Object primaries present:    {len(state['inventory'].objects):,}",
             f"Directory-only identities:  {len(directory_only):,}",
             "",
             (
                 "Select an MI object type in the middle pane; directory-only "
-                "entries are grouped beside recovered objects and marked [dir]."
+                "entries are grouped beside primary-backed objects and marked [dir]."
             ),
         ]
 
@@ -7677,7 +7677,7 @@ def _tui_summary_lines(state):
                 lines.append(f"Role:     {meaning}")
             lines.extend(
                 [
-                    f"Primary:  recovered, {obj.segment.pages:,} page(s)",
+                    f"Primary:  present, {obj.segment.pages:,} page(s)",
                     *_tui_object_evidence_lines(obj)[1:],
                 ]
             )
@@ -8278,7 +8278,7 @@ def _tui_browse(stdscr, initial_path=None):
             or (
                 f"{state['image'].sector_count:,} sectors • "
                 f"{len(state['segments'].segments):,} segments • "
-                f"{len(state['inventory'].objects):,} recovered objects • "
+                f"{len(state['inventory'].objects):,} object primaries • "
                 f"{len(state['inventory'].libraries):,} libraries • "
                 f"RR0 LBA {scan.origin.lba if scan.origin else 'unknown'}"
             )
