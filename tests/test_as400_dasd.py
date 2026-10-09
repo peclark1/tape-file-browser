@@ -1,23 +1,41 @@
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 
 from as400_dasd import (
+    CONTEXT_MACHINE_INDEX_PAGE_SIZE,
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
     PAGE_SIZE,
+    QAOSSS14AnchorRecord,
+    QAOSSS14_V2_RECORD_LENGTH,
     SECTOR_SIZE,
+    ContextIndexEntry,
     DASDImage,
+    DataSpaceIndexKeyField,
+    DataSpaceIndexKeySpec,
+    DataSpaceIndexLayout,
     DataSpaceLayout,
+    DataSpaceRecord,
+    DocumentByteStringInfo,
     EPAHeader,
     Extent,
     HeaderSnapshot,
+    InternalAddress,
     MachineIndexElement,
+    MachineIndexPageHeader,
+    MemberStoragePointers,
     RecoveredObject,
     RecoveredSegment,
+    SegmentRecoveryResult,
     ScanResult,
     SectorHeader,
     SegmentGroupHeader,
+    assemble_document_byte_string,
+    decode_context_machine_index,
+    decode_context_terminal_name_hint,
+    decode_data_space_index_root,
     decode_data_space_records,
     decode_format_fields,
     decode_standard_source_stream,
@@ -109,6 +127,36 @@ def load_format_field_fixture(path):
 def make_internal_address(extender, address):
     return extender.to_bytes(2, "big") + address.to_bytes(6, "big")
 
+
+def make_qddsi_root_fixture(
+    root_hex,
+    *,
+    key_count,
+    user_key_length,
+    machine_key_length,
+):
+    """Build the minimum ordinary QDDSI metadata around a real root shape."""
+
+    base = 0x001000000000
+    primary = bytearray(0x1800)
+    primary[0x11E:0x120] = (1).to_bytes(2, "big")
+    primary[0x12A:0x130] = (base + 0x400).to_bytes(6, "big")
+
+    row = memoryview(primary)[0x400:0x440]
+    row[0:8] = make_internal_address(1, 0x000F00000000)
+    row[0x10:0x14] = key_count.to_bytes(4, "big")
+    row[0x18:0x1A] = (0).to_bytes(2, "big")
+    row[0x1A:0x1C] = user_key_length.to_bytes(2, "big")
+    row[0x1C:0x1E] = machine_key_length.to_bytes(2, "big")
+
+    root = bytes.fromhex(root_hex)
+    primary[0x1000 : 0x1000 + len(root)] = root
+    data = bytes(primary)
+    layout = DataSpaceIndexLayout.from_primary_segment(
+        data,
+        virtual_address=base,
+    )
+    return data, layout
 
 def make_segment_page(
     virtual_address,
@@ -265,6 +313,95 @@ class DASDHeaderTests(unittest.TestCase):
             ],
         )
 
+    def test_observed_v2_dbcs_open_format_field_type(self):
+        # Synthetic descriptor shaped like the validated V2R3 19/51 fields
+        # whose independently recovered DDS definitions use data type O.
+        descriptor = bytearray(34)
+        descriptor[0] = 0x01
+        descriptor[1:11] = "DBCSFIELD".encode("cp037").ljust(10, b"\x40")
+        descriptor[11:21] = descriptor[1:11]
+        descriptor[21] = 0x00
+        descriptor[22] = 0x06
+        descriptor[23] = 0x03
+        descriptor[24:26] = (0).to_bytes(2, "big")
+        descriptor[26:28] = (0).to_bytes(2, "big")
+        descriptor[28:30] = (30).to_bytes(2, "big")
+        descriptor[30:32] = (0).to_bytes(2, "big")
+        descriptor[32:34] = (0).to_bytes(2, "big")
+
+        fields = decode_format_fields(bytes(descriptor), record_length=30)
+        self.assertEqual(len(fields), 1)
+        self.assertEqual(fields[0].type_name, "DBCS-OPEN")
+
+        raw = bytes(range(30))
+        self.assertEqual(fields[0].decode_value(raw), raw.hex().upper())
+
+    def test_file_format_references_preserve_fcb_occurrence_order(self):
+        file_obj = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x01,
+            segment=object(),
+        )
+
+        def format_obj(name, extender, address, lba):
+            return SimpleNamespace(
+                object_type=0x19,
+                object_subtype=0x51,
+                name=name,
+                epa=SimpleNamespace(
+                    name_raw=name.encode("cp037").ljust(10, b"\x40")
+                ),
+                segment=SimpleNamespace(
+                    header=SimpleNamespace(
+                        owner=SimpleNamespace(extender=extender)
+                    ),
+                    virtual_address=address,
+                    start_lba=lba,
+                ),
+                object_address=InternalAddress(extender, address),
+            )
+
+        later_alpha = format_obj("ALPHAFMT", 0x10, 0x3000, 30)
+        earlier_zeta = format_obj("ZETAFMT", 0x10, 0x2000, 20)
+        zeta_name = earlier_zeta.epa.name_raw[:10]
+        alpha_name = later_alpha.epa.name_raw[:10]
+        data = (
+            b"\x00" * 32
+            + zeta_name
+            + b"\x00" * 5
+            + earlier_zeta.object_address.to_bytes()
+            + b"\x00" * 17
+            + alpha_name
+            + b"\x00" * 11
+            + zeta_name
+        )
+        fake_image = SimpleNamespace(
+            read_segment_bytes=lambda _segment: data,
+        )
+        inventory = SimpleNamespace(
+            objects=[later_alpha, earlier_zeta],
+        )
+
+        refs = DASDImage.file_format_references(
+            fake_image,
+            file_obj,
+            inventory,
+        )
+        self.assertEqual(
+            [reference.format_object.name for reference in refs],
+            ["ZETAFMT", "ALPHAFMT"],
+        )
+        self.assertEqual(len(refs[0].name_offsets), 2)
+        self.assertEqual(len(refs[0].address_offsets), 1)
+        self.assertEqual(
+            DASDImage.resolve_file_formats(
+                fake_image,
+                file_obj,
+                inventory,
+            ),
+            [earlier_zeta, later_alpha],
+        )
+
     def test_format_field_value_decoding(self):
         fixture = load_format_field_fixture(FORMAT_FIELD_FIXTURE)
         fields = {
@@ -330,6 +467,719 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(b10_fields["YTD"].decode_value(state_record), "3896")
         self.assertEqual(b10_fields["LYR"].decode_value(state_record), "3996")
 
+    def test_qddsi_dkey_dkyt_layout_from_real_b10_shape(self):
+        base = 0x0014EC000000
+        primary = bytearray(0x800)
+        primary[0x11E:0x120] = (1).to_bytes(2, "big")
+        primary[0x12A:0x130] = (base + 0x400).to_bytes(6, "big")
+
+        row = memoryview(primary)[0x400:0x440]
+        row[0:8] = make_internal_address(0x00ED, 0x00093A000000)
+        row[8:16] = make_internal_address(0x00ED, 0x00134A000020)
+        row[0x10:0x14] = (1).to_bytes(4, "big")
+        row[0x14:0x18] = (0).to_bytes(4, "big")
+        row[0x18:0x1A] = (1).to_bytes(2, "big")
+        row[0x1A:0x1C] = (2).to_bytes(2, "big")
+        row[0x1C:0x1E] = (6).to_bytes(2, "big")
+        row[0x1E:0x24] = (base + 0x440).to_bytes(6, "big")
+
+        field = memoryview(primary)[0x440:0x460]
+        field[0:10] = bytes.fromhex(
+            "20 00 00 02 00 00 00 01 00 01"
+        )
+
+        layout = DataSpaceIndexLayout.from_primary_segment(
+            bytes(primary),
+            virtual_address=base,
+        )
+        self.assertEqual(layout.dkey_count, 1)
+        self.assertEqual(layout.dkey_address, base + 0x400)
+        spec = layout.keys[0]
+        self.assertEqual(
+            spec.data_space,
+            InternalAddress(0x00ED, 0x00093A000000),
+        )
+        self.assertEqual(spec.key_count, 1)
+        self.assertEqual(spec.key_field_count, 1)
+        self.assertEqual(spec.user_key_length, 2)
+        self.assertEqual(spec.machine_key_length, 6)
+        self.assertEqual(spec.appended_key_bytes, 4)
+        self.assertEqual(len(spec.fields), 1)
+        self.assertEqual(spec.fields[0].length_or_fork, 2)
+        self.assertEqual(spec.fields[0].location, 1)
+        self.assertEqual(spec.fields[0].record_offset_hint, 0)
+        self.assertEqual(spec.fields[0].field_ordinal_hint, 1)
+
+    def test_context_terminal_name_hint_decodes_real_ordinary_shapes(self):
+        simple = bytes.fromhex(
+            "1901d8e2f3f6e2d9c3401700d0003a3c00"
+        )
+        simple_name = decode_context_terminal_name_hint(simple)
+        self.assertIsNotNone(simple_name)
+        self.assertEqual(
+            simple_name.decode("cp037").rstrip(" "),
+            "QS36SRC",
+        )
+
+        member = bytes.fromhex(
+            "0d50d8c4c4e2e2d9c340fd"
+            "c1c4c4c6e4d5c4c4400c"
+            "00ed001c3500"
+        )
+        member_name = decode_context_terminal_name_hint(member)
+        self.assertIsNotNone(member_name)
+        self.assertEqual(
+            member_name[:10].decode("cp037").rstrip(" "),
+            "QDDSSRC",
+        )
+        self.assertEqual(
+            member_name[10:20].decode("cp037").rstrip(" "),
+            "ADDFUNDD",
+        )
+
+        # Composite special-object encodings use high-marker forms that are
+        # intentionally left raw rather than misnamed.
+        special = bytes.fromhex(
+            "0ed1d8e2e8e240fcd8e2e8e24012014900572c00"
+        )
+        self.assertIsNone(decode_context_terminal_name_hint(special))
+
+    def test_recover_objects_can_assign_context_only_membership(self):
+        context_va = 0x001000000000
+        object_va = 0x001200000000
+
+        context_first = bytearray(
+            make_segment_page(
+                context_va,
+                segment_type=0x0190,
+                object_type=0x04,
+                object_subtype=0x01,
+                name="QTEST",
+                context_extender=0,
+                context_address=0,
+            )
+        )
+        context_first[2:4] = (8).to_bytes(2, "big")
+        context_data = bytearray(8 * PAGE_SIZE)
+        context_data[:PAGE_SIZE] = context_first
+
+        terminal = (
+            bytes([0x19, 0x01])
+            + "TEST".encode("cp037")
+            + bytes([0x40, 26])
+            + bytes.fromhex("000100120000")
+        )
+        self.assertEqual(len(terminal), 14)
+        context_data[0x800:0x808] = bytes.fromhex(
+            "97 00 08 CC 00 00 00 00"
+        )
+        context_data[0x808:0x80E] = bytes.fromhex(
+            "0D 08 0E 60 00 00"
+        )
+        context_data[0x80E:0x80E + len(terminal)] = terminal
+
+        object_page = make_segment_page(
+            object_va,
+            segment_type=0x0180,
+            object_type=0x19,
+            object_subtype=0x01,
+            name="TEST",
+            context_extender=0,
+            context_address=0,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "context-membership.hda"
+            sectors = []
+            for page_index in range(8):
+                start = page_index * PAGE_SIZE
+                sectors.append(
+                    (
+                        make_header(
+                            context_va + page_index * PAGE_SIZE,
+                            order=3,
+                        ),
+                        bytes(context_data[start:start + PAGE_SIZE]),
+                    )
+                )
+            sectors.append(
+                (
+                    make_header(object_va),
+                    object_page,
+                )
+            )
+            write_image(path, sectors)
+
+            context_extent = Extent(
+                start_lba=0,
+                pages=8,
+                kind="permanent-candidate",
+                header=make_header(context_va, order=3),
+                virtual_address=context_va,
+            )
+            object_extent = Extent(
+                start_lba=8,
+                pages=1,
+                kind="permanent-candidate",
+                header=make_header(object_va),
+                virtual_address=object_va,
+            )
+            context_segment = RecoveredSegment(
+                start_extent=context_extent,
+                extents=(context_extent,),
+                header=SegmentGroupHeader.from_bytes(
+                    bytes(context_first[:32])
+                ),
+            )
+            object_segment = RecoveredSegment(
+                start_extent=object_extent,
+                extents=(object_extent,),
+                header=SegmentGroupHeader.from_bytes(
+                    object_page[:32]
+                ),
+            )
+
+            image = DASDImage(path)
+            inventory = image.recover_objects(
+                SimpleNamespace(),
+                SegmentRecoveryResult(
+                    segments=[context_segment, object_segment]
+                ),
+            )
+
+            target = next(
+                obj
+                for obj in inventory.objects
+                if obj.name == "TEST"
+            )
+            self.assertIsNone(target.epa_library_name)
+            self.assertEqual(target.context_library_names, ("QTEST",))
+            self.assertEqual(target.library_name, "QTEST")
+
+            entries = inventory.context_entries_for_library("QTEST")
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0].name_hint, "TEST")
+            self.assertIs(
+                inventory.resolve_context_entry(entries[0]),
+                target,
+            )
+            self.assertFalse(
+                inventory.unresolved_context_entries("QTEST")
+            )
+
+    def test_machine_index_page_header_prefix(self):
+        data = bytes.fromhex(
+            "93 00 08 CC 00 23 03 DD"
+        )
+        header = MachineIndexPageHeader.from_bytes(data)
+        self.assertEqual(header.page_type, 0xCC)
+        self.assertEqual(header.free_bytes, 0x0023)
+        self.assertEqual(header.first_free_low16, 0x03DD)
+        self.assertEqual(header.first_free_offset(), 0x03DD)
+        self.assertEqual(header.current_tree_offset_hint, 0x08)
+        self.assertEqual(
+            header.tail_free_bytes(
+                page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+            ),
+            0x23,
+        )
+        self.assertEqual(
+            header.non_tail_free_bytes_hint(
+                page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+            ),
+            0,
+        )
+
+        child = MachineIndexPageHeader.from_bytes(
+            bytes.fromhex(
+                "97 00 0E 55 03 DF 0C 21 "
+                "08 00 00 00 08 00"
+            ),
+            offset=0,
+        )
+        self.assertEqual(child.page_type, 0x55)
+        self.assertEqual(
+            child.backpointer_raw,
+            bytes.fromhex("08 00 00 00 08 00"),
+        )
+        self.assertEqual(child.backpointer_words, (0x0800, 0, 0x0800))
+        self.assertEqual(
+            child.shared_high16_node_pair_hint,
+            (0x0800, 0x0800),
+        )
+        self.assertEqual(
+            child.rotated_virtual_address_hint,
+            0x000008000800,
+        )
+        self.assertEqual(child.current_tree_offset_hint, 0x0E)
+
+        v2_child = MachineIndexPageHeader.from_bytes(
+            bytes.fromhex(
+                "97 00 0E 55 03 DF 8C 21 "
+                "8C 17 00 01 8C 20"
+            ),
+            offset=0,
+        )
+        self.assertEqual(
+            v2_child.shared_high16_node_pair_hint,
+            (0x00018C17, 0x00018C20),
+        )
+
+        b10_child = MachineIndexPageHeader.from_bytes(
+            bytes.fromhex(
+                "97 00 0E 55 03 DF 0C 21 "
+                "08 08 00 4D 16 00"
+            ),
+            offset=0,
+        )
+        self.assertEqual(
+            b10_child.rotated_virtual_address_hint,
+            0x004D16000808,
+        )
+
+        with self.assertRaisesRegex(ValueError, "begin with a node"):
+            MachineIndexPageHeader.from_bytes(
+                bytes.fromhex("01 00 00 CC 00 00 00 00")
+            )
+
+    def test_context_machine_index_single_terminal(self):
+        data = bytearray(0x1000)
+        # Synthetic one-entry release-2 tree rooted at the independently
+        # observed ordinary context offset +0x800.
+        data[0x800:0x808] = bytes.fromhex(
+            "97 00 08 CC 03 E5 08 1B"
+        )
+        terminal = (
+            bytes([0x19, 0x01])
+            + "TEST".encode("cp037")
+            + bytes([0x14])
+            + bytes.fromhex("000100001234")
+        )
+        self.assertEqual(len(terminal), 13)
+        data[0x808:0x80E] = bytes.fromhex(
+            "0C 08 0E 60 00 00"
+        )
+        data[0x80E:0x80E + len(terminal)] = terminal
+
+        traversal = decode_context_machine_index(bytes(data))
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(len(traversal.page_headers), 1)
+        self.assertEqual(traversal.page_headers[0].offset, 0x800)
+        self.assertEqual(traversal.page_headers[0].page_type, 0xCC)
+        entry = traversal.entries[0]
+        self.assertEqual(entry.object_type, 0x19)
+        self.assertEqual(entry.object_subtype, 0x01)
+        self.assertEqual(
+            entry.compact_object_reference,
+            bytes.fromhex("000100001234"),
+        )
+        self.assertEqual(
+            entry.object_address_hint,
+            InternalAddress(0x0001, 0x000012340000),
+        )
+
+    def test_context_machine_index_follows_same_segment_page_pointer(self):
+        data = bytearray(0x1200)
+        data[0x800:0x808] = bytes.fromhex(
+            "97 00 08 CC 03 F2 08 0E"
+        )
+        data[0x808:0x80E] = bytes.fromhex(
+            "C0 00 0C 60 00 00"
+        )
+
+        data[0xC00:0xC0E] = bytes.fromhex(
+            "97 00 0E 55 03 DF 0C 21 "
+            "08 00 00 00 08 00"
+        )
+        terminal = (
+            bytes([0x19, 0x01])
+            + "TEST".encode("cp037")
+            + bytes([0x14])
+            + bytes.fromhex("000100001234")
+        )
+        data[0xC0E:0xC14] = bytes.fromhex(
+            "0C 0C 14 60 00 00"
+        )
+        data[0xC14:0xC14 + len(terminal)] = terminal
+
+        traversal = decode_context_machine_index(bytes(data))
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.page_offsets, (0x800, 0xC00))
+        self.assertEqual(traversal.page_count, 2)
+        self.assertEqual(
+            [header.page_type for header in traversal.page_headers],
+            [0xCC, 0x55],
+        )
+        self.assertEqual(
+            traversal.page_headers[1].backpointer_words,
+            (0x0800, 0, 0x0800),
+        )
+        self.assertEqual(
+            traversal.page_headers[1].current_tree_offset_hint,
+            0xC0E,
+        )
+        self.assertEqual(len(traversal.page_pointers), 1)
+        self.assertTrue(traversal.page_pointers[0].followed)
+        self.assertEqual(
+            traversal.page_pointers[0].target_offset,
+            0xC00,
+        )
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(
+            traversal.entries[0].object_address_hint,
+            InternalAddress(0x0001, 0x000012340000),
+        )
+
+    def test_context_machine_index_empty_root(self):
+        traversal = decode_context_machine_index(bytes(0x1000))
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 0)
+
+    def test_qddsi_single_entry_root_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 E4 10 1C "
+            "0D 10 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.page_size, 0x800)
+        self.assertEqual(traversal.page_type, 0xCC)
+        self.assertEqual(traversal.entry_count, 1)
+        entry = traversal.entries[0]
+        self.assertEqual(entry.user_key.decode("cp037"), "*PUBLIC   ")
+        self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
+        self.assertEqual(entry.dkey_index, 0)
+        self.assertEqual(entry.data_space_number_hint, 0)
+        self.assertEqual(entry.ordinal_hint, 1)
+
+    def test_qddsi_multi_dkey_one_populated_row_traversal(self):
+        data, _layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 E4 10 1C "
+            "0D 10 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(data)
+        primary[0x11E:0x120] = (2).to_bytes(2, "big")
+        second = memoryview(primary)[0x440:0x480]
+        second[0:8] = make_internal_address(1, 0x001000000000)
+        second[0x10:0x14] = (0).to_bytes(4, "big")
+        second[0x18:0x1A] = (0).to_bytes(2, "big")
+        second[0x1A:0x1C] = (10).to_bytes(2, "big")
+        second[0x1C:0x1E] = (14).to_bytes(2, "big")
+
+        layout = DataSpaceIndexLayout.from_primary_segment(
+            bytes(primary),
+            virtual_address=0x001000000000,
+        )
+        self.assertEqual(layout.dkey_count, 2)
+
+        traversal = decode_data_space_index_root(bytes(primary), layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(
+            traversal.entries[0].user_key.decode("cp037"),
+            "*PUBLIC   ",
+        )
+        self.assertEqual(traversal.entries[0].ordinal_hint, 1)
+
+    def test_qddsi_mixed_key_shapes_and_fork_rows(self):
+        def field(length, location):
+            return DataSpaceIndexKeyField(
+                sequence_attributes=0,
+                field_attributes=0x30,
+                length_or_fork=length,
+                relative_offset=0,
+                location=location,
+                field_ordinal_hint=1,
+                raw=bytes(0x20),
+            )
+
+        def fork():
+            return DataSpaceIndexKeyField(
+                sequence_attributes=0x40,
+                field_attributes=0,
+                length_or_fork=0,
+                relative_offset=0,
+                location=0,
+                field_ordinal_hint=0,
+                raw=bytes(0x20),
+            )
+
+        def spec(user_length, machine_length, fields):
+            return DataSpaceIndexKeySpec(
+                data_space=InternalAddress(1, 0x000F00000000),
+                field_table_pointer=InternalAddress(1, 0),
+                key_count=6,
+                auxiliary_scalar_raw=0,
+                key_field_count=len(fields),
+                user_key_length=user_length,
+                machine_key_length=machine_length,
+                dkyt_address=0,
+                fields=tuple(fields),
+                raw=bytes(0x40),
+            )
+
+        layout = DataSpaceIndexLayout(
+            dkey_count=3,
+            dkey_address=0,
+            keys=(
+                spec(8, 13, (field(1, 1), fork(), field(3, 2), field(4, 5))),
+                spec(1, 6, (field(1, 1), fork())),
+                spec(4, 9, (field(1, 1), fork(), field(3, 2))),
+            ),
+        )
+
+        # Real V2R3 QASULE01 root-page shape. This compact system-index fixture
+        # exercises three populated DKEY rows with different machine-key
+        # lengths and interleaved fork/control bytes.
+        root = bytes.fromhex(
+            "92 00 37 CC 07 02 11 04 60 00 00 8E 00 CE "
+            "E3 01 F0 F0 F1 40 C3 F0 F0 00 00 00 01 "
+            "0B 10 0F 9F 00 22 00 10 0E 02 01 00 00 01 "
+            "04 10 24 07 10 2F 03 F0 F0 F1 02 00 00 01 "
+            "96 00 84 9D 00 D5 C3 01 F0 F0 F2 C3 E2 F0 F4 00 00 00 02 "
+            "87 00 34 9F 00 DF 00 10 3D 02 01 00 00 02 "
+            "85 00 8C 8D 00 86 03 F0 F0 F2 02 00 00 02 "
+            "00 10 49 00 10 6F 03 10 45 03 00 10 57 00 10 79 "
+            "03 10 53 03 00 10 65 00 10 83 06 10 5E 03 "
+            "86 00 A0 8E 00 7D C1 01 F0 F0 F2 40 C2 F0 F4 00 00 00 04 "
+            "0B 10 8B 9F 00 21 00 10 8A 02 01 00 00 04 "
+            "04 10 A0 07 10 AB 03 F0 F0 F2 02 00 00 04 "
+            "87 00 2C 04 10 BC 06 10 3E F5 00 00 00 05 "
+            "97 00 28 00 10 CA 03 10 53 05 97 00 21 00 10 D4 "
+            "06 10 5E 05 97 00 32 8E 00 D2 "
+            "E4 01 F0 F0 F2 C4 E2 F0 F1 00 00 00 06 "
+            "0B 10 DC 9F 00 2E 00 10 DB 02 01 00 00 06 "
+            "04 10 F1 07 10 FC 03 F0 F0 F2 02 00 00 06"
+        )
+        data = bytearray(0x1800)
+        data[0x1000 : 0x1000 + len(root)] = root
+
+        traversal = decode_data_space_index_root(bytes(data), layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.expected_entries, 18)
+        self.assertEqual(traversal.entry_count, 18)
+        self.assertEqual(
+            {entry.dkey_index for entry in traversal.entries},
+            {0, 1, 2},
+        )
+        self.assertEqual(
+            sorted(
+                entry.ordinal_hint
+                for entry in traversal.entries
+                if entry.dkey_index == 1
+            ),
+            [1, 2, 3, 4, 5, 6],
+        )
+        self.assertEqual(
+            {len(entry.user_key) for entry in traversal.entries},
+            {1, 4, 8},
+        )
+
+    def test_qddsi_compact_long_key_preserves_reference_only(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 EC 10 14 "
+            "05 10 0E 60 00 00 "
+            "3F FF 00 00 00 01",
+            key_count=1,
+            user_key_length=66,
+            machine_key_length=102,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(traversal.complete_key_count, 0)
+        self.assertEqual(traversal.partial_key_count, 1)
+
+        entry = traversal.entries[0]
+        self.assertFalse(entry.key_complete)
+        self.assertEqual(entry.machine_key, b"")
+        self.assertEqual(entry.user_key, b"")
+        self.assertEqual(entry.key_evidence, bytes.fromhex("3FFF"))
+        self.assertEqual(entry.display_key_bytes, bytes.fromhex("3FFF"))
+        self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
+        self.assertEqual(entry.dkey_index, 0)
+        self.assertEqual(entry.ordinal_hint, 1)
+
+    def test_qddsi_multi_dkey_all_empty_is_complete(self):
+        data, _layout = make_qddsi_root_fixture(
+            "",
+            key_count=0,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(data)
+        primary[0x11E:0x120] = (2).to_bytes(2, "big")
+        second = memoryview(primary)[0x440:0x480]
+        second[0:8] = make_internal_address(1, 0x001000000000)
+        second[0x10:0x14] = (0).to_bytes(4, "big")
+        second[0x18:0x1A] = (0).to_bytes(2, "big")
+        second[0x1A:0x1C] = (10).to_bytes(2, "big")
+        second[0x1C:0x1E] = (14).to_bytes(2, "big")
+
+        layout = DataSpaceIndexLayout.from_primary_segment(
+            bytes(primary),
+            virtual_address=0x001000000000,
+        )
+        traversal = decode_data_space_index_root(bytes(primary), layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.expected_entries, 0)
+        self.assertEqual(traversal.entry_count, 0)
+
+    def test_qddsi_common_text_two_entry_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 DA 10 26 "
+            "86 00 1C 60 00 00 "
+            "40 40 40 40 40 40 40 40 40 40 00 00 00 01 "
+            "00 10 1B 00 10 25 0C 10 0E 02",
+            key_count=2,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(
+            [entry.user_key for entry in traversal.entries],
+            [b"\x40" * 10, b"\x40" * 10],
+        )
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [1, 2],
+        )
+
+    def test_qddsi_nested_xor_and_common_text_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 B3 10 4D "
+            "60 00 00 88 00 22 "
+            "E3 C7 E3 E2 E8 E2 40 40 40 40 40 40 40 40 "
+            "40 40 00 00 00 09 "
+            "0D 10 14 9B 00 32 05 10 0E "
+            "C1 E2 40 40 40 40 40 40 40 40 00 00 00 0A "
+            "0D 10 2B 0D 10 3F "
+            "D3 D5 40 40 40 40 40 40 40 40 00 00 00 0B",
+            key_count=3,
+            user_key_length=16,
+            machine_key_length=20,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(
+            [entry.user_key.decode("cp037") for entry in traversal.entries],
+            ["TGTSYS          ", "TGTSYSAS        ", "TGTSYSLN        "],
+        )
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [9, 10, 11],
+        )
+
+    def test_qddsi_binary_multifield_key_traversal(self):
+        data, layout = make_qddsi_root_fixture(
+            "90 00 46 CC 07 A2 10 64 "
+            "83 00 70 60 00 00 00 02 80 01 00 00 00 01 "
+            "06 10 0F 06 10 1F 00 10 0E "
+            "06 80 00 00 00 00 02 "
+            "95 00 20 06 10 2F 00 10 0E "
+            "0B 80 00 00 00 00 03 "
+            "94 00 2E 06 10 3F 00 10 0E "
+            "1E 80 00 00 00 00 04 "
+            "97 00 08 8F 00 54 80 00 00 0B 00 00 00 05 "
+            "06 10 4D 06 10 5D 00 10 4C "
+            "01 00 02 00 00 00 06",
+            key_count=6,
+            user_key_length=4,
+            machine_key_length=8,
+        )
+        traversal = decode_data_space_index_root(data, layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(
+            [entry.user_key.hex() for entry in traversal.entries],
+            [
+                "00028001",
+                "00068000",
+                "000b8000",
+                "001e8000",
+                "8000000b",
+                "80010002",
+            ],
+        )
+        self.assertEqual(
+            [entry.ordinal_hint for entry in traversal.entries],
+            [1, 2, 3, 4, 5, 6],
+        )
+
+    def test_qddsi_active_root_pointer_can_move_root_page(self):
+        base = 0x001000000000
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 E4 10 1C "
+            "0D 10 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(0x2000)
+        root = bytearray(data[0x1000:0x101C])
+        root[6:8] = (0x181C).to_bytes(2, "big")
+        root[9:11] = (0x180E).to_bytes(2, "big")
+        primary[0x1800 : 0x1800 + len(root)] = root
+
+        # Observed QDDSI control pointer at +0x13A, then active-root pointer at
+        # control +0x20.
+        primary[0x13A:0x140] = (base + 0x0A00).to_bytes(6, "big")
+        primary[0x0A20:0x0A26] = (base + 0x1800).to_bytes(6, "big")
+
+        traversal = decode_data_space_index_root(
+            bytes(primary),
+            layout,
+            virtual_address=base,
+        )
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.root_offset, 0x1800)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(traversal.entries[0].ordinal_hint, 1)
+
+    def test_qddsi_follows_same_segment_page_pointer(self):
+        data, layout = make_qddsi_root_fixture(
+            "97 00 08 CC 07 F2 10 0E "
+            "C0 00 18 60 00 00",
+            key_count=1,
+            user_key_length=10,
+            machine_key_length=14,
+        )
+        primary = bytearray(data)
+        primary.extend(b"\x00" * (0x2000 - len(primary)))
+        secondary = bytes.fromhex(
+            "97 00 08 55 07 E4 18 1C "
+            "0D 18 0E 60 00 00 "
+            "5C D7 E4 C2 D3 C9 C3 40 40 40 00 00 00 01"
+        )
+        primary[0x1800 : 0x1800 + len(secondary)] = secondary
+
+        traversal = decode_data_space_index_root(bytes(primary), layout)
+        self.assertTrue(traversal.complete)
+        self.assertEqual(traversal.page_offsets, (0x1000, 0x1800))
+        self.assertEqual(traversal.page_count, 2)
+        self.assertEqual(len(traversal.page_pointers), 1)
+        pointer = traversal.page_pointers[0]
+        self.assertTrue(pointer.followed)
+        self.assertEqual(pointer.segment_table_index, 0)
+        self.assertEqual(pointer.page_offset, 0x18)
+        self.assertEqual(pointer.target_offset, 0x1800)
+        self.assertFalse(traversal.unresolved_page_pointers)
+        self.assertEqual(traversal.entry_count, 1)
+        self.assertEqual(
+            traversal.entries[0].user_key.decode("cp037"),
+            "*PUBLIC   ",
+        )
+        self.assertEqual(traversal.entries[0].ordinal_hint, 1)
     def test_qdds_layout_scalars_from_real_metadata(self):
         fixture = load_qdds_layout_fixture(QDDS_LAYOUT_FIXTURE)
         expected = {
@@ -378,6 +1228,30 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertFalse(layout.v2_hints_match)
         self.assertFalse(layout.standard_fixed_layout)
 
+    def test_v2_dent_live_and_deleted_hints(self):
+        live = DataSpaceRecord(
+            ordinal=1,
+            status=0x80,
+            data=b"A",
+        )
+        deleted = DataSpaceRecord(
+            ordinal=2,
+            status=0xC0,
+            data=b"B",
+        )
+        unknown = DataSpaceRecord(
+            ordinal=3,
+            status=0x40,
+            data=b"C",
+        )
+
+        self.assertTrue(live.is_live_hint)
+        self.assertFalse(live.is_deleted_hint)
+        self.assertFalse(deleted.is_live_hint)
+        self.assertTrue(deleted.is_deleted_hint)
+        self.assertFalse(unknown.is_live_hint)
+        self.assertFalse(unknown.is_deleted_hint)
+
     def test_generic_data_space_record_decoder_uses_header_count(self):
         layout = DataSpaceLayout(
             entry_count=2,
@@ -399,6 +1273,86 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(records[1].data, b"ONE1")
         self.assertEqual(records[2].status, 0x40)
         self.assertEqual(records[2].data, b"TWO2")
+
+    def test_docbss_extended_payload_uses_continuation_after_metadata_page(self):
+        primary = bytearray(PAGE_SIZE * 2)
+        continuation = bytearray(PAGE_SIZE * 2)
+        payload = b"A" * 600
+        primary[0x106:0x108] = len(payload).to_bytes(2, "big")
+        primary[0x112:0x114] = len(payload).to_bytes(2, "big")
+        primary[PAGE_SIZE:] = payload[:PAGE_SIZE]
+        continuation[PAGE_SIZE:PAGE_SIZE + 88] = payload[PAGE_SIZE:]
+
+        info = DocumentByteStringInfo.from_primary_segment(bytes(primary))
+        recovered = assemble_document_byte_string(
+            info,
+            bytes(primary),
+            (bytes(continuation),),
+        )
+        self.assertEqual(recovered, payload)
+
+    def test_docbss_extended_payload_rejects_missing_continuation(self):
+        primary = bytearray(PAGE_SIZE * 2)
+        payload_length = 600
+        primary[0x106:0x108] = payload_length.to_bytes(2, "big")
+        primary[0x112:0x114] = payload_length.to_bytes(2, "big")
+        info = DocumentByteStringInfo.from_primary_segment(bytes(primary))
+
+        with self.assertRaisesRegex(ValueError, "missing 88 byte"):
+            assemble_document_byte_string(info, bytes(primary))
+
+    def test_docbss_observed_length_layout(self):
+        data = bytearray(PAGE_SIZE * 3)
+        data[0x106:0x108] = (424).to_bytes(2, "big")
+        data[0x10A:0x10C] = (512).to_bytes(2, "big")
+        data[0x112:0x114] = (424).to_bytes(2, "big")
+
+        info = DocumentByteStringInfo.from_primary_segment(bytes(data))
+        self.assertEqual(info.payload_length, 424)
+        self.assertEqual(info.allocated_length, 512)
+        self.assertTrue(info.duplicate_length_matches)
+        info.validate_for_export(len(data))
+
+        broken = bytearray(data)
+        broken[0x112:0x114] = (423).to_bytes(2, "big")
+        bad = DocumentByteStringInfo.from_primary_segment(bytes(broken))
+        with self.assertRaises(ValueError):
+            bad.validate_for_export(len(broken))
+
+    def test_qaosss14_anchor_record_observed_offsets(self):
+        raw = bytearray(QAOSSS14_V2_RECORD_LENGTH)
+        raw[0:8] = bytes.fromhex("a1a2a3a4a5a6a7a8")
+        raw[8:16] = "S1011111".encode("cp037")
+        raw[16:24] = bytes.fromhex("0102030405060708")
+        raw[32:76] = "CKPCSPTH.EXE".encode("cp037").ljust(44, b"\x40")
+        raw[76:78] = bytes.fromhex("000e")
+        raw[95:111] = "QSECOFR QSECOFR ".encode("cp037")
+        raw[111:123] = "CKPCSPTH.EXE".encode("cp037")
+        raw[131:139] = bytes.fromhex("1112131415161718")
+
+        record = SimpleNamespace(
+            ordinal=695,
+            status=0x80,
+            data=bytes(raw),
+        )
+        anchor_record = QAOSSS14AnchorRecord.from_data_space_record(record)
+        self.assertEqual(anchor_record.rrn, 695)
+        self.assertEqual(
+            anchor_record.leading_key,
+            bytes.fromhex("a1a2a3a4a5a6a7a8"),
+        )
+        self.assertEqual(anchor_record.secondary_key_text, "S1011111")
+        self.assertEqual(
+            anchor_record.record_key,
+            bytes.fromhex("0102030405060708"),
+        )
+        self.assertEqual(anchor_record.short_name, "CKPCSPTH.EXE")
+        self.assertEqual(anchor_record.long_name, "CKPCSPTH.EXE")
+        self.assertEqual(
+            anchor_record.parent_key,
+            bytes.fromhex("1112131415161718"),
+        )
+        self.assertEqual(anchor_record.object_type_raw, bytes.fromhex("000e"))
 
     def test_standard_source_record_decoder(self):
         def entry(sequence, source_date, text, status=0x80):
@@ -435,28 +1389,115 @@ class DASDHeaderTests(unittest.TestCase):
             "          PROGRAM-ID. TEST.",
         )
 
+
+    def test_context_index_entry_documented_format(self):
+        object_address = make_internal_address(0x00D0, 0x0038D5000000)
+        name = "JHUDGINS".encode("cp037")
+        raw = bytes([0x08, 0x01, len(name)]) + name + object_address
+
+        entry = ContextIndexEntry.from_bytes(raw)
+        self.assertEqual(entry.type_code, "08/01")
+        self.assertEqual(entry.name_length, 8)
+        self.assertEqual(entry.name, "JHUDGINS")
+        self.assertEqual(entry.key_prefix, raw[:-8])
+        self.assertEqual(entry.object_address.extender, 0x00D0)
+        self.assertEqual(entry.object_address.address, 0x0038D5000000)
+        self.assertEqual(entry.raw, raw)
+
+        with self.assertRaises(ValueError):
+            ContextIndexEntry.from_bytes(raw[:-1])
+
+    def test_context_index_entry_from_object_tracks_base_and_epa_bytes(self):
+        extent = Extent(
+            start_lba=10,
+            pages=2,
+            kind="test",
+            header=b"",
+            virtual_address=0x0037AE000000,
+        )
+        header = SegmentGroupHeader(
+            raw=b"\x00" * 32,
+            segment_type=0x0180,
+            size_pages=2,
+            new_flags=0,
+            flags=0,
+            domain=0,
+            owner=InternalAddress(0x0001, 0x0037AE000000),
+            space=InternalAddress(0, 0),
+        )
+        segment = RecoveredSegment(
+            start_extent=extent,
+            extents=(extent,),
+            header=header,
+        )
+        epa = SimpleNamespace(
+            name_raw="QCLSRC".encode("cp037").ljust(30, b"\x40"),
+            object_type=0x19,
+            object_subtype=0x01,
+            name="QCLSRC",
+        )
+        obj = RecoveredObject(segment=segment, epa=epa)
+
+        self.assertEqual(obj.object_address.extender, 0x0001)
+        self.assertEqual(obj.object_address.address, 0x0037AE000000)
+        self.assertEqual(obj.physical_epa_byte_address.extender, 0x0001)
+        self.assertEqual(
+            obj.physical_epa_byte_address.address,
+            0x0037AE000020,
+        )
+
+        entry = ContextIndexEntry.from_object(obj)
+        self.assertEqual(entry.name, "QCLSRC")
+        self.assertEqual(entry.object_address, obj.object_address)
+        self.assertTrue(entry.raw.endswith(bytes.fromhex("00010037ae000000")))
+
+    def test_member_storage_pointer_offsets(self):
+        cursor = bytearray(0x308)
+        cursor[0x128:0x130] = make_internal_address(
+            0x00ED, 0x0014EC000000
+        )
+        cursor[0x300:0x308] = make_internal_address(
+            0x00ED, 0x00093A000000
+        )
+
+        pointers = MemberStoragePointers.from_cursor_segment(bytes(cursor))
+        self.assertEqual(
+            pointers.data_index,
+            InternalAddress(0x00ED, 0x0014EC000000),
+        )
+        self.assertEqual(
+            pointers.data_space,
+            InternalAddress(0x00ED, 0x00093A000000),
+        )
+
+        empty = MemberStoragePointers.from_cursor_segment(bytes(0x308))
+        self.assertIsNone(empty.data_index)
+        self.assertIsNone(empty.data_space)
+
     def test_machine_index_element_formats(self):
         # IBM Appendix-A release-2 format uses three-byte elements.
         text = MachineIndexElement(bytes.fromhex("051234"))
         self.assertEqual(text.kind, "text")
         self.assertEqual(text.text_length, 5)
+        self.assertEqual(text.text_storage_length, 6)
         self.assertEqual(text.text_displacement, 0x1234)
 
-        # type=10, common-text bit=0, direction=1, bit-to-test=3,
-        # xor displacement=0x01234
-        node_value = (
-            (0b10 << 22)
-            | (0 << 21)
-            | (1 << 20)
-            | (3 << 17)
-            | 0x1234
-        )
-        node = MachineIndexElement(node_value.to_bytes(3, "big"))
+        # Real QDDSI node: type=10, common text present, left direction,
+        # bit-to-test=6, XOR displacement 0x001C.
+        node = MachineIndexElement(bytes.fromhex("86001C"))
         self.assertEqual(node.kind, "node")
+        self.assertFalse(node.unresolved_node_flag)
         self.assertTrue(node.common_text_present)
-        self.assertEqual(node.direction, "right")
-        self.assertEqual(node.bit_to_test, 3)
-        self.assertEqual(node.xor_displacement, 0x1234)
+        self.assertEqual(node.direction, "left")
+        self.assertEqual(node.bit_to_test, 6)
+        self.assertEqual(node.xor_displacement, 0x001C)
+
+        # A second real node validates direction/common bit placement.
+        right = MachineIndexElement(bytes.fromhex("9B0032"))
+        self.assertFalse(right.common_text_present)
+        self.assertEqual(right.direction, "right")
+        self.assertEqual(right.bit_to_test, 3)
+        self.assertEqual(right.xor_displacement, 0x0032)
 
         page_value = (
             (0b11 << 22)
@@ -491,6 +1532,67 @@ class DASDHeaderTests(unittest.TestCase):
             path.write_bytes(b"x" * 521)
             with self.assertRaisesRegex(ValueError, "not divisible"):
                 DASDImage(path)
+
+    def test_probe_machine_index_page_supports_origin_and_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "context.hda"
+            va = 0x001000000000
+            pages = []
+            raw_pages = [bytearray(PAGE_SIZE) for _ in range(3)]
+
+            # Logical page 0 begins at segment offset 0x80. Put a text element
+            # at page-relative phase 2 so the probe must not assume phase 0.
+            raw_pages[0][0x82:0x85] = bytes.fromhex("050123")
+            for index, payload in enumerate(raw_pages):
+                pages.append(
+                    (
+                        make_header(va + index * PAGE_SIZE),
+                        bytes(payload),
+                    )
+                )
+            write_image(path, pages)
+
+            extent = Extent(
+                start_lba=0,
+                pages=3,
+                kind="test",
+                header=make_header(va),
+                virtual_address=va,
+            )
+            header = SegmentGroupHeader(
+                raw=b"\x00" * 32,
+                segment_type=0x0190,
+                size_pages=3,
+                new_flags=0,
+                flags=0,
+                domain=0,
+                owner=InternalAddress(1, va),
+                space=InternalAddress(0, 0),
+            )
+            segment = RecoveredSegment(
+                start_extent=extent,
+                extents=(extent,),
+                header=header,
+            )
+            context = SimpleNamespace(
+                object_type=0x04,
+                object_subtype=0x01,
+                segment=segment,
+            )
+
+            probes = DASDImage(path).probe_machine_index_page(
+                context,
+                0,
+                page_size=512,
+                page_origin=0x80,
+                element_offset=2,
+                count=1,
+            )
+            self.assertEqual(len(probes), 1)
+            self.assertEqual(probes[0].offset, 2)
+            self.assertEqual(probes[0].element.kind, "text")
+            self.assertEqual(probes[0].element.text_length, 5)
+            self.assertEqual(probes[0].element.text_displacement, 0x0123)
 
     def test_real_b10_header_fixture(self):
         raw = load_rle_fixture(B10_FIXTURE)
@@ -737,6 +1839,26 @@ class DASDHeaderTests(unittest.TestCase):
                 label,
             )
             self.assertEqual(epa.name, name, label)
+
+    def test_real_jhudgins_msgq_contains_observed_usrprf_address(self):
+        fixture = load_object_fixture(OBJECT_FIXTURE)
+
+        _, usr_raw = fixture["B10_JHUDGINS_USRPRF"]
+        _, msg_raw = fixture["B10_JHUDGINS_1902"]
+
+        usr_segment = SegmentGroupHeader.from_bytes(usr_raw[:32])
+        usr_epa = EPAHeader.from_bytes(usr_raw[32:])
+        msg_epa = EPAHeader.from_bytes(msg_raw[32:])
+
+        observed = InternalAddress.from_bytes(
+            msg_epa.raw[0x38:0x40]
+        )
+
+        self.assertEqual(usr_epa.name, "JHUDGINS")
+        self.assertEqual(msg_epa.name, "JHUDGINS")
+        self.assertEqual(observed.key, usr_segment.owner.key)
+        self.assertEqual(observed.extender, 0x00D0)
+        self.assertEqual(observed.address, 0x0038D5000000)
 
     def test_real_member_header_metadata(self):
         object_fixture = load_object_fixture(OBJECT_FIXTURE)

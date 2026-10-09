@@ -44,6 +44,14 @@ FREE_SPACE_DELIMITER = bytes.fromhex("0000fc00000f0000")
 # 9404 Service Guide: 64-KB shadow error log on the load-source disk.
 KNOWN_B10_SHADOW_LOG_VADDR = 0x000083000000
 
+# Real-image evidence from both the surviving B10 disk and the independent
+# single-disk V2R3 image identifies two direct storage pointers in the 0D/50
+# permanent member cursor. These offsets are observed rather than yet tied to a
+# published cursor data-area definition, so keep the names deliberately narrow.
+MEMBER_QDDSI_POINTER_OFFSET = 0x128
+MEMBER_QDDS_POINTER_OFFSET = 0x300
+MEMBER_STORAGE_POINTER_SIZE = 8
+
 
 @dataclass(frozen=True)
 class InternalAddress:
@@ -498,6 +506,8 @@ class RecoveredObject:
     segment: RecoveredSegment
     epa: EPAHeader
     library_name: str | None = None
+    epa_library_name: str | None = None
+    context_library_names: tuple[str, ...] = ()
 
     @property
     def name(self) -> str:
@@ -520,10 +530,39 @@ class RecoveredObject:
         return f"{self.object_type:02X}/{self.object_subtype:02X}"
 
     @property
+    def object_address(self) -> InternalAddress:
+        """Eight-byte address identifying the object's base segment.
+
+        System/38/MI pointer semantics identify an object through its base
+        segment. The context documentation describes the final @ field as the
+        address of the EPA header, but the real images do not support treating
+        that wording as a literal +0x20 byte displacement. Keep the base
+        address as the primary candidate and test the literal EPA byte
+        location separately in forensic diagnostics.
+        """
+
+        return InternalAddress(
+            self.segment.header.owner.extender,
+            self.segment.virtual_address,
+        )
+
+    @property
+    def physical_epa_byte_address(self) -> InternalAddress:
+        """Literal byte location where the EPA bytes begin in the base page."""
+
+        return InternalAddress(
+            self.segment.header.owner.extender,
+            self.segment.virtual_address + SEGMENT_HEADER_SIZE,
+        )
+
+    @property
     def external_type_hint(self) -> str:
         known = {
             (0x02, 0x01): "*PGM",
             (0x04, 0x01): "*LIB",
+            # IBM's MI object-type tables name 06/C1 *DOCBSS:
+            # Document byte string space, used by Document Library Services.
+            (0x06, 0xC1): "*DOCBSS",
             (0x08, 0x01): "*USRPRF",
             (0x0B, 0x90): "*QDDS",
             (0x0C, 0x90): "*QDDSI",
@@ -531,7 +570,16 @@ class RecoveredObject:
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
             (0x19, 0x02): "*MSGQ",
+            # Observed on the real V2R3 QDOC library and corroborated by
+            # the objects' DLO metadata/content. IBM documents QDOC as the
+            # backing library for *DOC/*FLR document-library objects.
+            (0x19, 0x0E): "*DOC",
+            (0x19, 0x12): "*FLR",
             (0x19, 0x51): "*FORMAT",
+            # IBM/MI documentation and context-index research identify 19/52
+            # as the Object Information Repository space associated with a
+            # context/library.
+            (0x19, 0x52): "*OIRS",
         }
         return known.get(
             (self.object_type, self.object_subtype),
@@ -566,10 +614,101 @@ class RecoveredObject:
         )
 
 
+@dataclass(frozen=True)
+class FileFormatReference:
+    """Literal *FILE FCB evidence for one recovered MI 19/51 format object.
+
+    The FCB relationship is intentionally represented as exact byte evidence:
+    the recovered format's ten-byte EBCDIC name occurs at name_offsets, and its
+    eight-byte internal object address may independently occur at
+    address_offsets. No undocumented FCB field names are assigned here.
+    """
+
+    format_object: RecoveredObject
+    name_offsets: tuple[int, ...]
+    address_offsets: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
+class ContextDirectoryEntry:
+    """One reconstructed terminal reference from a permanent *LIB context.
+
+    The terminal bytes are the physical release-2 machine-index representation,
+    not the documented expanded T+S+NL+N+@ form. object_address and name_raw_hint
+    are therefore explicitly observed/reconstructed hints. The address form has
+    been validated against tens of thousands of real recovered primaries; the
+    name decoder is limited to the ordinary simple-name and 0D/50 member-key
+    encodings that can be round-tripped against recovered EPA names.
+    """
+
+    library_name: str
+    context_address: InternalAddress
+    raw: bytes
+    object_type: int | None
+    object_subtype: int | None
+    object_address: InternalAddress | None
+    name_raw_hint: bytes | None
+    terminal_element_offset: int
+    owned_segment_count: int = 0
+
+    @property
+    def type_code(self) -> str:
+        if self.object_type is None or self.object_subtype is None:
+            return "??/??"
+        return f"{self.object_type:02X}/{self.object_subtype:02X}"
+
+    @property
+    def name_hint(self) -> str:
+        if self.name_raw_hint is None:
+            return ""
+        return (
+            self.name_raw_hint.decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def is_member_cursor(self) -> bool:
+        return (
+            self.object_type == 0x0D
+            and self.object_subtype == 0x50
+            and self.name_raw_hint is not None
+        )
+
+    @property
+    def member_file_name_hint(self) -> str:
+        if not self.is_member_cursor:
+            return ""
+        return (
+            self.name_raw_hint[:10]
+            .decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def member_name_hint(self) -> str:
+        if not self.is_member_cursor:
+            return ""
+        return (
+            self.name_raw_hint[10:20]
+            .decode("cp037", errors="replace")
+            .rstrip(" \x00")
+        )
+
+    @property
+    def display_name_hint(self) -> str:
+        if self.is_member_cursor:
+            file_name = self.member_file_name_hint or "?"
+            member_name = self.member_name_hint or "?"
+            return f"{file_name}({member_name})"
+        return self.name_hint
+
+
 @dataclass
 class ObjectInventory:
     objects: list[RecoveredObject]
     contexts_by_key: dict[tuple[int, int], RecoveredObject]
+    context_entries: tuple[ContextDirectoryEntry, ...] = ()
+    context_warnings: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def libraries(self) -> list[RecoveredObject]:
@@ -586,6 +725,66 @@ class ObjectInventory:
     @property
     def assigned_objects(self) -> list[RecoveredObject]:
         return [obj for obj in self.objects if obj.library_name is not None]
+
+    def context_entries_for_library(
+        self,
+        name: str,
+    ) -> list[ContextDirectoryEntry]:
+        wanted = name.upper()
+        return [
+            entry
+            for entry in self.context_entries
+            if entry.library_name.upper() == wanted
+        ]
+
+    def _context_object_index(
+        self,
+    ) -> dict[tuple[tuple[int, int], int, int], RecoveredObject]:
+        return {
+            (obj.object_address.key, obj.object_type, obj.object_subtype): obj
+            for obj in self.objects
+        }
+
+    def resolve_context_entry(
+        self,
+        entry: ContextDirectoryEntry,
+    ) -> RecoveredObject | None:
+        if (
+            entry.object_address is None
+            or entry.object_type is None
+            or entry.object_subtype is None
+        ):
+            return None
+        return self._context_object_index().get(
+            (
+                entry.object_address.key,
+                entry.object_type,
+                entry.object_subtype,
+            )
+        )
+
+    def unresolved_context_entries(
+        self,
+        library: str | None = None,
+    ) -> list[ContextDirectoryEntry]:
+        wanted = library.upper() if library else None
+        index = self._context_object_index()
+        result = []
+        for entry in self.context_entries:
+            if wanted is not None and entry.library_name.upper() != wanted:
+                continue
+            if (
+                entry.object_address is None
+                or entry.object_type is None
+                or entry.object_subtype is None
+                or (
+                    entry.object_address.key,
+                    entry.object_type,
+                    entry.object_subtype,
+                ) not in index
+            ):
+                result.append(entry)
+        return result
 
     def in_library(self, name: str) -> list[RecoveredObject]:
         wanted = name.upper()
@@ -679,6 +878,148 @@ class ObjectInventory:
 
 
 @dataclass(frozen=True)
+class DocumentByteStringInfo:
+    """Observed V2R3 *DOCBSS byte-stream layout.
+
+    IBM documents MI type/subtype 06/C1 as *DOCBSS (Document byte string
+    space). On the real V2R3 image, the first page of ordinary DOCBSS objects
+    contains a 16-bit byte length at +0x106 and a duplicate at +0x112. The
+    workstation byte stream begins on the following 512-byte page. A 16-bit
+    allocation length at +0x10A is normally a 512-byte multiple.
+
+    The offsets are real-image observations, not claimed IBM documentation.
+    Safe extraction requires the duplicated lengths to agree and the declared
+    bytes to fit inside the recovered segment.
+    """
+
+    payload_length: int
+    allocated_length: int
+    duplicate_payload_length: int
+    payload_offset: int = PAGE_SIZE
+
+    @classmethod
+    def from_primary_segment(cls, data: bytes) -> "DocumentByteStringInfo":
+        if len(data) < 0x114:
+            raise ValueError(
+                "DOCBSS primary segment is too short for observed length fields"
+            )
+        return cls(
+            payload_length=int.from_bytes(data[0x106:0x108], "big"),
+            allocated_length=int.from_bytes(data[0x10A:0x10C], "big"),
+            duplicate_payload_length=int.from_bytes(
+                data[0x112:0x114],
+                "big",
+            ),
+        )
+
+    @property
+    def duplicate_length_matches(self) -> bool:
+        return self.payload_length == self.duplicate_payload_length
+
+    def validate_metadata(self) -> None:
+        """Validate duplicated length/allocation metadata without assuming one segment."""
+
+        if not self.duplicate_length_matches:
+            raise ValueError(
+                "DOCBSS duplicate payload lengths disagree "
+                f"({self.payload_length} != "
+                f"{self.duplicate_payload_length})"
+            )
+        if self.allocated_length:
+            if self.allocated_length % PAGE_SIZE:
+                raise ValueError(
+                    "DOCBSS allocation length is not a 512-byte multiple"
+                )
+            if self.payload_length > self.allocated_length:
+                raise ValueError(
+                    f"DOCBSS payload length {self.payload_length} exceeds "
+                    f"declared allocation {self.allocated_length}"
+                )
+
+    def validate_for_export(self, segment_bytes: int) -> None:
+        """Validate the ordinary single-segment DOCBSS layout."""
+
+        self.validate_metadata()
+        end = self.payload_offset + self.payload_length
+        if end > segment_bytes:
+            raise ValueError(
+                f"DOCBSS payload length {self.payload_length} exceeds "
+                f"recovered segment capacity {max(0, segment_bytes - self.payload_offset)}"
+            )
+
+
+def assemble_document_byte_string(
+    info: DocumentByteStringInfo,
+    primary_data: bytes,
+    continuation_data: tuple[bytes, ...] = (),
+) -> bytes:
+    """Assemble an observed V2R3 DOCBSS payload across segment groups.
+
+    Ordinary DOCBSS payload starts at +0x200 in the primary segment. Real
+    extended objects continue at +0x200 in each virtual-order 0F90-owned
+    segment group. Each segment therefore contributes all bytes after its first
+    512-byte metadata page; assembly stops at the duplicated declared payload
+    length and never returns allocation padding.
+    """
+
+    info.validate_metadata()
+    chunks = [primary_data]
+    chunks.extend(continuation_data)
+
+    payload = bytearray()
+    remaining = info.payload_length
+    for data in chunks:
+        if remaining <= 0:
+            break
+        if len(data) < info.payload_offset:
+            raise ValueError(
+                "DOCBSS segment is shorter than the observed one-page "
+                "metadata prefix"
+            )
+        available = data[info.payload_offset:]
+        take = min(remaining, len(available))
+        payload.extend(available[:take])
+        remaining -= take
+
+    if remaining:
+        raise ValueError(
+            f"DOCBSS payload is missing {remaining} byte(s) from recovered "
+            "primary/continuation segments"
+        )
+    return bytes(payload)
+
+
+@dataclass(frozen=True)
+class MemberStoragePointers:
+    """Direct QDDS/QDDSI addresses observed in a permanent member cursor.
+
+    Across the two real CISC images used by this project, +0x128 points to the
+    member's QDDSI when one is present and +0x300 points to its QDDS. A missing
+    primary segment can therefore still be distinguished from "no storage
+    relationship" and can be correlated with surviving secondary segments.
+    """
+
+    data_space: InternalAddress | None
+    data_index: InternalAddress | None
+
+    @classmethod
+    def from_cursor_segment(cls, data: bytes) -> "MemberStoragePointers":
+        def read_pointer(offset: int) -> InternalAddress | None:
+            end = offset + MEMBER_STORAGE_POINTER_SIZE
+            if offset < 0 or end > len(data):
+                return None
+            address = InternalAddress.from_bytes(data[offset:end])
+            if address.is_null:
+                return None
+            return address
+
+        return cls(
+            data_space=read_pointer(MEMBER_QDDS_POINTER_OFFSET),
+            data_index=read_pointer(MEMBER_QDDSI_POINTER_OFFSET),
+        )
+
+
+@dataclass(frozen=True)
 class MemberStorage:
     """Recovered storage objects associated with one database member cursor."""
 
@@ -686,6 +1027,8 @@ class MemberStorage:
     data_space: RecoveredObject | None
     data_index: RecoveredObject | None
     data_segments: tuple[RecoveredSegment, ...] = ()
+    data_space_address: InternalAddress | None = None
+    data_index_address: InternalAddress | None = None
 
     @property
     def data_pages(self) -> int:
@@ -710,6 +1053,266 @@ QDDS_LAYOUT_MIN_SIZE = QDDS_ENTRY_LENGTH_OFFSET + 4
 QDDS_V2_RECORD_LENGTH_OFFSET = 0x1E4
 QDDS_V2_ENTRY_LENGTH_OFFSET = 0x1EC
 QDDS_V2_LAYOUT_MIN_SIZE = QDDS_V2_ENTRY_LENGTH_OFFSET + 2
+
+# Observed QDDSI object-header/key-specification offsets. These are reproduced
+# by every recovered ordinary 0C/90 primary examined in both real images, while
+# the logical meaning of DKEY/DKYT comes from IBM SY21-0889-5. Keep unresolved
+# attribute bits and the DKEY +0x14 scalar raw rather than guessing names.
+QDDSI_DKEY_COUNT_OFFSET = 0x11E
+QDDSI_DKEY_POINTER_OFFSET = 0x12A
+QDDSI_DKEY_ROW_SIZE = 0x40
+QDDSI_DKYT_ROW_SIZE = 0x20
+QDDSI_LAYOUT_MIN_SIZE = QDDSI_DKEY_POINTER_OFFSET + 6
+
+# The early ordinary samples place the active machine-index root at +0x1000,
+# but larger/special real V2R3 indexes place it at +0x1800 or +0x2800. The
+# QDDSI object header carries an observed six-byte pointer at +0x13A to a
+# machine-index control area; that area's +0x20 six-byte pointer identifies the
+# active root page. Keep +0x1000 only as a synthetic/legacy fallback when the
+# caller does not supply the QDDSI primary virtual address.
+QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET = 0x13A
+QDDSI_MACHINE_INDEX_CONTROL_ROOT_POINTER_OFFSET = 0x20
+QDDSI_MACHINE_INDEX_ROOT_OFFSET = 0x1000
+
+# Ordinary permanent-context (*LIB / MI 04/01) objects on both real images
+# independently place the active release-2 machine-index root at segment offset
+# +0x800 when the index fits in the recovered eight-page primary segment.
+# This is an observed placement, not yet a published data-area field.
+CONTEXT_MACHINE_INDEX_ROOT_OFFSET = 0x800
+
+# Every real permanent-context page reached through the two-image corpus uses a
+# 1024-byte logical page: all 815 observed page-pointer targets are aligned at
+# +0x400 from the +0x800 trunk origin, and every first-free value falls within
+# that 1024-byte page. IBM permits other machine-index page sizes generally, so
+# keep this constant context-specific rather than architecture-wide.
+CONTEXT_MACHINE_INDEX_PAGE_SIZE = 0x400
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexKeyField:
+    """One recovered DKYT row from a QDDSI key specification.
+
+    IBM documents DKYT rows as describing key-field ordering attributes,
+    length/fork information, relative offset, and field location. The final
+    two-byte selector below consistently tracks the source field ordinal in
+    the ordinary files checked so far, but remains an observed hint.
+    """
+
+    sequence_attributes: int
+    field_attributes: int
+    length_or_fork: int
+    relative_offset: int
+    location: int
+    field_ordinal_hint: int
+    raw: bytes
+
+    @property
+    def record_offset_hint(self) -> int | None:
+        """Zero-based record offset for ordinary directly mapped fields."""
+
+        if self.location <= 0:
+            return None
+        return self.location - 1
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexKeySpec:
+    """One DKEY row and its referenced DKYT rows."""
+
+    data_space: InternalAddress
+    field_table_pointer: InternalAddress
+    key_count: int
+    auxiliary_scalar_raw: int
+    key_field_count: int
+    user_key_length: int
+    machine_key_length: int
+    dkyt_address: int
+    fields: tuple[DataSpaceIndexKeyField, ...]
+    raw: bytes
+
+    @property
+    def appended_key_bytes(self) -> int:
+        return max(0, self.machine_key_length - self.user_key_length)
+
+    def split_machine_key(
+        self,
+        machine_key: bytes,
+    ) -> tuple[bytes, bytes] | None:
+        """Separate recovered user-key bytes from the four-byte DB reference.
+
+        Ordinary one-data-space indexes store user-key bytes followed directly
+        by the documented database-relative address. Multi-DKEY indexes can
+        interleave additional one-byte ordering controls between DKYT fields.
+        IBM documents fork-character rows for exactly that purpose.
+
+        Real V2R3 indexes show those non-field rows as zero-length,
+        zero-location DKYT rows. Consume one machine-key byte for each such row
+        while concatenating only the actual field bytes into the user key.
+        """
+
+        if len(machine_key) != self.machine_key_length:
+            return None
+        if self.machine_key_length < 4:
+            return None
+
+        database_reference = machine_key[-4:]
+        key_body = machine_key[:-4]
+
+        if len(key_body) == self.user_key_length:
+            return key_body, database_reference
+
+        cursor = 0
+        user_key = bytearray()
+        for field in self.fields:
+            if field.location > 0 and field.length_or_fork > 0:
+                end = cursor + field.length_or_fork
+                if end > len(key_body):
+                    return None
+                user_key.extend(key_body[cursor:end])
+                cursor = end
+                continue
+
+            if field.location == 0 and field.length_or_fork == 0:
+                # Observed non-field DKYT row. IBM documents that DKYT may
+                # contain fork-character rows; consume its one ordering byte
+                # without assigning any still-unknown attribute bits.
+                if cursor >= len(key_body):
+                    return None
+                cursor += 1
+                continue
+
+            return None
+
+        if cursor != len(key_body) or len(user_key) != self.user_key_length:
+            return None
+        return bytes(user_key), database_reference
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexLayout:
+    """Conservatively decoded QDDSI DKEY/DKYT key specifications."""
+
+    dkey_count: int
+    dkey_address: int
+    keys: tuple[DataSpaceIndexKeySpec, ...]
+
+    @classmethod
+    def from_primary_segment(
+        cls,
+        data: bytes,
+        *,
+        virtual_address: int,
+    ) -> "DataSpaceIndexLayout":
+        if len(data) < QDDSI_LAYOUT_MIN_SIZE:
+            raise ValueError("QDDSI primary segment is too short for key metadata")
+
+        dkey_count = int.from_bytes(
+            data[
+                QDDSI_DKEY_COUNT_OFFSET :
+                QDDSI_DKEY_COUNT_OFFSET + 2
+            ],
+            "big",
+        )
+        dkey_address = int.from_bytes(
+            data[
+                QDDSI_DKEY_POINTER_OFFSET :
+                QDDSI_DKEY_POINTER_OFFSET + 6
+            ],
+            "big",
+        )
+
+        if dkey_count == 0:
+            return cls(
+                dkey_count=0,
+                dkey_address=dkey_address,
+                keys=(),
+            )
+        if dkey_count > 1024:
+            raise ValueError(f"implausible QDDSI DKEY count {dkey_count}")
+        dkey_offset = dkey_address - virtual_address
+        if (
+            dkey_offset < 0
+            or dkey_offset + dkey_count * QDDSI_DKEY_ROW_SIZE > len(data)
+        ):
+            raise ValueError("QDDSI DKEY table is outside recovered primary segment")
+
+        specs: list[DataSpaceIndexKeySpec] = []
+        for row_number in range(dkey_count):
+            offset = dkey_offset + row_number * QDDSI_DKEY_ROW_SIZE
+            row = data[offset : offset + QDDSI_DKEY_ROW_SIZE]
+
+            key_field_count = int.from_bytes(row[0x18:0x1A], "big")
+            if key_field_count > 1024:
+                raise ValueError(
+                    f"implausible QDDSI DKYT field count {key_field_count}"
+                )
+            dkyt_address = int.from_bytes(row[0x1E:0x24], "big")
+            fields: list[DataSpaceIndexKeyField] = []
+
+            if key_field_count:
+                dkyt_offset = dkyt_address - virtual_address
+                if (
+                    dkyt_offset < 0
+                    or dkyt_offset
+                    + key_field_count * QDDSI_DKYT_ROW_SIZE
+                    > len(data)
+                ):
+                    raise ValueError(
+                        "QDDSI DKYT table is outside recovered primary segment"
+                    )
+                for field_number in range(key_field_count):
+                    field_offset = (
+                        dkyt_offset
+                        + field_number * QDDSI_DKYT_ROW_SIZE
+                    )
+                    field_raw = data[
+                        field_offset :
+                        field_offset + QDDSI_DKYT_ROW_SIZE
+                    ]
+                    fields.append(
+                        DataSpaceIndexKeyField(
+                            sequence_attributes=field_raw[0],
+                            field_attributes=field_raw[1],
+                            length_or_fork=int.from_bytes(
+                                field_raw[2:4], "big"
+                            ),
+                            relative_offset=int.from_bytes(
+                                field_raw[4:6], "big"
+                            ),
+                            location=int.from_bytes(
+                                field_raw[6:8], "big"
+                            ),
+                            field_ordinal_hint=int.from_bytes(
+                                field_raw[8:10], "big"
+                            ),
+                            raw=field_raw,
+                        )
+                    )
+
+            specs.append(
+                DataSpaceIndexKeySpec(
+                    data_space=InternalAddress.from_bytes(row[0:8]),
+                    field_table_pointer=InternalAddress.from_bytes(row[8:16]),
+                    key_count=int.from_bytes(row[0x10:0x14], "big"),
+                    auxiliary_scalar_raw=int.from_bytes(
+                        row[0x14:0x18], "big"
+                    ),
+                    key_field_count=key_field_count,
+                    user_key_length=int.from_bytes(row[0x1A:0x1C], "big"),
+                    machine_key_length=int.from_bytes(
+                        row[0x1C:0x1E], "big"
+                    ),
+                    dkyt_address=dkyt_address,
+                    fields=tuple(fields),
+                    raw=row,
+                )
+            )
+
+        return cls(
+            dkey_count=dkey_count,
+            dkey_address=dkey_address,
+            keys=tuple(specs),
+        )
 
 
 @dataclass(frozen=True)
@@ -848,6 +1451,11 @@ class FormatField:
             0x02: "ZONED",
             0x03: "PACKED",
             0x04: "CHAR",
+            # Real V2R3 19/51 descriptors use type 0x06 for fields whose
+            # recovered DDS definitions independently specify data type O.
+            # IBM DDS terminology calls O "DBCS Open". Keep value decoding
+            # raw until the field CCSID/shift-state representation is proven.
+            0x06: "DBCS-OPEN",
         }.get(self.type_code, f"TYPE-{self.type_code:02X}")
 
     def raw_value(self, record: bytes) -> bytes:
@@ -923,6 +1531,9 @@ class FormatField:
                 self.decimal_positions,
             )
 
+        # DBCS Open (0x06) deliberately remains raw. The real V2R3 image
+        # independently establishes the DDS type, but a reliable text decode
+        # also needs the applicable DBCS CCSID and shift-state semantics.
         return raw.hex().upper()
 
 
@@ -1012,6 +1623,17 @@ def decode_format_fields(
     return tuple(sorted(result, key=lambda field: (field.offset, field.name)))
 
 
+# IBM documents the leading Data Space Entry Status (DENT) byte as carrying
+# valid/deleted/cross-segment state. The period manual available to this project
+# does not give the individual bit positions. Real V2R3 validation is much
+# stronger for two ordinary forms: across 486,376 complete user entries only
+# 0x80 and 0xC0 occur, and ordinary QDDSI key counts consistently include 0x80
+# entries while excluding 0xC0 entries. Preserve all other status values raw.
+DENT_V2_LIVE = 0x80
+DENT_V2_DELETED = 0xC0
+DENT_V2_DELETED_BIT = 0x40
+
+
 @dataclass(frozen=True)
 class DataSpaceRecord:
     """One ordinal-addressed data-space entry."""
@@ -1028,12 +1650,160 @@ class DataSpaceRecord:
         return self.ordinal
 
     @property
+    def is_live_hint(self) -> bool:
+        """True for the ordinary V2R3 live/valid DENT form (0x80)."""
+
+        return self.status == DENT_V2_LIVE
+
+    @property
+    def is_deleted_hint(self) -> bool:
+        """True for the independently validated V2R3 deleted DENT form.
+
+        IBM documents a deleted-entry state in the DENT byte. On the real V2R3
+        image, 0xC0 differs from the ordinary live 0x80 form only by bit 0x40;
+        ordinary access-path key counts exclude exactly those 0xC0 entries
+        across several unrelated physical files. Keep this as an observed V2R3
+        interpretation rather than claiming every possible DENT bit is decoded.
+        """
+
+        return self.status == DENT_V2_DELETED
+
+    @property
     def ebcdic_preview(self) -> str:
         decoded = self.data.decode("cp037", errors="replace")
         return "".join(
             character if character.isprintable() else "."
             for character in decoded
         ).rstrip()
+
+
+# Observed V2R3 QAOSSS14 anchor-record format. These exact field
+# identifiers and 1-based offset/length pairs repeat in the recovered
+# WOSFMT14/QAOSSS14 descriptor metadata on the real V2R3 image. The names are
+# preserved verbatim; unknown abbreviations are intentionally not expanded.
+QAOSSS14_V2_RECORD_LENGTH = 193
+QAOSSS14_V2_FIELD_LAYOUT = {
+    "WOSEFILD": (17, 8),
+    "WOSEDOCD": (25, 4),
+    "WOSEDOCN": (33, 44),
+    "WOSEDOCT": (77, 2),
+    "WOSESYSC": (83, 13),
+    "WOSEOWNR": (96, 16),
+    "WOSEFDOC": (112, 12),
+    "WOSEPLDN": (132, 8),
+    "WOSEWIPI": (142, 1),
+    "WOSESLVL": (147, 1),
+    "WOSECRTD": (150, 6),
+    "WOSELCDT": (156, 8),
+    "WOSEOCDT": (164, 8),
+    "WOSEIXDT": (180, 8),
+    "WOSEINTS": (189, 2),
+}
+
+
+@dataclass(frozen=True)
+class QAOSSS14AnchorRecord:
+    """One V2R3 QAOSSS14 DLO anchor record.
+
+    IBM documents QAOSSS14 as containing an "anchor record" that stores the
+    DLO system object name. The field identifiers and layout below come from
+    repeated WOSFMT14 descriptors recovered from the real V2R3 image; field
+    semantics beyond directly observed string/key relationships remain
+    intentionally conservative.
+    """
+
+    ordinal: int
+    status: int
+    raw: bytes
+
+    @classmethod
+    def from_data_space_record(
+        cls,
+        record: "DataSpaceRecord",
+    ) -> "QAOSSS14AnchorRecord":
+        if len(record.data) != QAOSSS14_V2_RECORD_LENGTH:
+            raise ValueError(
+                "QAOSSS14 V2R3 record must be exactly "
+                f"{QAOSSS14_V2_RECORD_LENGTH} bytes"
+            )
+        return cls(
+            ordinal=record.ordinal,
+            status=record.status,
+            raw=record.data,
+        )
+
+    @property
+    def rrn(self) -> int:
+        return self.ordinal
+    @property
+    def is_live_hint(self) -> bool:
+        return self.status == DENT_V2_LIVE
+
+    @property
+    def is_deleted_hint(self) -> bool:
+        return self.status == DENT_V2_DELETED
+
+
+    def field(self, name: str) -> bytes:
+        key = name.upper()
+        if key not in QAOSSS14_V2_FIELD_LAYOUT:
+            raise KeyError(key)
+        offset_one, length = QAOSSS14_V2_FIELD_LAYOUT[key]
+        start = offset_one - 1
+        return self.raw[start : start + length]
+
+    def text(self, name: str) -> str:
+        return self.field(name).decode(
+            "cp037",
+            errors="replace",
+        ).rstrip(" \x00")
+
+    @property
+    def leading_key(self) -> bytes:
+        """Eight-byte record prefix preceding the WOSFMT14 field layout."""
+
+        return self.raw[0:8]
+
+    @property
+    def secondary_key_raw(self) -> bytes:
+        """Second eight-byte record prefix preceding the WOSFMT14 fields."""
+
+        return self.raw[8:16]
+
+    @property
+    def secondary_key_text(self) -> str:
+        value = self.secondary_key_raw.decode("cp037", errors="replace")
+        if all(character.isprintable() for character in value):
+            return value.rstrip(" \x00")
+        return ""
+
+    @property
+    def record_key(self) -> bytes:
+        """Observed 8-byte WOSEFILD field value."""
+
+        return self.field("WOSEFILD")
+
+    @property
+    def parent_key(self) -> bytes:
+        """Observed 8-byte WOSEPLDN value; linkage is validated separately."""
+
+        return self.field("WOSEPLDN")
+
+    @property
+    def long_name(self) -> str:
+        return self.text("WOSEDOCN")
+
+    @property
+    def short_name(self) -> str:
+        return self.text("WOSEFDOC")
+
+    @property
+    def owner_text(self) -> str:
+        return self.text("WOSEOWNR")
+
+    @property
+    def object_type_raw(self) -> bytes:
+        return self.field("WOSEDOCT")
 
 
 @dataclass(frozen=True)
@@ -1228,14 +1998,111 @@ def decode_standard_source_stream(
     )
 
 
+
+@dataclass(frozen=True)
+class ContextIndexEntry:
+    """Expanded System/38/early-AS/400 context machine-index entry.
+
+    IBM's System/38 VMC context-management documentation gives the logical
+    entry form as::
+
+        T S NL N @
+
+    where T is object type, S is subtype, NL is the unpadded name length,
+    N is the user-specified EBCDIC object name with trailing blanks removed,
+    and @ is the eight-byte internal address of the object's EPA header.
+
+    This class represents a *reconstructed logical index entry*. It does not
+    imply that these bytes occur contiguously on an index page: machine-index
+    common-text compression can split leading entry bytes from terminal text.
+    """
+
+    raw: bytes
+    object_type: int
+    object_subtype: int
+    name_raw: bytes
+    object_address: InternalAddress
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "ContextIndexEntry":
+        if len(raw) < 11:
+            raise ValueError("context index entry requires at least 11 bytes")
+        name_length = raw[2]
+        if name_length > 30:
+            raise ValueError(
+                f"context entry name length {name_length} exceeds 30 bytes"
+            )
+        expected = 3 + name_length + 8
+        if len(raw) != expected:
+            raise ValueError(
+                f"context index entry length is {len(raw)} bytes; "
+                f"expected {expected} from NL={name_length}"
+            )
+        return cls(
+            raw=bytes(raw),
+            object_type=raw[0],
+            object_subtype=raw[1],
+            name_raw=bytes(raw[3 : 3 + name_length]),
+            object_address=InternalAddress.from_bytes(raw[-8:]),
+        )
+
+    @classmethod
+    def from_object(cls, obj: "RecoveredObject") -> "ContextIndexEntry":
+        """Build the documented logical entry expected for a recovered object.
+
+        IBM describes the final @ field as the eight-byte address of the
+        object's EPA header. System-pointer semantics identify an MI object by
+        its base segment, while the literal EPA bytes begin 0x20 bytes into the
+        recovered base page. Real-image evidence does not justify equating @
+        with that physical byte displacement, so this reconstructed candidate
+        uses the object's base address and diagnostics test both forms.
+        """
+
+        name_raw = obj.epa.name_raw.rstrip(b"\x40\x00")
+        if len(name_raw) > 30:
+            raise ValueError("recovered object name exceeds 30 bytes")
+        raw = (
+            bytes([obj.object_type, obj.object_subtype, len(name_raw)])
+            + name_raw
+            + obj.object_address.to_bytes()
+        )
+        return cls.from_bytes(raw)
+
+    @property
+    def name_length(self) -> int:
+        return len(self.name_raw)
+
+    @property
+    def name(self) -> str:
+        return self.name_raw.decode("cp037", errors="replace").rstrip(" \x00")
+
+    @property
+    def type_code(self) -> str:
+        return f"{self.object_type:02X}/{self.object_subtype:02X}"
+
+    @property
+    def key_prefix(self) -> bytes:
+        """Documented context search-key candidate: T + S + NL + N."""
+
+        return self.raw[:-8]
+
+
 @dataclass(frozen=True)
 class MachineIndexElement:
     """One three-byte release-2 System/38/AS/400 machine-index element.
 
     IBM's published machine-index format uses three-byte elements. The high
-    bits identify text elements, decision nodes, and page pointers. Field
-    meanings below follow IBM's documented Appendix-A layout; this class does
-    not yet attempt to locate or traverse a complete context index page.
+    bits identify text elements, decision nodes, and page pointers.
+
+    The node bit positions below are independently validated by ordinary real
+    QDDSI trees. Bit 20 is the inverted common-text flag, bit 19 is direction,
+    bits 18-16 select the tested bit, and the low 16 bits are the XOR
+    displacement. Bit 21 remains deliberately unnamed.
+
+    text_length preserves the encoded seven-bit field used by the older
+    context forensic probes. Real QDDSI common/terminal text demonstrates
+    that the stored field is length-minus-one, so text_storage_length exposes
+    the byte count used for actual tree traversal.
     """
 
     raw: bytes
@@ -1258,9 +2125,20 @@ class MachineIndexElement:
 
     @property
     def text_length(self) -> int | None:
+        """Encoded seven-bit text-length field (not the byte count)."""
+
         if self.kind != "text":
             return None
         return (self.value >> 16) & 0x7F
+
+    @property
+    def text_storage_length(self) -> int | None:
+        """Actual text byte count validated on real QDDSI trees."""
+
+        encoded = self.text_length
+        if encoded is None:
+            return None
+        return encoded + 1
 
     @property
     def text_displacement(self) -> int | None:
@@ -1269,29 +2147,38 @@ class MachineIndexElement:
         return self.value & 0xFFFF
 
     @property
+    def unresolved_node_flag(self) -> bool | None:
+        """Preserve node bit 21 without assigning undocumented semantics."""
+
+        if self.kind != "node":
+            return None
+        return bool((self.value >> 21) & 1)
+
+    @property
     def common_text_present(self) -> bool | None:
         if self.kind != "node":
             return None
-        # IBM documents zero as "common text present".
-        return not bool((self.value >> 21) & 1)
+        # IBM documents zero as common text present; real QDDSI clusters
+        # independently place that flag at bit 20.
+        return not bool((self.value >> 20) & 1)
 
     @property
     def direction(self) -> str | None:
         if self.kind != "node":
             return None
-        return "right" if ((self.value >> 20) & 1) else "left"
+        return "right" if ((self.value >> 19) & 1) else "left"
 
     @property
     def bit_to_test(self) -> int | None:
         if self.kind != "node":
             return None
-        return (self.value >> 17) & 0x7
+        return (self.value >> 16) & 0x7
 
     @property
     def xor_displacement(self) -> int | None:
         if self.kind != "node":
             return None
-        return self.value & 0x1FFFF
+        return self.value & 0xFFFF
 
     @property
     def segment_table_index(self) -> int | None:
@@ -1305,7 +2192,6 @@ class MachineIndexElement:
             return None
         return self.value & 0xFFFF
 
-
 @dataclass(frozen=True)
 class MachineIndexElementProbe:
     """Decoded element at a caller-selected offset within a logical page."""
@@ -1313,6 +2199,1245 @@ class MachineIndexElementProbe:
     offset: int
     element: MachineIndexElement
 
+@dataclass(frozen=True)
+class ContextMachineIndexTerminal:
+    """One terminal key recovered from a permanent-context machine index.
+
+    The System/38 VMC manual documents the logical context entry as
+    T + S + NL + N + @. Real CISC images store that information in the general
+    release-2 machine index with front-end/common-text compression, so the
+    reconstructed terminal bytes below are preserved without forcing them into
+    the documented expanded layout.
+
+    Across both real images, the final six bytes of ordinary terminal keys are
+    a compact object reference: two-byte segment extender plus the high four
+    bytes of the 48-bit page-aligned object address. Re-appending two zero
+    bytes resolves recovered object primaries exactly in the validation set.
+    """
+
+    raw: bytes
+    terminal_element_offset: int
+
+    @property
+    def object_type(self) -> int | None:
+        return self.raw[0] if len(self.raw) >= 2 else None
+
+    @property
+    def object_subtype(self) -> int | None:
+        return self.raw[1] if len(self.raw) >= 2 else None
+
+    @property
+    def compact_object_reference(self) -> bytes | None:
+        if len(self.raw) < 8:
+            return None
+        return self.raw[-6:]
+
+    @property
+    def object_address_hint(self) -> InternalAddress | None:
+        compact = self.compact_object_reference
+        if compact is None:
+            return None
+        return InternalAddress(
+            extender=int.from_bytes(compact[:2], "big"),
+            address=int.from_bytes(compact[2:], "big") << 16,
+        )
+
+    @property
+    def key_bytes(self) -> bytes:
+        compact = self.compact_object_reference
+        if compact is None:
+            return self.raw
+        return self.raw[:-6]
+
+    @property
+    def name_raw_hint(self) -> bytes | None:
+        return decode_context_terminal_name_hint(self.raw)
+
+
+def decode_context_terminal_name_hint(raw: bytes) -> bytes | None:
+    """Decode the observed ordinary compact context-name representation.
+
+    This is not the documented logical T+S+NL+N+@ layout. Real context
+    terminals compact blank padding inside the name key. Ordinary simple names
+    use a 0x40 + positive-count blank run; 0D/50 member cursors additionally
+    use a high-byte marker to pad the fixed ten-byte file-name component before
+    the member-name component.
+
+    The decoder deliberately rejects other high-marker composite encodings
+    rather than guessing their semantics.
+    """
+
+    if len(raw) < 8:
+        return None
+    key = raw[2:-6]
+    object_type = raw[0]
+    object_subtype = raw[1]
+
+    def printable_name(value: bytes) -> bool:
+        decoded = value.decode("cp037", errors="replace").rstrip(" \x00")
+        return bool(decoded) and all(
+            32 <= ord(character) <= 126
+            for character in decoded
+        )
+
+    if (object_type, object_subtype) == (0x0D, 0x50):
+        output = bytearray()
+        offset = 0
+
+        # The member key has two fixed ten-byte name components. A file name
+        # shorter than ten bytes is followed by 0x40 and a two's-complement
+        # negative blank count (F6..FF); a full ten-byte file name has no
+        # separator marker.
+        while offset < len(key) and len(output) < 10:
+            if (
+                offset + 1 < len(key)
+                and key[offset] == 0x40
+                and 0xF6 <= key[offset + 1] <= 0xFF
+            ):
+                output.extend(
+                    b"\x40" * (0x100 - key[offset + 1])
+                )
+                offset += 2
+                break
+            output.append(key[offset])
+            offset += 1
+
+        if len(output) != 10:
+            return None
+
+        # The second component is followed by a positive blank count covering
+        # member padding plus the final ten bytes of the 30-byte EPA name.
+        while offset < len(key) and len(output) < 30:
+            if (
+                offset + 1 < len(key)
+                and key[offset] == 0x40
+                and 1 <= key[offset + 1] <= 20
+            ):
+                output.extend(b"\x40" * key[offset + 1])
+                offset += 2
+                break
+            output.append(key[offset])
+            offset += 1
+
+        if offset != len(key) or len(output) != 30:
+            return None
+        result = bytes(output)
+        return result if printable_name(result) else None
+
+    # Other ordinary object names are one 30-byte EPA name field. Composite
+    # special object keys also use high-marker forms; leave those undecoded.
+    if any(
+        key[index] == 0x40 and 0xF6 <= key[index + 1] <= 0xFF
+        for index in range(max(0, len(key) - 1))
+    ):
+        return None
+
+    output = bytearray()
+    offset = 0
+    while offset < len(key) and len(output) < 30:
+        if (
+            offset + 1 < len(key)
+            and key[offset] == 0x40
+            and 1 <= key[offset + 1] <= 30
+        ):
+            output.extend(b"\x40" * key[offset + 1])
+            offset += 2
+            continue
+        output.append(key[offset])
+        offset += 1
+
+    if offset != len(key) or len(output) != 30:
+        return None
+    result = bytes(output)
+    return result if printable_name(result) else None
+
+
+@dataclass(frozen=True)
+class MachineIndexPageHeader:
+    """Observed release-2 in-use machine-index page header prefix.
+
+    IBM's System/38 machine-index material documents the in-use logical-page
+    fields in this order: root node, page type, number of free bytes, offset to
+    the first free byte, backpointer information, and the current tree.
+
+    Across both real CISC images, 866 traversed permanent-context pages
+    independently reproduce the first eight bytes as a three-byte root node,
+    one-byte page type, two-byte free-byte value, and two-byte first-free low
+    address. Context trunk pages use page type 0xCC; page-pointer targets use
+    0x55.
+
+    Secondary context pages also carry an observed six-byte backpointer area
+    immediately after this common prefix. IBM's published machine-index patent
+    describes this page-header information as the state used to back out of a
+    completed child page and resume processing in its parent page. The two real
+    images expose two reproducible physical encodings rather than one universal
+    three-word interpretation.
+
+    On the independent V2R3 image, treating the raw words as
+    (origin-low16, shared-high16, current-low16) reconstructs a pair of
+    segment-relative tree-state offsets. It maps 770/804 child pages to a valid
+    parent (origin-node, current-node) traversal state, with 768 equal to the
+    immediate state containing the page pointer.
+
+    The older B10 image uses a different compact form. Rotating the raw words
+    as (word2, word3, word1) yields a 48-bit virtual-address candidate; 7/11
+    child pages point to a node participating in the recovered parent tree.
+    Preserve both interpretations as evidence rather than pretending the
+    six-byte field has one release-independent layout.
+
+    The context-specific current-tree storage area therefore begins at +0x08
+    on the trunk and +0x0E on ordinary child pages. These offsets are observed
+    CISC context facts, not a claim that every release-2 machine index uses the
+    same page type or page size.
+    """
+
+    offset: int
+    root: MachineIndexElement
+    page_type: int
+    free_bytes: int
+    first_free_low16: int
+    backpointer_raw: bytes = b""
+
+    @classmethod
+    def from_bytes(
+        cls,
+        data: bytes,
+        *,
+        offset: int = 0,
+    ) -> "MachineIndexPageHeader":
+        if offset < 0 or offset + 8 > len(data):
+            raise ValueError("machine-index page header requires eight bytes")
+        root = MachineIndexElement(data[offset : offset + 3])
+        if root.kind != "node":
+            raise ValueError("machine-index in-use page does not begin with a node")
+        page_type = data[offset + 3]
+        backpointer_raw = b""
+        if page_type == 0x55:
+            if offset + 14 > len(data):
+                raise ValueError(
+                    "machine-index child page requires six backpointer bytes"
+                )
+            backpointer_raw = bytes(data[offset + 8 : offset + 14])
+        return cls(
+            offset=offset,
+            root=root,
+            page_type=page_type,
+            free_bytes=int.from_bytes(data[offset + 4 : offset + 6], "big"),
+            first_free_low16=int.from_bytes(
+                data[offset + 6 : offset + 8],
+                "big",
+            ),
+            backpointer_raw=backpointer_raw,
+        )
+
+    def first_free_offset(self) -> int:
+        """Expand the observed low-16 first-free value into segment offset."""
+
+        result = (self.offset & ~0xFFFF) | self.first_free_low16
+        if result < self.offset:
+            result += 0x10000
+        return result
+
+    @property
+    def backpointer_words(self) -> tuple[int, int, int] | None:
+        """Return the three raw two-byte child backtracking/resume words.
+
+        IBM documents the purpose at the machine-index level: after a child
+        page is processed, page-header backpointer information resumes the
+        search in the parent page. Exact word names/encoding remain release-
+        specific and are intentionally not assigned here.
+        """
+
+        if len(self.backpointer_raw) != 6:
+            return None
+        return tuple(
+            int.from_bytes(self.backpointer_raw[index : index + 2], "big")
+            for index in (0, 2, 4)
+        )
+
+    @property
+    def shared_high16_node_pair_hint(self) -> tuple[int, int] | None:
+        """V2R3-observed pair of segment-relative parent tree-state offsets.
+
+        On Mark's V2R3 image the six bytes behave as three big-endian 16-bit
+        words: origin-low16, shared-high16, current-low16. Recombining the
+        shared high word with each low word reproduces valid parent traversal
+        states on 770/804 real child pages.
+
+        The older B10 image does not use this encoding, so callers must treat
+        this as a candidate interpretation and validate it against the parent
+        tree rather than assuming it is universal.
+        """
+
+        words = self.backpointer_words
+        if words is None:
+            return None
+        origin_low, shared_high, current_low = words
+        return (
+            (shared_high << 16) | origin_low,
+            (shared_high << 16) | current_low,
+        )
+
+    @property
+    def rotated_virtual_address_hint(self) -> int | None:
+        """Older-B10-observed 48-bit backpointer-address candidate.
+
+        On the B10 image the same six raw bytes behave as a rotated three-word
+        virtual address: high16=word2, middle16=word3, low16=word1. Seven of
+        eleven recovered child pages then point to nodes in the parent tree.
+        V2R3 pages instead use the shared-high16 two-offset form above.
+        """
+
+        words = self.backpointer_words
+        if words is None:
+            return None
+        low16, high16, middle16 = words
+        return (high16 << 32) | (middle16 << 16) | low16
+
+    @property
+    def current_tree_offset_hint(self) -> int | None:
+        """Observed start of tree storage for ordinary context page types."""
+
+        if self.page_type == 0xCC:
+            return self.offset + 8
+        if self.page_type == 0x55:
+            return self.offset + 14
+        return None
+
+    def tail_free_bytes(
+        self,
+        *,
+        page_size: int,
+    ) -> int | None:
+        """Return the unused tail from first-free through page end."""
+
+        if page_size <= 0:
+            raise ValueError("machine-index page size must be positive")
+        first_free = self.first_free_offset()
+        page_end = self.offset + page_size
+        if first_free < self.offset or first_free > page_end:
+            return None
+        return page_end - first_free
+
+    def non_tail_free_bytes_hint(
+        self,
+        *,
+        page_size: int,
+    ) -> int | None:
+        """Observed free bytes not accounted for by the unused page tail."""
+
+        tail = self.tail_free_bytes(page_size=page_size)
+        if tail is None or self.free_bytes < tail:
+            return None
+        return self.free_bytes - tail
+
+
+@dataclass(frozen=True)
+class ContextMachineIndexTraversal:
+    """Conservative one-segment permanent-context traversal result."""
+
+    entries: tuple[ContextMachineIndexTerminal, ...]
+    root_offset: int
+    page_offsets: tuple[int, ...] = ()
+    page_headers: tuple[MachineIndexPageHeader, ...] = ()
+    page_pointers: tuple["MachineIndexPagePointerRef", ...] = ()
+    complete: bool = False
+    warnings: tuple[str, ...] = ()
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.entries)
+
+    @property
+    def page_count(self) -> int:
+        return len(self.page_offsets)
+
+    @property
+    def unresolved_page_pointers(self) -> tuple["MachineIndexPagePointerRef", ...]:
+        return tuple(
+            pointer for pointer in self.page_pointers if not pointer.followed
+        )
+
+
+@dataclass(frozen=True)
+class MachineIndexPagePointerRef:
+    """Page pointer encountered while walking a release-2 machine index."""
+
+    element_offset: int
+    segment_table_index: int
+    page_offset: int
+    key_prefix: bytes
+    followed: bool = False
+
+    @property
+    def target_offset(self) -> int:
+        """Observed byte offset encoded by the pointer's 256-byte units."""
+
+        return self.page_offset << 8
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexEntry:
+    """One terminal QDDSI machine-index entry recovered in keyed order.
+
+    Most ordinary V2R3 indexes expose enough common/terminal text to rebuild
+    the complete machine key. A small long-key family exposes only the
+    distinguishing tree text plus the database-relative-address suffix. In
+    those cases key_complete is false, machine_key/user_key are empty, and
+    key_evidence preserves only the bytes actually recovered from the tree.
+    The database reference can still identify the DKEY row and QDDS ordinal
+    without inventing the omitted key bytes.
+    """
+
+    machine_key: bytes
+    user_key: bytes
+    database_reference: bytes
+    terminal_element_offset: int
+    dkey_index: int = 0
+    key_complete: bool = True
+    key_evidence: bytes = b""
+
+    @property
+    def data_space_number_hint(self) -> int | None:
+        """Observed adjusted data-space number in an ordinary DB reference.
+
+        IBM documents an adjusted data-space number followed by an encoded
+        ordinal in the database-relative address. Across the ordinary V2R3
+        indexes validated so far, byte zero of the four-byte suffix equals the
+        zero-based DKEY row number.
+        """
+
+        if len(self.database_reference) != 4:
+            return None
+        return self.database_reference[0]
+
+    @property
+    def display_key_bytes(self) -> bytes:
+        """Complete user key, or conservative tree-text evidence if partial."""
+
+        return self.user_key if self.key_complete else self.key_evidence
+
+    @property
+    def ordinal_hint(self) -> int | None:
+        """Observed QDDS ordinal/RRN from an ordinary four-byte DB reference.
+
+        The ordinary V2R3 form validated against more than 100,000 recovered
+        index entries uses byte zero for the DKEY/data-space number and the
+        final three bytes for the ordinal. Keep this as a hint because IBM also
+        documents ordering/internal-flag variants that are not all decoded.
+        """
+
+        if len(self.database_reference) != 4:
+            return None
+        if self.data_space_number_hint != self.dkey_index:
+            return None
+        return int.from_bytes(self.database_reference[1:], "big")
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexTraversal:
+    """Conservative traversal result for one recovered QDDSI machine index."""
+
+    entries: tuple[DataSpaceIndexEntry, ...]
+    expected_entries: int
+    root_offset: int
+    page_size: int | None
+    page_type: int | None
+    free_bytes: int | None
+    first_free_offset: int | None
+    page_offsets: tuple[int, ...] = ()
+    page_pointers: tuple[MachineIndexPagePointerRef, ...] = ()
+    complete: bool = False
+    warnings: tuple[str, ...] = ()
+
+    @property
+    def entry_count(self) -> int:
+        return len(self.entries)
+
+    @property
+    def page_count(self) -> int:
+        return len(self.page_offsets)
+
+    @property
+    def complete_key_count(self) -> int:
+        return sum(1 for entry in self.entries if entry.key_complete)
+
+    @property
+    def partial_key_count(self) -> int:
+        return sum(1 for entry in self.entries if not entry.key_complete)
+
+    @property
+    def unresolved_page_pointers(self) -> tuple[MachineIndexPagePointerRef, ...]:
+        return tuple(pointer for pointer in self.page_pointers if not pointer.followed)
+
+
+def decode_context_machine_index(
+    data: bytes,
+    *,
+    root_offset: int = CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
+) -> ContextMachineIndexTraversal:
+    """Traverse an ordinary permanent-context release-2 machine index.
+
+    IBM documents permanent contexts as using the general release-2 machine
+    index. The node/common-text/text-element mechanics are therefore shared
+    with QDDSI, but context placement is validated independently: non-empty
+    ordinary eight-page 04/01 contexts on both real images place the active
+    root at +0x800.
+
+    Real V2R3 QGPL independently validates context page pointers whose segment
+    table index is zero: their low field is in 256-byte units within the
+    recovered context segment, the same physical pointer encoding seen in
+    QDDSI. Nonzero segment-table indexes remain unresolved and are preserved as
+    evidence rather than guessed.
+    """
+
+    if root_offset < 0 or root_offset + 3 > len(data):
+        raise ValueError("context machine-index root is outside recovered segment")
+
+    root = MachineIndexElement(data[root_offset : root_offset + 3])
+    if root.raw == b"\x00\x00\x00":
+        return ContextMachineIndexTraversal(
+            entries=(),
+            root_offset=root_offset,
+            page_offsets=(),
+            complete=True,
+        )
+    if root.kind != "node":
+        raise ValueError("context machine-index root does not begin with a node")
+
+    entries: list[ContextMachineIndexTerminal] = []
+    pointers: list[MachineIndexPagePointerRef] = []
+    page_offsets: list[int] = []
+    page_headers: list[MachineIndexPageHeader] = []
+    warnings: list[str] = []
+    visited_nodes: set[tuple[int, int, int]] = set()
+    visited_pages: set[int] = set()
+    emitted: set[bytes] = set()
+    complete = True
+
+    def mark_incomplete(message: str) -> None:
+        nonlocal complete
+        complete = False
+        if message not in warnings:
+            warnings.append(message)
+
+    def expand_low16(page_start: int, low_value: int) -> int:
+        result = (page_start & ~0xFFFF) | low_value
+        if result < page_start:
+            result += 0x10000
+        return result
+
+    def walk_page(
+        page_start: int,
+        prefix: bytes,
+        page_depth: int = 0,
+    ) -> None:
+        if page_depth > 256:
+            mark_incomplete("context machine-index page depth exceeded safety limit")
+            return
+        if page_start in visited_pages:
+            mark_incomplete(
+                f"context machine-index page loop detected at 0x{page_start:04X}"
+            )
+            return
+        if page_start < 0 or page_start + 3 > len(data):
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} is outside segment"
+            )
+            return
+
+        try:
+            page_header = MachineIndexPageHeader.from_bytes(
+                data,
+                offset=page_start,
+            )
+        except ValueError:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} "
+                "does not have a valid in-use page header"
+            )
+            return
+
+        if (page_start - root_offset) % CONTEXT_MACHINE_INDEX_PAGE_SIZE:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} is not aligned "
+                f"to the observed {CONTEXT_MACHINE_INDEX_PAGE_SIZE}-byte page size"
+            )
+        expected_type = 0xCC if page_start == root_offset else 0x55
+        if page_header.page_type != expected_type:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} has page type "
+                f"0x{page_header.page_type:02X}; expected 0x{expected_type:02X}"
+            )
+        tail_free = page_header.tail_free_bytes(
+            page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+        )
+        if tail_free is None:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} has first-free "
+                "outside its observed 1024-byte page"
+            )
+        elif page_header.free_bytes < tail_free:
+            mark_incomplete(
+                f"context machine-index page 0x{page_start:04X} reports fewer "
+                "free bytes than its unused tail"
+            )
+
+        visited_pages.add(page_start)
+        page_offsets.append(page_start)
+        page_headers.append(page_header)
+
+        def read_text(
+            element: MachineIndexElement,
+            *,
+            element_offset: int,
+        ) -> bytes | None:
+            displacement = element.text_displacement
+            length = element.text_storage_length
+            if displacement is None or length is None or displacement == 0:
+                return None
+            text_offset = expand_low16(page_start, displacement)
+            end = text_offset + length
+            if text_offset < 0 or end > len(data):
+                mark_incomplete(
+                    f"context text at 0x{element_offset:04X} "
+                    "points outside recovered segment"
+                )
+                return None
+            return data[text_offset:end]
+
+        def emit_terminal(
+            branch_prefix: bytes,
+            element: MachineIndexElement,
+            element_offset: int,
+        ) -> None:
+            text = read_text(element, element_offset=element_offset)
+            if text is None:
+                return
+            raw = branch_prefix + text
+            if raw in emitted:
+                return
+            emitted.add(raw)
+            entries.append(
+                ContextMachineIndexTerminal(
+                    raw=raw,
+                    terminal_element_offset=element_offset,
+                )
+            )
+
+        def walk_node(
+            node_offset: int,
+            origin_node_offset: int,
+            node_prefix: bytes,
+            depth: int = 0,
+        ) -> None:
+            if depth > 512:
+                mark_incomplete(
+                    "context machine-index node depth exceeded safety limit"
+                )
+                return
+            visit_key = (page_start, node_offset, origin_node_offset)
+            if visit_key in visited_nodes:
+                mark_incomplete(
+                    "context machine-index node loop detected at "
+                    f"0x{node_offset:04X}"
+                )
+                return
+            visited_nodes.add(visit_key)
+
+            if node_offset < 0 or node_offset + 3 > len(data):
+                mark_incomplete(
+                    f"context node offset 0x{node_offset:04X} is outside segment"
+                )
+                return
+            node = MachineIndexElement(data[node_offset : node_offset + 3])
+            if node.kind != "node" or node.xor_displacement is None:
+                mark_incomplete(f"expected context node at 0x{node_offset:04X}")
+                return
+
+            cluster_low = (
+                (origin_node_offset & 0xFFFF) ^ node.xor_displacement
+            )
+            cluster_offset = expand_low16(page_start, cluster_low)
+            required = 9 if node.common_text_present else 6
+            if cluster_offset < 0 or cluster_offset + required > len(data):
+                mark_incomplete(
+                    f"context node at 0x{node_offset:04X} points outside segment"
+                )
+                return
+
+            branch_prefix = node_prefix
+            if node.common_text_present:
+                common_offset = cluster_offset + 6
+                common = MachineIndexElement(
+                    data[common_offset : common_offset + 3]
+                )
+                if common.kind != "text":
+                    mark_incomplete(
+                        "context common-text slot "
+                        f"0x{common_offset:04X} is not text"
+                    )
+                    return
+                common_text = read_text(
+                    common,
+                    element_offset=common_offset,
+                )
+                if common_text is None:
+                    return
+                branch_prefix += common_text
+
+            for branch_offset in (cluster_offset, cluster_offset + 3):
+                branch = MachineIndexElement(
+                    data[branch_offset : branch_offset + 3]
+                )
+                if branch.kind == "text":
+                    if branch.text_displacement:
+                        emit_terminal(
+                            branch_prefix,
+                            branch,
+                            branch_offset,
+                        )
+                elif branch.kind == "node":
+                    walk_node(
+                        branch_offset,
+                        node_offset,
+                        branch_prefix,
+                        depth + 1,
+                    )
+                else:
+                    segment_index = branch.segment_table_index or 0
+                    pointer_value = branch.page_offset or 0
+                    target_offset = pointer_value << 8
+                    can_follow = (
+                        segment_index == 0
+                        and target_offset not in visited_pages
+                        and target_offset + 3 <= len(data)
+                        and MachineIndexElement(
+                            data[target_offset : target_offset + 3]
+                        ).kind
+                        == "node"
+                    )
+                    pointers.append(
+                        MachineIndexPagePointerRef(
+                            element_offset=branch_offset,
+                            segment_table_index=segment_index,
+                            page_offset=pointer_value,
+                            key_prefix=branch_prefix,
+                            followed=can_follow,
+                        )
+                    )
+                    if segment_index != 0:
+                        mark_incomplete(
+                            "context machine-index page pointer uses unresolved "
+                            f"segment-table index {segment_index}"
+                        )
+                    elif target_offset in visited_pages:
+                        mark_incomplete(
+                            "context machine-index page pointer loops to "
+                            f"0x{target_offset:04X}"
+                        )
+                    elif target_offset + 3 > len(data):
+                        mark_incomplete(
+                            "context machine-index page pointer target "
+                            f"0x{target_offset:04X} is outside recovered segment"
+                        )
+                    elif not can_follow:
+                        mark_incomplete(
+                            "context machine-index page pointer target "
+                            f"0x{target_offset:04X} does not begin with a node"
+                        )
+                    else:
+                        walk_page(
+                            target_offset,
+                            branch_prefix,
+                            page_depth + 1,
+                        )
+
+        walk_node(page_start, page_start, prefix)
+
+    walk_page(root_offset, b"")
+    return ContextMachineIndexTraversal(
+        entries=tuple(entries),
+        root_offset=root_offset,
+        page_offsets=tuple(page_offsets),
+        page_headers=tuple(page_headers),
+        page_pointers=tuple(pointers),
+        complete=complete,
+        warnings=tuple(warnings),
+    )
+
+
+def decode_data_space_index_root(
+    data: bytes,
+    layout: DataSpaceIndexLayout,
+    *,
+    virtual_address: int | None = None,
+) -> DataSpaceIndexTraversal:
+    """Walk an ordinary QDDSI release-2 machine index in keyed order.
+
+    IBM says a data-space index contains a general release-2 machine index.
+    Real V2R3 QDDSIs establish the physical details used here: the object
+    header points to a machine-index control area whose +0x20 pointer identifies
+    the active root page; free-byte/first-free fields constrain each logical
+    page; node displacements XOR with the originating node offset; and text
+    length is encoded as byte-count minus one.
+
+    Page pointers with segment-table index zero are also validated on four
+    multi-page real indexes. Their low field is in 256-byte units within the
+    recovered QDDSI segment. Other segment-table indexes remain unresolved
+    and are reported without being followed.
+    """
+
+    root_offset = QDDSI_MACHINE_INDEX_ROOT_OFFSET
+
+    if layout.dkey_count == 0:
+        return DataSpaceIndexTraversal(
+            entries=(),
+            expected_entries=0,
+            root_offset=root_offset,
+            page_size=None,
+            page_type=None,
+            free_bytes=None,
+            first_free_offset=None,
+            complete=True,
+        )
+    active_specs = tuple(
+        (index, spec)
+        for index, spec in enumerate(layout.keys)
+        if spec.key_count > 0
+    )
+    if not active_specs:
+        return DataSpaceIndexTraversal(
+            entries=(),
+            expected_entries=0,
+            root_offset=root_offset,
+            page_size=None,
+            page_type=None,
+            free_bytes=None,
+            first_free_offset=None,
+            complete=True,
+        )
+
+    # IBM permits one index to cover multiple data spaces with different key
+    # lengths. Real V2R3 machine keys identify the zero-based DKEY row in byte
+    # zero of the ordinary four-byte database-relative address, so terminal
+    # keys can be matched to their own DKEY shape instead of forcing one global
+    # key length.
+    expected_entries = sum(spec.key_count for _, spec in active_specs)
+    for _, spec in active_specs:
+        if spec.user_key_length > spec.machine_key_length:
+            raise ValueError("QDDSI user key is longer than machine key")
+
+    if virtual_address is not None:
+        control_end = QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET + 6
+        if len(data) < control_end:
+            raise ValueError("QDDSI segment has no machine-index control pointer")
+        control_address = int.from_bytes(
+            data[
+                QDDSI_MACHINE_INDEX_CONTROL_POINTER_OFFSET :
+                control_end
+            ],
+            "big",
+        )
+        control_offset = control_address - virtual_address
+        root_pointer_offset = (
+            control_offset + QDDSI_MACHINE_INDEX_CONTROL_ROOT_POINTER_OFFSET
+        )
+        if (
+            control_address == 0
+            or control_offset < 0
+            or root_pointer_offset + 6 > len(data)
+        ):
+            raise ValueError("QDDSI machine-index control area is not recovered")
+        root_address = int.from_bytes(
+            data[root_pointer_offset : root_pointer_offset + 6],
+            "big",
+        )
+        root_offset = root_address - virtual_address
+        if (
+            root_address == 0
+            or root_offset < 0
+            or root_offset + 8 > len(data)
+        ):
+            raise ValueError("QDDSI active machine-index root is not recovered")
+
+    if len(data) < root_offset + 8:
+        raise ValueError("QDDSI segment has no complete root-page header")
+
+    entries: list[DataSpaceIndexEntry] = []
+    page_pointers: list[MachineIndexPagePointerRef] = []
+    page_offsets: list[int] = []
+    warnings: list[str] = []
+    visited_pages: set[int] = set()
+    visited_nodes: set[tuple[int, int, int]] = set()
+    emitted_keys: set[bytes] = set()
+    complete = True
+    root_metadata: tuple[int, int, int, int] | None = None
+
+    def mark_incomplete(message: str) -> None:
+        nonlocal complete
+        complete = False
+        if message not in warnings:
+            warnings.append(message)
+
+    def expand_low16(page_start: int, low_value: int) -> int:
+        """Map a 16-bit in-page address into the page's segment window."""
+
+        result = (page_start & ~0xFFFF) | low_value
+        if result < page_start:
+            result += 0x10000
+        return result
+
+    def page_metadata(
+        page_start: int,
+    ) -> tuple[MachineIndexElement, int, int, int, int]:
+        if page_start < 0 or page_start + 8 > len(data):
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} is outside recovered segment"
+            )
+        page_root = MachineIndexElement(data[page_start : page_start + 3])
+        if page_root.kind != "node":
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} does not begin with a node"
+            )
+        page_type = data[page_start + 3]
+        free_bytes = int.from_bytes(
+            data[page_start + 4 : page_start + 6],
+            "big",
+        )
+        first_free_low = int.from_bytes(
+            data[page_start + 6 : page_start + 8],
+            "big",
+        )
+        first_free = expand_low16(page_start, first_free_low)
+        if first_free < page_start + 8:
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} has invalid first-free offset"
+            )
+
+        used_bytes = first_free - page_start
+        page_sizes = [
+            size
+            for size in (512, 1024, 2048, 4096, 8192, 16384, 32768)
+            if (
+                used_bytes <= size
+                and free_bytes <= size
+                and used_bytes + free_bytes >= size
+                and page_start + size <= len(data)
+            )
+        ]
+        if not page_sizes:
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} does not imply a "
+                "supported logical page size"
+            )
+        page_size = min(page_sizes)
+        if first_free > page_start + page_size:
+            raise ValueError(
+                f"machine-index page 0x{page_start:X} first-free lies past page end"
+            )
+        return page_root, page_size, page_type, free_bytes, first_free
+
+    def emit_terminal(
+        page_start: int,
+        page_end: int,
+        first_free: int,
+        prefix: bytes,
+        element: MachineIndexElement,
+        element_offset: int,
+    ) -> None:
+        displacement = element.text_displacement
+        length = element.text_storage_length
+        if displacement is None or length is None or displacement == 0:
+            return
+        text_offset = expand_low16(page_start, displacement)
+        text_end = text_offset + length
+        if (
+            text_offset < page_start
+            or text_end > first_free
+            or text_end > page_end
+        ):
+            mark_incomplete(
+                "text element at "
+                f"0x{element_offset:04X} points outside its active page"
+            )
+            return
+        tree_key = prefix + data[text_offset:text_end]
+        if len(tree_key) < 4:
+            mark_incomplete(
+                f"terminal key at 0x{element_offset:04X} is shorter than "
+                "the ordinary four-byte database reference"
+            )
+            return
+
+        database_reference = tree_key[-4:]
+        dkey_index = database_reference[0]
+        if dkey_index >= len(layout.keys):
+            mark_incomplete(
+                "terminal key at "
+                f"0x{element_offset:04X} names DKEY row {dkey_index}, "
+                f"but only {len(layout.keys)} row(s) are decoded"
+            )
+            return
+        spec = layout.keys[dkey_index]
+        if spec.key_count <= 0:
+            mark_incomplete(
+                f"terminal key at 0x{element_offset:04X} names empty "
+                f"DKEY row {dkey_index}"
+            )
+            return
+        if len(tree_key) > spec.machine_key_length:
+            mark_incomplete(
+                "terminal key at "
+                f"0x{element_offset:04X} has {len(tree_key)} bytes for "
+                f"DKEY {dkey_index}; expected no more than "
+                f"{spec.machine_key_length}"
+            )
+            return
+
+        split = (
+            spec.split_machine_key(tree_key)
+            if len(tree_key) == spec.machine_key_length
+            else None
+        )
+        key_complete = split is not None
+        if key_complete:
+            user_key, database_reference = split
+            machine_key = tree_key
+            key_evidence = b""
+        else:
+            # IBM's machine-index description allows common/terminal text
+            # compression. The long-key V2R3 QAOK* family preserves only
+            # distinguishing tree text plus the ordinary four-byte DB reference.
+            # Keep that text as evidence and use the validated DB reference for
+            # keyed-order/RRN navigation without fabricating omitted key bytes.
+            machine_key = b""
+            user_key = b""
+            key_evidence = tree_key[:-4]
+
+        if tree_key in emitted_keys:
+            return
+        emitted_keys.add(tree_key)
+        entries.append(
+            DataSpaceIndexEntry(
+                machine_key=machine_key,
+                user_key=user_key,
+                database_reference=database_reference,
+                terminal_element_offset=element_offset,
+                dkey_index=dkey_index,
+                key_complete=key_complete,
+                key_evidence=key_evidence,
+            )
+        )
+
+    def walk_page(
+        page_start: int,
+        prefix: bytes,
+        page_depth: int = 0,
+    ) -> None:
+        nonlocal root_metadata
+        if page_depth > 256:
+            mark_incomplete("machine-index page depth exceeded safety limit")
+            return
+        if page_start in visited_pages:
+            mark_incomplete(
+                f"machine-index page loop detected at 0x{page_start:04X}"
+            )
+            return
+        visited_pages.add(page_start)
+        page_offsets.append(page_start)
+
+        try:
+            page_root, page_size, page_type, free_bytes, first_free = (
+                page_metadata(page_start)
+            )
+        except ValueError as exc:
+            mark_incomplete(str(exc))
+            return
+        if page_start == root_offset:
+            root_metadata = (page_size, page_type, free_bytes, first_free)
+        page_end = page_start + page_size
+
+        def read_text(
+            element: MachineIndexElement,
+            *,
+            element_offset: int,
+        ) -> bytes | None:
+            displacement = element.text_displacement
+            length = element.text_storage_length
+            if displacement is None or length is None or displacement == 0:
+                return None
+            text_offset = expand_low16(page_start, displacement)
+            text_end = text_offset + length
+            if (
+                text_offset < page_start
+                or text_end > first_free
+                or text_end > page_end
+            ):
+                mark_incomplete(
+                    "text element at "
+                    f"0x{element_offset:04X} points outside its active page"
+                )
+                return None
+            return data[text_offset:text_end]
+
+        def walk_node(
+            node_offset: int,
+            origin_node_offset: int,
+            node_prefix: bytes,
+            depth: int = 0,
+        ) -> None:
+            if depth > 512:
+                mark_incomplete("machine-index node depth exceeded safety limit")
+                return
+            visit_key = (page_start, node_offset, origin_node_offset)
+            if visit_key in visited_nodes:
+                mark_incomplete(
+                    f"machine-index node loop detected at 0x{node_offset:04X}"
+                )
+                return
+            visited_nodes.add(visit_key)
+
+            if node_offset < page_start or node_offset + 3 > first_free:
+                mark_incomplete(
+                    f"machine-index node offset 0x{node_offset:04X} is outside used page"
+                )
+                return
+            node = MachineIndexElement(data[node_offset : node_offset + 3])
+            if node.kind != "node" or node.xor_displacement is None:
+                mark_incomplete(f"expected node at 0x{node_offset:04X}")
+                return
+
+            cluster_low = (
+                (origin_node_offset & 0xFFFF) ^ node.xor_displacement
+            )
+            cluster_offset = expand_low16(page_start, cluster_low)
+            required = 9 if node.common_text_present else 6
+            if (
+                cluster_offset < page_start + 8
+                or cluster_offset + required > first_free
+            ):
+                mark_incomplete(
+                    "node at "
+                    f"0x{node_offset:04X} points to invalid cluster "
+                    f"0x{cluster_offset:04X}"
+                )
+                return
+
+            branch_prefix = node_prefix
+            if node.common_text_present:
+                common_offset = cluster_offset + 6
+                common = MachineIndexElement(
+                    data[common_offset : common_offset + 3]
+                )
+                if common.kind != "text":
+                    mark_incomplete(
+                        f"common-text slot at 0x{common_offset:04X} is not text"
+                    )
+                    return
+                common_text = read_text(common, element_offset=common_offset)
+                if common_text is None:
+                    mark_incomplete(
+                        f"common text at 0x{common_offset:04X} is not recoverable"
+                    )
+                    return
+                branch_prefix += common_text
+
+            for branch_offset in (cluster_offset, cluster_offset + 3):
+                branch = MachineIndexElement(
+                    data[branch_offset : branch_offset + 3]
+                )
+                if branch.kind == "text":
+                    if branch.text_displacement:
+                        emit_terminal(
+                            page_start,
+                            page_end,
+                            first_free,
+                            branch_prefix,
+                            branch,
+                            branch_offset,
+                        )
+                elif branch.kind == "node":
+                    walk_node(
+                        branch_offset,
+                        node_offset,
+                        branch_prefix,
+                        depth + 1,
+                    )
+                else:
+                    segment_index = branch.segment_table_index or 0
+                    pointer_value = branch.page_offset or 0
+                    target_offset = pointer_value << 8
+                    can_follow = (
+                        segment_index == 0
+                        and target_offset not in visited_pages
+                        and target_offset + 8 <= len(data)
+                    )
+                    page_pointers.append(
+                        MachineIndexPagePointerRef(
+                            element_offset=branch_offset,
+                            segment_table_index=segment_index,
+                            page_offset=pointer_value,
+                            key_prefix=branch_prefix,
+                            followed=can_follow,
+                        )
+                    )
+                    if segment_index != 0:
+                        mark_incomplete(
+                            "machine-index page pointer uses unresolved "
+                            f"segment-table index {segment_index}"
+                        )
+                    elif target_offset in visited_pages:
+                        mark_incomplete(
+                            f"machine-index page pointer loops to 0x{target_offset:04X}"
+                        )
+                    elif target_offset + 8 > len(data):
+                        mark_incomplete(
+                            f"machine-index page pointer target 0x{target_offset:04X} "
+                            "is outside recovered segment"
+                        )
+                    else:
+                        walk_page(
+                            target_offset,
+                            branch_prefix,
+                            page_depth + 1,
+                        )
+
+        walk_node(page_start, page_start, prefix)
+
+    walk_page(root_offset, b"")
+
+    if root_metadata is None:
+        raise ValueError("QDDSI root page could not be decoded")
+    page_size, page_type, free_bytes, first_free_offset = root_metadata
+
+    if len(entries) != expected_entries:
+        mark_incomplete(
+            f"recovered {len(entries)} machine-index key(s); "
+            f"populated DKEY rows report {expected_entries}"
+        )
+
+    entries_by_dkey = Counter(entry.dkey_index for entry in entries)
+    for dkey_index, spec in active_specs:
+        if entries_by_dkey[dkey_index] != spec.key_count:
+            mark_incomplete(
+                f"DKEY {dkey_index} recovered {entries_by_dkey[dkey_index]} "
+                f"key(s); row reports {spec.key_count}"
+            )
+
+    return DataSpaceIndexTraversal(
+        entries=tuple(entries),
+        expected_entries=expected_entries,
+        root_offset=root_offset,
+        page_size=page_size,
+        page_type=page_type,
+        free_bytes=free_bytes,
+        first_free_offset=first_free_offset,
+        page_offsets=tuple(page_offsets),
+        page_pointers=tuple(page_pointers),
+        complete=complete,
+        warnings=tuple(warnings),
+    )
 
 
 class HeaderSnapshot:
@@ -1437,6 +3562,110 @@ class DASDImage:
             )
         return bytes(data)
 
+    def read_document_byte_string(
+        self,
+        obj: RecoveredObject,
+        segment_result: SegmentRecoveryResult | None = None,
+    ) -> tuple[DocumentByteStringInfo, bytes]:
+        """Read a conservatively validated IBM *DOCBSS workstation byte stream.
+
+        The ordinary form fits after the primary segment's first metadata page.
+        A small real V2R3 extended family overflows into owner-matched 0F90
+        segment groups in virtual-address order; those groups independently
+        reproduce the same one-page metadata prefix before continuation bytes.
+        """
+
+        if (
+            obj.object_type != 0x06
+            or obj.object_subtype != 0xC1
+        ):
+            raise ValueError("target object is not IBM *DOCBSS (MI 06/C1)")
+
+        primary = self.read_segment_bytes(obj.segment)
+        info = DocumentByteStringInfo.from_primary_segment(primary)
+        info.validate_metadata()
+
+        primary_capacity = max(0, len(primary) - info.payload_offset)
+        if info.payload_length <= primary_capacity:
+            return info, assemble_document_byte_string(info, primary)
+
+        if segment_result is None:
+            raise ValueError(
+                "DOCBSS payload extends beyond the primary segment; "
+                "recovered segment inventory is required for continuation"
+            )
+
+        continuations = sorted(
+            (
+                segment
+                for segment in segment_result.segments
+                if (
+                    segment.owner_key == obj.segment.owner_key
+                    and segment.virtual_address != obj.segment.virtual_address
+                    and segment.header.segment_type == 0x0F90
+                    and segment.virtual_address > obj.segment.virtual_address
+                )
+            ),
+            key=lambda segment: (
+                segment.virtual_address,
+                segment.start_lba,
+            ),
+        )
+
+        needed = info.payload_length - primary_capacity
+        expected_va = (
+            obj.segment.virtual_address
+            + obj.segment.pages * PAGE_SIZE
+        )
+        continuation_data: list[bytes] = []
+        available = 0
+        for segment in continuations:
+            if available >= needed:
+                break
+            if segment.virtual_address != expected_va:
+                raise ValueError(
+                    "DOCBSS continuation segment is not contiguous in "
+                    f"virtual storage: expected 0x{expected_va:012X}, "
+                    f"found 0x{segment.virtual_address:012X}"
+                )
+            data = self.read_segment_bytes(segment)
+            if len(data) < info.payload_offset:
+                raise ValueError(
+                    "DOCBSS continuation segment is shorter than one metadata page"
+                )
+            continuation_data.append(data)
+            available += len(data) - info.payload_offset
+            expected_va += segment.pages * PAGE_SIZE
+
+        if available < needed:
+            raise ValueError(
+                f"DOCBSS extended payload needs {needed} continuation byte(s); "
+                f"only {available} recovered"
+            )
+
+        return info, assemble_document_byte_string(
+            info,
+            primary,
+            tuple(continuation_data),
+        )
+
+    def read_context_machine_index(
+        self,
+        context: RecoveredObject,
+    ) -> ContextMachineIndexTraversal | None:
+        """Traverse the ordinary machine-index root of a permanent context."""
+
+        if (
+            context.object_type != 0x04
+            or context.object_subtype != 0x01
+        ):
+            raise ValueError("target object is not a permanent context/library")
+        data = self.read_segment_bytes(context.segment)
+        try:
+            return decode_context_machine_index(data)
+        except ValueError:
+            return None
+
     def probe_machine_index_page(
         self,
         context: RecoveredObject,
@@ -1444,15 +3673,19 @@ class DASDImage:
         *,
         element_offset: int = 0,
         count: int = 32,
-        page_size: int = PAGE_SIZE,
+        page_size: int = CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+        page_origin: int = CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
     ) -> list[MachineIndexElementProbe]:
-        """Decode three-byte machine-index elements from one context page.
+        """Decode three-byte elements from one recovered context index page.
 
-        This is intentionally a forensic/reverse-engineering helper rather
-        than a full index traversal. IBM documents release-2 indexes as
-        three-byte elements and logical pages from 512 through 32768 bytes.
-        Until the context object's index-page header/trunk location is decoded,
-        the caller explicitly selects the page and element offset.
+        The default context layout is now independently validated across both
+        real images: a +0x800 trunk origin and 1,024-byte logical pages. The
+        caller may still override either value for forensic probing because IBM
+        permits other release-2 machine-index page sizes generally.
+
+        element_offset remains explicit and may use any modulo-3 phase; zero
+        includes the root node while the decoded page header exposes the
+        observed current-tree storage boundary.
         """
 
         if (
@@ -1462,19 +3695,20 @@ class DASDImage:
             raise ValueError("target object is not a permanent context/library")
         if page_size < PAGE_SIZE or page_size % PAGE_SIZE:
             raise ValueError("machine-index page size must be a multiple of 512")
+        if page_origin < 0:
+            raise ValueError("machine-index page origin must be non-negative")
         if element_offset < 0 or element_offset >= page_size:
             raise ValueError("element offset is outside the logical page")
-        if element_offset % 3:
-            raise ValueError("element offset must be 3-byte aligned")
         if count < 1:
             raise ValueError("count must be positive")
 
         data = self.read_segment_bytes(context.segment)
-        start = page_number * page_size
+        start = page_origin + page_number * page_size
         end = start + page_size
         if start < 0 or end > len(data):
             raise ValueError(
-                f"logical page {page_number} is outside the context segment"
+                f"logical page {page_number} at origin 0x{page_origin:X} "
+                "is outside the context segment"
             )
 
         page = data[start:end]
@@ -1490,17 +3724,18 @@ class DASDImage:
             offset += 3
         return probes
 
-    def resolve_file_formats(
+    def file_format_references(
         self,
         file_obj: RecoveredObject,
         inventory: ObjectInventory,
-    ) -> list[RecoveredObject]:
-        """Find format objects referenced by a recovered *FILE FCB.
+    ) -> list[FileFormatReference]:
+        """Return literal format-name/address evidence found in one *FILE FCB.
 
-        A physical/logical file's FCB carries the record-format name(s). Rather
-        than hard-code one FCB offset, search the recovered FCB segment for the
-        10-byte padded names of recovered MI 19/51 format objects. This handles
-        both simple source files and larger keyed file FCB layouts.
+        The current CISC corpus establishes that FCB storage contains the
+        ten-byte padded names of applicable MI 19/51 record-format objects.
+        Preserve every exact name occurrence and independently note exact
+        eight-byte internal-address occurrences when present. This improves
+        multiple-format diagnostics without assigning undocumented FCB fields.
         """
 
         if (
@@ -1516,13 +3751,27 @@ class DASDImage:
             if obj.object_type == 0x19 and obj.object_subtype == 0x51
         ]
 
-        matches: list[RecoveredObject] = []
+        def offsets(pattern: bytes) -> tuple[int, ...]:
+            if not pattern:
+                return ()
+            result = []
+            start = 0
+            while True:
+                found = file_data.find(pattern, start)
+                if found < 0:
+                    break
+                result.append(found)
+                start = found + 1
+            return tuple(result)
+
+        references: list[FileFormatReference] = []
         seen: set[tuple[int, int]] = set()
         for format_obj in formats:
             name10 = format_obj.epa.name_raw[:10]
             if not name10.strip(b"\x40\x00"):
                 continue
-            if name10 not in file_data:
+            name_offsets = offsets(name10)
+            if not name_offsets:
                 continue
             key = (
                 format_obj.segment.header.owner.extender,
@@ -1531,16 +3780,46 @@ class DASDImage:
             if key in seen:
                 continue
             seen.add(key)
-            matches.append(format_obj)
+            references.append(
+                FileFormatReference(
+                    format_object=format_obj,
+                    name_offsets=name_offsets,
+                    address_offsets=offsets(
+                        format_obj.object_address.to_bytes()
+                    ),
+                )
+            )
 
         return sorted(
-            matches,
-            key=lambda obj: (
-                obj.name,
-                obj.segment.virtual_address,
-                obj.segment.start_lba,
+            references,
+            key=lambda reference: (
+                reference.name_offsets[0],
+                reference.format_object.name,
+                reference.format_object.segment.virtual_address,
+                reference.format_object.segment.start_lba,
             ),
         )
+
+    def resolve_file_formats(
+        self,
+        file_obj: RecoveredObject,
+        inventory: ObjectInventory,
+    ) -> list[RecoveredObject]:
+        """Find recovered MI 19/51 formats named in a *FILE FCB.
+
+        Results retain FCB name-occurrence order rather than alphabetizing the
+        format objects. This is especially useful for logical/multiple-format
+        files while remaining conservative about the exact FCB field layout.
+        """
+
+        return [
+            reference.format_object
+            for reference in DASDImage.file_format_references(
+                self,
+                file_obj,
+                inventory,
+            )
+        ]
 
     def read_format_fields(
         self,
@@ -1619,41 +3898,69 @@ class DASDImage:
         inventory: ObjectInventory,
         segments: SegmentRecoveryResult,
     ) -> MemberStorage:
-        """Pair a 0D50 member cursor with same-named QDDS/QDDSI objects.
+        """Resolve a 0D50 member cursor to its QDDS/QDDSI storage.
 
-        IBM describes each physical-file member as having a data space, and
-        keyed members may also have a data-space index. On the independent real
-        V2R3 image, the 0D50 cursor and its 0B90 QDDS use the same 30-byte
-        file/member object name and context. Secondary data-space segment
-        groups point back to the QDDS primary virtual address through YYSGHDR's
-        owning-object address.
+        Real-image validation now gives us a stronger relationship than the
+        original same-name heuristic: the cursor itself carries direct QDDSI
+        and QDDS internal addresses at observed offsets +0x128 and +0x300.
+        Use those addresses when present. Same-name matching remains a fallback
+        for cursors whose direct pointer is null or unavailable.
+
+        Importantly, retain a non-null direct QDDS address even when the QDDS
+        primary segment is absent from this disk. Secondary segment groups can
+        still point back to that owner, which is expected on a scatter-loaded
+        multi-disk AS/400 when only one disk image survives.
         """
 
         if not member.is_member_cursor:
             raise ValueError("object is not a 0D50 member cursor")
 
-        # QDDS/QDDSI are internal components and do not necessarily carry
-        # the library context back-pointer used by the external *FILE/*MEM
-        # objects. Match the exact 30-byte file/member name first.
-        qdds = inventory.matching_objects(
+        cursor_bytes = self.read_segment_bytes(member.segment)
+        cursor_extender = member.segment.header.owner.extender
+        pointers = MemberStoragePointers.from_cursor_segment(cursor_bytes)
+
+        def exact_object(
+            address: InternalAddress | None,
+            *,
+            object_type: int,
+            object_subtype: int,
+        ) -> RecoveredObject | None:
+            if address is None:
+                return None
+            matches = [
+                obj
+                for obj in inventory.objects
+                if obj.object_type == object_type
+                and obj.object_subtype == object_subtype
+                and obj.object_address.key == address.key
+            ]
+            if not matches:
+                return None
+            return sorted(
+                matches,
+                key=lambda obj: (
+                    obj.segment.virtual_address,
+                    obj.segment.start_lba,
+                ),
+            )[0]
+
+        # Preserve the original correlation as a compatibility fallback. QDDS
+        # and QDDSI are internal components and do not necessarily carry the
+        # library context back-pointer used by external *FILE/*MEM objects.
+        qdds_by_name = inventory.matching_objects(
             name_raw=member.epa.name_raw,
             object_type=0x0B,
             object_subtype=0x90,
         )
-        qddsi = inventory.matching_objects(
+        qddsi_by_name = inventory.matching_objects(
             name_raw=member.epa.name_raw,
             object_type=0x0C,
             object_subtype=0x90,
         )
 
-        # Prefer the same pointer extender as the cursor. On the real V2R3
-        # image the cursor also contains the QDDS internal address in its
-        # associated data, which provides a stronger disambiguator when the
-        # same file/member name exists in multiple libraries.
-        cursor_bytes = self.read_segment_bytes(member.segment)
-        cursor_extender = member.segment.header.owner.extender
-
-        def choose(objects: list[RecoveredObject]) -> RecoveredObject | None:
+        def choose_by_name(
+            objects: list[RecoveredObject],
+        ) -> RecoveredObject | None:
             if not objects:
                 return None
             same_extender = [
@@ -1664,25 +3971,45 @@ class DASDImage:
             pool = same_extender or objects
             pointed = []
             for obj in pool:
-                address = InternalAddress(
-                    obj.segment.header.owner.extender,
-                    obj.segment.virtual_address,
-                ).to_bytes()
-                if address in cursor_bytes:
+                if obj.object_address.to_bytes() in cursor_bytes:
                     pointed.append(obj)
             if len(pointed) == 1:
                 return pointed[0]
             return pool[0]
 
-        data_space = choose(qdds)
-        data_index = choose(qddsi)
-        owned: list[RecoveredSegment] = []
-
-        if data_space is not None:
-            owner_key = (
-                data_space.segment.header.owner.extender,
-                data_space.segment.virtual_address,
+        if pointers.data_space is not None:
+            data_space_address = pointers.data_space
+            data_space = exact_object(
+                data_space_address,
+                object_type=0x0B,
+                object_subtype=0x90,
             )
+        else:
+            data_space = choose_by_name(qdds_by_name)
+            data_space_address = (
+                data_space.object_address
+                if data_space is not None
+                else None
+            )
+
+        if pointers.data_index is not None:
+            data_index_address = pointers.data_index
+            data_index = exact_object(
+                data_index_address,
+                object_type=0x0C,
+                object_subtype=0x90,
+            )
+        else:
+            data_index = choose_by_name(qddsi_by_name)
+            data_index_address = (
+                data_index.object_address
+                if data_index is not None
+                else None
+            )
+
+        owned: list[RecoveredSegment] = []
+        if data_space_address is not None:
+            owner_key = data_space_address.key
             owned = sorted(
                 [
                     segment
@@ -1700,6 +4027,8 @@ class DASDImage:
             data_space=data_space,
             data_index=data_index,
             data_segments=tuple(owned),
+            data_space_address=data_space_address,
+            data_index_address=data_index_address,
         )
 
     def read_data_space_entry_stream(
@@ -1737,6 +4066,42 @@ class DASDImage:
                 continue
             stream.extend(data[SEGMENT_HEADER_SIZE:])
         return bytes(stream), data_segments
+
+    def read_data_space_index_layout(
+        self,
+        storage: MemberStorage,
+    ) -> DataSpaceIndexLayout | None:
+        """Decode the QDDSI DKEY/DKYT key specification when recovered."""
+
+        if storage.data_index is None:
+            return None
+        data = self.read_segment_bytes(storage.data_index.segment)
+        try:
+            return DataSpaceIndexLayout.from_primary_segment(
+                data,
+                virtual_address=storage.data_index.segment.virtual_address,
+            )
+        except ValueError:
+            return None
+
+    def read_data_space_index_traversal(
+        self,
+        storage: MemberStorage,
+    ) -> DataSpaceIndexTraversal | None:
+        """Enumerate complete keys from an ordinary recovered QDDSI machine index."""
+
+        layout = self.read_data_space_index_layout(storage)
+        if layout is None or storage.data_index is None:
+            return None
+        data = self.read_segment_bytes(storage.data_index.segment)
+        try:
+            return decode_data_space_index_root(
+                data,
+                layout,
+                virtual_address=storage.data_index.segment.virtual_address,
+            )
+        except ValueError:
+            return None
 
     def read_data_space_layout(
         self,
@@ -1981,27 +4346,121 @@ class DASDImage:
                     )
                 ] = obj
 
+        # Independently traverse each recovered permanent context/library and
+        # preserve its terminal directory references. This provides the reverse
+        # relationship to the EPA context back-pointer and, on incomplete
+        # multi-disk images, can retain names/addresses for primaries that are
+        # no longer present on this disk.
+        recovered_by_address = {
+            obj.object_address.key: obj
+            for obj in recovered
+        }
+        owned_segment_counts = Counter(
+            segment.owner_key
+            for segment in segments.segments
+        )
+        context_memberships: dict[tuple[int, int], set[str]] = {}
+        context_entries: list[ContextDirectoryEntry] = []
+        context_warnings: dict[str, tuple[str, ...]] = {}
+
+        for context in recovered:
+            if (context.object_type, context.object_subtype) != (0x04, 0x01):
+                continue
+            try:
+                context_data = self.read_segment_bytes(context.segment)
+                traversal = decode_context_machine_index(context_data)
+            except (OSError, ValueError) as exc:
+                context_warnings[context.name] = (str(exc),)
+                continue
+
+            if traversal.warnings:
+                context_warnings[context.name] = traversal.warnings
+
+            for terminal in traversal.entries:
+                address = terminal.object_address_hint
+                entry = ContextDirectoryEntry(
+                    library_name=context.name,
+                    context_address=context.object_address,
+                    raw=terminal.raw,
+                    object_type=terminal.object_type,
+                    object_subtype=terminal.object_subtype,
+                    object_address=address,
+                    name_raw_hint=terminal.name_raw_hint,
+                    terminal_element_offset=terminal.terminal_element_offset,
+                    owned_segment_count=(
+                        owned_segment_counts.get(address.key, 0)
+                        if address is not None
+                        else 0
+                    ),
+                )
+                context_entries.append(entry)
+
+                if address is None:
+                    continue
+                candidate = recovered_by_address.get(address.key)
+                if candidate is None:
+                    continue
+                if (
+                    terminal.object_type is not None
+                    and terminal.object_subtype is not None
+                    and (candidate.object_type, candidate.object_subtype)
+                    != (terminal.object_type, terminal.object_subtype)
+                ):
+                    continue
+                context_memberships.setdefault(
+                    candidate.object_address.key,
+                    set(),
+                ).add(context.name)
+
         assigned: list[RecoveredObject] = []
         for obj in recovered:
             context = context_map.get(obj.epa.context.key)
-            library_name = None
+            epa_library_name = None
             if context is not None:
-                library_name = (
+                epa_library_name = (
                     "*MACHINE"
                     if context.object_type == 0x81
                     else context.name
                 )
+
+            context_library_names = tuple(
+                sorted(context_memberships.get(obj.object_address.key, ()))
+            )
+
+            # Preserve existing EPA behavior when both directions disagree.
+            # A unique context-only assignment is still useful when the EPA
+            # back-pointer is absent; disagreements remain visible through the
+            # two provenance fields rather than being silently reconciled.
+            if epa_library_name is not None:
+                library_name = epa_library_name
+            elif len(context_library_names) == 1:
+                library_name = context_library_names[0]
+            else:
+                library_name = None
+
             assigned.append(
                 RecoveredObject(
                     segment=obj.segment,
                     epa=obj.epa,
                     library_name=library_name,
+                    epa_library_name=epa_library_name,
+                    context_library_names=context_library_names,
                 )
             )
 
+        final_context_map: dict[tuple[int, int], RecoveredObject] = {}
+        for obj in assigned:
+            if (
+                (obj.object_type, obj.object_subtype) == (0x04, 0x01)
+                or obj.object_type == 0x81
+            ):
+                final_context_map[obj.object_address.key] = obj
+
         return ObjectInventory(
             objects=assigned,
-            contexts_by_key=context_map,
+            contexts_by_key=final_context_map,
+            context_entries=tuple(context_entries),
+            context_warnings=context_warnings,
         )
 
 

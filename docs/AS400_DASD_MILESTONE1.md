@@ -859,3 +859,83 @@ independent directory cross-check.
 
 All DASD operations remain read-only. The code contains no path that opens a
 DASD image for writing.
+
+
+## Interactive text-mode DASD browser
+
+A curses browser now sits directly on top of the read-only DASD backend. It
+follows the same terminal-oriented design philosophy as `tape-tool browse`
+and adds no third-party Python dependency.
+
+Run it with an image:
+
+```bash
+as400-dasd browse petes.hda
+```
+
+or with no image to start in a file picker:
+
+```bash
+as400-dasd browse
+```
+
+The upper half of the screen contains three navigation panes:
+
+```text
+Libraries / views  ->  Files / MI types  ->  Members / objects
+```
+
+The lower half is a full-width content/details viewer.
+
+Library mode includes both recovered *FILE objects and member-only files, which
+is important for the surviving B10 where scatter loading left member cursors on
+the surviving disk while the *FILE primary object may have lived on the missing
+load-source disk.
+
+Two special top-level views are always available:
+
+- `<ALL OBJECTS>` groups every recovered EPA object by MI type/subtype.
+- `<ORPHANS / MEMBER-ONLY>` exposes recoverable material whose library context
+  was not recovered.
+
+Selecting a member automatically tries the richest safe interpretation in this
+order:
+
+1. standard source-member decoding;
+2. generic QDDS record recovery;
+3. decoded MI 19/51 fields when an applicable record format is recovered;
+4. raw EBCDIC record previews when field metadata is unavailable.
+
+Selecting an MI 19/51 format object displays its recovered field definitions.
+Selecting an ordinary object displays its MI identity, virtual address, physical
+LBA, segment type/owner, and EPA context.
+
+The browser also supports a global name search with `/`, opening a different
+image with `o`, and rescanning the current image with `r`. All operations
+remain read-only.
+
+
+
+## Additional DLO recovery targets
+
+IBM documents the actual DLO search-index files as `QUSRSYS/QAOSS*`. These
+must be distinguished from the DLO-related `QSYS` model/output files such as
+`QAOSIQDL`, `QAOSIRTV`, `QADSPDOC`, and `QADSPFLR`.
+
+The explorer now inventories QDOC `*DOC`/`*FLR` objects with `dlos`,
+reports any recovered QUSRSYS `QAOSS*` runtime files, decodes the QSYS model
+formats when available, and can byte-search for a 10-character QDOC SYSOBJNAM
+with `dlo-xref`. The latter is intended to locate metadata/index
+cross-references without prematurely assigning field meanings.
+
+Remaining targets:
+
+- Reconstruct the QDLS document/folder hierarchy so internal QDOC system
+  object names can be presented as user-facing folder/document paths.
+- Decode the relevant QAOSS records, or identify their unresolved storage
+  objects if the current object-to-context pass does not expose them normally.
+- Cross-check the reconstructed mapping against known real-image DLO examples.
+- Identify the payload-storage objects associated with binary DLOs and support
+  safe export of the original workstation-file bytes.
+
+See `AS400_QDLS_RESEARCH.md` for the evidence log and current experiments.
