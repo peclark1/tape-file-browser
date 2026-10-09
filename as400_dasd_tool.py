@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import re
@@ -529,6 +530,129 @@ def cmd_virtual_xref(args):
         "This validates only an extent-relative address match. "
         "The candidate pointer field, module semantics, SMVT and "
         "storage-directory location remain unverified."
+    )
+    return 0
+
+
+
+def _scan_extent_virtual_references(
+    image,
+    extent_start_lba,
+    *,
+    first_source_lba=None,
+    sectors=None,
+    alignment=2,
+    example_limit=12,
+):
+    """Count candidate in-extent six-byte VAs at aligned payload offsets.
+
+    This is a structural correlation probe, *not* a pointer or ASDE decoder:
+    any matching six-byte number is counted, including potentially coincidental
+    bit patterns. Physical extent start is always caller-selected.
+    """
+    if alignment not in (2, 4, 8):
+        raise ValueError("alignment must be 2, 4, or 8")
+    if example_limit < 0:
+        raise ValueError("example limit must be non-negative")
+    if sectors is not None and sectors < 1:
+        raise ValueError("sectors must be positive")
+    header = image.read_sector(extent_start_lba).header
+    if not header.page_aligned:
+        raise ValueError("extent header virtual address is not page-aligned")
+    pages = header.extent_pages
+    if pages > image.sector_count - extent_start_lba:
+        raise ValueError("selected extent extends beyond the image")
+    first_source_lba = (
+        extent_start_lba if first_source_lba is None else first_source_lba
+    )
+    stop_lba = extent_start_lba + pages
+    if not (extent_start_lba <= first_source_lba < stop_lba):
+        raise ValueError("source-start LBA lies outside chosen extent")
+    if sectors is not None:
+        stop_lba = min(stop_lba, first_source_lba + sectors)
+
+    virtual_start = header.virtual_address
+    virtual_end = virtual_start + pages * PAGE_SIZE
+    source_offsets = Counter()
+    pattern_counts = Counter()
+    target_distances = Counter()
+    examples = []
+    total_matches = 0
+    with open(image.path, "rb") as handle:
+        handle.seek(first_source_lba * SECTOR_SIZE)
+        for lba in range(first_source_lba, stop_lba):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short sector read at LBA {lba}")
+            payload = raw[HEADER_SIZE:]
+            for offset in range(0, PAGE_SIZE - 5, alignment):
+                value = int.from_bytes(payload[offset:offset + 6], "big")
+                if not (virtual_start <= value < virtual_end):
+                    continue
+                target_index, target_offset = divmod(
+                    value - virtual_start, PAGE_SIZE
+                )
+                target_lba = extent_start_lba + target_index
+                delta = target_lba - lba
+                total_matches += 1
+                source_offsets[offset] += 1
+                pattern_counts[(offset, delta, target_offset)] += 1
+                target_distances[delta] += 1
+                if len(examples) < example_limit:
+                    examples.append((lba, offset, target_lba, target_offset))
+
+    return {
+        "extent_start_lba": extent_start_lba,
+        "extent_pages": pages,
+        "virtual_start": virtual_start,
+        "first_source_lba": first_source_lba,
+        "stop_lba": stop_lba,
+        "total_matches": total_matches,
+        "source_offsets": source_offsets,
+        "patterns": pattern_counts,
+        "distances": target_distances,
+        "examples": tuple(examples),
+    }
+
+
+def cmd_virtual_xref_map(args):
+    """Print bounded candidate VA correlations for one caller-selected extent."""
+
+    image = _open(args.image)
+    result = _scan_extent_virtual_references(
+        image,
+        args.extent_start_lba,
+        first_source_lba=args.source_start_lba,
+        sectors=args.sectors,
+        alignment=args.alignment,
+        example_limit=args.examples,
+    )
+    print(f"Image:           {image.path}")
+    print(f"Extent start:    physical LBA {result['extent_start_lba']:,}")
+    print(f"Extent pages:    {result['extent_pages']:,}")
+    print(f"Extent base VA:  0x{result['virtual_start']:012X}")
+    print(
+        f"Source scan:     LBA {result['first_source_lba']:,}"
+        f"..{result['stop_lba'] - 1:,}, alignment {args.alignment}"
+    )
+    print(f"Candidate values within extent: {result['total_matches']:,}")
+    print("Top (source payload offset, target LBA delta, target payload offset):")
+    for (offset, delta, target_offset), count in result["patterns"].most_common(
+        args.top
+    ):
+        print(
+            f"  +0x{offset:03X} -> page {delta:+d}, +0x{target_offset:03X}"
+            f"    {count:,} occurrences"
+        )
+    print("First candidates:")
+    for src_lba, src_offset, target_lba, target_offset in result["examples"]:
+        print(
+            f"  LBA {src_lba:,} +0x{src_offset:03X}"
+            f" -> LBA {target_lba:,} +0x{target_offset:03X}"
+        )
+    print(
+        "Matches are numerical six-byte VA candidates, not verified pointer"
+        " fields; no SMVT, index-root, or ASDE semantics are inferred."
     )
     return 0
 
@@ -8951,6 +9075,19 @@ def build_parser():
         help="target payload bytes to print (1..64; default 16)",
     )
     xref.set_defaults(func=cmd_virtual_xref)
+
+    xref_map = sub.add_parser(
+        "virtual-xref-map",
+        help="summarize six-byte address candidates in a selected extent",
+    )
+    xref_map.add_argument("image")
+    xref_map.add_argument("extent_start_lba", type=int)
+    xref_map.add_argument("--source-start-lba", type=int)
+    xref_map.add_argument("--sectors", type=int)
+    xref_map.add_argument("--alignment", type=int, choices=(2, 4, 8), default=2)
+    xref_map.add_argument("--top", type=int, default=12)
+    xref_map.add_argument("--examples", type=int, default=12)
+    xref_map.set_defaults(func=cmd_virtual_xref_map)
 
     segments = sub.add_parser(
         "segments",
