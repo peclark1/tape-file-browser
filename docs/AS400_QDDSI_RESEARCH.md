@@ -924,6 +924,71 @@ not only raw length/location similarity. Preserve the existing 104
 partial tree bodies and complete database-reference suffixes until
 that comparison produces an unambiguous field-materialization rule.
 
+#### Verified literal-prefix sources in QAOKS04A/QAOKS05A (2026-10-09)
+
+A **read-only, RRN-matched machine-index traversal** of the original Mark
+V2R3 disk provides a decisive source-field comparison. Each S04/S05 index
+primary is a **physically contiguous 16-page segment** with its control
+pointer at logical +0x1000 and active root page at +0x1800. Reconstructing
+the machine-index node/common-text paths from the raw index pages produces
+**26 terminal references** per index: 13 RRNs for each of two populated DKEY
+rows, with no unresolved page pointers or traversal errors. For every entry,
+the partial tree body contains a nonempty literal prefix followed by exactly
+three raw `3F FF` pairs and then the intact four-byte DB reference.
+
+The independent `QAOKP09A` 36-row QDDS field table at logical +0x400
+identifies **descriptor row 1: length 8, one-based record location 9** and
+**descriptor row 2: length 8, one-based record location 17**. These map
+respectively to zero-based offsets 8 and 16 within the 351-byte record
+payload, after the data-space entry's separate one-byte status.
+
+| Access path | Raw QDDS source candidate | Comparison | Result |
+| --- | --- | --- | --- |
+| `QAOKS04A` | Descriptor row 1, data `[8:16]` | Strip trailing CP037/EBCDIC blanks (`0x40`) and compare *every* literal prefix before the first raw `3FFF` | **26/26** DKEY/RRN terminal matches |
+| `QAOKS05A` | Descriptor row 2, data `[16:24]` | Same literal byte comparison | **26/26** matches |
+
+These are **52/52 recovered terminal bodies** across S04/S05 reproduced
+exactly as `candidate.rstrip(0x40) + (3FFF * 3)`, followed by the
+independently verified database reference. Because each index repeats the
+same 13 RRN values under two populated DKEY rows, this represents **26
+distinct index/RRN prefix observations**, mirrored across DKEY groups—not
+52 independent source-record values. No archived user strings are committed.
+
+The critical discriminators were RRNs 7 and 10: the two paths have
+different-length literal prefixes for these records. The S04 prefix is
+always byte-for-byte identical to QDDS `[8:16]` with right blanks removed;
+S05 is always identical to `[16:24]`. Across the 13 RRNs, S04 prefix lengths
+range **2..8**, and S05 **4..8**. This defeats the earlier suggestion
+that the literal prefixes could derive from the overlapping 64-byte field
+at raw location 254 or its eight-byte subfields: those regions are not
+needed to account for either recovered literal prefix.
+
+Both S04 and S05 have **identical raw DKYT field shapes** under each DKEY:
+8-byte `seq=00` at raw location zero, 40-byte `seq=01` at raw
+location 8, and 64-byte `seq=01` at raw location 50. The first raw
+location zero therefore cannot by itself identify a physical QDDS record
+offset. The independent field table plus RRN-correlated bytes is necessary
+to distinguish S04's source from S05's. Exact matching is a strong
+**source-field materialization observation**, but it does **not** yet give a
+decoder for the two later fields or the semantics of `3FFF`.
+
+A pure backend helper
+`audit_partial_index_literal_prefix_candidate(traversal, records,
+record_offset=..., field_length=...)` now counts such literal matches,
+including empty-value and missing-record cases, using **caller-supplied**
+record offsets. It never changes the recovered keys or treats a raw
+`3FFF` pair as a proven field delimiter. Synthetic regressions use only
+fabricated data, including negative candidate comparisons and two DKEY
+rows.
+
+**Revised evidence gate:** S04/S05 literal prefixes are accounted for
+(**52/52 terminal bodies**). All **104** S02..S05 entries remain
+partial *logical keys*: further work must establish the middle/final
+40/64-byte source identities, compact `3FFF` representation and raw
++0x14 transform without synthesizing maximum-length padding. The
+S02/S03 tree bodies are marker-only and can match empty candidate
+fields, which does not uniquely identify their source descriptors.
+
 #### Raw pair-position diagnostic (incremental)
 
 The partial-key audit additionally records the minimum and maximum **byte
