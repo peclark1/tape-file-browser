@@ -572,6 +572,8 @@ class RecoveredObject:
             # MI subtype catalog (2000) and IBM i type tables:
             # external output queues, and internal distribution indexes.
             (0x0E, 0x02): "*OUTQ",
+            # IBM internal object-types catalog: Interactive Profile, 0EC4.
+            (0x0E, 0xC4): "*INTPRF",
             (0x0E, 0xD1): "*DRX",
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
@@ -579,6 +581,8 @@ class RecoveredObject:
             # V2R2 OS/400 DMPOBJ *CMD example confirms MI 19/05.
             (0x19, 0x05): "*CMD",
             (0x19, 0x06): "*TBL",
+            # IBM external object-types catalog: Menu Description, 1916.
+            (0x19, 0x16): "*MENU",
             # Observed on the real V2R3 QDOC library and corroborated by
             # the objects' DLO metadata/content. IBM documents QDOC as the
             # backing library for *DOC/*FLR document-library objects.
