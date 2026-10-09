@@ -8,6 +8,7 @@ from __future__ import annotations
 import fnmatch
 import re
 from dataclasses import dataclass
+from as400_object_types import lookup as lookup_object_type
 
 
 @dataclass(frozen=True)
@@ -150,10 +151,12 @@ class Guided5250:
                 is_file = (obj.object_type, obj.object_subtype) == (0x19, 0x01)
                 if is_file:
                     seen_files.add(obj.name.upper())
+                type_info = lookup_object_type(obj.object_type, obj.object_subtype)
                 result.append(dict(
                     kind="file" if is_file else "object", name=obj.name.upper(),
                     type="*FILE" if is_file else (obj.external_type_hint or obj.type_code),
-                    note="", object=obj))
+                    note="[internal]" if type_info and type_info.category == "internal" else "",
+                    object=obj, catalog_info=type_info))
             for member in self.inventory.members(library=self.library):
                 name = member.member_file_name.upper()
                 if name not in seen_files:
@@ -163,9 +166,11 @@ class Guided5250:
             for entry in self.inventory.unresolved_context_entries(self.library):
                 if entry.is_member_cursor:
                     continue
+                type_info = lookup_object_type(entry.type_code)
                 result.append(dict(
                     kind="directory", name=entry.display_name_hint or "<unknown>",
-                    type=entry.type_code, note="[dir] primary absent", entry=entry))
+                    type=type_info.name if type_info else entry.type_code,
+                    note="[dir] primary absent", entry=entry, catalog_info=type_info))
             return sorted(result, key=lambda r: (r["name"], r["type"], r["kind"]))
         if self.screen == "members":
             result = []
@@ -246,6 +251,21 @@ class Guided5250:
                 f"Library: {self.library or row['name']}",
                 f"Status:  {row.get('note') or 'Primary object recovered'}",
             ]
+            info = row.get("catalog_info")
+            obj = row.get("object")
+            entry = row.get("entry")
+            mi_code = (getattr(obj, "type_code", "")
+                       if obj is not None else
+                       getattr(entry, "type_code", "") if entry is not None else "")
+            if mi_code:
+                lines.append(f"MI type: {mi_code}")
+            if info is not None:
+                lines.extend([
+                    f"IBM object class: {info.category}",
+                    f"IBM description: {info.description}",
+                    "Catalog: modern IBM i documentation (V2R3 presence unverified)",
+                    f"Reference: {info.source}",
+                ])
             self._goto("details", library=self.library, file=self.file, detail=lines)
         else:
             self.status = f"Option {option} is not available for this selection."
@@ -337,6 +357,8 @@ class Guided5250:
             "Only recovered image contents are displayed.",
             "[dir] identifies an entry whose primary was not recovered.",
             "[member-only] identifies a file inferred from surviving member cursors.",
+            "[internal] marks an IBM internal object, not a PDM-editable user object.",
+            "IBM type names come from a modern catalog; V2R3 release support is unproven.",
             "Commands requiring a running AS/400 are not emulated.",
             "",
             "Implemented commands:",
