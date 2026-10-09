@@ -118,10 +118,14 @@ class DASDToolTests(unittest.TestCase):
             sectors = [bytearray(PAGE_SIZE + 8) for _ in range(40)]
             sectors[32][8:12] = (34).to_bytes(4, "big")
             sectors[32][12:16] = (6).to_bytes(4, "big")
+            sectors[32][16:20] = (4).to_bytes(4, "big")
+            sectors[32][20:24] = (34).to_bytes(4, "big")
             sectors[32][8 + 0x40:8 + 0x50] = (
                 "DASD  UNIT  DESC".encode("cp037")
             )
             sectors[34][:8] = bytes.fromhex("00000B0000010000")
+            sectors[38][:8] = bytes.fromhex("00000C0000000000")
+            sectors[39][8:8+16] = "DELETED EXTENT  ".encode("cp037")
             image.write_bytes(b"".join(sectors))
             before = image.read_bytes()
 
@@ -134,7 +138,12 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("Actual image sectors:    40", output)
             self.assertIn("Size arithmetic agrees: YES", output)
             self.assertIn("Header boundary matches: YES", output)
-            self.assertIn("OBSERVED on B10 and V2R3", output)
+            self.assertIn("Uninterpreted sum +0x08/+0x0C: LBA 38", output)
+            self.assertIn("Sum hits zero-to-nonzero header boundary: YES", output)
+            self.assertIn("Candidate boundary's extent-style order: 0 (1 pages)", output)
+            self.assertIn("Observed following CP037 label: 'DELETED EXTENT'", output)
+            self.assertIn("Sum's second operand equals candidate origin: YES", output)
+            self.assertIn("Geometry and auxiliary arithmetic are OBSERVED", output)
             self.assertEqual(image.read_bytes(), before)
 
             out = io.StringIO()
