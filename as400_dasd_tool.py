@@ -5405,7 +5405,20 @@ _TUI_OBJECT_TYPE_CONTEXT = {
 
 
 def _tui_object_type_context(object_type, object_subtype):
-    return _TUI_OBJECT_TYPE_CONTEXT.get((object_type, object_subtype), "")
+    """Explain both recovered structure and IBM catalog classification."""
+    from as400_object_types import lookup
+
+    description = _TUI_OBJECT_TYPE_CONTEXT.get(
+        (object_type, object_subtype), ""
+    )
+    entry = lookup(object_type, object_subtype)
+    if entry is None:
+        return description
+    attribution = (
+        f"IBM i {entry.category} object {entry.name} "
+        f"({entry.description}); catalog is modern, not a V2R3 presence claim"
+    )
+    return f"{description}; {attribution}" if description else attribution
 
 
 # Library descriptions live in an editable JSON catalog rather than in the
