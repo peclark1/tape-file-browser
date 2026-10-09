@@ -74,6 +74,25 @@ machine-index *implementation reference*, but its root placement, key
 representation, and page/header assumptions must **not** be copied into
 storage-directory parsing without validation.
 
+### First independent raw-image reconnaissance
+
+An initial read-only check of the first 8,192 physical sectors in each
+available image (counting payloads with at least one nonzero byte, **not**
+interpreting a directory) found:
+
+- Mark's single-disk V2R3 image: 8,062 nonzero 512-byte payloads.
+  The previously established relative-record origin is LBA 64; that sector
+  has a nonzero payload and a nonzero preassigned virtual-address header.
+- Pete's surviving B10 **non-load-source** disk: only 3 nonzero payloads in
+  the same LBA window (32, 33, 52). Its inferred relative-record origin
+  is LBA 2,112.
+
+This supports prioritizing Mark's image for early-boot/SMVT/static-directory
+reconnaissance, since Pete's surviving disk is **not** the load-source disk.
+It does **not** identify any of these pages as the SMVT or a directory, and
+the difference may also reflect disk initialization/layout choices. No raw
+image contents are committed.
+
 ## Next reproducible experiments (read-only)
 
 1. Inventory candidate VMC/SMVT/static-directory locations from period
