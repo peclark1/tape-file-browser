@@ -456,6 +456,83 @@ def cmd_storage_labels(args):
     return 0
 
 
+
+def _resolve_extent_relative_address(image, extent_start_lba, address):
+    """Resolve a candidate six-byte VA using an explicitly chosen extent.
+
+    The caller, not a symbolic name match, must identify the extent start.
+    The sector header independently supplies its base VA and extent order.
+    No resident directory or module semantics are inferred.
+    """
+
+    start = image.read_sector(extent_start_lba)
+    header = start.header
+    if not header.page_aligned:
+        raise ValueError("chosen extent header is not 512-byte aligned")
+    pages = header.extent_pages
+    if pages > image.sector_count - extent_start_lba:
+        raise ValueError("extent described by header crosses image end")
+    base = header.virtual_address
+    if address < base or address >= base + pages * PAGE_SIZE:
+        raise ValueError(
+            f"candidate VA 0x{address:012X} is outside chosen extent "
+            f"0x{base:012X}..0x{base + pages * PAGE_SIZE - 1:012X}"
+        )
+    page_index, offset = divmod(address - base, PAGE_SIZE)
+    return extent_start_lba + page_index, offset
+
+
+def cmd_virtual_xref(args):
+    """Check an explicit six-byte candidate virtual pointer against an extent."""
+
+    image = _open(args.image)
+    start = image.read_sector(args.extent_start_lba)
+    pages = start.header.extent_pages
+    if not (
+        args.extent_start_lba
+        <= args.source_lba
+        < args.extent_start_lba + pages
+    ):
+        raise ValueError("source sector is not in the selected extent")
+    if args.offset < 0 or args.offset + 6 > PAGE_SIZE:
+        raise ValueError("six-byte candidate must fit inside source payload")
+
+    source = image.read_sector(args.source_lba)
+    pointer_raw = source.data[args.offset:args.offset + 6]
+    candidate_va = int.from_bytes(pointer_raw, "big")
+    target_lba, target_offset = _resolve_extent_relative_address(
+        image, args.extent_start_lba, candidate_va
+    )
+    target = image.read_sector(target_lba)
+    source_va = (
+        start.header.virtual_address
+        + (args.source_lba - args.extent_start_lba) * PAGE_SIZE
+    )
+
+    print(f"Image:              {image.path}")
+    print(f"Chosen extent LBA:  {args.extent_start_lba:,}")
+    print(f"Header base VA:     0x{start.header.virtual_address:012X}")
+    print(f"Header extent size: {pages:,} 512-byte pages")
+    print(
+        f"Source:             LBA {args.source_lba:,}, "
+        f"derived page VA 0x{source_va:012X}, payload +0x{args.offset:03X}"
+    )
+    print(f"Candidate raw:      {pointer_raw.hex(' ').upper()}")
+    print(f"Candidate VA:       0x{candidate_va:012X}")
+    print(f"Resolved target:    LBA {target_lba:,}, payload +0x{target_offset:03X}")
+    print(f"Target header:      {target.header.raw.hex(' ').upper()}")
+    print(
+        "Target bytes:       "
+        + target.data[target_offset:target_offset + args.preview].hex(" ").upper()
+    )
+    print(
+        "This validates only an extent-relative address match. "
+        "The candidate pointer field, module semantics, SMVT and "
+        "storage-directory location remain unverified."
+    )
+    return 0
+
+
 def cmd_asde_probe(args):
     """Inspect an explicit raw ASDE candidate; never discover by guessing."""
 
@@ -8856,6 +8933,24 @@ def build_parser():
         help="maximum occurrence rows to show; 0 lists all",
     )
     labels.set_defaults(func=cmd_storage_labels)
+
+    xref = sub.add_parser(
+        "virtual-xref",
+        help="resolve a selected six-byte candidate pointer within an explicit extent",
+    )
+    xref.add_argument("image")
+    xref.add_argument("extent_start_lba", type=int)
+    xref.add_argument("source_lba", type=int)
+    xref.add_argument("offset", type=int, help="six-byte value's payload offset")
+    xref.add_argument(
+        "--preview",
+        type=int,
+        default=16,
+        choices=range(1, 65),
+        metavar="{1..64}",
+        help="target payload bytes to print (1..64; default 16)",
+    )
+    xref.set_defaults(func=cmd_virtual_xref)
 
     segments = sub.add_parser(
         "segments",
