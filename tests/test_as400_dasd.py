@@ -1250,6 +1250,8 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[0].raw_3fff_occurrences_min, 1)
         self.assertEqual(audit[0].raw_3fff_occurrences_max, 1)
         self.assertEqual(audit[0].raw_3fff_field_count_match_entries, 0)
+        self.assertEqual(audit[0].first_3fff_offset_min, 0)
+        self.assertEqual(audit[0].first_3fff_offset_max, 0)
         self.assertEqual(audit[0].non_3fff_bytes_min, 0)
         self.assertEqual(audit[0].non_3fff_bytes_max, 0)
         self.assertEqual(audit[0].trailing_3fff_run_min, 1)
@@ -1309,6 +1311,36 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[1].machine_length_shortfall_min, 25)
         self.assertEqual(audit[1].min_ordinal_hint, 3)
         self.assertTrue(all(not entry.machine_key for entry in traversal.entries))
+        self.assertTrue(all(not entry.user_key for entry in traversal.entries))
+
+    def test_qddsi_partial_key_audit_tracks_variable_raw_pair_positions(self):
+        # Synthetic compact-tree paths: this only inventories byte positions.
+        # In particular, a raw 3FFF pair is NOT assigned field semantics.
+        keys = (SimpleNamespace(
+            key_count=3, machine_key_length=30, fields=(
+                SimpleNamespace(length_or_fork=47),
+            ),
+        ),)
+        layout = DataSpaceIndexLayout(dkey_count=1, dkey_address=0, keys=keys)
+        entries = tuple(
+            DataSpaceIndexEntry(
+                b"", b"", bytes((0, 0, 0, ordinal)), ordinal * 0x10,
+                dkey_index=0, key_complete=False, key_evidence=body,
+            )
+            for ordinal, body in enumerate(
+                (b"ABC\\x3f\\xff", b"Q\\x3f\\xff", b"\\x3f\\xff"),
+                start=1,
+            )
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries, expected_entries=3, root_offset=0x1000,
+            page_size=2048, page_type=0xCC, free_bytes=0,
+            first_free_offset=0, complete=True,
+        )
+        (audit,) = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual((audit.first_3fff_offset_min,
+                          audit.first_3fff_offset_max), (0, 3))
+        self.assertEqual(audit.raw_3fff_field_count_match_entries, 3)
         self.assertTrue(all(not entry.user_key for entry in traversal.entries))
 
     def test_qddsi_partial_key_audit_counts_raw_3fff_without_decoding_it(self):
