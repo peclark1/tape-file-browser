@@ -762,6 +762,41 @@ class DASDToolTests(unittest.TestCase):
             _tui_inspector_selection_key(state_for(0x11)),
         )
 
+    def test_tui_file_selection_exposes_storage_evidence_and_raw_views(self):
+        file_obj = SimpleNamespace(
+            segment=SimpleNamespace(
+                virtual_address=0x4000,
+                header=SimpleNamespace(
+                    owner=SimpleNamespace(extender=0x20)
+                ),
+            )
+        )
+        state = {
+            "focus": 1,
+            "mid_items": [
+                {
+                    "kind": "file",
+                    "name": "TESTFILE",
+                    "library": "QGPL",
+                    "object": file_obj,
+                    "members": [],
+                }
+            ],
+            "mid_index": 0,
+            "right_items": [],
+            "right_index": 0,
+            "left_items": [],
+            "left_index": 0,
+            "inspector_availability_cache": {},
+        }
+        availability = _tui_inspector_availability(state)
+        self.assertTrue(availability["Summary"])
+        self.assertTrue(availability["Storage"])
+        self.assertTrue(availability["Evidence"])
+        self.assertTrue(availability["Raw"])
+        self.assertFalse(availability["Data"])
+        self.assertFalse(availability["Keys"])
+
     def test_tui_member_prefers_data_when_capability_is_available(self):
         member = SimpleNamespace(
             segment=SimpleNamespace(virtual_address=0x1234),
