@@ -220,6 +220,21 @@ class DASDToolTests(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertIn("outside chosen extent", err.getvalue())
 
+            empty_image = Path(dirname) / "empty.hda"
+            empty_image.write_bytes(bytes(SECTOR_SIZE))
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["virtual-xref-map", str(empty_image), "0"]), 1
+                )
+            self.assertIn("zero/FF storage header", err.getvalue())
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["virtual-xref-map", str(p), "0", "--top", "-1"]), 1
+                )
+            self.assertIn("--top must be non-negative", err.getvalue())
+
     def test_asde_probe_reads_only_bounded_candidate_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "synthetic.hda"
