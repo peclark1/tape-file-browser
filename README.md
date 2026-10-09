@@ -181,6 +181,7 @@ as400-dasd disk-descriptor disk.hda
 as400-dasd dct-evidence disk.hda
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
+as400-dasd storage-labels disk.hda --symbol '#SMSHTDN' --symbol '#SMDR2' --header-groups 8
 as400-dasd virtual-xref disk.hda 65600 68860 376
 as400-dasd virtual-xref-map disk.hda 65600 --alignment 2 --top 16 --names 12
 as400-dasd segments disk.hda
@@ -456,6 +457,19 @@ payload offset, header, and bounded bytes. On Mark's V2R3 image the example
 above resolves a candidate at physical LBA 68,860 to data at payload +0x188,
 corroborating a real local pointer in compiled VMC module metadata. No actual
 SMVT/static-directory or permanent-directory schema is inferred.
+
+The optional `--header-groups N` prints the most common **raw eight-byte
+sector headers** for each exact EBCDIC name, making it easier to separate
+preassigned LIC references from similarly named records elsewhere.
+Exact `#SMSHTDN` shutdown-module references appear in **both** original
+disk images (10 on Mark V2R3, one on Pete B10), with nearby
+`#SMDR2` references in corresponding `A0002D` virtual-address
+regions. This independently corroborates a module/linkage-name
+sequence, **not** the location of the shutdown routine's SMVT checkpoint.
+The System/38 source's SMVT link/loader symbol appears in searchable
+text as `#SMSMVT1` (digit one); `#SMSMVTI` (capital I)
+is deliberately kept as an alternate search spelling. Neither has
+a hit in these two images.
 
 The `storage-labels IMAGE` command defaults to **complete EBCDIC
 space-padded eight-byte candidate names**, not prefix substrings: `#SMSMVT`
