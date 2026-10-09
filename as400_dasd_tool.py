@@ -576,9 +576,10 @@ def _scan_extent_virtual_references(
     source_offsets = Counter()
     pattern_counts = Counter()
     target_distances = Counter()
+    target_record_prefix_counts = Counter()
     examples = []
     total_matches = 0
-    with open(image.path, "rb") as handle:
+    with open(image.path, "rb") as handle, open(image.path, "rb") as target_handle:
         handle.seek(first_source_lba * SECTOR_SIZE)
         for lba in range(first_source_lba, stop_lba):
             raw = handle.read(SECTOR_SIZE)
@@ -596,8 +597,21 @@ def _scan_extent_virtual_references(
                 delta = target_lba - lba
                 total_matches += 1
                 source_offsets[offset] += 1
-                pattern_counts[(offset, delta, target_offset)] += 1
+                pattern_key = (offset, delta, target_offset)
+                pattern_counts[pattern_key] += 1
                 target_distances[delta] += 1
+                # A separately read physical target provides stronger *shape*
+                # evidence than range matching. 02 00 00 00 7B is an observed
+                # module-name record prefix, not a validated directory header.
+                if target_offset <= PAGE_SIZE - 5:
+                    target_handle.seek(
+                        target_lba * SECTOR_SIZE + HEADER_SIZE + target_offset
+                    )
+                    target_prefix = target_handle.read(5)
+                    if len(target_prefix) != 5:
+                        raise ValueError(f"short target read at LBA {target_lba}")
+                    if target_prefix == b"\\x02\\x00\\x00\\x00\\x7b":
+                        target_record_prefix_counts[pattern_key] += 1
                 if len(examples) < example_limit:
                     examples.append((lba, offset, target_lba, target_offset))
 
@@ -610,6 +624,7 @@ def _scan_extent_virtual_references(
         "total_matches": total_matches,
         "source_offsets": source_offsets,
         "patterns": pattern_counts,
+        "target_record_prefix_counts": target_record_prefix_counts,
         "distances": target_distances,
         "examples": tuple(examples),
     }
@@ -636,13 +651,18 @@ def cmd_virtual_xref_map(args):
         f"..{result['stop_lba'] - 1:,}, alignment {args.alignment}"
     )
     print(f"Candidate values within extent: {result['total_matches']:,}")
-    print("Top (source payload offset, target LBA delta, target payload offset):")
+    print(
+        "Top (source payload offset, target page delta, target offset): "
+        "count; of which targets begin with raw 02 00 00 00 7B"
+    )
     for (offset, delta, target_offset), count in result["patterns"].most_common(
         args.top
     ):
+        key = (offset, delta, target_offset)
+        markers = result["target_record_prefix_counts"][key]
         print(
             f"  +0x{offset:03X} -> page {delta:+d}, +0x{target_offset:03X}"
-            f"    {count:,} occurrences"
+            f"    {count:,} occurrences; {markers:,} target prefix matches"
         )
     print("First candidates:")
     for src_lba, src_offset, target_lba, target_offset in result["examples"]:
