@@ -189,14 +189,16 @@ class Guided5250:
     def location(self):
         return "/".join(x for x in (self.library, self.file, self.member) if x) or "All recovered libraries"
 
-    def show_contents(self, member):
+    def show_contents(self, member, *, library=None, file=None):
+        library = self.library if library is None else library
+        file = self.file if file is None else file
         try:
-            lines = list(self.member_loader(self.library, self.file, member))
+            lines = list(self.member_loader(library, file, member))
         except (OSError, ValueError) as exc:
             lines = [f"Recovery error: {exc}"]
         if not lines:
             lines = ["No recoverable member contents in this image."]
-        self._goto("contents", library=self.library, file=self.file,
+        self._goto("contents", library=library, file=file,
                    member=member.member_name.upper(), detail=lines)
         self.status = "Recovered content; this is not a live OS/400 display."
 
@@ -266,8 +268,7 @@ class Guided5250:
                     found = next((m for m in members if m.member_name.upper() == wanted), None)
                     if found is None:
                         raise ValueError(f"Member {lib}/{file}({wanted}) is not recovered.")
-                    self.library, self.file = lib, file
-                    self.show_contents(found)
+                    self.show_contents(found, library=lib, file=file)
             self.command_history.append(text.strip())
             return True
         except ValueError as exc:
@@ -357,11 +358,16 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         curses.A_BOLD if active else 0)
     if active:
         choices = list(suggestions or [])
-        if choices:
-            # Two top matches shown without obscuring the command prompt.
-            for i, item in enumerate(choices[:2]):
-                put(height - 3 + i, 2, f"{'>' if i == suggestion_index else ' '} {item.usage} — {item.description}",
-                    curses.A_REVERSE if i == suggestion_index else curses.A_DIM)
+        visible = max(1, height - 10)
+        first = max(0, min(suggestion_index - visible + 1,
+                            max(0, len(choices) - visible)))
+        put(3, 2, "Matching commands (Up/Down=Select, Tab=Insert, Enter=Run)", curses.A_BOLD)
+        for i, item in enumerate(choices[first:first + visible]):
+            index = first + i
+            put(4 + i, 2, f"{'>' if index == suggestion_index else ' '} {item.usage} — {item.description}",
+                curses.A_REVERSE if index == suggestion_index else curses.A_DIM)
+        put(height - 2, 2, "Esc=Cancel  F4/Tab=Insert selected  Enter=Run",
+            curses.A_REVERSE)
     else:
         put(height - 2, 2, "F1=Help  F3=Exit  F4=Commands  F12=Back  /=Command  PgUp/PgDn=Page",
             curses.A_REVERSE)
@@ -380,11 +386,14 @@ def _command_input(stdscr, model, seed=""):
         if key in (27, curses.KEY_F3, curses.KEY_F12):
             return None
         if key in (10, 13, curses.KEY_ENTER):
-            if not value.strip() and matches:
+            if matches and (
+                not value.strip() or
+                (value.strip().upper() not in _COMMAND_MAP and " " not in value.strip())
+            ):
                 return matches[selected].name
             return value
         if key in (curses.KEY_DOWN, curses.KEY_UP) and matches:
-            selected = (selected + (1 if key == curses.KEY_DOWN else -1)) % min(2, len(matches))
+            selected = (selected + (1 if key == curses.KEY_DOWN else -1)) % len(matches)
         elif key in (curses.KEY_F4, 9) and matches:
             value = matches[selected].usage
         elif key in (curses.KEY_BACKSPACE, 127, 8):
