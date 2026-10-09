@@ -3936,11 +3936,17 @@ def _tui_inspector_selection_key(state):
             )
         if item["kind"] == "context-entry":
             entry = item["entry"]
-            address_key = (
-                entry.object_address.key
-                if entry.object_address is not None
-                else (-1, -1)
-            )
+            if entry.object_address is None:
+                address_key = (-1, -1)
+            else:
+                address_key = getattr(
+                    entry.object_address,
+                    "key",
+                    (
+                        getattr(entry.object_address, "extender", -1),
+                        entry.object_address.address,
+                    ),
+                )
             return (
                 "right",
                 "context-entry",
