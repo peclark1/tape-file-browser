@@ -178,7 +178,10 @@ class DASDToolTests(unittest.TestCase):
                 page_va = base + index * PAGE_SIZE
                 pages[index][0xF8:0xFE] = (page_va + 0x108).to_bytes(6, "big")
                 pages[index][0x178:0x17E] = (page_va + 0x188).to_bytes(6, "big")
+                pages[index][0x108:0x10D] = bytes((2, 0, 0, 0, 0x7B))
+                pages[index][0x188:0x18D] = bytes((2, 0, 0, 0, 0x7B))
             pages[0][0x1F8:0x1FE] = (base + 512 + 8).to_bytes(6, "big")
+            pages[1][0x08:0x0D] = bytes((2, 0, 0, 0, 0x7B))
             p.write_bytes(b"".join(hdr + bytes(page) for page in pages))
             before = p.read_bytes()
 
@@ -197,6 +200,8 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("+0x0F8 -> page +0, +0x108    2 occurrences", output)
             self.assertIn("+0x178 -> page +0, +0x188    2 occurrences", output)
             self.assertIn("+0x1F8 -> page +1, +0x008    1 occurrences", output)
+            self.assertEqual(output.count("2 occurrences; 2 target prefix matches"), 2)
+            self.assertIn("1 occurrences; 1 target prefix matches", output)
             self.assertIn("not verified pointer fields", output)
             self.assertEqual(p.read_bytes(), before)
 
