@@ -504,6 +504,77 @@ identified candidate for an actual static-directory table of
 single-extent ASDEs. Do not blindly search every random 11-byte
 window in these sectors as if a matching value were an ASDE.
 
+### Boot preallocation: independently bounded large extents
+
+IBM SY21-0889-5 chapter 7 describes the System/38
+`#SMASI` auxiliary-storage initialization path reserving
+**two defect-free areas on drive 1 for HMC IMPL segments**, before
+allocating other prebuilt segments and writing the SMVT. This
+is **System/38 documentation**, not a verified rule for OS/400
+V2R3 storage geometry. It provides a limited, testable
+hypothesis for the earliest image extents; it does **not**
+give a physical SMVT checkpoint address.
+
+A read-only header/descriptor cross-check on Mark's **V2R3
+load-source image** begins from the dual-image-correlated
+`DASD  UNIT  DESC` first field: physical relative-record
+zero at **LBA 64**. Following only explicit extent-order sizes
+and comparing *both physical endpoint headers* finds:
+
+| Start–end physical LBAs | Pages | Start header's VA | Last sector has same 5-byte prefix? |
+| --- | ---: | --- | --- |
+| 64–16,447 | 16,384 | `0x0B000000` | **Yes** |
+| 16,448–32,831 | 16,384 | `0x92000000` | **Yes** |
+| 32,832–36,927 | 4,096 | `0x92800000` | **No** (last header prefix is `0x92000000`) |
+
+The first two 16,384-sector runs are adjacent, and their first,
+last and next-start storage headers all reproduce the
+sector-header extent-order arithmetic. Thus they are concrete
+early-IPL *investigation ranges*. Their two-in-a-row layout is
+consistent with the documented **two reserved areas**, but
+there is no data-structure evidence assigning those physical
+ranges to HMC, LIC, the SMVT, or anything else in V2R3.
+
+**Important diagnostic boundary:** the third 4,096-page
+candidate has a different stored 5-byte header prefix on its
+first versus last page, despite the next physical sector
+independently showing another extent-order header. The
+header difference may be due to special first/second-page
+encoding. `bootstrap-extents` **stops at the first prefix
+disagreement** rather than trusting a contiguity inference
+across an unvalidated boundary; it does *not* call that
+extent corrupt, invalid, or free.
+
+On Pete's **B10 non-load-source** image the same
+descriptor-backed physical origin at LBA **2,112** has a
+single extent-order-15 header (a 32,768-page candidate),
+but its computed last page, LBA **34,879**, has a **zero
+header**. The next sector, LBA 34,880, has another
+extent-order-15 header. No analogous preassigned two-extent
+conclusion is justified there: free-space delimiters and
+unallocated sectors on a partial non-load-source image have
+different survival properties.
+
+**Reproduce:** `as400-dasd bootstrap-extents IMAGE --limit 8`.
+The diagnostic independently validates LBA-32 descriptor
+geometry and origin predecessor before following candidate
+extent sizes. It reports first/end/next raw header prefixes
+and stops on disagreement. It is intentionally conservative,
+does not stream image payloads, and does not read/write
+recovered source. Synthetic tests cover two continuous
+extents, mismatch stopping, descriptor validation and
+read-only behavior.
+
+**Next evidence gate:** find a **real pointer into a persisted
+SMVT checkpoint** or identify a static-directory table
+that can be independently verified against multiple observed
+extents. Two physically adjacent reserved-size allocations
+alone cannot establish a checkpoint or a permanent-directory
+root. If period CISC loader documentation and these bounded
+tests cannot provide a pointer chain, the project should
+pause speculative ASDE parsing and advance the next
+bounded backlog item (eight compressed QDDSI key families).
+
 ## Next reproducible experiments (read-only)
 
 1. Inventory candidate VMC/SMVT/static-directory locations from period
