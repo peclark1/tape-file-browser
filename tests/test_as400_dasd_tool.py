@@ -82,6 +82,36 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_dct_raw_slot_evidence_is_read_only(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            image = Path(dirname) / "slots.hda"
+            sectors = [bytearray(PAGE_SIZE + 8) for _ in range(34)]
+            sector = sectors[33]
+            sector[8:10] = (2).to_bytes(2, "big")
+            sector[8 + 0x18:8 + 0x20] = "DCT 0100".encode("cp037")
+            sector[8 + 0x20] = 1
+            sector[8 + 0x40] = 2
+            image.write_bytes(b"".join(sectors))
+            before = image.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["dct-evidence", str(image)]), 0)
+            output = out.getvalue()
+            self.assertIn("DCT 0100", output)
+            self.assertIn("Candidate count BE16:  2", output)
+            self.assertIn("Populated 32-byte slots: 2", output)
+            self.assertIn("Extra nonzero 32-byte slots after candidate count: 0", output)
+            self.assertIn("not formal IBM DCT", output)
+            self.assertEqual(image.read_bytes(), before)
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["dct-evidence", str(image), "--lba", "32"]), 1
+                )
+            self.assertIn("exact EBCDIC", err.getvalue())
+
     def test_disk_descriptor_geometry_and_physical_header_boundary(self):
         with tempfile.TemporaryDirectory() as dirname:
             image = Path(dirname) / "descriptor.hda"
