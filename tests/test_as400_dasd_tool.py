@@ -292,7 +292,8 @@ class DASDToolTests(unittest.TestCase):
                     "--substring", "--symbol", "#SMSMVT",
                 ])
             self.assertEqual(rc, 0)
-            self.assertIn("#SMSMVT: 3", stdout.getvalue())
+            # Deliberate prefix mode also matches the distinct #SMSMVT1.
+            self.assertIn("#SMSMVT: 4", stdout.getvalue())
             self.assertIn("CP037 substring", stdout.getvalue())
 
             stderr = io.StringIO()
