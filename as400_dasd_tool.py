@@ -27,6 +27,7 @@ from as400_dasd import (
     ContextIndexEntry,
     DASDImage,
     DASDUnitDescriptorEvidence,
+    DCTRawEvidence,
     DENT_V2_DELETED,
     DENT_V2_LIVE,
     Extent,
@@ -477,6 +478,38 @@ def cmd_disk_descriptor(args):
         "The first two fields and label are OBSERVED on B10 and V2R3"
         " images; their official IBM names and surrounding binary"
         " record layout remain unverified. No SMVT/ASDE is inferred."
+    )
+    return 0
+
+
+
+def cmd_dct_evidence(args):
+    """Compare raw counted DCT slots with the label, without field guesses."""
+    image = _open(args.image)
+    sector = image.read_sector(args.lba)
+    evidence = DCTRawEvidence(sector.data)
+    print(f"Image:                 {image.path}")
+    print(f"Physical LBA:          {sector.lba:,}")
+    print(f"Observed CP037 label:  {evidence.observed_label!r} at payload +0x018")
+    print(f"Candidate count BE16:  {evidence.candidate_slot_count:,}")
+    print(
+        f"Populated 32-byte slots: {evidence.populated_slot_count:,}"
+    )
+    print(
+        "Extra nonzero 32-byte slots after candidate count: "
+        f"{evidence.trailing_slots_nonzero:,}"
+    )
+    print("Raw slot shape (first 8 bytes only; remaining fields unknown):")
+    for index, slot in enumerate(evidence.raw_slots):
+        print(
+            f"  slot {index + 1:>2} at payload"
+            f" +0x{0x20 + 0x20 * index:03X}: "
+            f"{slot[:8].hex(' ').upper()}, nonzero bytes"
+            f" {sum(bool(x) for x in slot)}/32"
+        )
+    print(
+        "Slot count/stride are observed on two disks, not formal IBM DCT "
+        "semantics; a DCT record alone is not an SMVT or ASDE."
     )
     return 0
 
@@ -9247,6 +9280,17 @@ def build_parser():
         help="physical descriptor sector (observed at LBA 32 on both images)",
     )
     descriptor.set_defaults(func=cmd_disk_descriptor)
+
+    dct = sub.add_parser(
+        "dct-evidence",
+        help="report raw counted slots in observed bootstrap DCT records",
+    )
+    dct.add_argument("image")
+    dct.add_argument(
+        "--lba", type=int, default=33,
+        help="physical DCT sector (observed at LBA 33 on both images)",
+    )
+    dct.set_defaults(func=cmd_dct_evidence)
 
     asde = sub.add_parser(
         "asde-probe",
