@@ -739,6 +739,29 @@ class DASDToolTests(unittest.TestCase):
         lines = _tui_viewer_lines(state)
         self.assertIn("No meaningful data", "\n".join(lines))
 
+    def test_tui_inspector_cache_key_includes_owner_extender(self):
+        def state_for(extender):
+            owner = SimpleNamespace(extender=extender)
+            segment = SimpleNamespace(
+                virtual_address=0x1234,
+                header=SimpleNamespace(owner=owner),
+            )
+            obj = SimpleNamespace(segment=segment)
+            return {
+                "focus": 2,
+                "right_items": [{"kind": "object", "object": obj}],
+                "right_index": 0,
+                "mid_items": [],
+                "mid_index": 0,
+                "left_items": [],
+                "left_index": 0,
+            }
+
+        self.assertNotEqual(
+            _tui_inspector_selection_key(state_for(0x10)),
+            _tui_inspector_selection_key(state_for(0x11)),
+        )
+
     def test_tui_member_prefers_data_when_capability_is_available(self):
         member = SimpleNamespace(
             segment=SimpleNamespace(virtual_address=0x1234),
