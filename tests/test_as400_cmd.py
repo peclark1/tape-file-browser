@@ -2,6 +2,8 @@
 import unittest
 from types import SimpleNamespace as NS
 
+from as400_dasd_tool import _tui_command_information_lines
+
 from as400_cmd import (
     candidate_processor,
     candidate_command_description,
@@ -76,6 +78,41 @@ class CommandEvidenceTests(unittest.TestCase):
         self.assertIn("Synthetic Command", screen)
         self.assertIn("Parameters         : Not yet structurally decoded", screen)
         self.assertIn("NOT verified command parameters", screen)
+
+    def test_real_reader_uses_extent_pages_and_never_writes(self):
+        primary = bytearray(self.sample())
+        descriptor = "QTESTCMD   *LIBL     TESTCMD"
+        title = "Display Synthetic Definition"
+        primary[0x200:0x200 + len(descriptor)] = descriptor.encode("cp037")
+        primary[0x2B8:0x2B8 + len(title)] = title.encode("cp037")
+
+        class ReadOnlyImage:
+            def __init__(self, data):
+                self.data = data
+                self.read_lbas = []
+            def read_sector(self, lba):
+                self.read_lbas.append(lba)
+                return NS(data=self.data[(lba - 100) * 512:
+                                         (lba - 99) * 512])
+
+        image = ReadOnlyImage(bytes(primary))
+        segment = NS(
+            extents=(NS(start_lba=100, pages=3),),
+            virtual_address=0x101000, start_lba=100, pages=3)
+        obj = NS(name="TESTCMD", library_name="TESTLIB",
+                 object_type=0x19, object_subtype=0x05, segment=segment)
+        lines = _tui_command_information_lines({"image": image}, obj)
+        result = "\n".join(lines)
+        self.assertIn(title, result)
+        self.assertIn("QTESTPGM", result)
+        self.assertEqual([100, 101, 102], image.read_lbas)
+        self.assertEqual(1536, 3 * 512)
+        # Verify a wrong object type cannot accidentally trigger raw reads.
+        image.read_lbas.clear()
+        obj.object_subtype = 1
+        self.assertIn("not a recovered *CMD",
+                      "\n".join(_tui_command_information_lines({"image": image}, obj)))
+        self.assertEqual([], image.read_lbas)
 
     def test_short_data_does_not_create_processor_or_fake_help(self):
         obj = NS(name="EMPTY", library_name=None,
