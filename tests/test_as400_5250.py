@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace as NS
 
 from as400_5250 import Guided5250, command_matches, parse_command
+from as400_dasd_tool import build_parser
 
 
 def object_record(name, library="QGPL", *, type_code=(0x19, 0x01),
@@ -55,6 +56,14 @@ class Guided5250Tests(unittest.TestCase):
             member_info=lambda member: NS(member_type="CLP", text="Sample source"),
             member_loader=lambda library, file, member: [
                 f"Source records: {library}/{file}({member.member_name})", "0010  DCL VAR(&N)"])
+
+    def test_cli_exposes_guided_browser_without_replacing_forensic_browser(self):
+        parser = build_parser()
+        guided = parser.parse_args(["browse5250", "sample.hda"])
+        forensic = parser.parse_args(["browse", "sample.hda"])
+        self.assertEqual("cmd_browse5250", guided.func.__name__)
+        self.assertEqual("sample.hda", guided.image)
+        self.assertEqual("cmd_browse", forensic.func.__name__)
 
     def test_catalog_supports_descriptions_and_search(self):
         matches = command_matches("wrk")
