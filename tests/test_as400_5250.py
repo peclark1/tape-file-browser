@@ -6,6 +6,7 @@ from unittest.mock import patch
 from as400_5250 import (
     Guided5250, _back_or_edit_option, command_matches, parse_command, run_curses,
 )
+from as400_dasd import RecoveredObject
 from as400_dasd_tool import build_parser
 
 
@@ -67,6 +68,12 @@ class Guided5250Tests(unittest.TestCase):
         self.assertEqual("cmd_browse5250", guided.func.__name__)
         self.assertEqual("sample.hda", guided.image)
         self.assertEqual("cmd_browse", forensic.func.__name__)
+
+    def test_documented_command_object_type_mapping(self):
+        cmd = NS(object_type=0x19, object_subtype=0x05)
+        file_object = NS(object_type=0x19, object_subtype=0x01)
+        self.assertEqual("*CMD", RecoveredObject.external_type_hint.fget(cmd))
+        self.assertEqual("*FILE", RecoveredObject.external_type_hint.fget(file_object))
 
     def test_catalog_supports_descriptions_and_search(self):
         matches = command_matches("wrk")
