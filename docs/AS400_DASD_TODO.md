@@ -404,6 +404,13 @@ follow-ups, not prerequisites for the current browser milestone. See
       Add bounded `bootstrap-map` and synthetic image non-modification
       and range regression coverage; these remain labels, not decoded
       structures.
+- [x] Decode only two empirically corroborated fields of the physical
+      `DASD  UNIT  DESC` at LBA 32: 4-byte BE physical origin and
+      4-byte BE managed-sector count. Both images satisfy
+      `origin + managed_count == physical image sector count`, and
+      the physical header at that origin is independently nonzero
+      while its predecessor is zero. Add `DASDUnitDescriptorEvidence`,
+      `disk-descriptor` and synthetic mismatch/read-only regressions.
 - [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
       through independently corroborated startup loader or control-block
       references (not EBCDIC module-name counts).
