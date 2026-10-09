@@ -270,6 +270,12 @@ Navigation:
 - Up/Down select an entry; Enter opens the selected library, file, or member.
 - Type **12** then Enter to work with a selected library or file.
 - Type **5** then Enter to display a selected member or object details.
+- Enter (or **5**) on an OS/400 **`*CMD`** object opens a recovered
+  **Command Information** screen. The object name, library, MI 19/05 type,
+  primary disk address and byte counts are verified. Candidate processing
+  program and title strings are marked **tentative**; parameter definitions
+  are not yet decoded from V2R3 on-disk metadata.
+- Type **8** on a command object to see ordinary object details instead.
 - F4 opens the searchable command catalog with descriptions; type to filter,
   Up/Down to select, Tab to insert an example, Enter to run.
 - Type a command directly or press `/` to enter one.
@@ -298,6 +304,12 @@ Other OS/400 commands, including live-job and destructive commands, are
 **not executed**. Real recovered image data is shown, with **[dir]** for
 directory-only identities and **[member-only]** when member cursors survive
 without their file primary. Unrecoverable content is not fabricated.
+
+The `*CMD` inspector uses a bounded 8 KiB virtual-order primary sample,
+with at most 64 EBCDIC string clues. It does **not** execute commands or
+interpret a plausible on-disk string as a validated parameter/default.
+See [V2R3 *CMD research notes](docs/AS400_CMD_RESEARCH.md) for actual
+specimen comparisons, tentative offset relationships, and evidence gates.
 
 The guided renderer escapes any recovered NUL, ESC, or other control
 characters for **display only** (for example, `\\x00`); the source bytes
