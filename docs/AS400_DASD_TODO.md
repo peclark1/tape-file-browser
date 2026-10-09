@@ -79,6 +79,17 @@ depending on experimental ASDE changes.
 - [x] Stop presenting every positive DKYT location as a QDDS record offset.
       Only print `record +N` when a recovered format field independently
       matches both offset and length; otherwise label the value raw/unverified.
+- [x] Read-only RRN-correlated QDDS comparison now exactly reproduces
+      all **52/52** partial terminal *tree bodies* in QAOKS04A/S05A:
+      descriptor row 1 (8-byte field at one-based location 9) gives S04's
+      literal prefix and row 2 (8-byte field at location 17) gives S05's.
+      Stripping right EBCDIC blanks from the independently recovered QDDS
+      field gives all 13 prefixes under both DKEY rows per index; the three
+      trailing raw `3FFF` pairs are preserved verbatim. These are **not**
+      complete user/machine-key reconstructions, and the identical DKYT
+      location-zero first field does not identify the two distinct sources.
+      A bounded candidate-audit helper and synthetic negative tests were
+      added; no recovered user data was committed.
 - [ ] Resolve the intermediate/source-field mapping for QAOKS02A through
       QAOKS05A and the architectural meaning of the per-field `3FFF` marker
       / raw +0x14 transform. Do not synthesize missing maximum-field bytes or
