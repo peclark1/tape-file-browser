@@ -1,5 +1,7 @@
 """IBM MI object catalog: provenance, mapping and fail-closed validation tests."""
 import unittest
+import io
+from contextlib import redirect_stderr, redirect_stdout
 from types import SimpleNamespace as NS
 
 from as400_object_types import (
@@ -8,7 +10,7 @@ from as400_object_types import (
 )
 from as400_dasd import RecoveredObject
 from as400_5250 import Guided5250
-from as400_dasd_tool import _tui_object_type_context
+from as400_dasd_tool import _tui_object_type_context, main
 
 
 class CatalogTests(unittest.TestCase):
@@ -67,6 +69,23 @@ class CatalogTests(unittest.TestCase):
         self.assertIsNone(lookup(None))
         self.assertIsNone(lookup("1905/3"))
         self.assertEqual("*CMD", lookup("19/05").name)
+
+    def test_cli_lookup_and_filter_without_disk_image(self):
+        with io.StringIO() as stream, redirect_stdout(stream):
+            self.assertEqual(0, main(["types", "19/D4"]))
+            result = stream.getvalue()
+        self.assertIn("*DBRCVR", result)
+        self.assertIn("internal", result)
+        self.assertIn("www.ibm.com/docs", result)
+        with io.StringIO() as stream, redirect_stdout(stream):
+            self.assertEqual(0, main(["types", "--category", "external"]))
+            result = stream.getvalue()
+        self.assertIn("*MENU", result)
+        self.assertNotIn("*DBRCVR", result)
+        self.assertIn("102 IBM documented types", result)
+        with io.StringIO() as stream, redirect_stderr(stream):
+            self.assertEqual(1, main(["types", "FE/FF"]))
+            self.assertIn("unknown MI object code", stream.getvalue())
 
     def test_tsv_parser_rejects_invalid_entries_and_duplicates(self):
         args = dict(category="internal", source="synthetic")
