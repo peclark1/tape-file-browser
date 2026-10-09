@@ -90,12 +90,15 @@ class DASDToolTests(unittest.TestCase):
             user_length_over_field_bytes=4,
             sequence_01_field_count=2,
             qaok_two_byte_pattern_matches=True,
+            qaok_adjacent_stride_counts=(2, 2),
         )
         result = _qddsi_key_length_evidence(pattern)
         self.assertIn("DKYT lengths sum 104", result)
         self.assertIn("unexplained difference +4", result)
         self.assertIn("seq=0x01 positive-length rows 2", result)
         self.assertIn("byte meaning unknown", result)
+        self.assertIn("adjacent DKYT location spacing 2/2", result)
+        self.assertIn("not proven record offsets", result)
         other = SimpleNamespace(
             declared_field_bytes=104,
             user_key_length=107,
