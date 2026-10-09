@@ -86,6 +86,19 @@ class Guided5250Tests(unittest.TestCase):
         self.assertIn("Database Recovery Object", desc)
         self.assertIn("not currently decoded", desc)
 
+    def test_interactive_profile_and_menu_object_type_mappings(self):
+        expected = {
+            (0x0E, 0xC4): ("*INTPRF", "Interactive Profile"),
+            (0x19, 0x16): ("*MENU", "menu description"),
+        }
+        for (obj_type, subtype), (label, meaning) in expected.items():
+            with self.subTest(type=f"{obj_type:02X}/{subtype:02X}"):
+                obj = NS(object_type=obj_type, object_subtype=subtype)
+                self.assertEqual(label, RecoveredObject.external_type_hint.fget(obj))
+                detail = _tui_object_type_context(obj_type, subtype)
+                self.assertIn(meaning.lower(), detail.lower())
+                self.assertIn("not currently decoded", detail)
+
     def test_five_historical_mi_object_type_labels_and_context(self):
         expected = {
             (0x19, 0xE0): ("*ADO", "Asynchronous Distribution Object"),
