@@ -147,6 +147,42 @@ AS/400 nucleus uses the identical exact compiled module label, location or
 layout. A distinct `#SMSMVTN` name could reflect a release-specific
 identifier or another relationship; its role is still unknown.
 
+### Independently cross-checked extent-relative VMC references
+
+This is **positive address evidence**, unlike the earlier name-only search.
+On Mark's V2R3 load-source image:
+
+1. Physical **LBA 65,600** begins an observed 4,096-page extent with
+   sector header `00 00 11 00 00 0C 00 00` (the known header-order
+   interpretation gives base virtual address `0x000011000000`).
+   Its physical extent spans **LBA 65,600..69,695**, consistent with the
+   adjoining different-address extent at LBA 69,696.
+2. The virtual byte address derived for physical **LBA 68,860** is
+   `0x000011197800`: `0x000011000000 + (68860 - 65600) * 512`.
+3. Two six-byte big-endian values **within LBA 68,860's payload** resolve
+   back into that same independently mapped physical page:
+   - At payload **+0x178**, value `0x000011197988` points to
+     payload **+0x188** (a structured row containing the eight-byte
+     `#SMLAD  ` name).
+   - At payload **+0x180**, value `0x0000111979A0` points to
+     payload **+0x1A0** (a distinct binary entry beginning with
+     `08 80 03 EA`).
+
+The exact value-to-target arithmetic and pointer widths can be repeated
+with `as400-dasd virtual-xref IMAGE 65600 68860 376` and
+`as400-dasd virtual-xref IMAGE 65600 68860 384`.
+This command requires the caller to supply a physically corroborated
+extent start and a pointer offset; it does **not** locate a directory, choose
+a candidate field automatically, or assign a VMC module schema.
+
+The page also contains two `#SMSMVTN` references (payload +0x88 and
++0x198), with a repeated structured header near the first. The agreement
+supports the narrower hypothesis that this is compiled VMC
+module/linkage metadata with live internal pointers. It does **not**
+establish that the initialized SMVT table, static directory, or permanent
+directory root begins at this page. Further pointer-following must
+distinguish metadata linkage from actual directory contents.
+
 ### Stronger evidence required
 
 Instead of following the first substring hit as a presumed SMVT location,
