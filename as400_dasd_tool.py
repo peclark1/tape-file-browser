@@ -468,6 +468,8 @@ def _resolve_extent_relative_address(image, extent_start_lba, address):
 
     start = image.read_sector(extent_start_lba)
     header = start.header
+    if header.is_zero or header.is_ff:
+        raise ValueError("chosen extent has a zero/FF storage header")
     if not header.page_aligned:
         raise ValueError("chosen extent header is not 512-byte aligned")
     pages = header.extent_pages
@@ -557,6 +559,8 @@ def _scan_extent_virtual_references(
     if sectors is not None and sectors < 1:
         raise ValueError("sectors must be positive")
     header = image.read_sector(extent_start_lba).header
+    if header.is_zero or header.is_ff:
+        raise ValueError("chosen extent has a zero/FF storage header")
     if not header.page_aligned:
         raise ValueError("extent header virtual address is not page-aligned")
     pages = header.extent_pages
@@ -633,6 +637,8 @@ def _scan_extent_virtual_references(
 def cmd_virtual_xref_map(args):
     """Print bounded candidate VA correlations for one caller-selected extent."""
 
+    if args.top < 0:
+        raise ValueError("--top must be non-negative")
     image = _open(args.image)
     result = _scan_extent_virtual_references(
         image,
