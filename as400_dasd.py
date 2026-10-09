@@ -2989,6 +2989,94 @@ def audit_partial_data_space_index_keys(
     return tuple(groups)
 
 
+
+@dataclass(frozen=True)
+class DataSpaceIndexLiteralPrefixCandidateAudit:
+    """Counts for one caller-supplied, UNVERIFIED record-field hypothesis.
+
+    Evidence is matched against recovered tree text before the FIRST raw 3FFF
+    pair. This does not establish that 3FFF is a field delimiter or that the
+    matched record field is the source of a complete machine key.
+    """
+
+    record_offset: int
+    field_length: int
+    candidate_entries: int
+    compared_entries: int
+    exact_matches: int
+    nonempty_exact_matches: int
+    empty_exact_matches: int
+    missing_live_records: int
+    no_raw_pair: int
+
+
+def audit_partial_index_literal_prefix_candidate(
+    traversal: DataSpaceIndexTraversal,
+    records: tuple[DataSpaceRecord, ...],
+    *,
+    record_offset: int,
+    field_length: int,
+) -> DataSpaceIndexLiteralPrefixCandidateAudit:
+    """Test a bounded source-field candidate against partial QDDSI tree text.
+
+    The record offset and width must come from independent QDDS evidence,
+    not unverified DKYT locations. A candidate's EBCDIC blank padding is
+    stripped for comparison ONLY; neither index entries nor record bytes
+    are altered. Excludes complete keys, records without an ordinary live
+    status, and tree evidence with no literal raw 3FFF pair.
+    """
+
+    if record_offset < 0 or field_length <= 0:
+        raise ValueError("record candidate needs nonnegative offset and positive width")
+
+    by_ordinal: dict[int, DataSpaceRecord] = {}
+    for record in records:
+        if record.ordinal in by_ordinal:
+            raise ValueError("duplicate QDDS record ordinal in prefix candidate audit")
+        by_ordinal[record.ordinal] = record
+
+    candidates = compared = exact = nonempty = empty = missing = no_pair = 0
+    for entry in traversal.entries:
+        if entry.key_complete:
+            continue
+        candidates += 1
+        marker_at = entry.key_evidence.find(b"\x3f\xff")
+        if marker_at < 0:
+            no_pair += 1
+            continue
+        rrn = entry.ordinal_hint
+        record = by_ordinal.get(rrn) if rrn is not None else None
+        if (
+            rrn is None or rrn == 0 or record is None or
+            not record.is_live_hint or
+            record_offset + field_length > len(record.data)
+        ):
+            missing += 1
+            continue
+        compared += 1
+        candidate = record.data[
+            record_offset : record_offset + field_length
+        ].rstrip(b"\x40")
+        if candidate == entry.key_evidence[:marker_at]:
+            exact += 1
+            if candidate:
+                nonempty += 1
+            else:
+                empty += 1
+
+    return DataSpaceIndexLiteralPrefixCandidateAudit(
+        record_offset=record_offset,
+        field_length=field_length,
+        candidate_entries=candidates,
+        compared_entries=compared,
+        exact_matches=exact,
+        nonempty_exact_matches=nonempty,
+        empty_exact_matches=empty,
+        missing_live_records=missing,
+        no_raw_pair=no_pair,
+    )
+
+
 def decode_context_machine_index(
     data: bytes,
     *,
