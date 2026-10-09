@@ -3819,6 +3819,12 @@ def cmd_member(args):
                                 f"{group.observed_partial_entries:,}"
                             )
                             print(
+                                f"      first raw 3FFF pair offset in tree body: "
+                                f"{group.first_3fff_offset_min}.."
+                                f"{group.first_3fff_offset_max} "
+                                "(byte offset; interpretation unknown)"
+                            )
+                            print(
                                 f"      bytes other than counted 3FFF pairs: "
                                 f"{group.non_3fff_bytes_min}.."
                                 f"{group.non_3fff_bytes_max}; "
