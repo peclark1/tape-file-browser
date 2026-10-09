@@ -450,7 +450,13 @@ follow-ups, not prerequisites for the current browser milestone. See
       non-load-source LBA 2,112 delimiter does not pass the same
       endpoint check. Add read-only `bootstrap-extents` with
       synthetic agreement/disagreement and input-preservation
-      tests. System/38 documentation mentions two HMC-IMPL
+      tests. Optional `--occupancy` independently counts zero/sparse/
+      dense payloads: Mark's first 16,384-page run has 141 zero and
+      13,182 high-density (>400 nonzero bytes) pages; its second
+      has 3,002 zero and 9,374 high-density pages. Exact nearby
+      `SMVT`/`CHECKPOINT` text remains compiled/diagnostic
+      evidence, not a checkpoint location.
+      System/38 documentation mentions two HMC-IMPL
       allocations; **do not** equate the V2R3 extents with these
       allocations without additional evidence.
 - [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
