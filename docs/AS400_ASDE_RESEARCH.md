@@ -316,6 +316,48 @@ must **not** use the headers to infer their virtual addresses.
 The first page of Mark's previously established preassigned
 virtual extent begins at LBA 64.
 
+### Independently corroborated DASD unit descriptor geometry
+
+**High-confidence cross-image observation (B10 and V2R3):**
+both physical LBA **32** payloads contain exact EBCDIC CP037
+`DASD  UNIT  DESC` at offset `+0x40`. The first eight payload
+bytes give two big-endian 32-bit values. No IBM manual has yet
+established the formal field names, but the arithmetic is exact:
+
+| Independent image | Raw field 1 at +0x00 | Raw field 2 at +0x04 | Sum / actual image sectors |
+| --- | ---: | ---: | ---: |
+| Mark V2R3 | 64 (`0x40`) | 1,931,201 (`0x1D77C1`) | 1,931,265 / 1,931,265 |
+| Pete B10 | 2,112 (`0x840`) | 614,280 (`0x95F88`) | 616,392 / 616,392 |
+
+Independent corroboration: Mark's first nonzero managed-sector
+storage header appears at physical LBA **64**, exactly the first raw
+value; the immediately preceding header at 63 is all zero. Pete's
+image likewise has a nonzero storage header at LBA **2,112** and an
+all-zero header at 2,111, even though the first managed page's
+**payload** happens to be zero.
+
+Therefore a defensible *observed* interpretation is
+`first four bytes = physical relative-record-zero origin` and
+`next four = managed-sector count`, with their sum equal to total
+disk sectors. This is a **dual-image, independent header and file
+length check**; it does not derive from the earlier speculative VMC
+name/pointer reference scans. Treat that interpretation as observed
+until the formal IBM record layout is found, and do not assume
+other words in the record are understood.
+
+**Reproduce:** `as400-dasd disk-descriptor IMAGE` (default physical
+LBA 32). The command insists on the exact EBCDIC payload label,
+prints the two raw BE 32-bit values, checks their sum against the
+image sector count, and checks the immediately preceding and
+at-origin eight-byte storage headers. It **reports mismatches**
+rather than forcing them to pass. The input file is read-only.
+
+This geometry record narrows our future SMVT-checkpoint search to
+the explicitly managed region on Mark's load-source disk, while
+confirming that low physical sectors **before** relative record zero
+are not ordinary managed CISC pages. It does **not** identify the
+SMVT checkpoint itself.
+
 The repeated physical LBAs and literal labels give a concrete
 bootstrap/low-level record comparison. The different `DCT` trailing
 versions are *observed text*, not yet a decoded format version.
