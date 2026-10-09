@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from as400_dasd import (
+    ASDEEntryEvidence,
+    ASDE_DOCUMENTED_CH7_SIZES,
     CONTEXT_MACHINE_INDEX_PAGE_SIZE,
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
@@ -204,6 +206,31 @@ def write_image(path, sectors):
         for header, payload in sectors:
             handle.write(header)
             handle.write(payload)
+
+
+class ASDEEvidenceTests(unittest.TestCase):
+    def test_chapter7_length_families_split_without_field_interpretation(self):
+        self.assertEqual(ASDE_DOCUMENTED_CH7_SIZES, (11, 16, 21, 26))
+        for count in range(1, 5):
+            raw = b"PREFIX" + b"".join(
+                bytes([index]) * 5
+                for index in range(1, count + 1)
+            )
+            with self.subTest(extents=count):
+                entry = ASDEEntryEvidence(raw)
+                self.assertEqual(entry.raw, raw)
+                self.assertEqual(entry.extent_count, count)
+                self.assertEqual(entry.prefix_raw, b"PREFIX")
+                self.assertEqual(
+                    entry.descriptors_raw,
+                    tuple(bytes([index]) * 5 for index in range(1, count + 1)),
+                )
+
+    def test_ambiguous_or_truncated_candidate_lengths_are_rejected(self):
+        for size in (0, 5, 10, 12, 18, 22, 28, 27):
+            with self.subTest(length=size):
+                with self.assertRaisesRegex(ValueError, "ASDE candidate length"):
+                    ASDEEntryEvidence(bytes(size))
 
 
 class DASDHeaderTests(unittest.TestCase):
