@@ -178,6 +178,7 @@ as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd bootstrap-map disk.hda --sectors 64
 as400-dasd disk-descriptor disk.hda
+as400-dasd dct-evidence disk.hda
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
 as400-dasd virtual-xref disk.hda 65600 68860 376
@@ -400,6 +401,19 @@ q / Esc         quit
 ```
 
 ### Storage-directory / ASDE research
+
+The `dct-evidence IMAGE` diagnostic inspects the distinct LBA-33
+`DCT NNNN` label, its candidate BE16 slot count, and raw 32-byte
+slots at payload +0x20. Mark's V2R3 record has one populated slot;
+Pete's B10 record has two. The `DCT` expansion, slot field names,
+and label suffix meanings remain unknown.
+
+Mark's LBA-32 descriptor also has otherwise-unnamed words
+`+0x08=148224`, `+0x0C=64`: their sum, physical LBA **148288**,
+independently lands on a nonzero storage-header/64-page extent
+boundary immediately after zero-header sectors, followed by the
+literal `DELETED EXTENT` marker. Both words are zero on Pete's
+non-load-source disk. This does not identify the SMVT checkpoint.
 
 The `disk-descriptor IMAGE` diagnostic checks the exact CP037
 `DASD  UNIT  DESC` label at physical LBA 32. The first two BE u32
