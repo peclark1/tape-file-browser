@@ -178,6 +178,7 @@ as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd bootstrap-map disk.hda --sectors 64
 as400-dasd disk-descriptor disk.hda
+as400-dasd bootstrap-extents disk.hda --limit 8
 as400-dasd dct-evidence disk.hda
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
@@ -415,6 +416,17 @@ independently lands on a nonzero storage-header/64-page extent
 boundary immediately after zero-header sectors, followed by the
 literal `DELETED EXTENT` marker. Both words are zero on Pete's
 non-load-source disk. This does not identify the SMVT checkpoint.
+
+The companion read-only `bootstrap-extents IMAGE --limit N`
+diagnostic begins from the geometry-corroborated disk-unit descriptor
+origin and follows only bounded, physically adjacent extent-order
+candidates whose *first and last storage headers* independently
+share their base prefix. It stops when they disagree. Mark's
+V2R3 load-source disk begins with two back-to-back 16,384-page
+runs (LBAs 64–16,447 and 16,448–32,831); IBM's System/38 manual
+mentions two defect-free areas reserved for HMC initial loading,
+but that **does not yet identify these actual V2R3 ranges as HMC
+or locate the persisted SMVT checkpoint**. See the ASDE research note.
 
 The `disk-descriptor IMAGE` diagnostic checks the exact CP037
 `DASD  UNIT  DESC` label at physical LBA 32. The first two BE u32
