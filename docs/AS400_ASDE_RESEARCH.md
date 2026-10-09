@@ -124,6 +124,15 @@ LBA 68,342, payload offset `0x108`, again near compiled module metadata.
 These are **potential linker/name-reference structures**, not identified
 resident SMVT records or storage-directory root pointers.
 
+An additional raw-byte corroboration strengthens that *limited* classification:
+**324 of 332** `#SMSMVTN` names are immediately preceded (in the same
+512-byte payload) by four bytes `02 00 00 00`; **295 of 332** occur in
+physical sectors whose eight-byte storage headers are `00 00 11 00 00 0C
+00 00` (others are in smaller groups or isolated sectors). Thus many
+appear to be entries of a recurring compiled-name/reference representation.
+The four-byte prefix itself is **not** assigned a semantic field name.
+`storage-labels` prints the preceding four bytes for each listed hit.
+
 **Reproduce with the CLI:** `as400-dasd storage-labels IMAGE` now defaults
 to space-padded eight-byte name matching (reporting both `#SMSMVT` and
 `#SMSMVTN` separately). To reproduce the older inflated 332 count for
