@@ -336,6 +336,72 @@ class DASDHeaderTests(unittest.TestCase):
         raw = bytes(range(30))
         self.assertEqual(fields[0].decode_value(raw), raw.hex().upper())
 
+    def test_file_format_references_preserve_fcb_occurrence_order(self):
+        file_obj = SimpleNamespace(
+            object_type=0x19,
+            object_subtype=0x01,
+            segment=object(),
+        )
+
+        def format_obj(name, extender, address, lba):
+            return SimpleNamespace(
+                object_type=0x19,
+                object_subtype=0x51,
+                name=name,
+                epa=SimpleNamespace(
+                    name_raw=name.encode("cp037").ljust(10, b"\x40")
+                ),
+                segment=SimpleNamespace(
+                    header=SimpleNamespace(
+                        owner=SimpleNamespace(extender=extender)
+                    ),
+                    virtual_address=address,
+                    start_lba=lba,
+                ),
+                object_address=InternalAddress(extender, address),
+            )
+
+        later_alpha = format_obj("ALPHAFMT", 0x10, 0x3000, 30)
+        earlier_zeta = format_obj("ZETAFMT", 0x10, 0x2000, 20)
+        zeta_name = earlier_zeta.epa.name_raw[:10]
+        alpha_name = later_alpha.epa.name_raw[:10]
+        data = (
+            b"\x00" * 32
+            + zeta_name
+            + b"\x00" * 5
+            + earlier_zeta.object_address.to_bytes()
+            + b"\x00" * 17
+            + alpha_name
+            + b"\x00" * 11
+            + zeta_name
+        )
+        fake_image = SimpleNamespace(
+            read_segment_bytes=lambda _segment: data,
+        )
+        inventory = SimpleNamespace(
+            objects=[later_alpha, earlier_zeta],
+        )
+
+        refs = DASDImage.file_format_references(
+            fake_image,
+            file_obj,
+            inventory,
+        )
+        self.assertEqual(
+            [reference.format_object.name for reference in refs],
+            ["ZETAFMT", "ALPHAFMT"],
+        )
+        self.assertEqual(len(refs[0].name_offsets), 2)
+        self.assertEqual(len(refs[0].address_offsets), 1)
+        self.assertEqual(
+            DASDImage.resolve_file_formats(
+                fake_image,
+                file_obj,
+                inventory,
+            ),
+            [earlier_zeta, later_alpha],
+        )
+
     def test_format_field_value_decoding(self):
         fixture = load_format_field_fixture(FORMAT_FIELD_FIXTURE)
         fields = {
