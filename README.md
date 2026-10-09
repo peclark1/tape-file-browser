@@ -245,6 +245,35 @@ The member parser is independently validated against a real QGPL/QCLSRC member n
 
 Generic physical-file records are now working as well. The QDDS primary segment exposes the entry count and a cross-version fixed-entry length used by both the B10 and V2R3 images. The browser can therefore enumerate raw RRNs for non-source members and, when the MI 19/51 format object is available, decode fields. A real B10 `STAREC` format recovers `STASTAT` fields such as `STCOD`, `STNAME`, `MTD`, `YTD`, and `LYR`; the surviving records decode Missouri, Kansas, and "STATES OTHER THAN MISSOURI OR KANSAS" with their numeric statistics.
 
+### IBM AS/400 object-type catalog
+
+The DASD browser now recognizes **268 IBM-documented MI type/subtype
+identifiers**: 102 external types and 166 internal types, from IBM's
+published object-type tables. Recovered primary objects and directory-only
+identities display familiar names such as `*CMD`, `*MENU`, `*OUTQ`,
+`*DBRCVR` and `*INTPRF`. Guided 5250 marks internal types as
+`[internal]` and retains `[dir] primary absent` for missing primaries.
+Forensic details include the original MI code and the IBM classification
+and description.
+
+The source tables describe modern IBM i, **not a guaranteed V2R3
+installation inventory**. Unknown codes remain raw; no objects or data are
+invented. A historical IBM V5R4 PDF independently confirms corrected
+hexadecimal values for two typographical errors in the modern web table.
+
+Look up codes without scanning a disk image:
+
+```bash
+as400-dasd types 19/D4
+as400-dasd types 0E/C4
+as400-dasd types 19/16
+as400-dasd types --category internal
+```
+
+See [object-type catalog documentation](docs/AS400_OBJECT_TYPE_CATALOG.md)
+for the IBM source URLs, category distinctions, data files, and maintenance
+rules. The install script includes both type tables.
+
 ### Guided 5250 Explorer (first milestone)
 
 The **guided 5250** mode uses the same read-only CISC DASD parser as the
