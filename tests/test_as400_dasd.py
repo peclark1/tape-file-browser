@@ -20,6 +20,8 @@ from as400_dasd import (
     DataSpaceIndexKeyField,
     DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
+    DataSpaceIndexEntry,
+    DataSpaceIndexTraversal,
     DataSpaceLayout,
     DataSpaceRecord,
     DocumentByteStringInfo,
@@ -37,6 +39,7 @@ from as400_dasd import (
     SectorHeader,
     SegmentGroupHeader,
     assemble_document_byte_string,
+    audit_partial_data_space_index_keys,
     decode_context_machine_index,
     decode_context_terminal_name_hint,
     decode_data_space_index_root,
@@ -1098,6 +1101,72 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
         self.assertEqual(entry.dkey_index, 0)
         self.assertEqual(entry.ordinal_hint, 1)
+        audit = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0].dkey_index, 0)
+        self.assertEqual(audit[0].declared_entries, 1)
+        self.assertEqual(audit[0].observed_partial_entries, 1)
+        self.assertEqual(audit[0].nominal_machine_key_length, 102)
+        self.assertEqual(audit[0].observed_tree_body_min, 2)
+        self.assertEqual(audit[0].observed_tree_body_max, 2)
+        self.assertEqual(audit[0].machine_length_shortfall_min, 96)
+        self.assertEqual(audit[0].machine_length_shortfall_max, 96)
+        self.assertEqual(audit[0].ordinal_hints_present, 1)
+        self.assertEqual(audit[0].distinct_ordinal_hints, 1)
+        self.assertEqual(audit[0].min_ordinal_hint, 1)
+        self.assertEqual(audit[0].max_ordinal_hint, 1)
+
+    def test_qddsi_partial_key_audit_groups_dkey_rows_without_filling_keys(self):
+        keys = (
+            SimpleNamespace(key_count=2, machine_key_length=12),
+            SimpleNamespace(key_count=1, machine_key_length=30),
+        )
+        layout = DataSpaceIndexLayout(
+            dkey_count=2, dkey_address=0, keys=keys
+        )
+        entries = (
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000001"), 0x100,
+                dkey_index=0, key_complete=False, key_evidence=b"A",
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000002"), 0x140,
+                dkey_index=0, key_complete=False, key_evidence=b"AB",
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("01000003"), 0x180,
+                dkey_index=1, key_complete=False, key_evidence=b"X",
+            ),
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries,
+            expected_entries=3,
+            root_offset=0x1000,
+            page_size=2048,
+            page_type=0xCC,
+            free_bytes=0,
+            first_free_offset=0,
+            complete=True,
+        )
+        audit = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual(len(audit), 2)
+        self.assertEqual(
+            (audit[0].observed_tree_body_min, audit[0].observed_tree_body_max),
+            (1, 2),
+        )
+        self.assertEqual(
+            (
+                audit[0].machine_length_shortfall_min,
+                audit[0].machine_length_shortfall_max,
+            ),
+            (6, 7),
+        )
+        self.assertEqual(audit[0].distinct_ordinal_hints, 2)
+        self.assertEqual((audit[0].min_ordinal_hint, audit[0].max_ordinal_hint), (1, 2))
+        self.assertEqual(audit[1].machine_length_shortfall_min, 25)
+        self.assertEqual(audit[1].min_ordinal_hint, 3)
+        self.assertTrue(all(not entry.machine_key for entry in traversal.entries))
+        self.assertTrue(all(not entry.user_key for entry in traversal.entries))
 
     def test_qddsi_multi_dkey_all_empty_is_complete(self):
         data, _layout = make_qddsi_root_fixture(
