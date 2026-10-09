@@ -7,7 +7,7 @@ from as400_5250 import (
     Guided5250, _back_or_edit_option, command_matches, parse_command, run_curses,
 )
 from as400_dasd import RecoveredObject
-from as400_dasd_tool import build_parser
+from as400_dasd_tool import _tui_object_type_context, build_parser
 
 
 def object_record(name, library="QGPL", *, type_code=(0x19, 0x01),
@@ -74,6 +74,9 @@ class Guided5250Tests(unittest.TestCase):
         file_object = NS(object_type=0x19, object_subtype=0x01)
         self.assertEqual("*CMD", RecoveredObject.external_type_hint.fget(cmd))
         self.assertEqual("*FILE", RecoveredObject.external_type_hint.fget(file_object))
+        msgf = NS(object_type=0x0E, object_subtype=0x03)
+        self.assertEqual("*MSGF", RecoveredObject.external_type_hint.fget(msgf))
+        self.assertIn("message file", _tui_object_type_context(0x0E, 0x03))
 
     def test_catalog_supports_descriptions_and_search(self):
         matches = command_matches("wrk")
