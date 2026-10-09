@@ -67,6 +67,44 @@ recovered same-name object references. It never exposes passwords,
 password hashes or profile bytes as text. Full security/profile field
 decoding needs carefully reviewed and explicitly safe named-field parsers.
 
+## New V2R3 *DEVD candidate identifier correlation (2026-10-09)
+
+Directly compared the first 512-byte virtual-order primary payload for **all
+42** physically observed 10/01 device-description candidates on Mark's image.
+Every one contained EBCDIC text in the following pattern:
+
+- primary `+0x100..+0x101`: two EBCDIC digits; observed `01`, `11`, `31`;
+- primary `+0x104..+0x107`: four EBCDIC alphanumeric characters;
+- primary `+0x108..+0x10B`: four EBCDIC alphanumeric-or-space characters.
+
+These look like a category / device type / model triplet, but that
+**interpretation is provisional**. This is empirical consistency across 42
+objects, not independent documentary proof of exact CISC field offsets.
+
+| Object | Category-like +0x100 | Type-like +0x104 | Model-like +0x108 |
+|---|---|---|---|
+| QCONSOLE | 11 | 3197 | spaces + D1 |
+| DSP010004 | 11 | 3196 | spaces + A1 |
+| DSP010000 (one candidate) | 11 | 3476 | spaces + EA |
+| PRT010002 | 11 | 5256 | 0002 |
+| BABY | 11 | 5251 | 0011 |
+| ALAN | 31 | PEER | 0000 |
+| TAP02 | 01 | 6343 | 0001 |
+
+Important: `ALAN`'s DEVD category/type differs from `BABY`'s.
+**Their equal-name user profiles do not make either DEVD a verified
+workstation assignment.** Furthermore, the raw primary scan finds two
+different physical candidates both named `DSP010000` with different
+type/model strings. Neither should be presumed to be the current active
+definition merely because the names match.
+
+The new device display reports this triplet as *candidate values with
+exact offsets* only if the expected EBCDIC form is present. It never
+populates "verified controller", "verified device model", or actual
+active configuration. The next step toward field decoding is independent
+cross-checking against period-correct CRTDEVD/DSPDEVD output and a
+structural field-length/pointer model.
+
 ## Guided 5250 implementation
 
 Enter or option 5 on a recovered *USRPRF, *DEVD or *MODD opens the
