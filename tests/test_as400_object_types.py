@@ -17,13 +17,13 @@ class CatalogTests(unittest.TestCase):
         external = [item for item in values if item.category == "external"]
         internal = [item for item in values if item.category == "internal"]
         self.assertEqual(102, len(external))
-        self.assertEqual(163, len(internal))
-        self.assertEqual(265, len(values))
+        self.assertEqual(166, len(internal))
+        self.assertEqual(268, len(values))
         self.assertTrue(all(item.source == EXTERNAL_SOURCE for item in external))
         self.assertTrue(all(item.source == INTERNAL_SOURCE for item in internal))
         self.assertTrue(all(item.display_code == item.code[:2] + "/" + item.code[2:]
                             for item in values))
-        self.assertEqual(265, len({item.type_pair for item in values}))
+        self.assertEqual(268, len({item.type_pair for item in values}))
 
     def test_previously_unknown_codes_and_familiar_examples(self):
         mapping = {
@@ -38,6 +38,9 @@ class CatalogTests(unittest.TestCase):
             "19E0": ("*ADO", "internal"),
             "19EE": ("*MSCSP", "internal"),
             "1951": ("*FMT", "internal"),
+            "0ED0": ("*EDTIDX", "internal"),
+            "0DED": ("*OWCUR", "internal"),
+            "19D7": ("*EPTAB", "internal"),
             "0E90": ("*QDIDX", "internal"),
             "0B90": ("*QDDS", "internal"),
             "0C90": ("*QDDSI", "internal"),
