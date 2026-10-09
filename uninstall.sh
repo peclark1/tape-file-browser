@@ -10,6 +10,9 @@ TEXT_MODULE_PATH="${HOME}/.local/bin/tape_text.py"
 DASD_MODULE_PATH="${HOME}/.local/bin/as400_dasd.py"
 GUIDED_MODULE_PATH="${HOME}/.local/bin/as400_5250.py"
 CMD_MODULE_PATH="${HOME}/.local/bin/as400_cmd.py"
+OBJECT_TYPE_MODULE_PATH="${HOME}/.local/bin/as400_object_types.py"
+EXTERNAL_TYPE_PATH="${HOME}/.local/bin/as400_external_types.tsv"
+INTERNAL_TYPE_PATH="${HOME}/.local/bin/as400_internal_types.tsv"
 DESKTOP_PATH="${HOME}/.local/share/applications/${APP_ID}.desktop"
 
 rm -f \
@@ -21,6 +24,9 @@ rm -f \
     "${DASD_MODULE_PATH}" \
     "${GUIDED_MODULE_PATH}" \
     "${CMD_MODULE_PATH}" \
+    "${OBJECT_TYPE_MODULE_PATH}" \
+    "${EXTERNAL_TYPE_PATH}" \
+    "${INTERNAL_TYPE_PATH}" \
     "${DESKTOP_PATH}"
 
 if command -v gsettings >/dev/null 2>&1; then
