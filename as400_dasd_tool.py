@@ -826,6 +826,13 @@ def _qddsi_key_length_evidence(spec):
     )
     if spec.qaok_two_byte_pattern_matches:
         message += " [observed QAOK +2/seq01-row arithmetic; byte meaning unknown]"
+        matching, examined = spec.qaok_adjacent_stride_counts
+        if examined:
+            message += (
+                f"; adjacent DKYT location spacing {matching}/{examined}"
+                " matches raw +2 after seq01 / +0 after seq00"
+                " (not proven record offsets)"
+            )
     else:
         message += " [unexplained; no inferred key bytes]"
     return message
