@@ -26,6 +26,9 @@ COMMANDS = (
     CommandSpec("WRKOBJ", "WRKOBJ LIB(QGPL)", "List recovered objects in a specified library."),
     CommandSpec("WRKMBRPDM", "WRKMBRPDM FILE(QGPL/QCLSRC)", "Browse members of a recovered file."),
     CommandSpec("DSPPFM", "DSPPFM FILE(QGPL/QCLSRC) MBR(MEMBER)", "Display recovered physical-file member contents."),
+    CommandSpec("DSPUSRPRF", "DSPUSRPRF USRPRF(QSYSOPR)", "Display recovered user-profile identity and relationships (no credentials)."),
+    CommandSpec("DSPDEVD", "DSPDEVD DEVD(QCONSOLE)", "Display recovered device-description evidence."),
+    CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
     CommandSpec("HELP", "HELP", "Show guided navigation and supported commands."),
 )
 _COMMAND_MAP = {item.name: item for item in COMMANDS}
@@ -45,6 +48,7 @@ def command_matches(query="", screen="libraries"):
         "objects": {"WRKOBJPDM", "WRKOBJ", "WRKMBRPDM"},
         "members": {"WRKMBRPDM", "DSPPFM"},
         "contents": {"DSPPFM"},
+        "config_info": {"DSPUSRPRF", "DSPDEVD", "DSPMODD"},
     }.get(screen, set())
     return sorted(matching, key=lambda item: (item.name not in priority, item.name))
 
@@ -80,6 +84,9 @@ def parse_command(text):
         "WRKOBJ": {"LIB"},
         "WRKMBRPDM": {"FILE"},
         "DSPPFM": {"FILE", "MBR"},
+        "DSPUSRPRF": {"USRPRF"},
+        "DSPDEVD": {"DEVD"},
+        "DSPMODD": {"MODD"},
         "HELP": set(),
     }[name]
     extra = set(parameters) - allowed
@@ -240,7 +247,7 @@ class Guided5250:
                 f"Object: {obj.name}",
                 "Object-specific CISC fields not yet decoded.",
             ]
-        self._goto("config_info", library=self.library, detail=lines)
+        self._goto("config_info", library=obj.library_name or self.library, detail=lines)
         self.status = "Read-only recovered configuration evidence; no commands executed."
 
     def open_row(self, index, option=None):
@@ -299,6 +306,29 @@ class Guided5250:
             name, params = parse_command(text)
             if name == "HELP":
                 self._goto("help", detail=self.help_lines())
+            elif name in ("DSPUSRPRF", "DSPDEVD", "DSPMODD"):
+                specs = {
+                    "DSPUSRPRF": ("USRPRF", (0x08, 0x01)),
+                    "DSPDEVD": ("DEVD", (0x10, 0x01)),
+                    "DSPMODD": ("MODD", (0x15, 0x01)),
+                }
+                arg, pair = specs[name]
+                wanted = params.get(arg)
+                if not wanted or "/" in wanted:
+                    raise ValueError(f"Specify {arg}(name).")
+                matches = [
+                    obj for obj in self.inventory.objects
+                    if obj.name.upper() == wanted
+                    and (obj.object_type, obj.object_subtype) == pair
+                ]
+                if not matches:
+                    raise ValueError(
+                        f"{wanted} {name} target not recovered on this image.")
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"{len(matches)} matching {wanted} objects recovered; "
+                        "select an individual object in the library list.")
+                self.show_config_info(matches[0])
             elif name in ("WRKLIB", "WRKLIBPDM"):
                 pattern = params.get("LIB", "*ALL")
                 self._goto("libraries", library_filter="*" if pattern == "*ALL" else pattern)
@@ -374,6 +404,7 @@ class Guided5250:
             "5 + Enter: Display selected member/object",
             "5/Enter on *CMD: Recover command information (evidence-only)",
             "5/Enter on *USRPRF, *DEVD, *MODD: read-only configuration evidence",
+            "DSPUSRPRF/DSPDEVD/DSPMODD NAME(value): inspect recovered identity",
             "Type a command directly, or press ':' to edit the command field.",
             "",
             "Only recovered image contents are displayed.",
