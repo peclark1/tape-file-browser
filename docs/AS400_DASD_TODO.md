@@ -90,6 +90,19 @@ depending on experimental ASDE changes.
       location-zero first field does not identify the two distinct sources.
       A bounded candidate-audit helper and synthetic negative tests were
       added; no recovered user data was committed.
+- [x] Complete a read-only 13-RRN source-record census of every raw
+      QDDS field-table row with +0x06 flag 0x0080. All **143/143**
+      observed two-byte length words at the declared source location
+      fit the candidate maximum/record bounds; 130 are zero and the
+      13 for 47-byte row 34 range 7..17. Independently replaying
+      QAOKLAKA confirms the current-length word and following text
+      reproduce **13/13** tree bodies. Critically, zero-length row 27
+      still has nonzero and differing *inactive backing bytes* due to
+      overlapping record storage; raw bytes alone do not refute
+      marker-only index values. Add bounded length-word and candidate
+      ordering diagnostics plus synthetic regressions. Keep the
+      40/64-byte S02..S05 source assignments and raw 3FFF semantics
+      explicitly unresolved.
 - [ ] Resolve the intermediate/source-field mapping for QAOKS02A through
       QAOKS05A and the architectural meaning of the per-field `3FFF` marker
       / raw +0x14 transform. Do not synthesize missing maximum-field bytes or
