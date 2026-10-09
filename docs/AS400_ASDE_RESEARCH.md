@@ -93,6 +93,37 @@ It does **not** identify any of these pages as the SMVT or a directory, and
 the difference may also reflect disk initialization/layout choices. No raw
 image contents are committed.
 
+### Targeted VMC/SMVT symbol reconnaissance
+
+A byte-for-byte **EBCDIC CP037 literal** search of sector payloads (never
+counting sector headers, and not assuming program/source semantics) finds on
+Mark's V2R3 image:
+
+| Literal symbol | Whole-image occurrences |
+| --- | ---: |
+| `#SMSMVT` | 332 |
+| `#SMACDIR` | 18 |
+| `#SMMSIT` | 8 |
+| `#SMDR2` | 8 |
+
+The first `#SMSMVT` hit is at physical LBA 65,673, payload offset
+`0x118`; more appear near 65,679, 65,698, and 65,704. These sectors carry
+storage-management headers with the previously decoded preassigned virtual
+address prefix `000011000000`. The first `#SMACDIR` occurrence is LBA
+68,342, payload offset `0x108`.
+
+On Pete's surviving non-load-source B10 disk the same literal search finds
+**zero** `#SMSMVT`, `#SMACDIR`, or `#SMMSIT` occurrences; one `#SMDR2`
+occurrence survives elsewhere. This is consistent with the bootstrap/VMC
+content being primarily on Mark's load-source image, not proof of exact
+placement on all releases.
+
+**Important limitation:** name occurrences may be compiled symbol/reference
+data in VMC code or diagnostics, not the actual resident SMVT/static directory.
+They provide bounded **investigation targets**, not a recovered directory root
+or any decoded ASDE. Never promote a name hit alone into a memory or disk
+address map.
+
 ## Next reproducible experiments (read-only)
 
 1. Inventory candidate VMC/SMVT/static-directory locations from period
