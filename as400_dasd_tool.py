@@ -479,6 +479,29 @@ def _bootstrap_extent_chain(image, *, descriptor_lba=32, limit=8):
     return origin, tuple(rows)
 
 
+
+def _bootstrap_extent_payload_occupancy(image, start_lba, pages):
+    """Read-only bounded payload density counts, never byte-content export."""
+    counts = {"zero": 0, "sparse": 0, "dense": 0, "other": 0}
+    with open(image.path, "rb") as handle:
+        handle.seek(start_lba * SECTOR_SIZE)
+        for i in range(pages):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short physical sector at LBA {start_lba + i}")
+            occupied = sum(bool(value) for value in raw[HEADER_SIZE:])
+            if occupied == 0:
+                counts["zero"] += 1
+            elif occupied <= 32:
+                counts["sparse"] += 1
+            elif occupied > 400:
+                counts["dense"] += 1
+            else:
+                counts["other"] += 1
+    return counts
+
+
+
 def cmd_bootstrap_extents(args):
     """Report bounded preassigned extent candidates anchored to LBA-32 geometry."""
     image = _open(args.image)
@@ -504,6 +527,17 @@ def cmd_bootstrap_extents(args):
             "    next physical header: "
             + (next_h.hex().upper() if next_h is not None else "(end of image)")
         )
+        if args.occupancy:
+            stats = _bootstrap_extent_payload_occupancy(
+                image, start, count
+            )
+            print(
+                "    512-byte payload occupancy: "
+                f"zero={stats['zero']:,}, "
+                f"1..32 nonzero bytes={stats['sparse']:,}, "
+                f"33..400={stats['other']:,}, "
+                f"401..512={stats['dense']:,}"
+            )
     print(
         "These are independently bounded sector-header runs, not"
         " documented HMC allocations, persisted SMVT checkpoint pages,"
@@ -9466,6 +9500,10 @@ def build_parser():
     bootstrap_extents.add_argument(
         "--limit", type=int, default=8,
         help="maximum candidate extents to follow, 1..32 (default 8)",
+    )
+    bootstrap_extents.add_argument(
+        "--occupancy", action="store_true",
+        help="count zero/sparse/dense payload pages without showing contents",
     )
     bootstrap_extents.set_defaults(func=cmd_bootstrap_extents)
 
