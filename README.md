@@ -245,6 +245,142 @@ The member parser is independently validated against a real QGPL/QCLSRC member n
 
 Generic physical-file records are now working as well. The QDDS primary segment exposes the entry count and a cross-version fixed-entry length used by both the B10 and V2R3 images. The browser can therefore enumerate raw RRNs for non-source members and, when the MI 19/51 format object is available, decode fields. A real B10 `STAREC` format recovers `STASTAT` fields such as `STCOD`, `STNAME`, `MTD`, `YTD`, and `LYR`; the surviving records decode Missouri, Kansas, and "STATES OTHER THAN MISSOURI OR KANSAS" with their numeric statistics.
 
+### IBM AS/400 object-type catalog
+
+The DASD browser now recognizes **268 IBM-documented MI type/subtype
+identifiers**: 102 external types and 166 internal types, from IBM's
+published object-type tables. Recovered primary objects and directory-only
+identities display familiar names such as `*CMD`, `*MENU`, `*OUTQ`,
+`*DBRCVR` and `*INTPRF`. Guided 5250 marks internal types as
+`[internal]` and retains `[dir] primary absent` for missing primaries.
+Forensic details include the original MI code and the IBM classification
+and description.
+
+The source tables describe modern IBM i, **not a guaranteed V2R3
+installation inventory**. Unknown codes remain raw; no objects or data are
+invented. A historical IBM V5R4 PDF independently confirms corrected
+hexadecimal values for two typographical errors in the modern web table.
+
+Look up codes without scanning a disk image:
+
+```bash
+as400-dasd types 19/D4
+as400-dasd types 0E/C4
+as400-dasd types 19/16
+as400-dasd types --category internal
+```
+
+See [object-type catalog documentation](docs/AS400_OBJECT_TYPE_CATALOG.md)
+for the IBM source URLs, category distinctions, data files, and maintenance
+rules. The install script includes both type tables.
+
+### AS/400 user, device and mode object viewers (experimental)
+
+The Guided 5250 Explorer now opens evidence-labeled, read-only screens
+for recovered `*USRPRF` (08/01), `*DEVD` (10/01) and `*MODD` (15/01).
+Select the object and press Enter (or use option 5). Option 8 still opens
+generic object details. The command prompt recognizes the following
+**non-executing** display operations:
+
+```text
+DSPUSRPRF USRPRF(QSYSOPR)
+DSPDEVD DEVD(QCONSOLE)
+DSPMODD MODD(QPCSUPP)
+```
+
+A name that resolves to multiple recovered primaries will be rejected as
+ambiguous, not silently assigned to an arbitrary copy. Select its exact
+primary in the object list. The viewers display independently recovered
+identity and address metadata, owned-segment counts, and **same-name
+objects as hints**, not as proof of a user/device relationship.
+Device/mode evidence is bounded and unclassified; the on-disk attributes
+are **not fully decoded**. The new `*USRPRF` viewer **does not read
+or print raw authentication-bearing profile bytes**.
+
+See [profile/device/mode research](docs/AS400_CONFIG_OBJECT_RESEARCH.md)
+for the real V2R3 samples, nine-mode candidate offsets, provenance,
+limitations and next validation steps.
+
+### Guided 5250 Explorer (first milestone)
+
+The **guided 5250** mode uses the same read-only CISC DASD parser as the
+three-pane forensic browser, but presents a familiar library -> object ->
+member -> contents workflow. It is **not** a 5250 protocol emulator,
+a live OS/400 installation, or a complete PDM implementation.
+
+Start it without installing:
+
+```bash
+python3 as400_dasd_tool.py browse5250 marks.hda
+```
+
+Or after installing with `bash install.sh --text-mode`:
+
+```bash
+as400-dasd browse5250 marks.hda
+as400-dasd browse5250                # choose an image
+as400-dasd browse marks.hda          # original three-pane forensic UI
+```
+
+Navigation:
+- Up/Down select an entry; Enter opens the selected library, file, or member.
+- Type **12** then Enter to work with a selected library or file.
+- Type **5** then Enter to display a selected member or object details.
+- Enter (or **5**) on an OS/400 **`*CMD`** object opens a recovered
+  **Command Information** screen. The object name, library, MI 19/05 type,
+  primary disk address and byte counts are verified. Candidate processing
+  program and title strings are marked **tentative**; parameter definitions
+  are not yet decoded from V2R3 on-disk metadata.
+- Type **8** on a command object to see ordinary object details instead.
+- F4 opens the searchable command catalog with descriptions; type to filter,
+  Up/Down to select, Tab to insert an example, Enter to run.
+- Type a command directly or press `/` to enter one.
+- F1/`?` gives help; F12, **Backspace** (when no numeric option is pending),
+  or **Ctrl+B** goes back. F3 exits.
+- Page Up/Down scroll entries or displayed member contents.
+
+**Tilix note:** Tilix assigns F12 to its **View session sidebar** shortcut
+by default. Reassign/disable that shortcut under Tilix Preferences > Shortcuts
+to pass F12 to the browser, or use the Backspace / Ctrl+B alternatives.
+
+Implemented **read-only** command subset: `WRKLIB`, `WRKLIBPDM`,
+`WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM`, and `HELP`.
+
+Examples:
+
+```text
+WRKLIBPDM LIB(Q*)
+WRKOBJPDM LIB(QGPL)
+WRKMBRPDM FILE(QGPL/QCLSRC)
+DSPPFM FILE(QGPL/QCLSRC) MBR(REFRESH2)
+```
+
+Only the listed subset and explicitly supported named parameters are accepted.
+Other OS/400 commands, including live-job and destructive commands, are
+**not executed**. Real recovered image data is shown, with **[dir]** for
+directory-only identities and **[member-only]** when member cursors survive
+without their file primary. Unrecoverable content is not fabricated.
+
+The `*CMD` inspector uses a bounded 8 KiB virtual-order primary sample,
+with at most 64 EBCDIC string clues. It does **not** execute commands or
+interpret a plausible on-disk string as a validated parameter/default.
+See [V2R3 *CMD research notes](docs/AS400_CMD_RESEARCH.md) for actual
+specimen comparisons, tentative offset relationships, and evidence gates.
+
+The guided renderer escapes any recovered NUL, ESC, or other control
+characters for **display only** (for example, `\\x00`); the source bytes
+are retained by the parser. This prevents damaged or unusual member contents
+from crashing the curses terminal interface.
+
+The type-label catalog also recognizes `19/E0` (`*ADO`), `0E/D1`
+(`*DRX`), `19/EE` (`*MSCSP`), `0E/02` (`*OUTQ`) and
+`19/06` (`*TBL`). The first three are **internal** system
+object types, not ordinary user-facing PDM objects; the labels are
+type identifications, not claims that their contents can be decoded.
+
+The guided UI and existing forensic UI remain separate during evaluation.
+No raw image contents are committed to public repository fixtures.
+
 ### AS/400 DASD text-mode browser
 
 The interactive DASD browser uses only the Python standard-library `curses`

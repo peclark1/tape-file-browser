@@ -557,34 +557,14 @@ class RecoveredObject:
 
     @property
     def external_type_hint(self) -> str:
-        known = {
-            (0x02, 0x01): "*PGM",
-            (0x04, 0x01): "*LIB",
-            # IBM's MI object-type tables name 06/C1 *DOCBSS:
-            # Document byte string space, used by Document Library Services.
-            (0x06, 0xC1): "*DOCBSS",
-            (0x08, 0x01): "*USRPRF",
-            (0x0B, 0x90): "*QDDS",
-            (0x0C, 0x90): "*QDDSI",
-            (0x0D, 0x50): "*MEM",
-            (0x0E, 0x90): "*QDIDX",
-            (0x19, 0x01): "*FILE",
-            (0x19, 0x02): "*MSGQ",
-            # Observed on the real V2R3 QDOC library and corroborated by
-            # the objects' DLO metadata/content. IBM documents QDOC as the
-            # backing library for *DOC/*FLR document-library objects.
-            (0x19, 0x0E): "*DOC",
-            (0x19, 0x12): "*FLR",
-            (0x19, 0x51): "*FORMAT",
-            # IBM/MI documentation and context-index research identify 19/52
-            # as the Object Information Repository space associated with a
-            # context/library.
-            (0x19, 0x52): "*OIRS",
-        }
-        return known.get(
-            (self.object_type, self.object_subtype),
-            "",
-        )
+        """IBM's published MI type label, whether external or internal.
+
+        Kept under the historical property name for compatibility with all
+        read-only DASD inspectors. Unknown codes remain unlabeled.
+        """
+        from as400_object_types import type_hint
+
+        return type_hint(self.object_type, self.object_subtype)
 
     @property
     def is_member_cursor(self) -> bool:

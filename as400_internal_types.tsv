@@ -1,0 +1,175 @@
+# IBM i 7.5: Internal object types
+# https://www.ibm.com/docs/en/i/7.5.0?topic=concepts-internal-object-types
+# Additional cross-check: 2007 System i Programming API overview and concepts, Internal object types, pp 64-69.
+# Columns: MI hex type+subtype | IBM internal object type | English type description
+# IBM i web table prints EDTIDX/OWCUR as OED0/ODED (letter O): invalid hexadecimal.
+# Their valid 0ED0/0DED values were independently verified in IBM's V5R4 PDF:
+# https://public.dhe.ibm.com/systems/power/docs/systemi/v5r4/en_US/api.pdf
+# All three catalog entries EDTIDX, EPTAB, OWCUR match the older IBM PDF.
+# This is a MODERN reference catalog, not a certified OS/400 V2R3 inventory.
+19F0|*ACNAME|Auto-configuration names
+19E0|*ADO|Asynchronous distribution object
+0EC5|*AUT|Authorized user table
+1BC1|*AUTHLR|Authority holder
+0FC1|*CBLK|Commit block
+0ED2|*CCSIDI|CCSID information
+23A1|*CDJOBLK|Transaction control structure with externally-managed commitment definitions
+23A0|*CDTCSLK|Transaction control structure with DB2-managed commitment definitions
+19A4|*CFGSPC|Configuration space
+1EC1|*CHRSFC|Character special file clone object
+19A5|*CIO|Cluster information object
+0EA0|*CMTCDRI|Commit recovery object
+19FB|*CNVTBL|System conversion table
+0EA5|*CRGM|Cluster resource group manager
+1955|*DBCOLES|Database column extension
+1950|*DBDIR|Database directory
+19D4|*DBRCVR|Database recovery object
+19F5|*DCRENO|DC rename object
+0AC4|*DCTQ|Data dictionary queue
+0ECF|*DCXITC|DCX inter-task communication index
+0AC5|*DCXMSQ|DCX operator message queue
+0D52|*DEACR|Directory extended attribute cursor
+0C50|*DEADI|Directory extended attribute index
+0B51|*DEADS|Directory extended attribute dataspace
+09C1|*DFTJRN|Default journal
+07C1|*DFTRCV|Default journal receiver
+0D51|*DIRCR|Directory cursor
+0B50|*DIRDS|Directory dataspace
+1E50|*DIRJ|Integrated file system directory for user journaling
+1EA0|*DLSTMF|Document library services stream file
+1390|*DMPSP|Dump space
+06C1|*DOCBSS|Document byte string space
+0AC3|*DRQ|Distribution recipient queue
+0ED1|*DRX|Distribution recipient index
+19E9|*DSNXO|DSNX system object
+19E2|*DTO|Distribution tracking object
+19E3|*DUO|Document unit object
+0ED0|*EDTIDX|Element description index
+19D7|*EPTAB|Data management entry point table
+1953|*EXITSP|Exit registration space
+0EC6|*FACB|File available control block
+0ECA|*FCNUL|Function usage list
+0BA0|*FIDTBL|File ID table
+1958|*FCS|File constraint space
+1951|*FMT|File format
+19E8|*FSO|FMS system object
+19CD|*GDA|Group data area
+0EA4|*GENIDX|Permanent generic index
+0AC8|*GENQ|Permanent generic queue
+1959|*GRPDLS|Group dataLink space
+19F7|*HFSD|HFS description
+0AC6|*HPQ|Office host print queue
+19C6|*ICO|Install communication object
+19EB|*IDDEDT|Internal data dictionary
+19E1|*IGCINT|Ideographic character table
+0E50|*IMPLREP|Implementation repository
+19D5|*INAUT|Install authority object
+19F4|*INAUTO|Automatic install
+19C1|*INITSP|Install initial template space
+04C1|*INTLIB|Internal library
+0EC4|*INTPRF|Interactive profile
+18A1|*IPLJMQ|LIC internally-created queue space
+0EF3|*IFSIDX|Integrated file system index
+04C2|*ISYSLIB|Internal system library
+19CA|*JAR|Job APAR repository
+2150|*JVAGRP|Java group
+0250|*JVAPGM|Java program
+18A0|*JMQ|Job message queue
+0EA6|*JRNIX|Journal receiver index
+0AF0|*JSQ|Job schedule queue
+0AC1|*JTMMQ|Measurement message queue
+19CE|*LDA|Local data area
+19D1|*LIBRCVR|Library recovery object
+19F2|*LIRCVR|Library recovery object for rename
+1E52|*MCBSF|Management Collection Byte Stream File
+19C0|*MCO|Measurement collection object
+19C8|*MCOTBL|Measurement collection object table
+19C9|*MDO|Measurement descriptor object
+19E6|*MDOC|Mail document
+0D50|*MEM|Database file member
+0EC1|*MNINX|Menu index
+19CB|*MNTXT|Menu text
+19DF|*MQLOCK|Message queue locking protocol
+19EE|*MSCSP|Permanent miscellaneous space
+0E91|*MSRVI|Master service index
+19E5|*NFSP|Network facility space
+0DEF|*OCUR|Database operational cursor
+0DEE|*OHCUR|Database operational hybrid cursor
+1952|*OIRS|OIR space
+1E51|*OLBSF|Open List Byte Stream File
+06A0|*OPTBSS|Optical byte string
+1EED|*OPTSTMF|Optical stream file
+19E4|*OSSCB|Session control block
+0DED|*OWCUR|Database operational wrapper cursor
+19CC|*PCCR|Problem change control record
+19C7|*PDT|Process definition template
+1EB2|*POBSF|Print Object Byte Stream File
+0EF1|*PRDAVLI|Product availability index
+19A1|*PRMGEN|Permanent generic space
+19DA|*PROCT|Operation code table
+0ECB|*PRODT|Operand description table
+0EC7|*PRTQ|Print queue
+19FC|*PTCSPC|Protected space
+0190|*QDAG|Access group
+0B90|*QDDS|Data space
+0C90|*QDDSI|Data space index
+0E90|*QDIDX|Composite index
+1A90|*QDPCS|Process control space
+0A90|*QDQ|Composite queue
+1990|*QDSP|Composite space
+0EA3|*QFSIDX|QSYS directory I/O index
+01EF|*QTAG|Temporary access group
+0BEF|*QTDS|Temporary data space
+0CEF|*QTDSI|Temporary data space index
+0EEF|*QTIDX|Temporary index
+1AEF|*QTPCS|Temporary process control space
+0AEF|*QTQ|Temporary queue
+19EF|*QTSP|Temporary space
+19A0|*RCYAP|Recovery times for SMAPP
+19C5|*RWCB|Read/write control block
+19A3|*RZHRIPD|HRI-saved persistent data
+19DC|*SCO|Service communication object
+19DE|*SCPFSP|SCPF space
+0EC2|*SDQ|SNADS distribution queue
+0EC3|*SECOBJ|Internal security object for a user profile
+19C3|*SEPT|System entry point table
+19F8|*SHRCV|SH recovery object
+0AC2|*SIQ|FM queue
+0EC9|*SLFSMS|Secondary logic unit index
+1EB1|*SMBSF|Shared memory byte stream file
+0EF2|*SMIDX|System management index
+0AF1|*SMQ|System management internal queue
+19F9|*SNMTBL|System program name table
+0EA7|*SORTSEQ|Sort sequence table repository
+19C2|*SPLCB|Spool control block
+19CF|*SRAUTH|Save/restore authorizations table
+19DB|*SRDS|Save/restore descriptor space
+0EC8|*SRMIDX|System resource manager index
+19F3|*SRMSPC|System resource manager space
+0ED3|*STPWIDX|Password index
+85A0|*STREAM|Stream object
+19D2|*SVAL|System value
+1954|*SVRSTGD|Server storage space
+0ECD|*SWFL|System-wide folder list
+19F6|*SYAUTS|Security authorization space
+19D3|*SYSBC|System control block
+19D6|*SYSPRTI|System print image part numbers
+19D8|*SYSRPYL|System reply list
+19F1|*S36BCH|System/36 batch object
+19EA|*S36EPT|System/36 entry point table
+0ECE|*S36HLP|System/36 help object
+19EC|*S36HST|System/36 history object
+0ECC|*S36IDX|System/36 index
+0AC7|*TCPIPQ|TCP/IP queue
+1960|*TDS|Trigger definition space
+0AF2|*TNIPLMQ|TN IPL message queue
+0EA2|*TOKTBL|DSOM token mapping table
+19FE|*UBPSPC|Usage-based pricing space
+19D9|*UFCB|User file control block
+19E7|*UFO|Unfiled folder object
+19D0|*WCBT|Work control block table
+19DD|*WCBTRO|Work control block table recovery object
+19FA|*X40|X400 object
+0EF0|*X4Q|X400 queue
+0EA1|*ZMFINX|Message space pool
+19A2|*ZMFSPC|Message framework

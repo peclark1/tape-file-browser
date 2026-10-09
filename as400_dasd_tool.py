@@ -4981,7 +4981,7 @@ def _tui_group_right_items(selected):
             {
                 "kind": "context-entry",
                 "entry": entry,
-                "label": f"{library}/{name}  {entry.type_code}  [dir]{surviving}",
+                "label": f"{library}/{name}  {_tui_catalog_type_label(entry.type_code)}  [dir]{surviving}",
                 "_sort": (
                     library.upper(),
                     name.upper(),
@@ -5058,7 +5058,7 @@ def _tui_rebuild_from_mid(state):
                     "kind": "context-entry",
                     "entry": entry,
                     "label": (
-                        f"{name}  {entry.type_code}{surviving}"
+                        f"{name}  {_tui_catalog_type_label(entry.type_code)}{surviving}"
                     ),
                 }
             )
@@ -5342,6 +5342,23 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x0B, 0x90): "internal QDDS data space backing a member record stream",
     (0x0C, 0x90): "internal QDDS index associated with member storage",
     (0x0D, 0x50): "member cursor linking a file/member name to its storage",
+    (0x0E, 0x02): (
+        "OS/400 *OUTQ output queue; holds spooled-file entries waiting "
+        "for output processing (offline image does not represent live writers)"
+    ),
+    (0x0E, 0xC4): (
+        "IBM internal *INTPRF Interactive Profile object; separate from "
+        "the user-visible *USRPRF, and its internal contents are not "
+        "currently decoded"
+    ),
+    (0x0E, 0xD1): (
+        "IBM internal *DRX Distribution Recipient Index, used in distribution "
+        "services; contents are not currently decoded"
+    ),
+    (0x0E, 0x03): (
+        "OS/400 *MSGF message file; an MI index of message descriptions "
+        "used by system and application messages"
+    ),
     (0x0E, 0x90): (
         "IBM *QDIDX independent index; a library/context uses one to locate "
         "entries in its associated *OIRS object-information repository"
@@ -5350,6 +5367,28 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x19, 0x02): (
         "OS/400 message queue object used to receive messages for users, "
         "workstations, programs, or system functions"
+    ),
+    (0x19, 0x16): (
+        "OS/400 *MENU menu description; a menu definition for interactive "
+        "selection of actions. Compiled menu contents are not currently "
+        "decoded by the offline browser"
+    ),
+    (0x19, 0x06): (
+        "OS/400 *TBL table object (not a database physical file); "
+        "its internal contents are not currently decoded"
+    ),
+    (0x19, 0xD4): (
+        "IBM internal *DBRCVR Database Recovery Object; associated with "
+        "database recovery, not a user physical file; internal contents "
+        "are not currently decoded"
+    ),
+    (0x19, 0xE0): (
+        "IBM internal *ADO Asynchronous Distribution Object; "
+        "contents are not currently decoded"
+    ),
+    (0x19, 0xEE): (
+        "IBM internal *MSCSP Permanent Miscellaneous Space; "
+        "contents are not currently decoded"
     ),
     (0x19, 0x0E): (
         "QDLS document-library document; the QDOC object name is internal "
@@ -5365,8 +5404,29 @@ _TUI_OBJECT_TYPE_CONTEXT = {
 }
 
 
+def _tui_catalog_type_label(type_code):
+    """Use IBM's type name for a directory-only recovered identity."""
+    from as400_object_types import lookup
+
+    info = lookup(type_code)
+    return info.name if info else type_code
+
+
 def _tui_object_type_context(object_type, object_subtype):
-    return _TUI_OBJECT_TYPE_CONTEXT.get((object_type, object_subtype), "")
+    """Explain both recovered structure and IBM catalog classification."""
+    from as400_object_types import lookup
+
+    description = _TUI_OBJECT_TYPE_CONTEXT.get(
+        (object_type, object_subtype), ""
+    )
+    entry = lookup(object_type, object_subtype)
+    if entry is None:
+        return description
+    attribution = (
+        f"IBM i {entry.category} object {entry.name} "
+        f"({entry.description}); catalog is modern, not a V2R3 presence claim"
+    )
+    return f"{description}; {attribution}" if description else attribution
 
 
 # Library descriptions live in an editable JSON catalog rather than in the
@@ -5887,6 +5947,43 @@ def _tui_segment_prefix(image, segment, limit=1024):
             sector = image.read_sector(extent.start_lba + page_index)
             result.extend(sector.data)
     return bytes(result[:limit])
+
+
+def _tui_command_information_lines(state, obj):
+    """Read only a bounded real *CMD primary for the guided 5250 inspector."""
+    from as400_cmd import command_information_lines
+
+    if (obj.object_type, obj.object_subtype) != (0x19, 0x05):
+        return ["Selected object is not a recovered *CMD primary."]
+    prefix = _tui_segment_prefix(state["image"], obj.segment, limit=8192)
+    return command_information_lines(obj, prefix)
+
+
+def _tui_config_information_lines(state, obj):
+    """Read-only *USRPRF/*DEVD/*MODD inspector; no profile payload read.
+
+    Credentials and authentication information may be part of a historical
+    *USRPRF primary. We do not even sample its raw primary in this view.
+    """
+    from as400_config import config_type, configuration_information_lines
+
+    typ = config_type(obj)
+    if typ is None:
+        return ["Not a supported OS/400 profile/device/mode object."]
+    prefix = b""
+    if typ[0] != "*USRPRF":
+        prefix = _tui_segment_prefix(
+            state["image"], obj.segment, limit=2048,
+        )
+    namesakes = [
+        item for item in state["inventory"].objects
+        if item is not obj and item.name.upper() == obj.name.upper()
+    ]
+    return configuration_information_lines(
+        obj, prefix,
+        namesake_objects=namesakes,
+        owned_segments=_tui_owned_segments(state, obj),
+    )
 
 
 def _tui_hex_lines(data, *, base_offset=0):
@@ -8731,6 +8828,84 @@ def cmd_browse(args):
     return 0
 
 
+
+def cmd_browse5250(args):
+    """Start the guided 5250-style browser on the existing read-only recovery model."""
+    try:
+        import curses
+    except ImportError:
+        raise ValueError("the curses module is not available")
+
+    from as400_5250 import Guided5250, run_curses
+
+    def launch(stdscr):
+        path = args.image
+        if path is None:
+            path = _tui_file_picker(stdscr, Path.cwd())
+            if path is None:
+                return
+
+        state = _tui_build_state(stdscr, path)
+
+        def member_data(library, file_name, member):
+            file_item = next(
+                (item for item in _tui_file_items(state, library)
+                 if item["name"] == file_name),
+                None,
+            )
+            if file_item is None:
+                file_item = {
+                    "kind": "file", "name": file_name, "library": library,
+                    "object": None, "members": [member],
+                }
+            return _tui_member_data_lines(
+                state, {"kind": "member", "object": member, "file": file_item}
+            )
+
+        browser = Guided5250(
+            state["inventory"],
+            member_info=state["image"].read_member_info,
+            member_loader=member_data,
+            command_info_loader=lambda obj: _tui_command_information_lines(state, obj),
+            config_info_loader=lambda obj: _tui_config_information_lines(state, obj),
+        )
+        run_curses(stdscr, browser)
+
+    curses.wrapper(launch)
+    return 0
+
+
+def cmd_object_types(args):
+    """List/identify MI types without opening an image or changing its data."""
+    from as400_object_types import catalog, lookup
+
+    if args.code:
+        entry = lookup(args.code)
+        if entry is None:
+            raise ValueError(
+                f"unknown MI object code: {args.code} "
+                "(no unverified type label assigned)"
+            )
+        entries = [entry]
+    else:
+        entries = sorted(catalog().values(), key=lambda item: item.code)
+
+    shown = 0
+    for entry in entries:
+        if args.category != "all" and entry.category != args.category:
+            continue
+        print(f"{entry.display_code:<5}  {entry.name:<12} "
+              f"{entry.category:<8} {entry.description}")
+        shown += 1
+
+    if args.code and shown:
+        print(f"Source: {entries[0].source}")
+    elif not args.code:
+        print(f"\n{shown} IBM documented types; modern catalog, "
+              "OS/400 V2R3 availability unverified.")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="as400-dasd",
@@ -8750,6 +8925,29 @@ def build_parser():
         help="raw 520-byte DASD image; omit to use the file picker",
     )
     browse.set_defaults(func=cmd_browse)
+
+    guided = sub.add_parser(
+        "browse5250",
+        help="guided read-only 5250-style library/object/member browser",
+    )
+    guided.add_argument(
+        "image",
+        nargs="?",
+        help="raw 520-byte DASD image; omit to use the file picker",
+    )
+    guided.set_defaults(func=cmd_browse5250)
+
+    types = sub.add_parser(
+        "types", help="look up IBM MI type/subtype codes without opening a disk image",
+    )
+    types.add_argument(
+        "code", nargs="?", help="MI code, e.g. 19/D4, 1905, or 0E/C4",
+    )
+    types.add_argument(
+        "--category", choices=("all", "internal", "external"), default="all",
+        help="filter catalog entries by IBM object category",
+    )
+    types.set_defaults(func=cmd_object_types)
 
     info = sub.add_parser("info", help="show image geometry without a full scan")
     info.add_argument("images", nargs="+")

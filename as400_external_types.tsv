@@ -1,0 +1,106 @@
+# IBM i 7.5: External object types
+# https://www.ibm.com/docs/en/i/7.5.0?topic=objects-external-object-types
+# Columns: MI hex type+subtype | IBM object type | English type description
+# This is a MODERN reference catalog, not a certified OS/400 V2R3 inventory.
+0E09|*ALRTBL|Alert table
+1B01|*AUTL|Authorization list
+1E05|*BLKSF|Block special file
+1937|*BNDDIR|Binding directory
+1918|*CFGL|Configuration list
+1E06|*CHRSF|Character special file
+190D|*CHTFMT|Chart format
+190B|*CLD|C/400 locale description
+1904|*CLS|Class
+1905|*CMD|Command
+1701|*CNNL|Connection list
+1401|*COSD|Class-of-service description
+192C|*CRG|Cluster resource group
+0E0F|*CRQD|Change request description
+1935|*CSI|Communications side information
+1922|*CSPMAP|Cross-system product map
+1923|*CSPTBL|Cross-system product table
+1201|*CTLD|Controller description
+1F02|*DDIR|Distributed file directory
+1001|*DEVD|Device description
+0C01|*DIR|Directory
+190E|*DOC|Document
+1F01|*DSTMF|Distributed stream file
+190A|*DTAARA|Data area
+1920|*DTADCT|Data dictionary
+0A01|*DTAQ|Data queue
+1908|*EDTD|Edit description
+1913|*EXITRG|Exit registration
+0E04|*FCT|Forms control table
+1E07|*FIFO|First-in-first-out special file
+1901|*FILE|File
+1912|*FLR|Folder
+1926|*FNTRSC|Font resources
+192B|*FNTTBL|Font mapping table
+1928|*FORMDF|Form definition
+0E0B|*FTR|Filter
+190C|*GSS|Graphics symbol set
+0E06|*IGCDCT|DBCS conversion dictionary
+191A|*IGCSRT|DBCS sort table
+1910|*IGCTBL|DBCS font table
+192E|*IMGCLG|Image catalog
+191E|*IPXD|Internetwork packet exchange description
+1903|*JOBD|Job description
+0E01|*JOBQ|Job queue
+0E0C|*JOBSCD|Job schedule
+0901|*JRN|Journal
+0701|*JRNRCV|Journal receiver
+0401|*LIB|Library
+1101|*LIND|Line description
+1921|*LOCALE|Locale
+1E04|*M36|Advanced 36 machine
+1924|*M36CFG|Advanced 36 machine configuration
+191C|*MEDDFN|Media definition
+1916|*MENU|Menu description
+192D|*MGTCOL|Management collection
+1501|*MODD|Mode description
+0301|*MODULE|Compiler unit
+0E03|*MSGF|Message file
+1902|*MSGQ|Message queue
+192A|*NODGRP|Node group
+0E0E|*NODL|Node list
+1914|*NTBD|NetBIOS description
+1601|*NWID|Network interface description
+1939|*NWSCFG|Network server configuration
+1D01|*NWSD|Network server description
+0E02|*OUTQ|Output queue
+1929|*OVL|Overlay
+1936|*PAGDFN|Page definition
+1927|*PAGSEG|Page segment
+0E11|*PDFMAP|Portable Document Format map
+1930|*PDG|Print descriptor group
+0201|*PGM|Program
+1915|*PNLGRP|Panel group definition
+1933|*PRDAVL|Product availability
+191B|*PRDDFN|Product definition
+191D|*PRDLOD|Product load
+1925|*PSFCFG|Print services configuration
+1932|*QMFORM|Query management form
+1931|*QMQRY|Query management query
+1911|*QRYDFN|Query definition
+0E08|*RCT|Reference code translate table
+1909|*SBSD|Subsystem description
+0E07|*SCHIDX|Search index
+1E03|*SOCKET|Local socket
+1C01|*SPADCT|Spelling aid dictionary
+0202|*SQLPKG|SQL package
+191F|*SQLUDT|User-defined SQL type
+1949|*SQLXSR|SQL XML schema repository
+0203|*SRVPGM|Service program
+0E05|*SSND|Session description
+1E01|*STMF|Bytestream file
+1917|*SVRSTG|Server storage space
+1E02|*SYMLNK|Symbolic link
+1919|*S36|System/36 machine description
+1906|*TBL|Table
+192F|*TIMZON|Time zone description
+0E0A|*USRIDX|User index
+0801|*USRPRF|User profile
+0A02|*USRQ|User queue
+1934|*USRSPC|User space
+0E10|*VLDL|Validation list
+1938|*WSCST|Workstation customization object
