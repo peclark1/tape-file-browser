@@ -5342,6 +5342,10 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x0B, 0x90): "internal QDDS data space backing a member record stream",
     (0x0C, 0x90): "internal QDDS index associated with member storage",
     (0x0D, 0x50): "member cursor linking a file/member name to its storage",
+    (0x0E, 0x03): (
+        "OS/400 *MSGF message file; an MI index of message descriptions "
+        "used by system and application messages"
+    ),
     (0x0E, 0x90): (
         "IBM *QDIDX independent index; a library/context uses one to locate "
         "entries in its associated *OIRS object-information repository"
