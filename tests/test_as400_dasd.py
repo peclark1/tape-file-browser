@@ -16,6 +16,7 @@ from as400_dasd import (
     ContextIndexEntry,
     DASDImage,
     DASDUnitDescriptorEvidence,
+    DCTRawEvidence,
     DataSpaceIndexKeyField,
     DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
@@ -232,6 +233,46 @@ class ASDEEvidenceTests(unittest.TestCase):
             with self.subTest(length=size):
                 with self.assertRaisesRegex(ValueError, "ASDE candidate length"):
                     ASDEEntryEvidence(bytes(size))
+
+
+class DCTRawEvidenceTests(unittest.TestCase):
+    def test_observed_count_matches_populated_32byte_slots_for_both_disks(self):
+        for name, count in (("DCT 0300", 1), ("DCT 0100", 2)):
+            with self.subTest(count=count):
+                page = bytearray(PAGE_SIZE)
+                page[0:2] = count.to_bytes(2, "big")
+                page[0x18:0x20] = name.encode("cp037")
+                for index in range(count):
+                    page[0x20 + index * 0x20] = index + 1
+                record = DCTRawEvidence(bytes(page))
+                self.assertEqual(record.observed_label, name)
+                self.assertEqual(record.candidate_slot_count, count)
+                self.assertEqual(record.populated_slot_count, count)
+                self.assertEqual(record.trailing_slots_nonzero, 0)
+                self.assertEqual(len(record.raw_slots), count)
+                self.assertTrue(all(len(slot) == 32 for slot in record.raw_slots))
+
+    def test_count_slot_disagreement_is_reported(self):
+        page = bytearray(PAGE_SIZE)
+        page[0:2] = (2).to_bytes(2, "big")
+        page[0x18:0x20] = "DCT 0100".encode("cp037")
+        page[0x20] = 1
+        page[0x60] = 99
+        record = DCTRawEvidence(bytes(page))
+        self.assertEqual(record.populated_slot_count, 1)
+        self.assertEqual(record.trailing_slots_nonzero, 1)
+
+    def test_dct_invalid_payload_label_and_count_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "exactly 512"):
+            DCTRawEvidence(bytes(20))
+        with self.assertRaisesRegex(ValueError, "exact EBCDIC"):
+            DCTRawEvidence(bytes(PAGE_SIZE))
+        page = bytearray(PAGE_SIZE)
+        page[0x18:0x20] = "DCT 0300".encode("cp037")
+        page[0:2] = (16).to_bytes(2, "big")
+        record = DCTRawEvidence(bytes(page))
+        with self.assertRaisesRegex(ValueError, "exceeds 15"):
+            _ = record.raw_slots
 
 
 class DASDDescriptorEvidenceTests(unittest.TestCase):
