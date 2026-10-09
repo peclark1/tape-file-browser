@@ -383,6 +383,13 @@ follow-ups, not prerequisites for the current browser milestone. See
       to independently calculated offsets +0x188 and +0x1A0. Add
       `virtual-xref` with caller-selected extent and pointer offsets.
       These identify live local module/linkage structures, not the SMVT root.
+- [x] Scan the independently established 4,096-page Mark VMC extent
+      for bounded six-byte in-range virtual-address candidates. Observe
+      5,216 matches (5,213 four-byte aligned) with strong recurring
+      in-page and next-page source/target offset families. Validate that
+      2,146 of the 2,608 matches in the four dominant families also land
+      on the observed raw module-name record prefix 02 00 00 00 7B.
+      Add `virtual-xref-map` and synthetic target-prefix regressions.
 - [ ] Identify SMVT/static-directory and permanent-directory root candidates
       by independently corroborated real-image evidence.
 - [ ] Traverse the identified permanent-directory machine index, preserving
