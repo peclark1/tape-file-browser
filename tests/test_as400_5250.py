@@ -131,6 +131,53 @@ class Guided5250Tests(unittest.TestCase):
         self.assertEqual(r"X\x00Y\x0AZ\x7F", _safe_display_text(
             "X" + chr(0) + "Y" + chr(10) + "Z" + chr(127)))
 
+    def test_enter_on_command_opens_read_only_command_evidence(self):
+        model = self.make_model()
+        command = object_record("ADDCUSTOM", type_code=(0x19, 0x05), hint="*CMD")
+        model.inventory.objects.append(command)
+        observed = []
+        def loader(obj):
+            observed.append(obj)
+            return ["Command information from recovered primary", "Unverified fields omitted"]
+        model.command_info_loader = loader
+        self.assertTrue(model.run_command("WRKOBJPDM LIB(QGPL)"))
+        position = next(
+            i for i, row in enumerate(model.rows()) if row["name"] == "ADDCUSTOM"
+        )
+        self.assertTrue(model.open_row(position))  # Enter, no numeric option
+        self.assertEqual("command_info", model.screen)
+        self.assertEqual("Display Command Information (Recovered)", model.title())
+        self.assertEqual([command], observed)
+        self.assertIn("Unverified fields omitted", model.detail)
+        self.assertTrue(model.back())
+        self.assertEqual("objects", model.screen)
+        self.assertTrue(model.open_row(position, "8"))  # Ordinary details remain
+        self.assertEqual("details", model.screen)
+        self.assertEqual([command], observed)  # No duplicate data sampling
+
+    def test_enter_on_other_objects_displays_details_instead_of_invalid_option(self):
+        model = self.make_model()
+        self.assertTrue(model.run_command("WRKOBJPDM LIB(QGPL)"))
+        position = next(
+            i for i, row in enumerate(model.rows()) if row["name"] == "CALC"
+        )
+        self.assertTrue(model.open_row(position))
+        self.assertEqual("details", model.screen)
+
+    def test_command_loader_errors_remain_inside_browser(self):
+        model = self.make_model()
+        command = object_record("BROKEN", type_code=(0x19, 0x05), hint="*CMD")
+        model.inventory.objects.append(command)
+        model.command_info_loader = lambda obj: (_ for _ in ()).throw(
+            ValueError("Damaged sample"))
+        self.assertTrue(model.run_command("WRKOBJPDM LIB(QGPL)"))
+        position = next(
+            i for i, row in enumerate(model.rows()) if row["name"] == "BROKEN"
+        )
+        self.assertTrue(model.open_row(position))
+        self.assertEqual("command_info", model.screen)
+        self.assertIn("Damaged sample", "\\n".join(model.detail))
+
     def test_catalog_supports_descriptions_and_search(self):
         matches = command_matches("wrk")
         self.assertEqual(5, len(matches))
