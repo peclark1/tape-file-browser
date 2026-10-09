@@ -82,6 +82,60 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_bootstrap_map_raw_labels_zero_headers_and_bounds(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            image = Path(dirname) / "boot.hda"
+            raw = [bytearray(PAGE_SIZE) for _ in range(4)]
+            raw[0][0:4] = "IMD1".encode("cp037")
+            raw[1][0x40:0x40 + 16] = "DASD  UNIT  DESC".encode("cp037")
+            raw[2][0:4] = "DCTX".encode("cp037")
+            headers = [bytes(8), bytes(8), bytes(8),
+                       bytes.fromhex("0000110000020000")]
+            raw[3][0:4] = "DCTX".encode("cp037")
+            image.write_bytes(
+                b"".join(hdr + bytes(page) for hdr, page in zip(headers, raw))
+            )
+            before = image.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(
+                    main(["bootstrap-map", str(image), "--max-rows", "2"]), 0
+                )
+            output = out.getvalue()
+            self.assertIn("Sectors with nonzero payloads: 4", output)
+            self.assertIn("sectors with zero storage header: 3", output)
+            self.assertIn("'IMD1': 1 matches", output)
+            self.assertIn("'DASD  UNIT  DESC': 1 matches", output)
+            self.assertIn("'DCTX': 2 matches", output)
+            self.assertIn("2 further nonzero-payload sectors not listed", output)
+            self.assertIn("not proof of SMVT checkpoint", output)
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(
+                    main([
+                        "bootstrap-map", str(image), "--start-lba", "1",
+                        "--sectors", "2",
+                    ]),
+                    0,
+                )
+            self.assertIn("Sectors with nonzero payloads: 2", out.getvalue())
+            self.assertIn("'DCTX': 1 matches", out.getvalue())
+            self.assertEqual(image.read_bytes(), before)
+
+            for bad_count in ("0", "4097"):
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    self.assertEqual(
+                        main([
+                            "bootstrap-map", str(image),
+                            "--sectors", bad_count,
+                        ]),
+                        1,
+                    )
+                self.assertIn("between 1 and 4096", err.getvalue())
+
     def test_storage_labels_exact_padded_ebcdic_names_vs_substrings(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "synthetic.hda"
