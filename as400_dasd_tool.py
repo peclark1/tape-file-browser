@@ -29,6 +29,7 @@ from as400_dasd import (
     Extent,
     InternalAddress,
     MachineIndexPageHeader,
+    audit_partial_data_space_index_keys,
     ebcdic_preview,
     format_hex,
 )
@@ -808,6 +809,18 @@ def _qddsi_key_field_labels(spec, format_fields):
 
 
 
+def _qddsi_key_location_evidence(field, friendly_label=""):
+    """Describe a DKYT location without over-promoting it to a record offset."""
+
+    offset = field.record_offset_hint
+    if friendly_label and offset is not None:
+        return f"record +{offset} (format-field match)"
+    return (
+        f"raw location {field.location} "
+        "(record offset unverified)"
+    )
+
+
 def _qddsi_key_length_evidence(spec):
     """Describe raw DKYT length accounting without inventing key encoding.
 
@@ -832,6 +845,25 @@ def _qddsi_key_length_evidence(spec):
                 f"; adjacent DKYT location spacing {matching}/{examined}"
                 " matches raw +2 after seq01 / +0 after seq00"
                 " (not proven record offsets)"
+            )
+        raw12_matching, raw12_examined = spec.qaok_raw12_cumulative_counts
+        raw14_matching, raw14_examined = spec.qaok_raw14_step_counts
+        if raw12_examined:
+            message += (
+                f"; raw +0x12 running scalar {raw12_matching}/"
+                f"{raw12_examined} matches observed field/fork accounting"
+            )
+        if raw14_examined:
+            message += (
+                f"; raw +0x14 running scalar {raw14_matching}/"
+                f"{raw14_examined} matches observed length transform"
+            )
+        raw14_final = spec.qaok_raw14_plus_database_reference
+        if raw14_final is not None:
+            status = "matches" if spec.qaok_raw14_matches_machine_length else "differs from"
+            message += (
+                f"; final raw +0x14 + 4 = {raw14_final} {status} "
+                f"declared machine length {spec.machine_key_length}"
             )
     else:
         message += " [unexplained; no inferred key bytes]"
@@ -3726,12 +3758,8 @@ def cmd_member(args):
                     index_format_fields,
                 )
                 for field_number, field in enumerate(spec.fields, 1):
-                    location = (
-                        f"record +{field.record_offset_hint}"
-                        if field.record_offset_hint is not None
-                        else "record location unknown"
-                    )
                     label = field_labels[field_number - 1]
+                    location = _qddsi_key_location_evidence(field, label)
                     friendly = f" {label}" if label else ""
                     print(
                         f"      key field {field_number}{friendly}: "
@@ -3758,6 +3786,64 @@ def cmd_member(args):
                     f"{traversal.expected_entries:,}  {state}{page_note}  "
                     f"pages {traversal.page_count:,}{partial_note}"
                 )
+                if traversal.partial_key_count:
+                    groups = audit_partial_data_space_index_keys(
+                        index_layout, traversal
+                    )
+                    print(
+                        "  Partial-key audit (raw tree bytes; "
+                        "nominal-length shortfall is not a decoded field):"
+                    )
+                    for group in groups:
+                        print(
+                            f"    DKEY {group.dkey_index}: "
+                            f"{group.observed_partial_entries:,}/"
+                            f"{group.declared_entries:,} partial terminals, "
+                            f"tree text {group.observed_tree_body_min}.."
+                            f"{group.observed_tree_body_max} bytes, "
+                            f"nominal machine length "
+                            f"{group.nominal_machine_key_length}, "
+                            f"length shortfall "
+                            f"{group.machine_length_shortfall_min}.."
+                            f"{group.machine_length_shortfall_max}"
+                        )
+                        if group.raw_3fff_occurrences_max:
+                            print(
+                                f"      raw 3FFF byte-pairs: "
+                                f"{group.raw_3fff_occurrences_min}.."
+                                f"{group.raw_3fff_occurrences_max}; "
+                                f"positive-length DKYT rows "
+                                f"{group.positive_length_field_count}; "
+                                f"exact-count terminals "
+                                f"{group.raw_3fff_field_count_match_entries:,}/"
+                                f"{group.observed_partial_entries:,}"
+                            )
+                            print(
+                                f"      first raw 3FFF pair offset in tree body: "
+                                f"{group.first_3fff_offset_min}.."
+                                f"{group.first_3fff_offset_max} "
+                                "(byte offset; interpretation unknown)"
+                            )
+                            print(
+                                f"      bytes other than counted 3FFF pairs: "
+                                f"{group.non_3fff_bytes_min}.."
+                                f"{group.non_3fff_bytes_max}; "
+                                f"trailing 3FFF run "
+                                f"{group.trailing_3fff_run_min}.."
+                                f"{group.trailing_3fff_run_max}"
+                            )
+                        print(
+                            f"      4-byte reference ordinal hints: "
+                            f"{group.ordinal_hints_present:,} present, "
+                            f"{group.distinct_ordinal_hints:,} distinct, "
+                            f"range {group.min_ordinal_hint}"
+                            f"..{group.max_ordinal_hint}"
+                        )
+                    print(
+                        "    Shortfall and raw 3FFF counts do not establish "
+                        "missing-key positions, marker semantics, or "
+                        "reversible compression."
+                    )
                 for entry in traversal.entries[:32]:
                     key_bytes = entry.display_key_bytes
                     preview = ebcdic_preview(

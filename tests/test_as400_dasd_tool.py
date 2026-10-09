@@ -25,6 +25,7 @@ from as400_dasd_tool import (
     _qaosss14_unresolved_parent_records,
     _qddsi_key_field_labels,
     _qddsi_key_length_evidence,
+    _qddsi_key_location_evidence,
     _scan_ebcdic_sysobjnam,
     _tui_breadcrumb,
     _tui_context_lines,
@@ -91,6 +92,11 @@ class DASDToolTests(unittest.TestCase):
             sequence_01_field_count=2,
             qaok_two_byte_pattern_matches=True,
             qaok_adjacent_stride_counts=(2, 2),
+            qaok_raw12_cumulative_counts=(2, 2),
+            qaok_raw14_step_counts=(2, 2),
+            qaok_raw14_plus_database_reference=164,
+            qaok_raw14_matches_machine_length=True,
+            machine_key_length=164,
         )
         result = _qddsi_key_length_evidence(pattern)
         self.assertIn("DKYT lengths sum 104", result)
@@ -99,6 +105,9 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("byte meaning unknown", result)
         self.assertIn("adjacent DKYT location spacing 2/2", result)
         self.assertIn("not proven record offsets", result)
+        self.assertIn("raw +0x12 running scalar 2/2", result)
+        self.assertIn("raw +0x14 running scalar 2/2", result)
+        self.assertIn("final raw +0x14 + 4 = 164 matches", result)
         other = SimpleNamespace(
             declared_field_bytes=104,
             user_key_length=107,
@@ -109,6 +118,22 @@ class DASDToolTests(unittest.TestCase):
         self.assertIn("no inferred key bytes", _qddsi_key_length_evidence(other))
         ordinary = SimpleNamespace(user_length_over_field_bytes=0)
         self.assertEqual(_qddsi_key_length_evidence(ordinary), "")
+
+    def test_qddsi_key_location_wording_requires_field_corroboration(self):
+        raw_only = SimpleNamespace(record_offset_hint=49, location=50)
+        self.assertEqual(
+            _qddsi_key_location_evidence(raw_only),
+            "raw location 50 (record offset unverified)",
+        )
+        self.assertEqual(
+            _qddsi_key_location_evidence(raw_only, "FIELD"),
+            "record +49 (format-field match)",
+        )
+        zero = SimpleNamespace(record_offset_hint=None, location=0)
+        self.assertEqual(
+            _qddsi_key_location_evidence(zero),
+            "raw location 0 (record offset unverified)",
+        )
 
     def test_qddsi_key_field_labels_require_exact_offset_and_length(self):
         spec = SimpleNamespace(

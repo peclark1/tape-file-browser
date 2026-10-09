@@ -1114,6 +1114,31 @@ class DataSpaceIndexKeyField:
             return None
         return self.location - 1
 
+    def raw_u16(self, offset: int) -> int | None:
+        """Return an otherwise-unnamed raw 16-bit DKYT word by byte offset."""
+
+        if offset < 0 or offset + 2 > len(self.raw):
+            return None
+        return int.from_bytes(self.raw[offset : offset + 2], "big")
+
+    @property
+    def raw_word_10(self) -> int | None:
+        """Unclassified DKYT word at raw byte offset +0x10."""
+
+        return self.raw_u16(0x10)
+
+    @property
+    def raw_word_12(self) -> int | None:
+        """Unclassified DKYT word at raw byte offset +0x12."""
+
+        return self.raw_u16(0x12)
+
+    @property
+    def raw_word_14(self) -> int | None:
+        """Unclassified DKYT word at raw byte offset +0x14."""
+
+        return self.raw_u16(0x14)
+
 
 @dataclass(frozen=True)
 class DataSpaceIndexKeySpec:
@@ -1204,6 +1229,85 @@ class DataSpaceIndexKeySpec:
             if following.location - current.location == expected:
                 matched += 1
         return matched, tested
+
+    @property
+    def qaok_raw12_cumulative_counts(self) -> tuple[int, int]:
+        """Matched/tested QAOK observations for the raw +0x12 DKYT word.
+
+        On the eight V2R3 long/compact QAOK indexes, +0x12 equals a running
+        count of positive length_or_fork values, with one additional byte for
+        each observed zero-length seq=0x40 fork/control row. The word remains
+        otherwise unnamed and is not used to construct keys.
+        """
+
+        cumulative = matched = tested = 0
+        for field in self.fields:
+            if field.length_or_fork > 0:
+                cumulative += field.length_or_fork
+            elif (
+                field.length_or_fork == 0
+                and field.sequence_attributes == 0x40
+            ):
+                cumulative += 1
+            else:
+                continue
+            observed = field.raw_word_12
+            if observed is None:
+                continue
+            tested += 1
+            if observed == cumulative:
+                matched += 1
+        return matched, tested
+
+    @property
+    def qaok_raw14_step_counts(self) -> tuple[int, int]:
+        """Matched/tested QAOK observations for the raw +0x14 DKYT word.
+
+        The compact family shows a second running raw scalar. A positive field
+        of length L advances it by ceil(3*(L+1)/2); an observed zero-length
+        seq=0x40 fork/control row advances it by one. This is deliberately
+        recorded as arithmetic evidence only; no encoding meaning is assigned.
+        """
+
+        cumulative = matched = tested = 0
+        for field in self.fields:
+            if field.length_or_fork > 0:
+                length = field.length_or_fork
+                cumulative += (3 * (length + 1) + 1) // 2
+            elif (
+                field.length_or_fork == 0
+                and field.sequence_attributes == 0x40
+            ):
+                cumulative += 1
+            else:
+                continue
+            observed = field.raw_word_14
+            if observed is None:
+                continue
+            tested += 1
+            if observed == cumulative:
+                matched += 1
+        return matched, tested
+
+    @property
+    def qaok_raw14_plus_database_reference(self) -> int | None:
+        """Observed final raw +0x14 scalar plus the four-byte DB reference."""
+
+        if not self.fields:
+            return None
+        final = self.fields[-1].raw_word_14
+        return None if final is None else final + 4
+
+    @property
+    def qaok_raw14_matches_machine_length(self) -> bool:
+        """Whether the final raw +0x14 scalar + 4 equals declared machine length.
+
+        This relationship holds on the populated V2R3 QAOK compact family but
+        is not promoted to a general machine-index length definition.
+        """
+
+        candidate = self.qaok_raw14_plus_database_reference
+        return candidate is not None and candidate == self.machine_key_length
 
     def split_machine_key(
         self,
@@ -2740,6 +2844,407 @@ class DataSpaceIndexTraversal:
     @property
     def unresolved_page_pointers(self) -> tuple[MachineIndexPagePointerRef, ...]:
         return tuple(pointer for pointer in self.page_pointers if not pointer.followed)
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexPartialKeyAudit:
+    """One DKEY group's measured partial-key evidence, without filling gaps."""
+
+    dkey_index: int
+    declared_entries: int
+    observed_partial_entries: int
+    nominal_machine_key_length: int
+    observed_tree_body_min: int
+    observed_tree_body_max: int
+    machine_length_shortfall_min: int
+    machine_length_shortfall_max: int
+    positive_length_field_count: int
+    raw_3fff_occurrences_min: int
+    raw_3fff_occurrences_max: int
+    raw_3fff_field_count_match_entries: int
+    first_3fff_offset_min: int | None
+    first_3fff_offset_max: int | None
+    non_3fff_bytes_min: int
+    non_3fff_bytes_max: int
+    trailing_3fff_run_min: int
+    trailing_3fff_run_max: int
+    ordinal_hints_present: int
+    distinct_ordinal_hints: int
+    min_ordinal_hint: int | None
+    max_ordinal_hint: int | None
+
+
+def audit_partial_data_space_index_keys(
+    layout: DataSpaceIndexLayout,
+    traversal: DataSpaceIndexTraversal,
+) -> tuple[DataSpaceIndexPartialKeyAudit, ...]:
+    """Summarize incomplete QDDSI tree text and intact 4-byte DB references.
+
+    A shorter terminal tree path does *not* locate the omitted bytes within
+    the logical user key. This function measures length differences only;
+    it neither pads a key nor attempts to reverse undocumented compression.
+    """
+    partial_by_dkey: dict[int, list[DataSpaceIndexEntry]] = {}
+    for entry in traversal.entries:
+        if entry.key_complete:
+            continue
+        if entry.dkey_index < 0 or entry.dkey_index >= len(layout.keys):
+            raise ValueError("partial QDDSI terminal identifies unknown DKEY")
+        if len(entry.database_reference) != 4:
+            raise ValueError("partial QDDSI terminal lacks four-byte reference")
+        if entry.database_reference[0] != entry.dkey_index:
+            raise ValueError("partial QDDSI reference disagrees with DKEY row")
+        partial_by_dkey.setdefault(entry.dkey_index, []).append(entry)
+
+    groups = []
+    for index, entries in sorted(partial_by_dkey.items()):
+        spec = layout.keys[index]
+        lengths = [len(entry.key_evidence) for entry in entries]
+        shortfalls = [
+            spec.machine_key_length - (observed + 4)
+            for observed in lengths
+        ]
+        if min(shortfalls) < 0:
+            raise ValueError("partial QDDSI evidence exceeds nominal machine key")
+
+        # The unresolved QAOK family repeatedly contains the literal byte pair
+        # 3F FF in its recovered tree text. Inventory that raw evidence only:
+        # no meaning (delimiter, terminator, length code, etc.) is assigned.
+        raw_pair = b"\x3f\xff"
+        raw_pair_counts = [
+            entry.key_evidence.count(raw_pair)
+            for entry in entries
+        ]
+        non_pair_lengths = [
+            len(entry.key_evidence) - 2 * count
+            for entry, count in zip(entries, raw_pair_counts, strict=True)
+        ]
+
+        # Where the *raw pair* first appears helps distinguish a variable
+        # literal prefix from marker-only terminal paths. Offset zero is
+        # evidence of position, not proof of a field boundary or marker role.
+        first_pair_offsets = [
+            entry.key_evidence.find(raw_pair)
+            for entry in entries
+            if raw_pair in entry.key_evidence
+        ]
+
+        def trailing_pair_run(value: bytes) -> int:
+            count = 0
+            while value.endswith(raw_pair):
+                count += 1
+                value = value[:-2]
+            return count
+
+        trailing_pair_runs = [
+            trailing_pair_run(entry.key_evidence)
+            for entry in entries
+        ]
+        fields = getattr(spec, "fields", ())
+        positive_length_field_count = sum(
+            1
+            for field in fields
+            if getattr(field, "length_or_fork", 0) > 0
+        )
+        raw_pair_field_count_matches = sum(
+            1
+            for count in raw_pair_counts
+            if count == positive_length_field_count
+        )
+
+        ordinals = [
+            value for entry in entries
+            if (value := entry.ordinal_hint) is not None
+        ]
+        groups.append(
+            DataSpaceIndexPartialKeyAudit(
+                dkey_index=index,
+                declared_entries=spec.key_count,
+                observed_partial_entries=len(entries),
+                nominal_machine_key_length=spec.machine_key_length,
+                observed_tree_body_min=min(lengths),
+                observed_tree_body_max=max(lengths),
+                machine_length_shortfall_min=min(shortfalls),
+                machine_length_shortfall_max=max(shortfalls),
+                positive_length_field_count=positive_length_field_count,
+                raw_3fff_occurrences_min=min(raw_pair_counts),
+                raw_3fff_occurrences_max=max(raw_pair_counts),
+                raw_3fff_field_count_match_entries=raw_pair_field_count_matches,
+                first_3fff_offset_min=(
+                    min(first_pair_offsets) if first_pair_offsets else None
+                ),
+                first_3fff_offset_max=(
+                    max(first_pair_offsets) if first_pair_offsets else None
+                ),
+                non_3fff_bytes_min=min(non_pair_lengths),
+                non_3fff_bytes_max=max(non_pair_lengths),
+                trailing_3fff_run_min=min(trailing_pair_runs),
+                trailing_3fff_run_max=max(trailing_pair_runs),
+                ordinal_hints_present=len(ordinals),
+                distinct_ordinal_hints=len(set(ordinals)),
+                min_ordinal_hint=min(ordinals) if ordinals else None,
+                max_ordinal_hint=max(ordinals) if ordinals else None,
+            )
+        )
+    return tuple(groups)
+
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexLiteralPrefixCandidateAudit:
+    """Counts for one caller-supplied, UNVERIFIED record-field hypothesis.
+
+    Evidence is matched against recovered tree text before the FIRST raw 3FFF
+    pair. This does not establish that 3FFF is a field delimiter or that the
+    matched record field is the source of a complete machine key.
+    """
+
+    record_offset: int
+    field_length: int
+    candidate_entries: int
+    compared_entries: int
+    exact_matches: int
+    nonempty_exact_matches: int
+    empty_exact_matches: int
+    missing_live_records: int
+    no_raw_pair: int
+
+
+def audit_partial_index_literal_prefix_candidate(
+    traversal: DataSpaceIndexTraversal,
+    records: tuple[DataSpaceRecord, ...],
+    *,
+    record_offset: int,
+    field_length: int,
+) -> DataSpaceIndexLiteralPrefixCandidateAudit:
+    """Test a bounded source-field candidate against partial QDDSI tree text.
+
+    The record offset and width must come from independent QDDS evidence,
+    not unverified DKYT locations. A candidate's EBCDIC blank padding is
+    stripped for comparison ONLY; neither index entries nor record bytes
+    are altered. Excludes complete keys, records without an ordinary live
+    status, and tree evidence with no literal raw 3FFF pair.
+    """
+
+    if record_offset < 0 or field_length <= 0:
+        raise ValueError("record candidate needs nonnegative offset and positive width")
+
+    by_ordinal: dict[int, DataSpaceRecord] = {}
+    for record in records:
+        if record.ordinal in by_ordinal:
+            raise ValueError("duplicate QDDS record ordinal in prefix candidate audit")
+        by_ordinal[record.ordinal] = record
+
+    candidates = compared = exact = nonempty = empty = missing = no_pair = 0
+    for entry in traversal.entries:
+        if entry.key_complete:
+            continue
+        candidates += 1
+        marker_at = entry.key_evidence.find(b"\x3f\xff")
+        if marker_at < 0:
+            no_pair += 1
+            continue
+        rrn = entry.ordinal_hint
+        record = by_ordinal.get(rrn) if rrn is not None else None
+        if (
+            rrn is None or rrn == 0 or record is None or
+            not record.is_live_hint or
+            record_offset + field_length > len(record.data)
+        ):
+            missing += 1
+            continue
+        compared += 1
+        candidate = record.data[
+            record_offset : record_offset + field_length
+        ].rstrip(b"\x40")
+        if candidate == entry.key_evidence[:marker_at]:
+            exact += 1
+            if candidate:
+                nonempty += 1
+            else:
+                empty += 1
+
+    return DataSpaceIndexLiteralPrefixCandidateAudit(
+        record_offset=record_offset,
+        field_length=field_length,
+        candidate_entries=candidates,
+        compared_entries=compared,
+        exact_matches=exact,
+        nonempty_exact_matches=nonempty,
+        empty_exact_matches=empty,
+        missing_live_records=missing,
+        no_raw_pair=no_pair,
+    )
+
+
+
+@dataclass(frozen=True)
+class DataSpaceIndexCandidateOrderAudit:
+    """Per-DKEY ordering evidence for an unverified raw record field."""
+
+    dkey_index: int
+    observed_entries: int
+    compared_entries: int
+    distinct_candidate_values: int
+    adjacent_candidate_ties_in_observed_order: int
+    order_matches: bool | None
+
+
+def audit_partial_index_record_field_order(
+    traversal: DataSpaceIndexTraversal,
+    records: tuple[DataSpaceRecord, ...],
+    *,
+    record_offset: int,
+    field_length: int,
+    strip_ebcdic_blanks: bool = False,
+) -> tuple[DataSpaceIndexCandidateOrderAudit, ...]:
+    """Compare index RRN order with a CALLER-SUPPLIED source-field candidate.
+
+    A matching candidate order is NOT field identity: constant fields and
+    unrelated monotonically increasing values often match by coincidence.
+    If any partial entry lacks a live, full-width record or usable RRN hint,
+    the corresponding DKEY order result is unknown (None), never success.
+    Uses only raw candidate bytes and RRN ties; makes no recovered keys.
+    """
+
+    if record_offset < 0 or field_length <= 0:
+        raise ValueError("candidate field needs nonnegative offset and positive length")
+    by_ordinal: dict[int, DataSpaceRecord] = {}
+    for record in records:
+        if record.ordinal in by_ordinal:
+            raise ValueError("duplicate QDDS ordinal in candidate order audit")
+        by_ordinal[record.ordinal] = record
+
+    groups: dict[int, list[DataSpaceIndexEntry]] = {}
+    for entry in traversal.entries:
+        if not entry.key_complete:
+            groups.setdefault(entry.dkey_index, []).append(entry)
+
+    results: list[DataSpaceIndexCandidateOrderAudit] = []
+    for dkey_index, entries in sorted(groups.items()):
+        values: dict[int, bytes] = {}
+        observed_rrns: list[int] = []
+        missing = 0
+        for entry in entries:
+            rrn = entry.ordinal_hint
+            if rrn is None or rrn <= 0:
+                missing += 1
+                continue
+            if rrn in observed_rrns:
+                raise ValueError("duplicate RRN within one DKEY's partial index")
+            observed_rrns.append(rrn)
+            record = by_ordinal.get(rrn)
+            if (
+                record is None
+                or not record.is_live_hint
+                or record_offset + field_length > len(record.data)
+            ):
+                missing += 1
+                continue
+            value = record.data[record_offset : record_offset + field_length]
+            values[rrn] = value.rstrip(b"\x40") if strip_ebcdic_blanks else value
+
+        compared = len(values)
+        ties = sum(
+            1 for a, b in zip(observed_rrns, observed_rrns[1:])
+            if a in values and b in values and values[a] == values[b]
+        )
+        order_matches: bool | None = None
+        if missing == 0 and compared == len(entries):
+            expected = sorted(observed_rrns, key=lambda rrn: (values[rrn], rrn))
+            order_matches = expected == observed_rrns
+
+        results.append(DataSpaceIndexCandidateOrderAudit(
+            dkey_index=dkey_index,
+            observed_entries=len(entries),
+            compared_entries=compared,
+            distinct_candidate_values=len(set(values.values())),
+            adjacent_candidate_ties_in_observed_order=ties,
+            order_matches=order_matches,
+        ))
+    return tuple(results)
+
+
+
+@dataclass(frozen=True)
+class QDDSCurrentLengthWordCandidateAudit:
+    """Raw two-byte value census at a caller-selected QDDS record position."""
+
+    record_offset: int
+    maximum_length: int
+    live_records: int
+    valid_words: int
+    zero_words: int
+    positive_words: int
+    invalid_words: int
+    truncated_words: int
+    zero_words_with_nonzero_inactive_storage: int
+    min_valid_word: int | None
+    max_valid_word: int | None
+
+
+def audit_qdds_current_length_word_candidate(
+    records: tuple[DataSpaceRecord, ...],
+    *,
+    record_offset: int,
+    maximum_length: int,
+) -> QDDSCurrentLengthWordCandidateAudit:
+    """Count candidate big-endian length words without decoding field values.
+
+    A QDDS descriptor can nominate an offset/maximum width. For the observed
+    V2R3 QAOK VARLEN-shaped descriptors, two bytes at that position correlate
+    with current stored field length. This tool inventories only raw values;
+    it does not assign the descriptor flag a semantic name or reconstruct
+    indexed key bytes. When the candidate length is zero, other overlapping
+    fields can still leave *inactive backing storage* nonzero.
+    """
+
+    if record_offset < 0 or maximum_length <= 0:
+        raise ValueError("candidate length-word offset/maximum is invalid")
+
+    live = truncated = invalid = inactive_nonzero = 0
+    lengths: list[int] = []
+    seen: set[int] = set()
+    for record in records:
+        if record.ordinal in seen:
+            raise ValueError("duplicate record ordinal in QDDS length-word audit")
+        seen.add(record.ordinal)
+        if record.ordinal == 0 or not record.is_live_hint:
+            continue
+        live += 1
+        if record_offset + 2 > len(record.data):
+            truncated += 1
+            continue
+
+        current = int.from_bytes(
+            record.data[record_offset : record_offset + 2], "big"
+        )
+        if (
+            current > maximum_length
+            or record_offset + 2 + current > len(record.data)
+        ):
+            invalid += 1
+            continue
+        lengths.append(current)
+        if current == 0:
+            backing_start = record_offset + 2
+            backing_end = min(backing_start + maximum_length, len(record.data))
+            if any(record.data[backing_start:backing_end]):
+                inactive_nonzero += 1
+
+    return QDDSCurrentLengthWordCandidateAudit(
+        record_offset=record_offset,
+        maximum_length=maximum_length,
+        live_records=live,
+        valid_words=len(lengths),
+        zero_words=sum(value == 0 for value in lengths),
+        positive_words=sum(value > 0 for value in lengths),
+        invalid_words=invalid,
+        truncated_words=truncated,
+        zero_words_with_nonzero_inactive_storage=inactive_nonzero,
+        min_valid_word=min(lengths) if lengths else None,
+        max_valid_word=max(lengths) if lengths else None,
+    )
 
 
 def decode_context_machine_index(

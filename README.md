@@ -221,6 +221,7 @@ The current milestone can:
 - list real `*FILE` objects and recovered members inside a library;
 - follow member cursors through their direct QDDS/QDDSI pointers, retaining the expected storage address and surviving owned secondary segments even when a primary segment is missing from a partial multi-disk image;
 - decode QDDSI DKEY/DKYT key specifications conservatively, including indexed data-space addresses, key counts/lengths, and raw key-field locations/attributes;
+- audit **partial** QDDSI tree-key evidence by DKEY row in `as400-dasd member IMAGE LIB FILE MEMBER`: observe lengths, numerical gaps to declared machine-key length, and intact four-byte ordinal references without filling in missing key bytes;
 - decode standard 92-byte AS/400 source physical-file records and print their source text;
 - recover generic fixed-length QDDS ordinal records using the data-space entry count and entry length;
 - identify MI 19/51 record-format objects and recover field names, record offsets, storage lengths, digits, decimal positions, and independently validated binary, zoned, packed, character, and DBCS-Open type mappings;

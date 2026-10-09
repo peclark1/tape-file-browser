@@ -16,6 +16,8 @@ from as400_dasd import (
     DataSpaceIndexKeyField,
     DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
+    DataSpaceIndexTraversal,
+    DataSpaceIndexEntry,
     DataSpaceLayout,
     DataSpaceRecord,
     DocumentByteStringInfo,
@@ -33,6 +35,10 @@ from as400_dasd import (
     SectorHeader,
     SegmentGroupHeader,
     assemble_document_byte_string,
+    audit_partial_data_space_index_keys,
+    audit_partial_index_literal_prefix_candidate,
+    audit_partial_index_record_field_order,
+    audit_qdds_current_length_word_candidate,
     decode_context_machine_index,
     decode_context_terminal_name_hint,
     decode_data_space_index_root,
@@ -286,6 +292,121 @@ class QAOKKeyLengthEvidenceTests(unittest.TestCase):
                     total_matched += spec.qaok_adjacent_stride_counts[0]
                     total_tested += spec.qaok_adjacent_stride_counts[1]
         self.assertEqual((total_matched, total_tested), (14, 14))
+
+    def test_qaok_raw_dkyt_tail_scalars_are_evidence_only(self):
+        # Raw +0x12/+0x14 values independently observed on each populated
+        # DKEY shape. These assertions preserve arithmetic without naming
+        # either word or using it to synthesize key bytes.
+        samples = (
+            ("QAOKLAKA", ((1, 47, 47, 72),), 49, 76),
+            (
+                "QAOKLDKA",
+                ((0, 18, 18, 29), (0x40, 0, 19, 30), (1, 64, 83, 128)),
+                84,
+                132,
+            ),
+            (
+                "QAOKL10A",
+                ((0, 10, 10, 17), (0x40, 0, 11, 18), (1, 64, 75, 116)),
+                76,
+                120,
+            ),
+            ("QAOKS01A", ((1, 64, 64, 98),), 66, 102),
+            ("QAOKS02A", ((1, 40, 40, 62), (1, 64, 104, 160)), 108, 164),
+            (
+                "QAOKS03A",
+                ((0, 10, 10, 17), (1, 40, 50, 79), (1, 64, 114, 177)),
+                118,
+                181,
+            ),
+            (
+                "QAOKS04A",
+                ((0, 8, 8, 14), (1, 40, 48, 76), (1, 64, 112, 174)),
+                116,
+                178,
+            ),
+            (
+                "QAOKS05A",
+                ((0, 8, 8, 14), (1, 40, 48, 76), (1, 64, 112, 174)),
+                116,
+                178,
+            ),
+        )
+
+        for name, rows, user_length, machine_length in samples:
+            fields = []
+            for ordinal, (sequence, length, raw12, raw14) in enumerate(rows, 1):
+                raw = bytearray(0x20)
+                raw[0x12:0x14] = raw12.to_bytes(2, "big")
+                raw[0x14:0x16] = raw14.to_bytes(2, "big")
+                fields.append(
+                    DataSpaceIndexKeyField(
+                        sequence_attributes=sequence,
+                        field_attributes=0x30 if length else 0,
+                        length_or_fork=length,
+                        relative_offset=0,
+                        location=0,
+                        field_ordinal_hint=ordinal,
+                        raw=bytes(raw),
+                    )
+                )
+            spec = DataSpaceIndexKeySpec(
+                data_space=InternalAddress(1, 0x3D09000000),
+                field_table_pointer=InternalAddress(1, 0),
+                key_count=13,
+                auxiliary_scalar_raw=0,
+                key_field_count=len(fields),
+                user_key_length=user_length,
+                machine_key_length=machine_length,
+                dkyt_address=0,
+                fields=tuple(fields),
+                raw=bytes(0x40),
+            )
+            with self.subTest(index=name):
+                self.assertEqual(
+                    spec.qaok_raw12_cumulative_counts,
+                    (len(fields), len(fields)),
+                )
+                self.assertEqual(
+                    spec.qaok_raw14_step_counts,
+                    (len(fields), len(fields)),
+                )
+                self.assertEqual(
+                    spec.qaok_raw14_plus_database_reference,
+                    machine_length,
+                )
+                self.assertTrue(spec.qaok_raw14_matches_machine_length)
+                self.assertIsNone(spec.split_machine_key(bytes(4)))
+
+    def test_qaok_raw_dkyt_tail_negative_case_stays_unclassified(self):
+        raw = bytearray(0x20)
+        raw[0x12:0x14] = (9).to_bytes(2, "big")
+        raw[0x14:0x16] = (12).to_bytes(2, "big")
+        field = DataSpaceIndexKeyField(
+            sequence_attributes=1,
+            field_attributes=0x30,
+            length_or_fork=8,
+            relative_offset=0,
+            location=0,
+            field_ordinal_hint=1,
+            raw=bytes(raw),
+        )
+        spec = DataSpaceIndexKeySpec(
+            data_space=InternalAddress(1, 0),
+            field_table_pointer=InternalAddress(1, 0),
+            key_count=1,
+            auxiliary_scalar_raw=0,
+            key_field_count=1,
+            user_key_length=10,
+            machine_key_length=99,
+            dkyt_address=0,
+            fields=(field,),
+            raw=bytes(0x40),
+        )
+        self.assertEqual(spec.qaok_raw12_cumulative_counts, (0, 1))
+        self.assertEqual(spec.qaok_raw14_step_counts, (0, 1))
+        self.assertEqual(spec.qaok_raw14_plus_database_reference, 16)
+        self.assertFalse(spec.qaok_raw14_matches_machine_length)
 
     def test_qaok_stride_disagreement_and_fork_boundaries_are_explicit(self):
         mismatch = self._spec(
@@ -1117,6 +1238,361 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(entry.database_reference, bytes.fromhex("00000001"))
         self.assertEqual(entry.dkey_index, 0)
         self.assertEqual(entry.ordinal_hint, 1)
+
+        audit = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0].dkey_index, 0)
+        self.assertEqual(audit[0].declared_entries, 1)
+        self.assertEqual(audit[0].observed_partial_entries, 1)
+        self.assertEqual(audit[0].nominal_machine_key_length, 102)
+        self.assertEqual(audit[0].observed_tree_body_min, 2)
+        self.assertEqual(audit[0].observed_tree_body_max, 2)
+        self.assertEqual(audit[0].machine_length_shortfall_min, 96)
+        self.assertEqual(audit[0].machine_length_shortfall_max, 96)
+        self.assertEqual(audit[0].positive_length_field_count, 0)
+        self.assertEqual(audit[0].raw_3fff_occurrences_min, 1)
+        self.assertEqual(audit[0].raw_3fff_occurrences_max, 1)
+        self.assertEqual(audit[0].raw_3fff_field_count_match_entries, 0)
+        self.assertEqual(audit[0].first_3fff_offset_min, 0)
+        self.assertEqual(audit[0].first_3fff_offset_max, 0)
+        self.assertEqual(audit[0].non_3fff_bytes_min, 0)
+        self.assertEqual(audit[0].non_3fff_bytes_max, 0)
+        self.assertEqual(audit[0].trailing_3fff_run_min, 1)
+        self.assertEqual(audit[0].trailing_3fff_run_max, 1)
+        self.assertEqual(audit[0].ordinal_hints_present, 1)
+        self.assertEqual(audit[0].distinct_ordinal_hints, 1)
+        self.assertEqual(audit[0].min_ordinal_hint, 1)
+        self.assertEqual(audit[0].max_ordinal_hint, 1)
+
+    def test_qdds_length_word_audit_does_not_conflate_inactive_backing_bytes(self):
+        records = (
+            DataSpaceRecord(0, 0x80, bytes.fromhex("000000000000")),
+            DataSpaceRecord(1, 0x80, bytes.fromhex("000041424344")),
+            DataSpaceRecord(2, 0x80, bytes.fromhex("000241424344")),
+            DataSpaceRecord(3, 0x80, bytes.fromhex("000841424344")),
+            DataSpaceRecord(4, 0xC0, bytes.fromhex("000000000000")),
+        )
+        audit = audit_qdds_current_length_word_candidate(
+            records, record_offset=0, maximum_length=4,
+        )
+        self.assertEqual(audit.live_records, 3)
+        self.assertEqual(audit.valid_words, 2)
+        self.assertEqual(audit.zero_words, 1)
+        self.assertEqual(audit.positive_words, 1)
+        self.assertEqual(audit.invalid_words, 1)
+        self.assertEqual(audit.truncated_words, 0)
+        self.assertEqual(audit.zero_words_with_nonzero_inactive_storage, 1)
+        self.assertEqual((audit.min_valid_word, audit.max_valid_word), (0, 2))
+
+        short = audit_qdds_current_length_word_candidate(
+            records, record_offset=5, maximum_length=4,
+        )
+        self.assertEqual(short.truncated_words, 3)
+        self.assertIsNone(short.min_valid_word)
+        self.assertIsNone(short.max_valid_word)
+
+        with self.assertRaises(ValueError):
+            audit_qdds_current_length_word_candidate(
+                records, record_offset=0, maximum_length=0,
+            )
+        with self.assertRaises(ValueError):
+            audit_qdds_current_length_word_candidate(
+                records + (records[1],), record_offset=0, maximum_length=4,
+            )
+
+    def test_qddsi_candidate_order_checks_ties_and_wrong_field(self):
+        # Synthetic records: an exact source-field ordering match need not
+        # identify a field, since a constant alternative orders by RRN.
+        records = (
+            DataSpaceRecord(1, 0x80, b"C" + bytes([0x40]) * 3 + b"ZZZZ"),
+            DataSpaceRecord(2, 0x80, b"A" + bytes([0x40]) * 3 + b"ZZZZ"),
+            DataSpaceRecord(3, 0x80, b"B" + bytes([0x40]) * 3 + b"ZZZZ"),
+        )
+        def entry(rrn, dkey):
+            return DataSpaceIndexEntry(
+                b"", b"", bytes((dkey, 0, 0, rrn)), rrn * 0x10,
+                dkey_index=dkey, key_complete=False,
+                key_evidence=bytes.fromhex("3fff"),
+            )
+
+        traversal = DataSpaceIndexTraversal(
+            entries=(
+                entry(2, 0), entry(3, 0), entry(1, 0),
+                entry(1, 1), entry(2, 1), entry(3, 1),
+            ),
+            expected_entries=6, root_offset=0x1000, page_size=2048,
+            page_type=0xCC, free_bytes=0, first_free_offset=0,
+            complete=True,
+        )
+        source = audit_partial_index_record_field_order(
+            traversal, records, record_offset=0, field_length=4,
+            strip_ebcdic_blanks=True,
+        )
+        self.assertEqual([x.order_matches for x in source], [True, False])
+        self.assertEqual([x.distinct_candidate_values for x in source], [3, 3])
+        self.assertEqual([x.compared_entries for x in source], [3, 3])
+        self.assertEqual([x.adjacent_candidate_ties_in_observed_order
+                          for x in source], [0, 0])
+
+        constant = audit_partial_index_record_field_order(
+            traversal, records, record_offset=4, field_length=4,
+        )
+        self.assertEqual([x.order_matches for x in constant], [False, True])
+        self.assertEqual([x.distinct_candidate_values for x in constant], [1, 1])
+        self.assertEqual(constant[1].adjacent_candidate_ties_in_observed_order, 2)
+
+        missing = audit_partial_index_record_field_order(
+            traversal, records[:2], record_offset=0, field_length=4,
+        )
+        self.assertEqual([x.order_matches for x in missing], [None, None])
+        self.assertEqual([x.compared_entries for x in missing], [2, 2])
+
+        with self.assertRaises(ValueError):
+            audit_partial_index_record_field_order(
+                traversal, records, record_offset=0, field_length=0,
+            )
+        with self.assertRaises(ValueError):
+            audit_partial_index_record_field_order(
+                traversal, records + (records[0],),
+                record_offset=0, field_length=4,
+            )
+
+    def test_qddsi_partial_literal_prefix_candidates_are_evidence_only(self):
+        pair_run = bytes.fromhex("3fff") * 3
+
+        def partial(rrn, dkey, prefix):
+            return DataSpaceIndexEntry(
+                b"", b"", bytes((dkey, 0, 0, rrn)), 0x110,
+                dkey_index=dkey, key_complete=False,
+                key_evidence=prefix + pair_run,
+            )
+
+        # Two 8-byte character fields at independent record offsets.
+        # The test uses fabricated byte strings, never archived disk data.
+        record_data = (
+            b"X" * 8
+            + b"ALPHA" + bytes([0x40]) * 3
+            + b"BETA" + bytes([0x40]) * 4
+        )
+        records = (
+            DataSpaceRecord(1, 0x80, record_data),
+            DataSpaceRecord(2, 0xC0, record_data),
+        )
+        entries = (
+            partial(1, 0, b"ALPHA"),
+            partial(1, 1, b"ALPHA"),
+            partial(1, 0, b"BETA"),  # wrong candidate for offset 8
+            partial(2, 0, b"ALPHA"),  # deleted, must not count
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000001"), 0x150,
+                dkey_index=0, key_complete=False, key_evidence=b"NOMARK",
+            ),
+            DataSpaceIndexEntry(
+                b"COMPLETE", b"USER", bytes.fromhex("00000001"), 0x160,
+                dkey_index=0, key_complete=True,
+            ),
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries, expected_entries=6, root_offset=0x1000,
+            page_size=2048, page_type=0xCC, free_bytes=0,
+            first_free_offset=0, complete=True,
+        )
+
+        audit = audit_partial_index_literal_prefix_candidate(
+            traversal, records, record_offset=8, field_length=8,
+        )
+        self.assertEqual(audit.candidate_entries, 5)
+        self.assertEqual(audit.compared_entries, 3)
+        self.assertEqual(audit.exact_matches, 2)
+        self.assertEqual(audit.nonempty_exact_matches, 2)
+        self.assertEqual(audit.empty_exact_matches, 0)
+        self.assertEqual(audit.missing_live_records, 1)
+        self.assertEqual(audit.no_raw_pair, 1)
+        self.assertTrue(all(not e.machine_key for e in entries[:5]))
+
+        other = audit_partial_index_literal_prefix_candidate(
+            traversal, records, record_offset=16, field_length=8,
+        )
+        self.assertEqual(other.exact_matches, 1)
+        self.assertEqual(other.nonempty_exact_matches, 1)
+
+        with self.assertRaises(ValueError):
+            audit_partial_index_literal_prefix_candidate(
+                traversal, records, record_offset=-1, field_length=8,
+            )
+        with self.assertRaises(ValueError):
+            audit_partial_index_literal_prefix_candidate(
+                traversal, records + (records[0],),
+                record_offset=8, field_length=8,
+            )
+
+    def test_qddsi_partial_key_audit_groups_dkey_rows_without_filling_keys(self):
+        keys = (
+            SimpleNamespace(key_count=2, machine_key_length=12),
+            SimpleNamespace(key_count=1, machine_key_length=30),
+        )
+        layout = DataSpaceIndexLayout(
+            dkey_count=2, dkey_address=0, keys=keys
+        )
+        entries = (
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000001"), 0x100,
+                dkey_index=0, key_complete=False, key_evidence=b"A",
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000002"), 0x140,
+                dkey_index=0, key_complete=False, key_evidence=b"AB",
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("01000003"), 0x180,
+                dkey_index=1, key_complete=False, key_evidence=b"X",
+            ),
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries,
+            expected_entries=3,
+            root_offset=0x1000,
+            page_size=2048,
+            page_type=0xCC,
+            free_bytes=0,
+            first_free_offset=0,
+            complete=True,
+        )
+        audit = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual(len(audit), 2)
+        self.assertEqual(
+            (audit[0].observed_tree_body_min, audit[0].observed_tree_body_max),
+            (1, 2),
+        )
+        self.assertEqual(
+            (
+                audit[0].machine_length_shortfall_min,
+                audit[0].machine_length_shortfall_max,
+            ),
+            (6, 7),
+        )
+        self.assertEqual(audit[0].distinct_ordinal_hints, 2)
+        self.assertEqual((audit[0].min_ordinal_hint, audit[0].max_ordinal_hint), (1, 2))
+        self.assertEqual(audit[1].machine_length_shortfall_min, 25)
+        self.assertEqual(audit[1].min_ordinal_hint, 3)
+        self.assertTrue(all(not entry.machine_key for entry in traversal.entries))
+        self.assertTrue(all(not entry.user_key for entry in traversal.entries))
+
+    def test_qddsi_partial_key_audit_tracks_variable_raw_pair_positions(self):
+        # Synthetic compact-tree paths: this only inventories byte positions.
+        # In particular, a raw 3FFF pair is NOT assigned field semantics.
+        keys = (SimpleNamespace(
+            key_count=3, machine_key_length=30, fields=(
+                SimpleNamespace(length_or_fork=47),
+            ),
+        ),)
+        layout = DataSpaceIndexLayout(dkey_count=1, dkey_address=0, keys=keys)
+        entries = tuple(
+            DataSpaceIndexEntry(
+                b"", b"", bytes((0, 0, 0, ordinal)), ordinal * 0x10,
+                dkey_index=0, key_complete=False, key_evidence=body,
+            )
+            for ordinal, body in enumerate(
+                (bytes.fromhex("4142433fff"), bytes.fromhex("513fff"), bytes.fromhex("3fff")),
+                start=1,
+            )
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries, expected_entries=3, root_offset=0x1000,
+            page_size=2048, page_type=0xCC, free_bytes=0,
+            first_free_offset=0, complete=True,
+        )
+        (audit,) = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual((audit.first_3fff_offset_min,
+                          audit.first_3fff_offset_max), (0, 3))
+        self.assertEqual(audit.raw_3fff_field_count_match_entries, 3)
+        self.assertTrue(all(not entry.user_key for entry in traversal.entries))
+
+    def test_qddsi_partial_key_audit_counts_raw_3fff_without_decoding_it(self):
+        marker = bytes.fromhex("3FFF")
+        keys = (
+            SimpleNamespace(
+                key_count=2,
+                machine_key_length=60,
+                fields=(
+                    SimpleNamespace(length_or_fork=8),
+                    SimpleNamespace(length_or_fork=40),
+                    SimpleNamespace(length_or_fork=64),
+                ),
+            ),
+            SimpleNamespace(
+                key_count=1,
+                machine_key_length=80,
+                fields=(
+                    SimpleNamespace(length_or_fork=18),
+                    SimpleNamespace(length_or_fork=0),
+                    SimpleNamespace(length_or_fork=64),
+                ),
+            ),
+        )
+        layout = DataSpaceIndexLayout(
+            dkey_count=2, dkey_address=0, keys=keys
+        )
+        entries = (
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000001"), 0x100,
+                dkey_index=0, key_complete=False,
+                key_evidence=b"ABC" + marker * 3,
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000002"), 0x140,
+                dkey_index=0, key_complete=False,
+                key_evidence=b"ABCDEFGH" + marker * 3,
+            ),
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("01000001"), 0x180,
+                dkey_index=1, key_complete=False,
+                key_evidence=b"\x00" * 18 + marker + b"\x01" + marker,
+            ),
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries,
+            expected_entries=3,
+            root_offset=0x1000,
+            page_size=2048,
+            page_type=0xCC,
+            free_bytes=0,
+            first_free_offset=0,
+            complete=True,
+        )
+
+        audit = audit_partial_data_space_index_keys(layout, traversal)
+        self.assertEqual(len(audit), 2)
+        self.assertEqual(audit[0].positive_length_field_count, 3)
+        self.assertEqual(
+            (audit[0].raw_3fff_occurrences_min, audit[0].raw_3fff_occurrences_max),
+            (3, 3),
+        )
+        self.assertEqual(audit[0].raw_3fff_field_count_match_entries, 2)
+        self.assertEqual(
+            (audit[0].non_3fff_bytes_min, audit[0].non_3fff_bytes_max),
+            (3, 8),
+        )
+        self.assertEqual(
+            (audit[0].trailing_3fff_run_min, audit[0].trailing_3fff_run_max),
+            (3, 3),
+        )
+        self.assertEqual(audit[1].positive_length_field_count, 2)
+        self.assertEqual(
+            (audit[1].raw_3fff_occurrences_min, audit[1].raw_3fff_occurrences_max),
+            (2, 2),
+        )
+        self.assertEqual(audit[1].raw_3fff_field_count_match_entries, 1)
+        self.assertEqual(
+            (audit[1].non_3fff_bytes_min, audit[1].non_3fff_bytes_max),
+            (19, 19),
+        )
+        self.assertEqual(
+            (audit[1].trailing_3fff_run_min, audit[1].trailing_3fff_run_max),
+            (1, 1),
+        )
+        self.assertTrue(all(not entry.user_key for entry in entries))
+        self.assertTrue(all(not entry.machine_key for entry in entries))
 
     def test_qddsi_multi_dkey_all_empty_is_complete(self):
         data, _layout = make_qddsi_root_fixture(

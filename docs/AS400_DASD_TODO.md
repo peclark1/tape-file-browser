@@ -6,6 +6,13 @@ repeatable real-image validation.
 
 ## Current priority
 
+The storage-directory SMVT checkpoint search is **blocked on an
+independently verified CISC loader/startup data pointer**. The current
+bounded engineering focus is the eight outstanding compressed/long-key
+QAOK QDDSI variants, on a separate branch from draft PR #10. The
+storage-management work remains documented and resumable; raw bootstrap
+record matches do not justify speculative ASDE fields.
+
 ### QAOK long/compact QDDSI keys — active bounded follow-up
 
 The browser milestone was merged into `main` as PR #9.
@@ -48,10 +55,58 @@ depending on experimental ASDE changes.
       This rejects naïve raw record slicing, not an index-specific
       VARLEN representation. IBM later VARLEN documentation is a
       plausible analogy only, not a V2R3 field-code definition.
-- [ ] Resolve the actual two extra bytes per selected DKYT row
-      and the full long/compact tree text encoding by verifying
-      independent QDDS row evidence and observed tree-key order.
-      Do not synthesize missing user keys.
+- [x] Run the compact-key audit across all eight real tree traversals.
+      All **156/156** partial terminal bodies contain exactly one raw
+      `3FFF` byte pair per positive-length DKYT row selected by their DKEY.
+      Add a bounded code/CLI audit of pair counts, non-pair bytes and trailing
+      runs; preserve the pair as uninterpreted evidence.
+- [x] Verify the repeated `3FFF` evidence is stored in the machine index,
+      not introduced by traversal: seven of eight access paths carry the pair
+      inside raw common-text storage, and all eight carry it in reconstructed
+      terminal paths. Retain common-text traversal unchanged.
+- [x] Reconstruct four direct-mapped compact paths from independent QDDS
+      field/record evidence: QAOKLAKA, QAOKS01A, QAOKLDKA and QAOKL10A
+      reproduce **52/52** terminal bodies. QAOKLAKA directly proves a
+      two-byte current-length value for its 47-byte maximum field; S01's
+      corresponding length slot is zero; LDKA preserves its fixed zero bytes;
+      L10's blank padding is omitted by the compact representation.
+- [x] Parse no new semantic names, but expose three previously unnamed raw
+      DKYT tail words by byte offset. Across every populated QAOK DKEY,
+      raw +0x12 follows the observed cumulative field/fork count, raw +0x14
+      follows the repeatable `ceil(3*(L+1)/2)` step relation, and the final
+      +0x14 value + 4 equals the declared machine-key length. Add synthetic
+      positive/negative regressions.
+- [x] Stop presenting every positive DKYT location as a QDDS record offset.
+      Only print `record +N` when a recovered format field independently
+      matches both offset and length; otherwise label the value raw/unverified.
+- [x] Read-only RRN-correlated QDDS comparison now exactly reproduces
+      all **52/52** partial terminal *tree bodies* in QAOKS04A/S05A:
+      descriptor row 1 (8-byte field at one-based location 9) gives S04's
+      literal prefix and row 2 (8-byte field at location 17) gives S05's.
+      Stripping right EBCDIC blanks from the independently recovered QDDS
+      field gives all 13 prefixes under both DKEY rows per index; the three
+      trailing raw `3FFF` pairs are preserved verbatim. These are **not**
+      complete user/machine-key reconstructions, and the identical DKYT
+      location-zero first field does not identify the two distinct sources.
+      A bounded candidate-audit helper and synthetic negative tests were
+      added; no recovered user data was committed.
+- [x] Complete a read-only 13-RRN source-record census of every raw
+      QDDS field-table row with +0x06 flag 0x0080. All **143/143**
+      observed two-byte length words at the declared source location
+      fit the candidate maximum/record bounds; 130 are zero and the
+      13 for 47-byte row 34 range 7..17. Independently replaying
+      QAOKLAKA confirms the current-length word and following text
+      reproduce **13/13** tree bodies. Critically, zero-length row 27
+      still has nonzero and differing *inactive backing bytes* due to
+      overlapping record storage; raw bytes alone do not refute
+      marker-only index values. Add bounded length-word and candidate
+      ordering diagnostics plus synthetic regressions. Keep the
+      40/64-byte S02..S05 source assignments and raw 3FFF semantics
+      explicitly unresolved.
+- [ ] Resolve the intermediate/source-field mapping for QAOKS02A through
+      QAOKS05A and the architectural meaning of the per-field `3FFF` marker
+      / raw +0x14 transform. Do not synthesize missing maximum-field bytes or
+      promote the raw `seq=0x01` byte to VARLEN without independent proof.
 
 ### Storage-directory / ASDE — paused at evidence gate
 
@@ -122,6 +177,21 @@ key evidence while still providing complete DKEY/ordinal references. See
 - [x] Decode mixed-key-shape multi-DKEY indexes by matching the ordinary
       four-byte database-relative address back to its zero-based DKEY row and
       reconstructing user-key bytes around documented fork/control rows.
+- [x] Add an evidence-only `audit_partial_data_space_index_keys` helper
+      and member report: per-DKEY counts, observed tree-key body lengths,
+      numerical shortfalls from nominal DKEY machine-key lengths,
+      and four-byte ordinal-reference ranges, with synthetic tests.
+      No missing literal key bytes are invented.
+- [x] Independently locate all eight actual `0C/90` QAOK primaries
+      in Mark's V2R3 image by MI type + exact EBCDIC header name.
+      Cross-check direct DKEY table pointers (+0x400), active root
+      offsets (+0x1000 for LAKA/LDKA/L10A/S01A; +0x1800 for
+      S02A..S05A), root type 0xCC and declared key counts:
+      `13+13+13+13+26+26+26+26=156`. The declared DKEY
+      machine-key lengths include 132, 164, 181 and 178 bytes,
+      confirming that key-length semantics need more research.
+      These are primary-metadata validations, not decoded
+      compact-key storage or full virtual segment recovery.
 - [ ] Decode the eight remaining long/compressed-key QDDSI variants
       (QAOKLAKA, QAOKLDKA, QAOKL10A, QAOKS01A, QAOKS02A,
       QAOKS03A, QAOKS04A, and QAOKS05A) before treating keyed traversal as

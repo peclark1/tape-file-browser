@@ -547,6 +547,549 @@ This mapping is an observed V2R3 result independently corroborated by the
 recovered DDS definition. It should not be generalized to additional unknown
 internal type bytes without the same level of evidence.
 
+### Independent eight-index DKEY census on Mark V2R3
+
+A separate **read-only direct physical-page** inspection located all
+eight surviving `0C/90` primary objects using the *combination*
+of the exact eight-byte EBCDIC name at payload +0x24 and MI type
+bytes `0C 90` at +0x22. This is stronger than a disk-wide substring
+match because the index primary's object header and the DKEY/active-root
+pointers corroborate the selected address.
+
+The first physical sector supplies the six-byte virtual-address base;
+the primary's recovered first pages show DKEY count at segment +0x11E,
+six-byte DKEY pointer at +0x12A resolving to +0x400, and an active
+machine-index root reached by the independently observed control
+pointer chain at +0x13A and control +0x20. Each active root has
+page type `0xCC`. Physical sectors were read directly from the
+archived image; **only numerical structural metadata**, never
+recovered user-key bytes or source records, is reported here.
+
+| QDDSI object | Primary LBA | Populated DKEY key counts | DKEY user/machine key lengths (populated rows) | Active root offset |
+| --- | ---: | --- | --- | --- |
+| `QAOKLAKA` | 1,578,960 | 13 | 49/76 | +0x1000 |
+| `QAOKLDKA` | 1,574,256 | 13 + 0 | 84/132 | +0x1000 |
+| `QAOKL10A` | 1,588,128 | 0 + 13 | 76/120 | +0x1000 |
+| `QAOKS01A` | 1,589,344 | 13 | 66/102 | +0x1000 |
+| `QAOKS02A` | 1,588,704 | 13 + 13 | 108/164, both rows | +0x1800 |
+| `QAOKS03A` | 1,588,144 | 13 + 13 | 118/181, both rows | +0x1800 |
+| `QAOKS04A` | 1,588,800 | 13 + 13 | 116/178, both rows | +0x1800 |
+| `QAOKS05A` | 1,588,832 | 13 + 13 | 116/178, both rows | +0x1800 |
+
+**Independent numerical cross-check:**
+`13 + 13 + 13 + 13 + 26 + 26 + 26 + 26 = 156`,
+exactly the number of partial terminal database references
+already independently enumerated through the index trees.
+The zero-count DKEY rows in `QAOKLDKA` and `QAOKL10A` are
+preserved rather than silently omitted or reclassified.
+Only the **populated** row's length pair is printed above for
+those two indexes.
+
+Several declared machine-key lengths exceed the 128-byte
+machine-index entry-length limit discussed in the historical
+System/38 material. This is an *observed disparity* between a DKEY
+length field and that historical text, not proof of a particular
+compression algorithm or a V2R3 architectural exception.
+The live disk's index root, DKEY row, and terminal may encode
+different notions of key length. No bytes have been synthesized
+to make the lengths agree.
+
+**Scope caveat:** the first extent header and the pointer-target
+pages were checked, but not every following physical page has an
+identical eight-byte header; the early object group can contain
+noncontiguous or sparse physical payloads. Do not use the raw
+16-sector probe to assert the entire virtual object has been
+recovered contiguously. The production parser follows the
+validated recovered segment model; the census only corroborates
+the **local primary metadata**.
+
+## Compact-key evidence audit (2026-10-09)
+
+After a bounded, unsuccessful SMVT-checkpoint pointer search, the
+development priority moved back to the eight QAOK long/compact-key
+QDDSI variants. The existing machine-index traversal already gives
+**complete terminal database references** but not complete user-key
+bytes for those variants; we must not conflate the two.
+
+New `audit_partial_data_space_index_keys(layout, traversal)`
+returns per-**DKEY** aggregate evidence without constructing keys:
+
+- number of partial terminal entries compared with the DKEY's
+  declared `key_count`;
+- minimum/maximum **actual recovered tree-key body lengths**,
+  excluding the separately validated four-byte database reference;
+- minimum/maximum numerical difference between the DKEY-declared
+  **machine** key length and `len(tree evidence) + 4`;
+- number and distinct count of positive or otherwise observed
+  three-byte ordinal hints, plus their min/max values.
+
+The numerical length difference does **not** identify where omitted
+key bytes belong, whether compression is reversible, or whether any
+common prefix/suffix can be reconstructed. Complete-key entries
+are excluded from the partial-only grouping. The helper rejects
+out-of-range DKEY numbers, four-byte reference/DKEY mismatches and
+impossibly longer tree paths. The ordinary QDDSI traversal remains
+the source of terminal bytes and already bounds the index itself.
+
+The existing `as400-dasd member IMAGE LIB FILE MEMBER` report now
+shows the per-DKEY audit whenever traversal returns partial keys.
+This provides an immediate *repeatable comparison* for QAOKLAKA,
+QAOKLDKA, QAOKL10A and QAOKS01A..QAOKS05A without exposing user
+data in committed fixtures. Initial regression tests use the
+existing QAOK-style synthetic `3FFF 00000001` terminal
+(102-byte declared machine key, 2 bytes of tree body, and 4 bytes
+of reference, hence **96 bytes numerical shortfall**), plus a
+two-DKEY synthetic partial-index case. The values are *synthetic
+fixture checks*, not eight real-image audit results.
+
+### Third independent check: the raw `3FFF` pair tracks DKYT field count
+
+The per-DKEY audit was then run against the **actual recovered tree text** for
+all eight V2R3 QAOK access paths. This produced a new corpus-wide relationship
+without reconstructing a single missing user-key byte:
+
+- every one of the **156 partial terminal bodies** contains exactly one raw
+  non-overlapping `3F FF` byte pair for each **positive-length DKYT row**
+  belonging to its selected DKEY;
+- equivalently, the field-count relation holds for **156/156 terminals**;
+- `QAOKS01A`, `QAOKS02A`, and `QAOKS03A` have terminal bodies made only
+  from one, two, or three such byte pairs before the four-byte database
+  reference;
+- `QAOKS04A` and `QAOKS05A` carry a varying literal prefix followed by
+  three pairs; `QAOKLAKA` carries a varying literal prefix followed by one;
+- `QAOKLDKA` and `QAOKL10A` each have two pairs with one intervening
+  byte associated with their existing zero-length fork/control-row shape.
+
+This is an inventory of a **raw byte pattern**, not a declaration that
+`3FFF` is a delimiter, terminator, length word, or any other field. The
+production code therefore reports the pair count, the number of
+positive-length DKYT rows, the number of terminals where those counts agree,
+the non-`3FFF` byte range, and the trailing-pair run. It does **not** strip
+the pairs or use them to synthesize a key.
+
+Crucially, this is **not the same relationship** as the earlier two-byte
+DKEY/DKYT length accounting. `QAOKS04A` and `QAOKS05A`, for example, have
+three positive-length fields and therefore three observed `3FFF` pairs, but
+only two fields have raw sequence byte `0x01`; their declared user-key
+length exceeds the sum of field lengths by four bytes, not six. Therefore a
+`3FFF` pair cannot simply be identified with the two extra bytes previously
+correlated with each `seq=01` row.
+
+A direct raw-page check also rules out a traversal artifact. Stored
+**common-text** regions themselves contain these `3FFF` pairs in seven of
+the eight access paths (and terminal text carries the pair in all eight).
+The missing bytes therefore are not explained by an unvisited common-text
+element in the current tree walker.
+
+There is a useful period-documentation boundary here. SY21-0889-5, pp.
+2-16 through 2-18, says database management builds each key field before
+inserting the resulting bit strings into the general machine index, applying
+field-specific force/collating/numeric/order conversions as required. That
+supports treating the machine-index text as a **materialized key
+representation**, not as a guaranteed byte-for-byte copy of the QDDS record.
+The manual does not define this observed V2R3 `3FFF` pattern, so its meaning
+remains open.
+
+Two record-level correlations narrow the next experiment while staying
+within already nonzero DKYT-location evidence:
+
+- for all 13 active `QAOKLDKA` RRNs, the candidate 18-byte record region at
+  the nonzero DKYT location is all zero and the tree body preserves exactly
+  18 zero bytes before its first `3FFF` pair;
+- for all 13 active `QAOKL10A` RRNs, the analogous ten-byte region is
+  EBCDIC blank-filled, while the tree body has no literal field bytes before
+  its first pair.
+
+Those correlations led to a stronger direct-field reconstruction.
+
+### Direct QDDS-field reconstruction for four QAOK access paths
+
+The shared `QAOKP09A` QDDS primary itself is a 20-page logical segment.
+Its field-description area begins at logical +0x400 with a count of **36**,
+followed by repeated 32-byte descriptor rows. The descriptor semantics are
+still only partially decoded, but several rows can be independently joined to
+DKYT rows because **both the declared maximum/storage length and the nonzero
+one-based record location agree**.
+
+Four QAOK access paths have such direct joins:
+
+- `QAOKLAKA`: DKYT length 47 / location 326 agrees with QDDS descriptor
+  row 34. In every one of the 13 live user RRNs, the two bytes immediately
+  preceding the field's data area form a big-endian value in range 7..17.
+  That value equals the number of following literal field bytes represented
+  in the machine-index tree. The entire recovered compact tree body is
+  exactly those current bytes followed by one raw `3FFF` pair: **13/13**.
+  This gives a concrete corpus-level explanation for this row's
+  `47 + 2 = 49` declared user-key accounting: a two-byte current-length
+  value is physically present for the 47-byte maximum field.
+- `QAOKS01A`: its length-64 / location-50 DKYT row agrees with QDDS
+  descriptor row 7. The corresponding two-byte current-length slot is zero
+  in all 13 live RRNs; the compact tree body is just one raw `3FFF` pair:
+  **13/13**.
+- `QAOKLDKA`: the fixed 18-byte / location-188 row agrees with QDDS
+  descriptor row 21, while its length-64 / location-50 row again agrees with
+  row 7. All 13 records preserve the fixed 18 zero bytes literally, then the
+  raw pair, the existing one-byte fork/control value, and the empty
+  length-64 field's raw pair: **13/13**.
+- `QAOKL10A`: the fixed 10-byte / location-178 row agrees with QDDS
+  descriptor row 20, and the length-64 row again agrees with row 7. The
+  ten-byte source field is EBCDIC blank-filled in all 13 RRNs; its padding is
+  absent from the compact tree, which consists of a raw pair, the existing
+  fork/control byte, and the empty length-64 field's raw pair: **13/13**.
+
+Thus **52/52 terminal bodies** in these four indexes can now be reproduced
+from independently recovered QDDS record evidence without inventing omitted
+user-key bytes. This is stronger than the earlier length-only correlation.
+
+The later IBM AS/400 DDS/RPG descriptions of variable-length character data
+are useful corroboration only: they describe a two-byte current length in
+addition to the declared maximum data area. They do not prove that the raw
+V2R3 DKYT sequence byte `0x01` names that facility, nor do they define the
+observed `3FFF` compact-tree marker. The direct `QAOKLAKA` and
+`QAOKS01A` record bytes establish the two-byte current-length behavior
+independently for these real V2R3 fields.
+
+The four `QAOKS02A`..`QAOKS05A` layouts remain indirect: some positive
+DKYT locations are zero or behave as offsets within an intermediate key
+layout rather than literal QDDS record positions. Nevertheless, the QDDS
+field table supplies matching source *shapes*: an empty 40-byte
+variable-length candidate, the independently verified empty 64-byte field,
+blank-filled ten-byte candidates, and eight-byte fixed candidates. These
+explain why the S02/S03 bodies are marker-only and why S04/S05 carry one
+trimmed literal prefix followed by three markers, but the source-field
+mapping is not yet unique enough to promote into the decoder.
+
+### Additional raw DKYT tail scalars
+
+The previously unnamed DKYT tail also carries two repeatable numerical
+relationships across every populated QAOK DKEY. Production diagnostics now
+expose these only by raw byte offset:
+
+- raw word **+0x12** is a running count of positive `length_or_fork`
+  values, with +1 for the observed zero-length `seq=0x40` fork/control
+  row;
+- raw word **+0x14** advances by
+  `ceil(3 * (L + 1) / 2)` for each positive field of raw length `L`,
+  again +1 across the observed zero-length fork/control row;
+- for every populated compact QAOK DKEY, the **final +0x14 word + 4**
+  equals the DKEY-declared machine-key length.
+
+These words are *not named fields*. Ordinary indexes can carry similar raw
+values without using them as their literal machine-key length, so the
+relationship is recorded as QAOK corpus evidence rather than generalized
+architecture.
+
+One UI correction follows from the same work: a positive raw DKYT location is
+no longer printed as a QDDS record offset unless a recovered 19/51 format
+field independently matches both offset and length. Uncorroborated locations
+are now explicitly labelled raw/unverified.
+
+#### Independent physical-object identity check (read-only, 2026-10-09)
+
+A fresh exact-byte search of the original 1,004,257,800-byte
+`marks.hda` image (1,931,265 physical sectors at 520 bytes each)
+located the following header-validated primary pages. Matches require
+the eight-byte CP037 name at physical sector byte +0x2C (payload +0x24)
+**and** the expected MI type/subtype at physical byte +0x2A
+(payload +0x22), rather than searching names alone.
+
+| Physical LBA | Raw type/subtype | Name |
+| ---: | --- | --- |
+| 1,632,236 | `0B/90` | `QAOKP09A` |
+| 1,578,864 | `0C/90` | `QAOKP09A` |
+| 1,588,704 | `0C/90` | `QAOKS02A` |
+| 1,588,144 | `0C/90` | `QAOKS03A` |
+| 1,588,800 | `0C/90` | `QAOKS04A` |
+| 1,588,832 | `0C/90` | `QAOKS05A` |
+
+This confirms a practical disambiguation requirement: `QAOKP09A`
+occurs as **both** a QDDS data-space primary (`0B/90`) and a QDDSI
+index primary (`0C/90`). Name-only scans can silently select the
+wrong object. The `0B/90` first page has a segment-group size field
+of 20 pages, consistent with the previously reconstructed 20-page
+logical primary. The immediately following physical sectors do not
+show monotonically increasing logical page headers, and nearby LBAs
+also contain other objects; **physical contiguity is not a valid
+replacement for the recovered virtual-segment map**. This check
+corroborates object identity only. It does not uniquely associate
+the indirect DKYT locations in S02..S05 with QDDS source fields and
+does not resolve the raw `3FFF` pattern.
+
+#### Independent QAOKP09A physical QDDS field census (2026-10-09)
+
+A second read-only check used the original Mark V2R3 image and reconstructed
+the **separate** `0B/90` QDDS primary and its `03/B4` owned data-space
+segment in their validated logical extent order. The first QDDS primary
+pages are at LBA 1,632,236..239, with the remaining physical portions
+at 1,578,830..831, 1,587,564..565, 1,588,276..279,
+1,589,492..495 and 1,591,776..779. The `03/B4` space uses
+LBA 1,632,280..283 followed logically by 1,632,160..175.
+These are **physical sector lists**, not assumptions that an object is
+one contiguous disk run. Each physical sector contributes its 512-byte
+payload after its 8-byte storage header.
+
+The QDDS primary at logical +0x400 has the observed 36-row,
+32-byte-per-row table (`0x0024` count). Relevant raw rows in that
+table independently report the following length/location pairs:
+
+| Zero-based descriptor row | Raw type | Raw length | Raw location |
+| ---: | --- | ---: | ---: |
+| 7 | `0x0004` | 64 | 50 |
+| 10 | `0x0009` | 40 | 60 |
+| 17 | `0x0004` | 10 | 160 |
+| 20 | `0x0004` | 10 | 178 |
+| 21 | `0x0004` | 18 | 188 |
+| 24 | `0x0009` | 40 | 212 |
+| 27 | `0x0004` | 64 | 254 |
+| 30–31 | `0x0004` | 8 each | 287, 295 |
+| 34 | `0x0004` | 47 | 326 |
+
+The raw type values are **not** newly decoded field semantics. The
+presence of two different 40-byte candidates, multiple 10-byte
+candidates and multiple 8-byte candidates is important: matching a
+DKYT *length alone* would be ambiguous even before considering its
+potential intermediate-layout location. The 64-byte field at raw
+location 50 has a separate candidate of raw type `0x0004` at
+location 254. The QDDS table does not, by itself, establish which
+candidate any indirect QAOKS02A..S05A DKYT row uses.
+
+For the reconstructed `03/B4` data space, sector payload offset
+`0x20 + 352*n` (`n=0..13`) holds byte `0x80` in **all 14**
+records. This independently corroborates a 352-byte physical
+record slot (including its status byte), with one default entry and
+13 active entries, against the 13 user ordinals of the QAOK indexes.
+It does not prove a mapping between any `seq=01` raw DKYT row and
+one of the descriptor candidates.
+
+### Thirteen-record candidate value census (read-only)
+
+The same independently reconstructed `03/B4` record space was compared
+record-by-record for user RRNs 1..13. For each descriptor row below, bytes
+were taken at its observed one-based location within the recovered record
+payload and for its raw declared length. The comparisons do not interpret
+raw descriptor type codes or translate the values into QDDSI key material.
+
+| QDDS descriptor row | Length / location | Distinct byte strings among 13 user RRNs | Observed characteristic |
+| ---: | --- | ---: | --- |
+| 7 | 64 / 50 | 1 | all zero bytes |
+| 10 | 40 / 60 | 1 | all zero bytes |
+| 17 | 10 / 160 | 1 | all EBCDIC blank bytes (`40`) |
+| 20 | 10 / 178 | 1 | all EBCDIC blank bytes (`40`) |
+| 21 | 18 / 188 | 1 | all zero bytes |
+| 24 | 40 / 212 | 1 | all zero bytes |
+| 27 | 64 / 254 | 13 | variable bytes |
+| 30 | 8 / 287 | 3 | 11 blanks and 2 differing nonblank strings |
+| 31 | 8 / 295 | 3 | 11 blanks and 2 differing nonblank strings |
+| 34 | 47 / 326 | 13 | variable bytes |
+
+For the two eight-byte rows, the two nonblank instances occur at user RRNs
+7 and 10 in **both** rows. This coincidence is useful evidence for a later
+paired-field hypothesis, but it does **not** establish that the two bytes
+sequences are interchangeable or that either field is selected by S04/S05.
+
+**Overlapping descriptor discovery (independently checked on every
+user record):** the raw location/length of descriptor row 27
+(64 bytes at one-based 254) encompasses **both** eight-byte descriptors:
+row 30 (287..294) and row 31 (295..302). Relative to the first byte of
+row 27, these are slices `[33:41]` and `[41:49]`, respectively.
+Byte-for-byte comparisons of each independently sliced value from the
+reconstructed 352-byte records agree for **13/13** RRNs for each of the
+two nested descriptors (**26/26** comparisons). The descriptor table
+therefore contains overlapping storage views here; the 64-byte row
+and two eight-byte rows must *not* be treated as three independent
+record-storage regions. Their field semantics and their roles in
+S04/S05 indexing remain unresolved.
+
+Among the 13 records, rows 30 and 31 have unusual nonblank contents
+at exactly RRNs 7 and 10; the overlap shows these occurrences are
+already inside the variable 64-byte region rather than independent
+corroborating values. Next compare the **actual recovered S04/S05
+tree prefixes** for these RRNs and all other ordinals before mapping
+any DKYT row to a particular QDDS descriptor. The overlap is
+structurally exact but does not yet establish a key-materialization
+rule or a meaning for `3FFF`.
+
+**Important negative result:** length-matched rows 10/24 (40 bytes) and
+17/20 (10 bytes) are observationally indistinguishable across the current
+13 records: a source-value match alone cannot uniquely identify them.
+Unlike those pairs, the two 64-byte candidates have different variability
+(row 7 all zero, row 27 distinct for every user RRN), which could reject
+a proposed source-field assignment when contrasted with the corresponding
+tree body. This is a bounded corpus result only. No automatic source
+mapping or compact-key reconstruction is justified yet.
+
+**Evidence gate:** before resolving S02..S05, distinguish the source
+fields using descriptor identity and 13-per-record value comparisons,
+not only raw length/location similarity. Preserve the existing 104
+partial tree bodies and complete database-reference suffixes until
+that comparison produces an unambiguous field-materialization rule.
+
+#### Verified literal-prefix sources in QAOKS04A/QAOKS05A (2026-10-09)
+
+A **read-only, RRN-matched machine-index traversal** of the original Mark
+V2R3 disk provides a decisive source-field comparison. Each S04/S05 index
+primary is a **physically contiguous 16-page segment** with its control
+pointer at logical +0x1000 and active root page at +0x1800. Reconstructing
+the machine-index node/common-text paths from the raw index pages produces
+**26 terminal references** per index: 13 RRNs for each of two populated DKEY
+rows, with no unresolved page pointers or traversal errors. For every entry,
+the partial tree body contains a nonempty literal prefix followed by exactly
+three raw `3F FF` pairs and then the intact four-byte DB reference.
+
+The independent `QAOKP09A` 36-row QDDS field table at logical +0x400
+identifies **descriptor row 1: length 8, one-based record location 9** and
+**descriptor row 2: length 8, one-based record location 17**. These map
+respectively to zero-based offsets 8 and 16 within the 351-byte record
+payload, after the data-space entry's separate one-byte status.
+
+| Access path | Raw QDDS source candidate | Comparison | Result |
+| --- | --- | --- | --- |
+| `QAOKS04A` | Descriptor row 1, data `[8:16]` | Strip trailing CP037/EBCDIC blanks (`0x40`) and compare *every* literal prefix before the first raw `3FFF` | **26/26** DKEY/RRN terminal matches |
+| `QAOKS05A` | Descriptor row 2, data `[16:24]` | Same literal byte comparison | **26/26** matches |
+
+These are **52/52 recovered terminal bodies** across S04/S05 reproduced
+exactly as `candidate.rstrip(0x40) + (3FFF * 3)`, followed by the
+independently verified database reference. Because each index repeats the
+same 13 RRN values under two populated DKEY rows, this represents **26
+distinct index/RRN prefix observations**, mirrored across DKEY groups—not
+52 independent source-record values. No archived user strings are committed.
+
+**Negative candidate controls:** the same RRN-by-RRN raw-byte comparison
+also evaluated three alternative eight-byte source slots against each
+index's 26 terminal prefixes. The *opposite* first-record field matched
+only **14/26** entries for both S04 and S05; the overlapping QDDS
+descriptor row 30 at zero-based offset **286**, and row 31 at **294**,
+each matched **0/26** entries for both access paths. This distinguishes
+the correct source from nearby fields and rules out identifying the
+literal prefix with the two nested slices of the variable 64-byte
+QDDS region. These counts compare exact bytes after right-blank
+removal, not substring presence or decoded text.
+
+The critical discriminators were RRNs 7 and 10: the two paths have
+different-length literal prefixes for these records. The S04 prefix is
+always byte-for-byte identical to QDDS `[8:16]` with right blanks removed;
+S05 is always identical to `[16:24]`. Across the 13 RRNs, S04 prefix lengths
+range **2..8**, and S05 **4..8**. This defeats the earlier suggestion
+that the literal prefixes could derive from the overlapping 64-byte field
+at raw location 254 or its eight-byte subfields: those regions are not
+needed to account for either recovered literal prefix.
+
+Both S04 and S05 have **identical raw DKYT field shapes** under each DKEY:
+8-byte `seq=00` at raw location zero, 40-byte `seq=01` at raw
+location 8, and 64-byte `seq=01` at raw location 50. The first raw
+location zero therefore cannot by itself identify a physical QDDS record
+offset. The independent field table plus RRN-correlated bytes is necessary
+to distinguish S04's source from S05's. Exact matching is a strong
+**source-field materialization observation**, but it does **not** yet give a
+decoder for the two later fields or the semantics of `3FFF`.
+
+A pure backend helper
+`audit_partial_index_literal_prefix_candidate(traversal, records,
+record_offset=..., field_length=...)` now counts such literal matches,
+including empty-value and missing-record cases, using **caller-supplied**
+record offsets. It never changes the recovered keys or treats a raw
+`3FFF` pair as a proven field delimiter. Synthetic regressions use only
+fabricated data, including negative candidate comparisons and two DKEY
+rows.
+
+**Revised evidence gate:** S04/S05 literal prefixes are accounted for
+(**52/52 terminal bodies**). All **104** S02..S05 entries remain
+partial *logical keys*: further work must establish the middle/final
+40/64-byte source identities, compact `3FFF` representation and raw
++0x14 transform without synthesizing maximum-length padding. The
+S02/S03 tree bodies are marker-only and can match empty candidate
+fields, which does not uniquely identify their source descriptors.
+
+#### Candidate two-byte current-length words and inactive overlapping storage
+
+A third independent read-only inspection of the original Mark V2R3
+`QAOKP09A` QDDS field-descriptor table and all **13 user RRN records**
+tests a more precise interpretation of the raw 0x0080 descriptor flag at
+row offset +0x06. At each candidate descriptor's **one-based location**
+`L`, two raw bytes at zero-based QDDS *record-data* offsets
+`[L-1:L+1]` act as an unsigned big-endian current-length candidate.
+The actual current text follows from zero-based offset `L+1` and is
+bounded by the descriptor's raw maximum length. These are record payload
+coordinates; the separate 0x80 DENT status byte is not included.
+
+All **11** descriptor rows with the raw +0x06 word **0x0080** were checked,
+yielding **11 × 13 = 143** in-range observations. No candidate current
+length exceeded its descriptor maximum or the recovered record boundary.
+
+| Descriptor rows with raw +0x06 = 0x0080 | Raw maximum sizes | Current-length results across 13 RRNs |
+| --- | --- | --- |
+| 7, 10, 11, 12, 13, 14, 24, 26, 27, 35 | 64, 40, 20, 20, 20, 26, 40, 20, 64, 2000 | **Zero in 130/130 observations** |
+| 34 | 47 | **Nonzero in 13/13**, minimum 7, maximum 17 |
+
+The strongest **positive control** is descriptor row 34, raw length 47
+at one-based location 326: its current-length word is record-data
+`[325:327]`, and its currently stored value occupies
+`[327:327+current_length]`. Independently walking the actual
+`QAOKLAKA` machine-index root at +0x1000, and matching database
+RRNs, reproduces the entire recovered tree body as
+`record_value[:current_length] + raw_3FFF_pair` for **13/13** user
+records. This is an actual variable-length-value correlation, not
+just a zero-word observation.
+
+The crucial **negative control** is descriptor row 27, maximum 64
+at one-based location 254. Its two-byte word is zero for **13/13**
+records even though its following raw storage is nonzero and differs
+across all 13 records. The same zero-word/nonzero-backing combination
+occurs in all 13 records for rows 14 and 35. This is not proof that
+the logical field's current length is positive: the QDDS descriptors
+give overlapping views into shared record bytes, including the
+separately verified row-27/row-30/row-31 overlap. Treat current-length
+zero and inactive raw backing storage as distinct observations.
+
+This reconciles an earlier apparent conflict: a varying raw 64-byte
+region does **not** rule out a marker-only S02/S03 key field if the
+candidate's current value is empty. It does not, however, prove that
+the S02/S03 DKYT 40/64 components select rows 7/10, 24/27 or another
+intermediate mapping. All four relevant 40/64 candidates have zero
+current-length words in the 13-record corpus.
+
+A new bounded, *opt-in diagnostic* helper,
+`audit_qdds_current_length_word_candidate`, records only aggregated
+word counts, invalid/truncated candidates and zero-length words with
+nonzero backing storage; it never decodes missing machine-index keys.
+Synthetic regressions expressly check the nonzero-inactive-storage
+case. Separate `audit_partial_index_record_field_order` checks
+candidate bytewise sort order per DKEY and counts equal-value ties.
+In these real indexes, **S02 and S03 have identical raw tree bodies
+within each DKEY** and ascending RRNs 1..13. S04/S05 sorting by their
+previously identified trimmed 8-byte source fields plus RRN exactly
+matches traversed order for both DKEY rows, but such order agreement
+alone is weaker evidence than the exact 52/52 tree-body byte matches.
+The S02/S03 candidate 40-byte zeros and the (nominally varying)
+row-27 64-byte backing region likewise sort in ascending RRN order;
+neither ordering coincidence establishes source identity.
+
+**Scope and terminology:** descriptor flag `0x0080` is only a raw
+field-table flag, and the two-byte word is a corpus-supported current-
+length candidate. The historical documentation does not establish its
+complete V2R3 descriptor-bit semantics. The observed `3FFF` pair
+remains uninterpreted. No missing maximum-width padding or unobserved
+key values are synthesized, and all 156 database references remain
+independently navigable.
+
+#### Raw pair-position diagnostic (incremental)
+
+The partial-key audit additionally records the minimum and maximum **byte
+offset of the first raw `3F FF` pair** among terminals in each DKEY group.
+The member report exposes this range alongside existing pair counts and
+trailing-run evidence. A varying first-pair offset is useful for isolating
+paths with varying literal prefixes, especially QAOKS04A/QAOKS05A, while
+an offset of zero can be contrasted with marker-only paths. This is a
+diagnostic capability, **not** a new corpus-level finding or a decoded field
+boundary. Its regression uses synthetic examples with offsets 0, 1 and 3.
+No complete user-key bytes are produced.
+
+**Next actual decoding gate:** resolve the intermediate/source-field mapping
+for `QAOKS02A`..`QAOKS05A`, then determine what the `3FFF` field marker
+and raw +0x14 length transform represent architecturally. Any complete-key
+decoder must reproduce the real QDDS-to-tree materialization and ordering for
+all 156 RRNs without padding or interpolating missing maximum-field bytes.
+
 ## Next implementation steps
 
 1. Keep the eight long/compact QAOK variants as an explicit partial-key
