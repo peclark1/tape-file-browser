@@ -954,6 +954,17 @@ same 13 RRN values under two populated DKEY rows, this represents **26
 distinct index/RRN prefix observations**, mirrored across DKEY groups—not
 52 independent source-record values. No archived user strings are committed.
 
+**Negative candidate controls:** the same RRN-by-RRN raw-byte comparison
+also evaluated three alternative eight-byte source slots against each
+index's 26 terminal prefixes. The *opposite* first-record field matched
+only **14/26** entries for both S04 and S05; the overlapping QDDS
+descriptor row 30 at zero-based offset **286**, and row 31 at **294**,
+each matched **0/26** entries for both access paths. This distinguishes
+the correct source from nearby fields and rules out identifying the
+literal prefix with the two nested slices of the variable 64-byte
+QDDS region. These counts compare exact bytes after right-blank
+removal, not substring presence or decoded text.
+
 The critical discriminators were RRNs 7 and 10: the two paths have
 different-length literal prefixes for these records. The S04 prefix is
 always byte-for-byte identical to QDDS `[8:16]` with right blanks removed;
