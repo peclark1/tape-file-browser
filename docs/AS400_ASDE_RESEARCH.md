@@ -53,12 +53,13 @@ As an accounting **hypothesis**, those lengths permit a six-byte prefix and
 five additional bytes per descriptor. The raw evidence helper uses only this
 length arithmetic, not guessed individual field offsets or names.
 
-**Manual inconsistency to resolve:** chapter 8's narrative prints
-`11-,18-,21-, and 28-byte` ASDE sizes, while chapter 7 prints
+**Manual inconsistency to resolve:** chapter 8's searchable transcription gives
+`11-,18-,21-, and 28-byte` ASDE sizes, while chapter 7 gives
 `11-,16-,21-, and 26-byte`; the same chapter 8 calls lookaside entries
-11 bytes. The chapter 7 arithmetic is internally regular but **not sufficient
-to assign a universal release-specific ASDE byte layout**. Preserve this
-discrepancy until the original figures or real entries settle it.
+11 bytes. This may be a **6-versus-8 OCR/transcription artifact**, not a true
+printed technical disagreement. The chapter 7 arithmetic is internally regular
+but **not sufficient to assign a release-specific ASDE byte layout**. Verify
+against the original figure and real entries rather than silently choosing.
 
 ## Already observed on our two disk images
 
