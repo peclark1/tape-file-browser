@@ -89,6 +89,7 @@ class DASDToolTests(unittest.TestCase):
             two = bytearray(PAGE_SIZE)
             # Both names have the prefix '#SMSMVT', but they are distinct.
             one[5:13] = "#SMSMVT".ljust(8).encode("cp037")
+            one[16:20] = b"\x02\x00\x00\x00"
             one[20:28] = "#SMSMVTN".encode("cp037")
             one[200:207] = b"#SMSMVT"  # ASCII must not match
             two[30:38] = "#SMACDIR".encode("cp037")
@@ -109,6 +110,7 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("#SMACDIR: 1", output)
             self.assertIn("payload +0x005", output)
             self.assertIn("payload +0x014", output)
+            self.assertIn("preceding4 02 00 00 00", output)
             self.assertIn("space-padded eight-byte name", output)
             self.assertIn("NOT proven SMVT", output)
 
