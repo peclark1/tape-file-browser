@@ -26,6 +26,7 @@ from as400_dasd import (
     SEGMENT_HEADER_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DASDUnitDescriptorEvidence,
     DENT_V2_DELETED,
     DENT_V2_LIVE,
     Extent,
@@ -415,6 +416,67 @@ def cmd_bootstrap_map(args):
     print(
         "Labels are observed bytes, not proof of SMVT checkpoint,"
         " boot control-block schema, or permanent-directory root."
+    )
+    return 0
+
+
+
+def cmd_disk_descriptor(args):
+    """Cross-check a known labeled physical disk-unit record against the image."""
+    image = _open(args.image)
+    sector = image.read_sector(args.lba)
+    evidence = DASDUnitDescriptorEvidence(sector.data)
+    origin = evidence.candidate_origin_lba
+    managed_count = evidence.candidate_managed_sector_count
+    end = evidence.candidate_physical_end
+
+    print(f"Image:                  {image.path}")
+    print(f"Descriptor physical LBA: {sector.lba:,}")
+    print(
+        "Exact payload label:     'DASD  UNIT  DESC'"
+        " at payload +0x040 (EBCDIC CP037)"
+    )
+    print(
+        f"Raw first 8 bytes:       {sector.data[:8].hex(' ').upper()}"
+    )
+    print(f"Candidate origin LBA:    {origin:,}")
+    print(f"Candidate managed pages: {managed_count:,}")
+    print(f"Candidate end exclusive: {end:,}")
+    print(f"Actual image sectors:    {image.sector_count:,}")
+    print(
+        "Size arithmetic agrees: "
+        + ("YES" if evidence.agrees_with_image_size(image.sector_count) else "NO")
+    )
+    if 0 < origin < image.sector_count:
+        previous = image.read_sector(origin - 1)
+        first = image.read_sector(origin)
+        print(
+            f"Pre-origin header (LBA {origin - 1:,}): "
+            f"{previous.header.raw.hex(' ').upper()}"
+        )
+        print(
+            f"At-origin header  (LBA {origin:,}): "
+            f"{first.header.raw.hex(' ').upper()}"
+        )
+        print(
+            "Header boundary matches: "
+            + (
+                "YES"
+                if (
+                    previous.header.is_zero
+                    and not first.header.is_zero
+                    and not first.header.is_ff
+                    and first.header.page_aligned
+                )
+                else "NO"
+            )
+        )
+    else:
+        print("Header boundary matches: not checked (origin outside 1..EOF-1)")
+    print(
+        "The first two fields and label are OBSERVED on B10 and V2R3"
+        " images; their official IBM names and surrounding binary"
+        " record layout remain unverified. No SMVT/ASDE is inferred."
     )
     return 0
 
@@ -9174,6 +9236,17 @@ def build_parser():
         help="maximum nonzero-payload rows to show (default 64)",
     )
     bootstrap.set_defaults(func=cmd_bootstrap_map)
+
+    descriptor = sub.add_parser(
+        "disk-descriptor",
+        help="cross-check exact DASD UNIT DESC label and raw geometry fields",
+    )
+    descriptor.add_argument("image")
+    descriptor.add_argument(
+        "--lba", type=int, default=32,
+        help="physical descriptor sector (observed at LBA 32 on both images)",
+    )
+    descriptor.set_defaults(func=cmd_disk_descriptor)
 
     asde = sub.add_parser(
         "asde-probe",
