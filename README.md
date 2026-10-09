@@ -176,6 +176,7 @@ as400-dasd info disk.hda
 as400-dasd map disk.hda
 as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
+as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
@@ -392,6 +393,23 @@ o               open another DASD image
 r               rescan the current image
 q / Esc         quit
 ```
+
+### Storage-directory / ASDE research
+
+After the TUI/browser milestone, the next phase is reconstruction of the
+storage-management **permanent directory** and its auxiliary-storage directory
+entries (ASDEs). That directory maps permanent virtual addresses to disk
+extents; it is **not** the library/context object-name index.
+
+The preliminary `asde-probe IMAGE LBA PAYLOAD_OFFSET LENGTH` command inspects
+an **explicitly selected** raw candidate inside one 512-byte sector payload
+(`LENGTH` is 11, 16, 21, or 26 from IBM's System/38 chapter-7 ASDE length
+family). It displays only a tentative six-byte prefix and one-to-four
+five-byte raw pieces. This is a forensic partitioning helper, **not** an ASDE
+locator or a validated field decoder. No ASDE virtual address, device number,
+extent size, or disk location is inferred from these bytes yet. See
+`docs/AS400_ASDE_RESEARCH.md` for documented facts, original-source
+transcription caveats, and the real-image validation plan.
 
 The browser is completely read-only with respect to the DASD image. When a
 selected QDOC `*DOC` has a unique, validated same-base `*DOCBSS` companion,
