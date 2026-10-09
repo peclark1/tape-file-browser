@@ -371,6 +371,9 @@ follow-ups, not prerequisites for the current browser milestone. See
       seven-byte free-space-directory extent descriptor. Add a read-only,
       bounded `asde-probe` that preserves only raw length-based partitioning,
       not guessed virtual-address or disk extent fields.
+- [x] Add a bounded/reproducible `storage-labels` CP037 xref for documented
+      VMC symbols (`#SMSMVT`, `#SMACDIR`, etc.). Literal hits are only
+      candidate investigation targets and are not treated as directory roots.
 - [ ] Identify SMVT/static-directory and permanent-directory root candidates
       by independently corroborated real-image evidence.
 - [ ] Traverse the identified permanent-directory machine index, preserving
