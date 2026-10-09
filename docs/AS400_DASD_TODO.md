@@ -6,20 +6,14 @@ repeatable real-image validation.
 
 ## Current priority
 
-### Browser milestone cleanup and merge preparation
+### Storage-directory / ASDE reconstruction
 
-The database/QDDSI and permanent-context milestones are functionally complete
-for the current B10/V2R3 corpus, and the redesigned TUI has completed its main
-usability/terminology pass. The remaining work before merge is deliberately
-small: keep high-value user-visible decoder cleanup evidence-driven, maintain
-regression coverage, refresh milestone documentation, and avoid opening new
-architectural fronts inside this branch.
-
-The next major architecture phase after this browser milestone is
-**storage-directory / ASDE reconstruction**. Nonzero context segment-table-index
-pointers, the eight compressed/indirect QAOK QDDSI variants, exact context page
-header semantics beyond the independently established prefix, and MI program
-decompilation remain explicit follow-up research rather than merge blockers.
+The browser milestone was merged into `main` as PR #9. The active architecture
+phase is now recovery/validation of the **storage-management** static/permanent
+directory, not another library/context index. Use
+`docs/AS400_ASDE_RESEARCH.md` and the documented/observed/hypothesis
+distinction. Do not decode speculative ASDE bytes until real directory
+locations and independent sector-header cross-checks establish them.
 
 ### Database / QDDSI and keyed-file reconstruction — milestone checkpoint
 
@@ -368,10 +362,23 @@ follow-ups, not prerequisites for the current browser milestone. See
 
 ## Storage-directory / recovery internals
 
-- [ ] Identify static/permanent directory objects.
-- [ ] Parse ASDE/extent descriptors directly as an independent check of the
-      header-based recovery map.
-- [ ] Improve permanent/temporary sector-header indicator decoding.
+- [x] Survey IBM SY21-0889-5 chapters 7 and 8 and AS/400 Redbook terminology
+      for static/lookaside/free/permanent/temporary directories. The static
+      directory is a resident table in the SMVT, not a library context; the
+      permanent directory is a pageable machine index of ASDE entries.
+- [x] Record documented ASDE candidate lengths (chapter 7: 11/16/21/26 bytes,
+      one to four extents), the chapter-8 length discrepancy, and the separate
+      seven-byte free-space-directory extent descriptor. Add a read-only,
+      bounded `asde-probe` that preserves only raw length-based partitioning,
+      not guessed virtual-address or disk extent fields.
+- [ ] Identify SMVT/static-directory and permanent-directory root candidates
+      by independently corroborated real-image evidence.
+- [ ] Traverse the identified permanent-directory machine index, preserving
+      raw terminal entries before claiming an ASDE layout.
+- [ ] Validate decoded ASDE-to-LBA/VA/extent mappings against independently
+      recovered sector-header extents across both real images.
+- [ ] Improve permanent/temporary sector-header indicator decoding only after
+      field semantics are corroborated.
 - [ ] Reduce dependence on structural corroboration for ambiguous candidates.
 
 ## Program object / MI decoding
