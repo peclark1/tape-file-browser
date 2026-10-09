@@ -82,15 +82,17 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
-    def test_storage_labels_counts_payload_ebcdic_not_ascii(self):
+    def test_storage_labels_exact_padded_ebcdic_names_vs_substrings(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "synthetic.hda"
             one = bytearray(PAGE_SIZE)
             two = bytearray(PAGE_SIZE)
-            one[5:12] = "#SMSMVT".encode("cp037")
-            one[200:207] = b"#SMSMVT"
+            # Both names have the prefix '#SMSMVT', but they are distinct.
+            one[5:13] = "#SMSMVT".ljust(8).encode("cp037")
+            one[20:28] = "#SMSMVTN".encode("cp037")
+            one[200:207] = b"#SMSMVT"  # ASCII must not match
             two[30:38] = "#SMACDIR".encode("cp037")
-            two[80:87] = "#SMSMVT".encode("cp037")
+            two[80:88] = "#SMSMVTN".encode("cp037")
             image.write_bytes(
                 b"\x00" * 8 + bytes(one)
                 + b"\x00" * 8 + bytes(two)
@@ -101,10 +103,13 @@ class DASDToolTests(unittest.TestCase):
                 rc = main(["storage-labels", str(image)])
             self.assertEqual(rc, 0)
             output = stdout.getvalue()
-            self.assertIn("#SMSMVT: 2", output)
+            self.assertIn("#SMSMVT: 1", output)
+            self.assertIn("#SMSMVTN: 2", output)
+            self.assertIn("#SMSMVTI: 0", output)
             self.assertIn("#SMACDIR: 1", output)
             self.assertIn("payload +0x005", output)
-            self.assertIn("payload +0x050", output)
+            self.assertIn("payload +0x014", output)
+            self.assertIn("space-padded eight-byte name", output)
             self.assertIn("NOT proven SMVT", output)
 
             stdout = io.StringIO()
@@ -117,8 +122,25 @@ class DASDToolTests(unittest.TestCase):
                     "--limit", "1",
                 ])
             self.assertEqual(rc, 0)
-            self.assertIn("#SMSMVT: 1", stdout.getvalue())
-            self.assertNotIn("LBA         0", stdout.getvalue())
+            self.assertIn("#SMSMVT: 0", stdout.getvalue())
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main([
+                    "storage-labels", str(image),
+                    "--substring", "--symbol", "#SMSMVT",
+                ])
+            self.assertEqual(rc, 0)
+            self.assertIn("#SMSMVT: 3", stdout.getvalue())
+            self.assertIn("CP037 substring", stdout.getvalue())
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                rc = main([
+                    "storage-labels", str(image), "--symbol", "123456789"
+                ])
+            self.assertEqual(rc, 1)
+            self.assertIn("eight-byte name", stderr.getvalue())
 
     def test_asde_probe_reads_only_bounded_candidate_payload(self):
         with tempfile.TemporaryDirectory() as directory:
