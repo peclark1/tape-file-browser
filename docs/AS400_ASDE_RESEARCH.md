@@ -147,6 +147,64 @@ AS/400 nucleus uses the identical exact compiled module label, location or
 layout. A distinct `#SMSMVTN` name could reflect a release-specific
 identifier or another relationship; its role is still unknown.
 
+### Shutdown-module references across both disk images
+
+IBM's System/38 VMC description calls module `#SMSHTDN` the storage-
+management shutdown routine responsible for checkpointing the SMVT
+after reconciling temporary and permanent directories. This is a
+**documented function on System/38**, not a known V2R3 physical
+checkpoint address. The readable text layer of the same manual
+renders the distinct link/loader SMVT initializer name as
+`#SMSMVT1` (digit one); the earlier research probe only included
+`#SMSMVTI` (letter I). Because a printed 1/I ambiguity is possible,
+retain *both* as separate exact search candidates until the original
+printed glyph is verified.
+
+Exact eight-byte CP037 **whole-name** payload scans (counting all
+occurrences, not just matching sectors) return:
+
+| Name | Mark V2R3 load-source | Pete B10 non-load-source |
+| --- | ---: | ---: |
+| `#SMSHTDN` | 10 | 1 |
+| `#SMSMVTN` | 332 | 0 |
+| `#SMSMVT1` (digit one) | 0 | 0 |
+| `#SMSMVTI` (letter I) | 0 | 0 |
+| `#SMDR2  ` | 8 | 1 |
+
+The physical **late-image** occurrences are particularly informative:
+`#SMDR2` is at Mark physical LBA **1,890,161**, payload +0x0A3;
+`#SMSHTDN` is at Mark **1,890,163**, payload +0x079.
+On Pete, `#SMDR2` is at physical **573,617**, payload +0x162;
+`#SMSHTDN` is at **573,618**, payload +0x0B2.
+Those pairs are in short runs whose eight-byte sector headers
+start `A0 00 2D` on **both** disks (though the remaining bytes of
+the header, positions and physical LBAs differ).
+
+The neighboring sequence of eight-byte module-style names includes
+`#SMRUSID`, `#SMRUSIN`, `#SMSGEX`, `#SMSHTDN`, and
+`#SMSUBRC` on both images. The recurring names in nearby
+physical pages, their broadly preserved order, and the shared
+virtual prefix support a **common module-name/linkage-record
+interpretation** across releases. They do **not** prove that the
+associated shutdown code itself lives at those object-storage
+addresses, or that the checkpoint is adjacent to the strings.
+
+**Reproduce:** `as400-dasd storage-labels IMAGE --symbol '#SMSHTDN'
+--symbol '#SMDR2' --header-groups 8 --limit 0` (default exact-name
+matching). `--header-groups` reports independent eight-byte
+sector-header frequencies per searched symbol; it does not
+assign a segment type or directory role. The scanner also
+includes `#SMSMVT1` and `#SMSMVTI` separately by default.
+In an incomplete multi-disk image, the presence or absence
+of a module symbol is not evidence for the presence or absence
+of a persisted SMVT checkpoint.
+
+**Next gate:** obtain an actual shutdown/initialization *data
+reference* or an independent disk-control record that points to
+the stored checkpoint. Do not scan arbitrary six-byte values
+in object module-reference pages and call the first in-range
+value a live SMVT pointer.
+
 ### Independently cross-checked extent-relative VMC references
 
 This is **positive address evidence**, unlike the earlier name-only search.
