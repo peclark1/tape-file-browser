@@ -79,6 +79,13 @@ class Guided5250Tests(unittest.TestCase):
         self.assertEqual("*MSGF", RecoveredObject.external_type_hint.fget(msgf))
         self.assertIn("message file", _tui_object_type_context(0x0E, 0x03))
 
+    def test_ibm_internal_database_recovery_object_type(self):
+        obj = NS(object_type=0x19, object_subtype=0xD4)
+        self.assertEqual("*DBRCVR", RecoveredObject.external_type_hint.fget(obj))
+        desc = _tui_object_type_context(0x19, 0xD4)
+        self.assertIn("Database Recovery Object", desc)
+        self.assertIn("not currently decoded", desc)
+
     def test_five_historical_mi_object_type_labels_and_context(self):
         expected = {
             (0x19, 0xE0): ("*ADO", "Asynchronous Distribution Object"),
