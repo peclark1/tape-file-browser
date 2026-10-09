@@ -177,7 +177,7 @@ as400-dasd map disk.hda
 as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd asde-probe disk.hda 12345 32 16
-as400-dasd storage-labels disk.hda --symbol '#SMSMVT' --start-lba 64000 --sectors 10000
+as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
 as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
@@ -401,6 +401,14 @@ After the TUI/browser milestone, the next phase is reconstruction of the
 storage-management **permanent directory** and its auxiliary-storage directory
 entries (ASDEs). That directory maps permanent virtual addresses to disk
 extents; it is **not** the library/context object-name index.
+
+The `storage-labels IMAGE` command defaults to **complete EBCDIC
+space-padded eight-byte candidate names**, not prefix substrings: `#SMSMVT`
+and `#SMSMVTN` are counted separately. Use `--substring` only when deliberately
+looking for substrings; on Mark's V2R3 disk all 332 older `#SMSMVT`
+substring hits are within `#SMSMVTN`. Repeated names and adjacent raw bytes
+are candidate compiled-reference evidence, **not** identified SMVT or directory
+locations. See `docs/AS400_ASDE_RESEARCH.md` for the corrected counts.
 
 The preliminary `asde-probe IMAGE LBA PAYLOAD_OFFSET LENGTH` command inspects
 an **explicitly selected** raw candidate inside one 512-byte sector payload
