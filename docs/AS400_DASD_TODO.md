@@ -453,6 +453,11 @@ to this CISC release.
       the best available view when the preferred one is unavailable. Preserve a
       user's manually selected inspector view until they move to a different
       logical selection so the TUI does not keep overriding explicit choices.
+- [x] Complete a post-redesign terminology/usability consistency pass: reserve
+      "recovered" for evidence/recovery explanations, label ordinary primary-
+      backed navigation state as "present" rather than treating recovered as a
+      quality grade, remove stale separate-directory-group wording, and use
+      object-primary/member-cursor terminology in summaries and status lines.
 - [x] Add validated `*DOCBSS` workstation-file export to the TUI with
       explicit destination prompting and overwrite confirmation.
 - [x] Move library descriptions to editable `as400_libraries.json`.
