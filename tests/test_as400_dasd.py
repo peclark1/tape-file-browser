@@ -206,6 +206,72 @@ def write_image(path, sectors):
             handle.write(payload)
 
 
+class QAOKKeyLengthEvidenceTests(unittest.TestCase):
+    """Synthetic DKYT rows with length/attribute combinations observed on V2R3."""
+
+    @staticmethod
+    def _spec(lengths, sequences, user_length, machine_length):
+        fields = tuple(
+            DataSpaceIndexKeyField(
+                sequence_attributes=sequence,
+                field_attributes=0x30 if length else 0,
+                length_or_fork=length,
+                relative_offset=0,
+                location=0,  # Some real QAOK positive-length rows have zero.
+                field_ordinal_hint=index,
+                raw=bytes(0x20),
+            )
+            for index, (length, sequence) in
+            enumerate(zip(lengths, sequences, strict=True), 1)
+        )
+        return DataSpaceIndexKeySpec(
+            data_space=InternalAddress(1, 0x3D09000000),
+            field_table_pointer=InternalAddress(1, 0),
+            key_count=13,
+            auxiliary_scalar_raw=0,
+            key_field_count=len(fields),
+            user_key_length=user_length,
+            machine_key_length=machine_length,
+            dkyt_address=0,
+            fields=fields,
+            raw=bytes(0x40),
+        )
+
+    def test_eight_real_qaok_dkey_shapes_explain_only_length_arithmetic(self):
+        samples = (
+            # Name, raw positive DKYT lengths including fork rows,
+            # raw seq bytes, observed user length, observed machine length.
+            ("QAOKLAKA", (47,), (0x01,), 49, 76),
+            ("QAOKLDKA", (18, 0, 64), (0, 0x40, 1), 84, 132),
+            ("QAOKL10A", (10, 0, 64), (0, 0x40, 1), 76, 120),
+            ("QAOKS01A", (64,), (1,), 66, 102),
+            ("QAOKS02A", (40, 64), (1, 1), 108, 164),
+            ("QAOKS03A", (10, 40, 64), (0, 1, 1), 118, 181),
+            ("QAOKS04A", (8, 40, 64), (0, 1, 1), 116, 178),
+            ("QAOKS05A", (8, 40, 64), (0, 1, 1), 116, 178),
+        )
+        for name, lengths, seqs, user_length, machine_length in samples:
+            with self.subTest(index=name):
+                spec = self._spec(lengths, seqs, user_length, machine_length)
+                self.assertEqual(spec.declared_field_bytes, sum(lengths))
+                self.assertEqual(
+                    spec.user_length_over_field_bytes,
+                    2 * spec.sequence_01_field_count,
+                )
+                self.assertTrue(spec.qaok_two_byte_pattern_matches)
+                # This arithmetic does not recover omitted key bytes.
+                self.assertIsNone(spec.split_machine_key(bytes(4)))
+
+    def test_different_length_pattern_remains_unclassified(self):
+        ordinary = self._spec((10,), (0,), 10, 14)
+        self.assertEqual(ordinary.user_length_over_field_bytes, 0)
+        self.assertEqual(ordinary.sequence_01_field_count, 0)
+        self.assertFalse(ordinary.qaok_two_byte_pattern_matches)
+        mismatched = self._spec((10, 20), (1, 1), 33, 45)
+        self.assertEqual(mismatched.user_length_over_field_bytes, 3)
+        self.assertFalse(mismatched.qaok_two_byte_pattern_matches)
+
+
 class DASDHeaderTests(unittest.TestCase):
     def test_header_decode(self):
         header = SectorHeader(bytes.fromhex("00a1c30100050000"))
