@@ -221,7 +221,7 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("outside chosen extent", err.getvalue())
 
             empty_image = Path(dirname) / "empty.hda"
-            empty_image.write_bytes(bytes(SECTOR_SIZE))
+            empty_image.write_bytes(bytes(PAGE_SIZE + 8))
             err = io.StringIO()
             with redirect_stderr(err):
                 self.assertEqual(
