@@ -245,6 +245,49 @@ The member parser is independently validated against a real QGPL/QCLSRC member n
 
 Generic physical-file records are now working as well. The QDDS primary segment exposes the entry count and a cross-version fixed-entry length used by both the B10 and V2R3 images. The browser can therefore enumerate raw RRNs for non-source members and, when the MI 19/51 format object is available, decode fields. A real B10 `STAREC` format recovers `STASTAT` fields such as `STCOD`, `STNAME`, `MTD`, `YTD`, and `LYR`; the surviving records decode Missouri, Kansas, and "STATES OTHER THAN MISSOURI OR KANSAS" with their numeric statistics.
 
+### Guided 5250 Explorer (first milestone)
+
+The **guided 5250** mode uses the same read-only CISC DASD parser as the
+three-pane forensic browser, but presents a familiar library -> object ->
+member -> contents workflow. It is intentionally **not** a 5250 protocol
+emulator, a live OS/400 installation, or a complete PDM implementation.
+
+Start it without installing:
+
+```bash
+python3 as400_dasd_tool.py browse5250 marks.hda
+```
+
+Or after installing with `bash install.sh --text-mode`:
+
+```bash
+as400-dasd browse5250 marks.hda
+as400-dasd browse5250                 # choose an image
+as400-dasd browse marks.hda            # original three-pane forensic UI
+```NaN`?` gives contextual help; F12 goes back; F3 exits.
+- Page Up/Down scroll entries or displayed member contents.
+
+Implemented **read-only** command subset: `WRKLIB`, `WRKLIBPDM`,
+`WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM` and `HELP`.
+Examples:
+
+```text
+WRKLIBPDM LIB(Q*)
+WRKOBJPDM LIB(QGPL)
+WRKMBRPDM FILE(QGPL/QCLSRC)
+DSPPFM FILE(QGPL/QCLSRC) MBR(REFRESH2)
+```
+
+Only the listed subset and the stated named parameters are supported. Other
+OS/400 commands, including commands for live jobs and destructive operations,
+are **not executed**. The screen displays real recovered data and explicitly
+marks **[dir]** when only a context-directory identity survives and
+**[member-only]** when the file primary is absent but a member cursor survives.
+An empty or unreadable member is not presented as complete.
+
+The guided UI and forensic UI are separate while the new interface is
+evaluated. Do not distribute raw image contents in repository fixtures.
+
 ### AS/400 DASD text-mode browser
 
 The interactive DASD browser uses only the Python standard-library `curses`
