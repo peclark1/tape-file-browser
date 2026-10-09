@@ -82,6 +82,44 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_storage_labels_counts_payload_ebcdic_not_ascii(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "synthetic.hda"
+            one = bytearray(PAGE_SIZE)
+            two = bytearray(PAGE_SIZE)
+            one[5:12] = "#SMSMVT".encode("cp037")
+            one[200:207] = b"#SMSMVT"
+            two[30:38] = "#SMACDIR".encode("cp037")
+            two[80:87] = "#SMSMVT".encode("cp037")
+            image.write_bytes(
+                b"\x00" * 8 + bytes(one)
+                + b"\x00" * 8 + bytes(two)
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main(["storage-labels", str(image)])
+            self.assertEqual(rc, 0)
+            output = stdout.getvalue()
+            self.assertIn("#SMSMVT: 2", output)
+            self.assertIn("#SMACDIR: 1", output)
+            self.assertIn("payload +0x005", output)
+            self.assertIn("payload +0x050", output)
+            self.assertIn("NOT proven SMVT", output)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main([
+                    "storage-labels", str(image),
+                    "--symbol", "#SMSMVT",
+                    "--start-lba", "1",
+                    "--sectors", "1",
+                    "--limit", "1",
+                ])
+            self.assertEqual(rc, 0)
+            self.assertIn("#SMSMVT: 1", stdout.getvalue())
+            self.assertNotIn("LBA         0", stdout.getvalue())
+
     def test_asde_probe_reads_only_bounded_candidate_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "synthetic.hda"
