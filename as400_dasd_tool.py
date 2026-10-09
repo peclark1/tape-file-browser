@@ -4981,7 +4981,7 @@ def _tui_group_right_items(selected):
             {
                 "kind": "context-entry",
                 "entry": entry,
-                "label": f"{library}/{name}  {entry.type_code}  [dir]{surviving}",
+                "label": f"{library}/{name}  {_tui_catalog_type_label(entry.type_code)}  [dir]{surviving}",
                 "_sort": (
                     library.upper(),
                     name.upper(),
@@ -5058,7 +5058,7 @@ def _tui_rebuild_from_mid(state):
                     "kind": "context-entry",
                     "entry": entry,
                     "label": (
-                        f"{name}  {entry.type_code}{surviving}"
+                        f"{name}  {_tui_catalog_type_label(entry.type_code)}{surviving}"
                     ),
                 }
             )
@@ -5402,6 +5402,14 @@ _TUI_OBJECT_TYPE_CONTEXT = {
         "objects in that context"
     ),
 }
+
+
+def _tui_catalog_type_label(type_code):
+    """Use IBM's type name for a directory-only recovered identity."""
+    from as400_object_types import lookup
+
+    info = lookup(type_code)
+    return info.name if info else type_code
 
 
 def _tui_object_type_context(object_type, object_subtype):
