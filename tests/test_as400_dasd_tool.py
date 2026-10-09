@@ -227,6 +227,8 @@ class DASDToolTests(unittest.TestCase):
             one[200:207] = b"#SMSMVT"  # ASCII must not match
             two[30:38] = "#SMACDIR".encode("cp037")
             two[80:88] = "#SMSMVTN".encode("cp037")
+            two[90:98] = "#SMSHTDN".encode("cp037")
+            two[100:108] = "#SMSMVT1".encode("cp037")
             image.write_bytes(
                 b"\x00" * 8 + bytes(one)
                 + b"\x00" * 8 + bytes(two)
@@ -241,6 +243,8 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("#SMSMVT: 1", output)
             self.assertIn("#SMSMVTN: 2", output)
             self.assertIn("#SMSMVTI: 0", output)
+            self.assertIn("#SMSMVT1: 1", output)
+            self.assertIn("#SMSHTDN: 1", output)
             self.assertIn("#SMACDIR: 1", output)
             self.assertIn("payload +0x005", output)
             self.assertIn("payload +0x014", output)
