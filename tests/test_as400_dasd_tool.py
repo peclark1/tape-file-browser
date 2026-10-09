@@ -33,6 +33,7 @@ from as400_dasd_tool import (
     _tui_inspector_availability,
     _tui_inspector_selection_key,
     _tui_file_context,
+    _tui_file_format_evidence,
     _tui_group_right_items,
     _tui_help_lines,
     _find_pattern_offsets,
@@ -557,6 +558,43 @@ class DASDToolTests(unittest.TestCase):
         self.assertIsNotNone(pointer)
         self.assertEqual(pointer.key, (0x00D0, 0x0038D5000000))
         self.assertEqual(matches, [profile])
+
+    def test_tui_file_format_evidence_separates_name_and_address_matches(self):
+        first_format = SimpleNamespace(name="FMTONE")
+        second_format = SimpleNamespace(name="FMTTWO")
+
+        class FakeImage:
+            def file_format_references(self, file_obj, inventory):
+                return [
+                    SimpleNamespace(
+                        format_object=first_format,
+                        name_offsets=(0x120, 0x220),
+                        address_offsets=(0x1A0,),
+                    ),
+                    SimpleNamespace(
+                        format_object=second_format,
+                        name_offsets=(0x340,),
+                        address_offsets=(),
+                    ),
+                ]
+
+        state = {
+            "image": FakeImage(),
+            "inventory": SimpleNamespace(),
+        }
+        lines = _tui_file_format_evidence(
+            state,
+            SimpleNamespace(name="TESTFILE"),
+        )
+        text = "\n".join(lines)
+
+        self.assertIn("FCB record-format evidence", text)
+        self.assertIn("FMTONE: name @ 0x120, 0x220", text)
+        self.assertIn("internal address @ 0x1A0", text)
+        self.assertIn("FMTTWO: name @ 0x340", text)
+        self.assertIn("internal address not found", text)
+        self.assertIn("literal byte matches", text)
+        self.assertIn("independent corroboration", text)
 
     def test_tui_file_storage_evidence_distinguishes_common_shapes(self):
         source_member = SimpleNamespace(member_name="REFRESH2", kind="source")
