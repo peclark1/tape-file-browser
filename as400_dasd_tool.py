@@ -346,6 +346,101 @@ def cmd_sector(args):
 
 
 
+_STORAGE_SYMBOLS = ("#SMSMVT", "#SMACDIR", "#SMMSIT", "#SMDR2")
+
+
+def _scan_storage_symbol_literals(
+    image,
+    symbols,
+    *,
+    start_lba=0,
+    sectors=None,
+    limit=50,
+):
+    """Count literal EBCDIC payload hits; do not assign structural meaning."""
+
+    if start_lba < 0 or start_lba >= image.sector_count:
+        raise ValueError("start LBA is outside the image")
+    if sectors is not None and sectors < 1:
+        raise ValueError("--sectors must be positive")
+    if limit < 0:
+        raise ValueError("--limit must be non-negative")
+
+    patterns = {}
+    for symbol in dict.fromkeys(symbols):
+        if not symbol or len(symbol) > PAGE_SIZE:
+            raise ValueError("symbols must be 1..512 characters")
+        try:
+            patterns[symbol] = symbol.encode("cp037")
+        except UnicodeEncodeError as exc:
+            raise ValueError(f"symbol cannot be EBCDIC CP037 encoded: {symbol}") from exc
+    if not patterns:
+        raise ValueError("no search symbols supplied")
+
+    end_lba = image.sector_count
+    if sectors is not None:
+        end_lba = min(end_lba, start_lba + sectors)
+
+    totals = {symbol: 0 for symbol in patterns}
+    hits = []
+    with open(image.path, "rb") as handle:
+        handle.seek(start_lba * SECTOR_SIZE)
+        for lba in range(start_lba, end_lba):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short sector read at LBA {lba}")
+            payload = raw[HEADER_SIZE:]
+            for symbol, pattern in patterns.items():
+                start = 0
+                while True:
+                    offset = payload.find(pattern, start)
+                    if offset < 0:
+                        break
+                    totals[symbol] += 1
+                    if not limit or len(hits) < limit:
+                        hits.append((symbol, lba, offset, raw[:HEADER_SIZE]))
+                    start = offset + 1
+    return totals, tuple(hits), end_lba
+
+
+def cmd_storage_labels(args):
+    """Report literal storage-management symbol evidence in 512-byte payloads."""
+
+    image = _open(args.image)
+    symbols = args.symbols or _STORAGE_SYMBOLS
+    totals, hits, end_lba = _scan_storage_symbol_literals(
+        image,
+        symbols,
+        start_lba=args.start_lba,
+        sectors=args.sectors,
+        limit=args.limit,
+    )
+
+    print(f"Image:       {image.path}")
+    print(f"Sector span: {args.start_lba:,}..{end_lba - 1:,} (physical LBAs)")
+    print("Encoding:    literal EBCDIC CP037, within 512-byte payloads only")
+    print("Occurrences:")
+    for symbol, total in totals.items():
+        print(f"  {symbol}: {total:,}")
+    print()
+    print("First matches:")
+    for symbol, lba, offset, header in hits:
+        print(
+            f"  {symbol:<12} LBA {lba:>9,} payload +0x{offset:03X} "
+            f"header {header.hex(' ').upper()}"
+        )
+    if args.limit and sum(totals.values()) > len(hits):
+        print(f"  ... {sum(totals.values()) - len(hits):,} additional hits not listed")
+    if not hits:
+        print("  none")
+    print()
+    print(
+        "These are literal text occurrences, NOT proven SMVT or storage-"
+        "directory locations. No ASDE mappings are inferred."
+    )
+    return 0
+
+
 def cmd_asde_probe(args):
     """Inspect an explicit raw ASDE candidate; never discover by guessing."""
 
@@ -8713,6 +8808,31 @@ def build_parser():
         help="candidate entry length from System/38 chapter 7",
     )
     asde.set_defaults(func=cmd_asde_probe)
+
+    labels = sub.add_parser(
+        "storage-labels",
+        help="scan raw EBCDIC storage-management symbol hints (not a locator)",
+    )
+    labels.add_argument("image", help="raw 520-byte DASD image")
+    labels.add_argument(
+        "--symbol",
+        action="append",
+        dest="symbols",
+        help="literal EBCDIC symbol to search (repeat to search several)",
+    )
+    labels.add_argument("--start-lba", type=int, default=0)
+    labels.add_argument(
+        "--sectors",
+        type=int,
+        help="number of physical sectors to scan (default: through EOF)",
+    )
+    labels.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="maximum occurrence rows to show; 0 lists all",
+    )
+    labels.set_defaults(func=cmd_storage_labels)
 
     segments = sub.add_parser(
         "segments",
