@@ -1,6 +1,6 @@
 # Tape File Browser
 
-Tools for browsing, inspecting, comparing, and converting SIMH and AWS tape images, written for IBM System/36 and AS/400 archival work.
+Tools for browsing, inspecting, comparing, and converting SIMH and AWS tape images, plus an experimental read-only CISC AS/400 DASD structure explorer, written for IBM System/36 and AS/400 archival work.
 
 The project separates the tape backend from three user interfaces:
 
@@ -8,6 +8,8 @@ The project separates the tape backend from three user interfaces:
 - **CLI** — `tape-tool` subcommands for scripted/server use
 - **TUI** — `tape-tool browse`, an interactive curses text user interface
 - **GUI** — `tape-file-browser`, the GTK4 graphical desktop interface
+- **AS/400 DASD core** — `as400_dasd.py`, a read-only parser for raw 520-byte CISC DASD images
+- **AS/400 DASD CLI/TUI** — `as400-dasd`, with scripted commands plus an interactive curses browser
 
 The core, CLI, and TUI do not require GTK or X.
 
@@ -19,7 +21,7 @@ Browsing is read-only. Conversion writes a new output image and then reopens it 
 - GUI native multi-file open dialog and per-image navigation state
 - GUI image checkboxes and full-width compare-results pane
 - Command-line interface (CLI) requiring no X/GTK libraries
-- Interactive curses text user interface (TUI) for SSH/server use
+- Interactive curses text user interfaces (TUIs) for both tape and AS/400 DASD browsing over SSH/server consoles
 - TUI file-open dialog with multi-select
 - Multiple simultaneously open tape images with an Images pane
 - Mouse or keyboard switching between open images
@@ -66,8 +68,10 @@ The normal installer installs the GTK4 GUI plus the CLI/TUI tools:
 ```text
 ~/.local/bin/tape-file-browser
 ~/.local/bin/tape-tool
+~/.local/bin/as400-dasd
 ~/.local/bin/tape_formats.py
 ~/.local/bin/tape_text.py
+~/.local/bin/as400_dasd.py
 ```
 
 and installs a desktop launcher as:
@@ -88,7 +92,7 @@ For a server with no X/GTK libraries, install the text-mode interfaces only:
 bash install.sh --text-mode
 ```
 
-That installs the CLI, TUI, and shared parser/converter modules and skips the GTK application, desktop launcher, and GNOME integration. `--headless` remains accepted as a compatibility alias for `--text-mode`.
+That installs the tape CLI/TUI, the experimental `as400-dasd` CLI, and their shared parser modules while skipping the GTK application, desktop launcher, and GNOME integration. `--headless` remains accepted as a compatibility alias for `--text-mode`.
 
 ## Screenshots
 
@@ -158,6 +162,318 @@ tape-tool compare original.tap copy1.aws copy2.tap
 ```
 
 The first image is the reference. A successful comparison verifies logical file/tape-mark structure, every record length, and every record payload for each additional image.
+
+## Experimental CISC AS/400 DASD explorer
+
+The repository includes an experimental, read-only explorer for raw CISC AS/400 DASD images with 520-byte sectors. The storage-header/recovery model and the higher-level object/context/database reconstruction have been independently exercised against both the surviving B10/0671S15 image and a separate one-disk V2R3 image from Mark/Patrik.
+
+Current commands:
+
+```bash
+as400-dasd browse disk.hda
+as400-dasd browse
+as400-dasd info disk.hda
+as400-dasd map disk.hda
+as400-dasd regions disk.hda
+as400-dasd sector disk.hda 12345
+as400-dasd segments disk.hda
+as400-dasd libraries disk.hda
+as400-dasd objects disk.hda
+as400-dasd ls disk.hda QGPL --type 19/01
+as400-dasd files disk.hda QGPL
+as400-dasd members disk.hda QGPL QCLSRC --long
+as400-dasd source disk.hda QGPL QCLSRC REFRESH2
+as400-dasd cat disk.hda QGPL QCLSRC REFRESH2
+as400-dasd fields disk.hda QGPL PDPICKORG
+as400-dasd dlos disk.hda
+as400-dasd dlos disk.hda --model-fields
+as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712
+as400-dasd dlo-index-scan disk.hda
+as400-dasd dlo-schema disk.hda --family QAOSSS14
+as400-dasd dlo-paths disk.hda FMPV082760 FMPV195818
+as400-dasd dlo-parent-gaps disk.hda --raw-scan
+as400-dasd dlo-export disk.hda FMPV082760 CKPCSPTH.EXE
+as400-dasd context-xref disk.hda QGPL
+as400-dasd context-page disk.hda QGPL 0 --offset 0
+as400-dasd records disk.hda QGPL PDPICKORG PDPICKDEMO --decoded
+as400-dasd record disk.hda QGPL PDPICKORG PDPICKDEMO 1 --decoded
+as400-dasd scan disk.hda --report dasd-report.txt
+```
+
+The current milestone can:
+
+- browse a DASD image interactively in a three-pane curses TUI: libraries/views, files or MI object types, and members/objects, with a full-width content/detail pane;
+- open another image from inside the TUI, search recovered names, inspect source members, browse raw/decoded database records, and inspect MI object metadata;
+- validate exact 520-byte image geometry;
+- expose each eight-byte header separately from its 512-byte CISC storage page;
+- inspect individual sectors with hex and EBCDIC output;
+- decode the five-byte virtual-page field into the 48-bit page-aligned virtual address while leaving unresolved indicator bits unlabeled;
+- decode power-of-two extent sizes from the low nibble of the indicators byte;
+- use IBM's preassigned large-free-space delimiter to infer device-relative record zero;
+- reconstruct explicit free extents, permanent extent candidates, reclaimable-by-recovery regions, and candidate virtual chains;
+- perform the second directory-recovery pass and reconstruct multi-extent segment groups;
+- parse common EPA object headers from recovered primary segments;
+- recover permanent contexts/libraries and assign objects to them through EPA context back-pointers;
+- traverse ordinary release-2 permanent-context machine indexes, reconstruct
+  compact object/member identities, cross-check context -> object membership
+  against EPA object -> context back-pointers, and retain directory-only
+  identities when an object primary is absent;
+- list real `*FILE` objects and recovered members inside a library;
+- follow member cursors through their direct QDDS/QDDSI pointers, retaining the expected storage address and surviving owned secondary segments even when a primary segment is missing from a partial multi-disk image;
+- decode QDDSI DKEY/DKYT key specifications conservatively, including indexed data-space addresses, key counts/lengths, and raw key-field locations/attributes;
+- decode standard 92-byte AS/400 source physical-file records and print their source text;
+- recover generic fixed-length QDDS ordinal records using the data-space entry count and entry length;
+- identify MI 19/51 record-format objects and recover field names, record offsets, storage lengths, digits, decimal positions, and independently validated binary, zoned, packed, character, and DBCS-Open type mappings;
+- decode recovered database records through those field definitions when a format object survives;
+- preserve literal *FILE FCB format-name occurrences in on-disk order and expose exact internal-address matches as independent format-association evidence without assigning undocumented FCB field names;
+- decode permanent database-member cursors (MI 0D/50), splitting the 30-byte cursor name into file/member names;
+- decode the permanent cursor member header, including source type, descriptive text, source-change timestamp, and creation timestamp;
+- resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
+- inventory QDOC `*DOC`/`*FLR` DLOs, report any recovered QUSRSYS `QAOSS*` runtime search indexes, and separately identify QSYS DLO command model files;
+- cross-reference a 10-character QDOC `SYSOBJNAM` byte-for-byte across recovered object segments to locate candidate index/metadata relationships without assuming their meaning;
+- correlate every recovered QDOC `SYSOBJNAM` against recovered QAOSS member records, defaulting to the IBM-documented `QAOSSS14` anchor index;
+- write a repeatable text report for comparison between real and initialized/replacement disk images.
+
+On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
+
+The second pass currently recovers about 12.7k segment groups from the surviving B10 disk and 43k from the independent V2R3 disk. On the latter it identifies roughly 31.5k EPA objects and 40 permanent contexts/libraries, including QSYS, QGPL, QUSRSYS, and QSYS2. QGPL can already be browsed offline; recovered `19/01` objects include QCLSRC, QCMDSRC, QDDSSRC, and other files. Library membership is now preserved from both independent directions: EPA object -> context back-pointers and permanent-context machine-index -> object references. The browser keeps disagreement evidence rather than silently reconciling it, and context terminals can preserve directory-only names/types/addresses when a primary object is missing from the image.
+
+Source-member contents are now working as well. The real Mark/Patrik image yields readable CL, RPG, DDS, and COBOL source from recovered QDDS data spaces. On the surviving B10 disk, `PPSITEST/QLBLSRC(PROTO)` recovers 107 source lines. The recovered source identifies its author as `JT HUDGINS`, providing a strong preservation/provenance link to the machine's original consulting/programming use. Recovered source itself is not committed to the public repository.
+
+The member parser is independently validated against a real QGPL/QCLSRC member named `REFRESH2`. It recovers source type `CLP`, the descriptive text `Refresh PkMS demo data - new version (GE 170)`, source-change time `1998-01-03 02:31:14`, and creation time `1998-01-03 02:31:11`.
+
+Generic physical-file records are now working as well. The QDDS primary segment exposes the entry count and a cross-version fixed-entry length used by both the B10 and V2R3 images. The browser can therefore enumerate raw RRNs for non-source members and, when the MI 19/51 format object is available, decode fields. A real B10 `STAREC` format recovers `STASTAT` fields such as `STCOD`, `STNAME`, `MTD`, `YTD`, and `LYR`; the surviving records decode Missouri, Kansas, and "STATES OTHER THAN MISSOURI OR KANSAS" with their numeric statistics.
+
+### AS/400 DASD text-mode browser
+
+The interactive DASD browser uses only the Python standard-library `curses`
+module, matching the project's existing tape TUI. No Textual/GTK/X dependency
+is required.
+
+Open an image directly:
+
+```bash
+as400-dasd browse petes.hda
+```
+
+Or start with the file picker:
+
+```bash
+as400-dasd browse
+```
+
+The upper half of the terminal keeps the proven three-pane navigation model,
+but the presentation now follows the recovered AS/400 object model more closely:
+
+1. **Library / view** — recovered libraries plus `<ALL OBJECTS>` and
+   `<ORPHANS / MEMBER-ONLY>`.
+2. **File / object type** — files for a selected library or grouped MI object
+   types.
+3. **Member / object** — member cursors, recovered objects, and context-directory
+   entries whose primary object is missing.
+
+A breadcrumb immediately below the title keeps the complete navigation path
+visible, for example `marks.hda > QGPL > QCLSRC > REFRESH2`.
+Directory-only context terminals are now grouped beside primary-backed objects
+by MI type rather than hidden in a separate catch-all bucket; they remain
+explicitly marked `[dir]`. Mixed lists are sorted by logical AS/400 identity
+first, with recovery state used only as a secondary distinction; normal
+primary-backed entries therefore do not carry a generic "recovered" badge.
+
+The lower pane is a purpose-specific inspector with six views:
+**Summary, Data, Keys, Storage, Evidence, and Raw**. Summary emphasizes what the
+selected AS/400 item is; Data shows source/database or decoded document content;
+Keys isolates QDDSI/context-index evidence; Storage shows QDDS/QDDSI and
+recovered segment groups; Evidence keeps recovery provenance and literal
+cross-reference evidence separate from normal browsing; Raw retains bounded
+hex/EBCDIC forensic access. The active view stays visually distinct even when a
+navigation pane has keyboard focus. Views with no meaningful data are dimmed
+but remain selectable so the absence is explicit. Selection changes choose a
+useful default (for example Data for source/database members and Evidence for a
+directory-only identity), while a manual inspector choice remains in effect
+until the logical selection changes.
+
+Standard source members are shown as source lines in the Data view. Other QDDS
+members show the recovered field layout plus decoded records; when all decoded
+fields are blank, the browser includes raw EBCDIC and hexadecimal bytes instead
+of leaving an apparently empty RRN line. The leading per-entry byte is labeled
+**DENT** (Data Space Entry Status) rather than generic "status". In the current
+V2R3 corpus, 0x80 is independently validated as the ordinary live/valid form
+and 0xC0 as the deleted form, with 0x40 accounting for that observed state
+difference; other documented DENT states/bits remain raw until independently
+established.
+
+Program objects (`*PGM`) now get a forensic program view: recovered owned
+segments, printable EBCDIC strings from the primary-segment prefix, and a
+hex/EBCDIC view of the first 512 bytes. The browser does not pretend this
+is source code or a decoded instruction stream; program-template, instruction
+stream, and ODT decoding remain separate reverse-engineering work. `*USRPRF`
+and `*MSGQ` objects get semantic-first views with owned-segment/text evidence
+before their raw prefix. On the real B10 `JHUDGINS` sample, the `*MSGQ`
+EPA+0x38 internal address resolves exactly to the recovered same-name
+`*USRPRF` owning-object address; the browser exposes that observation while
+leaving the field's formal meaning unnamed until independently documented.
+Other object types without a specialized decoder get a smaller hex/EBCDIC
+raw-object prefix so they are still inspectable instead of producing metadata
+only. Format objects show their recovered field descriptions.
+
+The breadcrumb plus three navigation panes keep parent context visible even
+when a child item is automatically selected. The inspector follows the focused
+hierarchy level: focus the left pane for the selected library, the middle pane
+for a file/object type, or the right pane for the selected member/object.
+Focusing the inspector retains the deepest selected item. Inspector views can
+be changed with `[`/`]` or directly with keys `1` through `6`.
+
+For a recovered `*FILE`, the Evidence view also shows the exact FCB byte
+offsets where each recovered 19/51 format name occurs and, when present, the
+independent internal-object-address occurrence. This keeps a convenient
+multi-format view without pretending that undocumented FCB field offsets or
+semantics have been decoded.
+
+Library descriptions are loaded from the editable `as400_libraries.json`
+catalog rather than being hard coded in the TUI. The catalog is seeded with every library currently recovered in
+the Mark-P02 file/member inventory, plus several common system libraries such as
+QDOC, QUSRSYS, QHLPSYS, and QTEMP. Descriptions are researched from period IBM
+documentation where possible. Each catalog entry also carries a functional
+`category` and an evidence `status` (`documented`, `inferred`, or
+`research-pending`). The TUI prefixes library context with the category and
+shows the evidence status when the meaning is not yet documented.
+
+For example, QGPL is identified as the General Purpose Library, QIWS as the
+PC Support/400/host-server library, QMU400 as the OS/400 System/36 Migration
+Assistant library, and QDOC as the QDLS/document-library backing library rather
+than a source library. The browser also explains *DOC/*FLR objects and the
+QDDS/QDDSI/member relationship. The object detail view repeats known roles so
+the recovered structure is useful as an AS/400 learning aid as well as a forensic
+browser.
+
+The browser also carries a small amount of file-specific context where period
+IBM documentation gives us an exact identification. For example,
+`QGPL/QAAPFILE` is labeled as the AFP Utilities **symbol-set symbol-definitions
+logical file**. Its members can therefore legitimately lack an independent QDDS
+record stream; the TUI explains that condition instead of reporting it as an
+undifferentiated recovery failure. The related `QAAPFILE$`, `QAAPFILE#`, and
+`QAAPFILE@` entries are labeled as the small, medium, and large symbol-set
+definition files respectively.
+
+When installed, the base catalog is copied to:
+
+```text
+~/.local/share/tape-file-browser/as400_libraries.json
+```
+
+An optional user override can be placed at:
+
+```text
+~/.config/tape-file-browser/as400_libraries.json
+```
+
+Only the entries or fields being added or changed need to be present in the
+override file; fields are merged over the base catalog so changing a description
+does not discard its category or evidence status. Set
+`AS400_DASD_LIBRARY_CONFIG` to use an additional catalog file with the highest
+priority. Running directly from a source checkout also reads the repository copy
+beside `as400_dasd_tool.py`.
+
+Keys:
+
+```text
+← / → / Tab     change pane
+↑ / ↓           move selection or scroll inspector content
+PgUp / PgDn     page through lists/inspector content
+Home / End      first/last item or top/bottom of inspector content
+Enter           drill into the next pane / inspector
+[ / ]           previous / next inspector view
+1 .. 6          Summary / Data / Keys / Storage / Evidence / Raw
+? / h           built-in help, terminology, and recovery-state glossary
+/               search names across recovered objects/members
+e               export selected QDOC document / *DOCBSS workstation bytes
+o               open another DASD image
+r               rescan the current image
+q / Esc         quit
+```
+
+The browser is completely read-only with respect to the DASD image. When a
+selected QDOC `*DOC` has a unique, validated same-base `*DOCBSS` companion,
+the detail pane shows **DLO export: available (press e)**. Pressing `e`
+prompts for an output filename, validates the DOCBSS length metadata again,
+refuses to overwrite the DASD image, and asks before replacing an existing
+output file. A `*DOCBSS` object can also be selected directly and exported
+through its matching QDOC document.
+When the selected QDOC document has a unique QAOSSS14 anchor correlation, the
+detail pane also shows the recovered QAOSSS14 RRN, 12-byte short name, longer
+name/title, and complete or partial reconstructed QDLS path. Export prefers the
+QAOSSS14 short name as its default filename. If no anchor mapping is available,
+the older conservative printable-metadata filename hint remains the fallback.
+
+For QDLS/document-library work, `as400-dasd dlos disk.hda` lists recovered
+QDOC `*DOC`/`*FLR` objects using their 10-character internal system object
+names and shows short printable EBCDIC metadata hints. IBM recovery
+documentation names the document/folder search-index files explicitly as
+`QUSRSYS/QAOSSS10` through `QAOSSS15`, plus `QAOSSS17` and
+`QAOSSS18`; `dlos` now reports the recovery status of each one separately.
+It also distinguishes QSYS command model files such as `QAOSIQDL`,
+`QAOSIRTV`, `QADSPDOC`, and `QADSPFLR`. Use `--model-fields` to
+show recovered MI 19/51 field definitions for those models.
+
+`as400-dasd dlo-xref disk.hda FMPV082760 FMPV195818 DPWN524712` searches
+other recovered object segments for byte-level references to several QDOC
+`SYSOBJNAM` values in a single recovery pass. IBM specifically documents an
+"anchor record" in `QAOSSS14` as one of the places that stores the DLO system
+object name, so objects containing many such references are especially useful
+candidates even when their normal library/file relationship has not yet been
+reconstructed. The tooling deliberately does **not** label printable strings or
+cross-references as proven QDLS paths until the relevant structures are decoded.
+
+For recovered documents with an IBM `*DOCBSS` (MI `06/C1`) companion,
+`as400-dasd dlo-export IMAGE SYSOBJNAM OUTPUT` can now extract the workstation
+byte stream conservatively. The V2R3 layout has a metadata page followed by the
+byte stream; two observed length fields must agree and the payload must fit the
+recovered segment before export is allowed. Existing output files are not
+replaced unless `--force` is supplied. This does not yet reconstruct the
+user-facing QDLS path, so export is addressed by the 10-character internal
+SYSOBJNAM.
+
+`as400-dasd dlo-index-scan disk.hda` remains the literal EBCDIC
+SYSOBJNAM probe. The V2R3 QAOSSS14 records do not expose the useful QDOC
+correlation as a plain 10-character name; the recovered relationship instead
+uses an 8-byte `WOSEFILD` value embedded in the QDOC object's bytes.
+
+`as400-dasd dlo-paths disk.hda [SYSOBJNAM ...]` performs that decoded
+correlation. The recovered QUSRSYS/QAOSSS14 QDDS has 193-byte records.
+Repeated `WOSFMT14/QAOSSS14` descriptors provide the field offsets and
+lengths, and a unique `WOSEPLDN -> leading-record-key` link is followed as a parent
+relationship. The command reports complete and partial **QAOSSS14 anchor
+hierarchies** while retaining the internal QDOC SYSOBJNAM. On the real V2R3
+image the PC Support examples independently agree with the known user-facing
+names, producing `QIWSFLR/CKPCSPTH.EXE` and
+`QIWSFL2/DTAQ.PKG`. Other anchor short names are not automatically treated
+as QDLS folder names; for example the BULLET1 parent anchor is `QGFSWOF1`
+while independent QDOC evidence identifies the user-facing folder as
+`BULLETIN`.
+
+`as400-dasd dlo-parent-gaps disk.hda` isolates QAOSSS14 records whose
+nonzero parent key does not resolve uniquely through another record's leading
+key. With `--raw-scan`, it searches for each exact eight-byte key elsewhere
+in the DASD image and reports the raw offset/LBA plus the recovered
+segment/object containing the hit when possible. This keeps the exceptional
+cases separate from the leading-key rule that already resolves almost all
+other anchor records.
+
+`as400-dasd dlo-schema disk.hda` scans the raw image for literal IBM
+`WOSFMTxx` metadata associations without loading the whole DASD image into
+memory. It defaults to `WOSFMT14` and reports the nearby 8-character field
+identifier plus concatenated `QAOSS*`/`WOS*` identifiers exactly as stored.
+It now also reports the repeated big-endian descriptor offset/length values;
+for QAOSSS14 these reproduce the 193-byte record layout as 1-based field
+offsets and lengths. Use `--family QAOSSS14` or `--family QAOSSY14` to
+isolate one observed descriptor family. Unknown abbreviations are deliberately
+left unexpanded.
+
+See `docs/AS400_DASD_MILESTONE1.md` for the research/validation plan,
+`docs/AS400_DASD_TODO.md` for the active backlog, and
+`docs/AS400_QDLS_RESEARCH.md` for the current documented facts, observations,
+and QDLS experiments.
 
 ## Converting tape images
 
@@ -232,7 +548,7 @@ The browser recognizes NEWREC, ENDREC, and tape-mark flags and can assemble reco
 
 ## Tests
 
-The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, and the headless command-line tools:
+The standard-library unit tests cover SIMH/AWS round trips, warning behavior for nonportable SIMH metadata, multi-chunk AWS records, AWS images without a trailing tape mark, the tape command-line tools, synthetic DASD/segment/object cases, sanitized real extent-header fixtures from both independent CISC AS/400 images, and selected real segment/EPA metadata, sanitized QDDS count/length scalars, and sanitized MI 19/51 field-descriptor prefixes from both real images. The fixtures contain no database/member record payloads or recovered source code. GitHub Actions runs the same suite on pushes and pull requests:
 
 ```bash
 python3 -m unittest discover -s tests -v

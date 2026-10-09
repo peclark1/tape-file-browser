@@ -4,11 +4,20 @@ set -euo pipefail
 APP_ID="com.peclark.TapeFileBrowser"
 BIN_PATH="${HOME}/.local/bin/tape-file-browser"
 TOOL_PATH="${HOME}/.local/bin/tape-tool"
+DASD_TOOL_PATH="${HOME}/.local/bin/as400-dasd"
 FORMAT_MODULE_PATH="${HOME}/.local/bin/tape_formats.py"
 TEXT_MODULE_PATH="${HOME}/.local/bin/tape_text.py"
+DASD_MODULE_PATH="${HOME}/.local/bin/as400_dasd.py"
 DESKTOP_PATH="${HOME}/.local/share/applications/${APP_ID}.desktop"
 
-rm -f "${BIN_PATH}" "${TOOL_PATH}" "${FORMAT_MODULE_PATH}" "${TEXT_MODULE_PATH}" "${DESKTOP_PATH}"
+rm -f \
+    "${BIN_PATH}" \
+    "${TOOL_PATH}" \
+    "${DASD_TOOL_PATH}" \
+    "${FORMAT_MODULE_PATH}" \
+    "${TEXT_MODULE_PATH}" \
+    "${DASD_MODULE_PATH}" \
+    "${DESKTOP_PATH}"
 
 if command -v gsettings >/dev/null 2>&1; then
     python3 - "${APP_ID}.desktop" <<'PY' || true
@@ -33,4 +42,4 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "${HOME}/.local/share/applications" >/dev/null 2>&1 || true
 fi
 
-echo "Tape File Browser removed."
+echo "Tape File Browser and AS/400 DASD tools removed."

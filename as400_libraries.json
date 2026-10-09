@@ -1,0 +1,221 @@
+{
+  "schema_version": 2,
+  "_comment": "AS/400 library descriptions used by the DASD browser. category groups libraries by functional subsystem; status is documented, inferred, or research-pending. Entries may be expanded or corrected as additional IBM documentation and recovered systems are studied.",
+  "libraries": {
+    "#CGULIB": {
+      "category": "System/36 Development",
+      "description": "IBM System/36 Environment Character Generator Utility (CGU) library.",
+      "status": "documented"
+    },
+    "#DBULIB": {
+      "category": "Unresolved",
+      "description": "Recovered # library whose name suggests a DBU/Data Base Utility component, but no period IBM source has yet been found that maps #DBULIB to an IBM System/36 Environment licensed program. Keep its exact purpose unresolved until documented.",
+      "status": "research-pending"
+    },
+    "#DFULIB": {
+      "category": "System/36 Development",
+      "description": "IBM System/36 Environment Data File Utility (DFU) library.",
+      "status": "documented"
+    },
+    "#DSULIB": {
+      "category": "System/36 Development",
+      "description": "IBM System/36 Environment Development Support Utility (DSU) library.",
+      "status": "documented"
+    },
+    "#LIBRARY": {
+      "category": "System/36 Environment",
+      "description": "System/36 Environment user library. It holds the user objects that would have been placed in #LIBRARY on a native System/36 and works with QSSP and QS36F.",
+      "status": "documented"
+    },
+    "#SDALIB": {
+      "category": "System/36 Development",
+      "description": "IBM System/36 Environment Screen Design Aid (SDA) library.",
+      "status": "documented"
+    },
+    "#SEULIB": {
+      "category": "System/36 Development",
+      "description": "IBM System/36 Environment Source Entry Utility (SEU) library.",
+      "status": "documented"
+    },
+    "QDOC": {
+      "category": "Document Services",
+      "description": "QDLS/document-library backing library. Folder and document objects are represented internally as *FLR and *DOC DLOs; this is not a source library.",
+      "status": "documented"
+    },
+    "QDSNX": {
+      "category": "Networking & Distribution",
+      "description": "Distributed Systems Node Executive (DSNX) support library. IBM system documentation associates QDSNX with DSNX activity and distribution/communications logging.",
+      "status": "documented"
+    },
+    "QFNTCPL": {
+      "category": "Printing & Graphics",
+      "description": "AFP Compatibility Fonts library containing the 240-pel compatibility font set shipped with OS/400, including Courier, Gothic, Orator, Prestige, and Proprinter Emulation resources.",
+      "status": "documented"
+    },
+    "QGDDM": {
+      "category": "Printing & Graphics",
+      "description": "Graphical Data Display Manager (GDDM) library containing GDDM routines, entry-point tables, and graphic symbol sets used by AS/400 graphics applications and printing.",
+      "status": "documented"
+    },
+    "QGPL": {
+      "category": "Core System",
+      "description": "General Purpose Library. IBM-supplied home for miscellaneous system and user objects, and the default current library when a job has no explicit current library.",
+      "status": "documented"
+    },
+    "QGPLTEMP": {
+      "category": "Installation & Maintenance",
+      "description": "Installation-created IBM work library that can contain internal system objects not visible through normal object displays. IBM advises that it should not be deleted.",
+      "status": "documented"
+    },
+    "QHLPSYS": {
+      "category": "Core System",
+      "description": "System help library containing IBM online-help information, primarily panel groups and search-index objects used by the Help key.",
+      "status": "documented"
+    },
+    "QIWS": {
+      "category": "Client Access / PC Support",
+      "description": "PC Support/400 and Client Access host/server library. It provides host-side PC connectivity functions including file transfer and serving and, in later releases, virtual printing, messaging, and remote SQL support.",
+      "status": "documented"
+    },
+    "QIWS2D": {
+      "category": "Client Access / PC Support",
+      "description": "Client Access/400 for OS/2 DBCS support library.",
+      "status": "documented"
+    },
+    "QIWS2S": {
+      "category": "Client Access / PC Support",
+      "description": "Client Access/400 for OS/2 SBCS support library.",
+      "status": "documented"
+    },
+    "QIWSFD": {
+      "category": "Client Access / PC Support",
+      "description": "Client Access/400 for DOS DBCS support library.",
+      "status": "documented"
+    },
+    "QIWSFS": {
+      "category": "Client Access / PC Support",
+      "description": "Client Access/400 for DOS SBCS support library.",
+      "status": "documented"
+    },
+    "QIWSPD": {
+      "category": "Client Access / PC Support",
+      "description": "Client Access/400 Extended DOS DBCS support library.",
+      "status": "documented"
+    },
+    "QIWSPS": {
+      "category": "Client Access / PC Support",
+      "description": "Client Access/400 Extended DOS SBCS support library.",
+      "status": "documented"
+    },
+    "QIWSTL": {
+      "category": "Client Access / PC Support",
+      "description": "PC Support/Client Access tools library; IBM installation tables map the QIWSTOOL tools component to library QIWSTL.",
+      "status": "documented"
+    },
+    "QMGU": {
+      "category": "Migration",
+      "description": "OS/400 migration-support library used by IBM System/36 and System/38 migration facilities.",
+      "status": "documented"
+    },
+    "QMU400": {
+      "category": "Migration",
+      "description": "OS/400 System/36 Migration Assistant library, provided as an operating-system migration option.",
+      "status": "documented"
+    },
+    "QPDA": {
+      "category": "Development Tools",
+      "description": "IBM application-development tooling library used by PDM and related development functions.",
+      "status": "documented"
+    },
+    "QPFRDATA": {
+      "category": "Performance",
+      "description": "IBM performance-data library used to store performance monitor and Performance Tools collection data.",
+      "status": "documented"
+    },
+    "QQALIB": {
+      "category": "Question & Answer",
+      "description": "IBM Question and Answer library created at installation time; it contains Q&A-related support/model database objects.",
+      "status": "documented"
+    },
+    "QRPG": {
+      "category": "Development Tools",
+      "description": "RPG/400 licensed-program library containing compiler and support objects.",
+      "status": "documented"
+    },
+    "QRECOVERY": {
+      "category": "Recovery",
+      "description": "System recovery library used for system journaling and for temporary/status objects associated with recovery or failed processes. It is intended for system use.",
+      "status": "documented"
+    },
+    "QRPLOBJ": {
+      "category": "Recovery",
+      "description": "Replaced Object Library. It holds older versions of objects replaced by Create commands using REPLACE(*YES) when the old object must remain available; the library is cleared at IPL.",
+      "status": "documented"
+    },
+    "QS36F": {
+      "category": "System/36 Environment",
+      "description": "System/36 Environment data-file library. IBM documentation describes QS36F as the library that contains System/36-compatible user data files.",
+      "status": "documented"
+    },
+    "QSDE": {
+      "category": "Unresolved",
+      "description": "Recovered IBM-style library containing QAEB-named files. Its exact OS/400 product or component purpose has not yet been identified from period IBM documentation.",
+      "status": "research-pending"
+    },
+    "QSPL": {
+      "category": "Spooling",
+      "description": "System spooling library backing printer output and other spooled data.",
+      "status": "documented"
+    },
+    "QSRV": {
+      "category": "Installation & Maintenance",
+      "description": "System Service Library created by IBM and used temporarily during PTF and APAR processing. It is normally empty and should not be deleted.",
+      "status": "documented"
+    },
+    "QSSP": {
+      "category": "System/36 Environment",
+      "description": "System/36 Environment library containing the SSP-compatible procedures, utility programs, control commands, and OCL support used to run System/36 applications under OS/400.",
+      "status": "documented"
+    },
+    "QSYS": {
+      "category": "Core System",
+      "description": "Primary OS/400 system library containing operating-system commands, programs, device descriptions, and other core system objects.",
+      "status": "documented"
+    },
+    "QSYS2": {
+      "category": "Core System",
+      "description": "IBM system library whose shipped library text on older OS/400 is \"System Library for CPI's\". On these releases it is part of the core/extended system environment; it should not be interpreted only by the much later IBM i SQL-services role of QSYS2.",
+      "status": "documented"
+    },
+    "QSYS38": {
+      "category": "System/38 Environment",
+      "description": "System/38 Environment compatibility library containing AS/400-supported System/38 commands and runtime support.",
+      "status": "documented"
+    },
+    "QSYSV2R2M0": {
+      "category": "Previous-Release Compatibility",
+      "description": "Release-qualified IBM-style library whose name strongly suggests Version 2 Release 2 Modification 0 compatibility or previous-release support. Its exact role has not yet been verified from period IBM documentation.",
+      "status": "inferred"
+    },
+    "QTEMP": {
+      "category": "Temporary",
+      "description": "Private per-job temporary library. It is created for each job and deleted, along with its objects, when that job ends.",
+      "status": "documented"
+    },
+    "QUSRSYS": {
+      "category": "Core System",
+      "description": "IBM-supplied system library for user-related and system-maintained data such as user message queues, distribution information, and other persistent system data.",
+      "status": "documented"
+    },
+    "QUSRTEMP": {
+      "category": "Installation & Maintenance",
+      "description": "Installation-created system work library used while moving and comparing objects involving QUSRSYS during install/reinstall; other functions such as SNADS and spooling also depend on it. It is persistent and is not the per-job QTEMP library.",
+      "status": "documented"
+    },
+    "QUSRTOOL": {
+      "category": "Development Tools",
+      "description": "OS/400 example-tools library containing IBM-supplied source, sample commands, utilities, and many TAA-named examples for administrators and programmers.",
+      "status": "documented"
+    }
+  }
+}
