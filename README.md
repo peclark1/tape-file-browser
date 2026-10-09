@@ -176,6 +176,7 @@ as400-dasd info disk.hda
 as400-dasd map disk.hda
 as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
+as400-dasd bootstrap-map disk.hda --sectors 64
 as400-dasd asde-probe disk.hda 12345 32 16
 as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
 as400-dasd virtual-xref disk.hda 65600 68860 376
@@ -398,6 +399,16 @@ q / Esc         quit
 ```
 
 ### Storage-directory / ASDE research
+
+The `bootstrap-map IMAGE [--start-lba N --sectors N]` command reports
+bounded low-level physical-sector evidence before any storage-management
+virtual address is assumed. It counts nonzero payloads, preserves
+zero-storage-header distinctions, and displays exact EBCDIC literal
+labels such as `DASD  UNIT  DESC`, `DCT `, and `DCTX` without claiming
+they are decoded boot structures. IBM's System/38 internals manual
+describes a persisted SMVT checkpoint on drive 1; no checkpoint location
+has yet been validated in either CISC image.
+
 
 After the TUI/browser milestone, the next phase is reconstruction of the
 storage-management **permanent directory** and its auxiliary-storage directory
