@@ -225,6 +225,18 @@ pointer field definition, or ASDE header. The `virtual-xref-map` tool
 now prints the independent prefix-hit count per pointer pattern as well
 as the numeric VA-match count.
 
+A subsequent conservative CP037 interpretation of exactly eight bytes
+beginning at **target-prefix +4** yields **572 distinct printable
+name-like strings** behind the 2,146 prefix-matched targets. The most
+frequently linked examples are `#DBLKMAP` (303 references),
+`#SMSMVTN` (126), and `#MSCPQ  ` (118). These are *reference
+occurrences*, not distinct loaded modules or a count of SMVT copies.
+`virtual-xref-map --names N` now summarizes up to N names with
+their reference frequencies. Because this evidence comes from
+independently located target bytes, it is stronger than simply counting
+all EBCDIC substrings in the physical disk; nevertheless it still
+does **not** identify an active SMVT table or its runtime address.
+
 **Reproduce** with
 `as400-dasd virtual-xref-map IMAGE 65600 --alignment 2 --top 16`
 or restrict to a physical subset using
