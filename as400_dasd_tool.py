@@ -409,7 +409,8 @@ def _scan_storage_symbol_literals(
                         break
                     totals[symbol] += 1
                     if not limit or len(hits) < limit:
-                        hits.append((symbol, lba, offset, raw[:HEADER_SIZE]))
+                        preceding = payload[offset - 4:offset] if offset >= 4 else b""
+                        hits.append((symbol, lba, offset, raw[:HEADER_SIZE], preceding))
                     start = offset + 1
     return totals, tuple(hits), end_lba
 
@@ -437,10 +438,11 @@ def cmd_storage_labels(args):
         print(f"  {symbol}: {total:,}")
     print()
     print("First matches:")
-    for symbol, lba, offset, header in hits:
+    for symbol, lba, offset, header, preceding in hits:
+        prefix_text = preceding.hex(' ').upper() if preceding else "(start of payload)"
         print(
             f"  {symbol:<12} LBA {lba:>9,} payload +0x{offset:03X} "
-            f"header {header.hex(' ').upper()}"
+            f"preceding4 {prefix_text}  header {header.hex(' ').upper()}"
         )
     if args.limit and sum(totals.values()) > len(hits):
         print(f"  ... {sum(totals.values()) - len(hits):,} additional hits not listed")
