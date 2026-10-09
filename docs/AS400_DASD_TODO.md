@@ -6,22 +6,41 @@ repeatable real-image validation.
 
 ## Current priority
 
-The storage-directory SMVT checkpoint search is **blocked on an
-independently verified CISC loader/startup data pointer**. The current
-bounded engineering focus is the eight outstanding compressed/long-key
-QAOK QDDSI variants, on a separate branch from draft PR #10. The
-storage-management work remains documented and resumable; raw bootstrap
-record matches do not justify speculative ASDE fields.
+**Next active priority: MI `*PGM` structure and program-template
+identification**, starting from the existing read-only object browser.
+Milestones PR #9 (DASD TUI) and PR #13 (QDDSI partial/compact-key research)
+are merged into `main`. The remaining 52 unexplained compact terminal
+tree bodies, `3FFF` semantics and incomplete logical-key reconstruction
+are documented, not blockers for unrelated work.
 
-### QAOK long/compact QDDSI keys — active bounded follow-up
+The SMVT/ASDE checkpoint review is **paused** in draft PR #10.
+There is still no independently established physical checkpoint, static
+directory or permanent-directory root; do not add speculative field decoders.
+The bounded post-PR #13 review yielded no new locator. Return only when
+a concrete CISC loader/program-derived reference or independently verified
+bootstrap data pointer is found.
+
+### MI `*PGM` research — next small milestone
+
+- [ ] On a fresh branch from current `main`, inventory a small, diverse
+      read-only sample of real `*PGM` object primaries/owned segments on Mark
+      V2R3, and any matching surviving Pete B10 examples.
+- [ ] Locate candidate template and observability structures by corroborated
+      object segment/header pointers. Compare actual observed bytes with IBM
+      documentation (including MATPG) without assuming its in-memory
+      materialization is an identical on-disk structure.
+- [ ] Build a bounded diagnostic with synthetic tests that reports structural
+      offsets, address provenance, validation successes/failures and explicit
+      unknowns; do not interpret instruction streams yet.
+- [ ] Only then attempt ODT/ODV/OES and MI opcode disassembly, requiring
+      cross-object tests and no fabricated original source.
+
+### QAOK long/compact QDDSI keys — PR #13 merged; residual research deferred
 
 The browser milestone was merged into `main` as PR #9.
-The more architectural storage-directory / SMVT investigation remains
-in separate **draft PR #10** (`feature/as400-asde-reconstruction`),
-at an explicit evidence gate: the SMVT checkpoint and permanent-directory
-root are not yet identified. This new branch keeps QAOK research
-independent, so its validated improvements can be merged without
-depending on experimental ASDE changes.
+PR #13 now integrates independently validated QDDSI research, bounded
+candidate-field diagnostics and regression tests. The unmerged ASDE draft
+PR #10 remains isolated from `main`, with its original evidence gate intact.
 
 - [x] Verify on Mark's V2R3 disk all eight QAOK DKEY active-key
       length patterns: user_key_length equals the sum of positive
@@ -114,7 +133,8 @@ PR #10 retains the IBM-source survey, real disk-geometry and
 VMC-reference cross-checks and read-only bootstrap diagnostics.
 A concrete SMVT checkpoint or permanent-directory root pointer
 is needed before proceeding with real ASDE decoding.
-MI disassembly remains later in the priority order.
+MI `*PGM` template identification is now the next active line of work;
+the disassembler follows only after its own evidence gate.
 
 ### Database / QDDSI and keyed-file reconstruction — milestone checkpoint
 
