@@ -3165,6 +3165,88 @@ def audit_partial_index_record_field_order(
     return tuple(results)
 
 
+
+@dataclass(frozen=True)
+class QDDSCurrentLengthWordCandidateAudit:
+    """Raw two-byte value census at a caller-selected QDDS record position."""
+
+    record_offset: int
+    maximum_length: int
+    live_records: int
+    valid_words: int
+    zero_words: int
+    positive_words: int
+    invalid_words: int
+    truncated_words: int
+    zero_words_with_nonzero_inactive_storage: int
+    min_valid_word: int | None
+    max_valid_word: int | None
+
+
+def audit_qdds_current_length_word_candidate(
+    records: tuple[DataSpaceRecord, ...],
+    *,
+    record_offset: int,
+    maximum_length: int,
+) -> QDDSCurrentLengthWordCandidateAudit:
+    """Count candidate big-endian length words without decoding field values.
+
+    A QDDS descriptor can nominate an offset/maximum width. For the observed
+    V2R3 QAOK VARLEN-shaped descriptors, two bytes at that position correlate
+    with current stored field length. This tool inventories only raw values;
+    it does not assign the descriptor flag a semantic name or reconstruct
+    indexed key bytes. When the candidate length is zero, other overlapping
+    fields can still leave *inactive backing storage* nonzero.
+    """
+
+    if record_offset < 0 or maximum_length <= 0:
+        raise ValueError("candidate length-word offset/maximum is invalid")
+
+    live = truncated = invalid = inactive_nonzero = 0
+    lengths: list[int] = []
+    seen: set[int] = set()
+    for record in records:
+        if record.ordinal in seen:
+            raise ValueError("duplicate record ordinal in QDDS length-word audit")
+        seen.add(record.ordinal)
+        if record.ordinal == 0 or not record.is_live_hint:
+            continue
+        live += 1
+        if record_offset + 2 > len(record.data):
+            truncated += 1
+            continue
+
+        current = int.from_bytes(
+            record.data[record_offset : record_offset + 2], "big"
+        )
+        if (
+            current > maximum_length
+            or record_offset + 2 + current > len(record.data)
+        ):
+            invalid += 1
+            continue
+        lengths.append(current)
+        if current == 0:
+            backing_start = record_offset + 2
+            backing_end = min(backing_start + maximum_length, len(record.data))
+            if any(record.data[backing_start:backing_end]):
+                inactive_nonzero += 1
+
+    return QDDSCurrentLengthWordCandidateAudit(
+        record_offset=record_offset,
+        maximum_length=maximum_length,
+        live_records=live,
+        valid_words=len(lengths),
+        zero_words=sum(value == 0 for value in lengths),
+        positive_words=sum(value > 0 for value in lengths),
+        invalid_words=invalid,
+        truncated_words=truncated,
+        zero_words_with_nonzero_inactive_storage=inactive_nonzero,
+        min_valid_word=min(lengths) if lengths else None,
+        max_valid_word=max(lengths) if lengths else None,
+    )
+
+
 def decode_context_machine_index(
     data: bytes,
     *,
