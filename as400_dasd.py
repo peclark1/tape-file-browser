@@ -590,6 +590,8 @@ class RecoveredObject:
             # context/library.
             (0x19, 0x52): "*OIRS",
             # Historical MI list / IBM internal object type catalog.
+            # IBM official internal object type table: 19D4 = *DBRCVR.
+            (0x19, 0xD4): "*DBRCVR",
             (0x19, 0xE0): "*ADO",
             (0x19, 0xEE): "*MSCSP",
         }
