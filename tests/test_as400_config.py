@@ -141,7 +141,7 @@ class ConfigurationViewTests(unittest.TestCase):
         device = make_obj("TESTDEVD", (16, 1))
         self.assertEqual("*DEVD", config_type(device)[0])
         lines = configuration_information_lines(device)
-        self.assertIn("attached controller: unknown", "\n".join(lines))
+        self.assertIn("Device category/model/controller: not structurally decoded", "\n".join(lines))
 
     def test_enter_routes_three_types_back_to_list(self):
         profile = make_obj("USERA", (8, 1))
