@@ -6028,6 +6028,71 @@ def _tui_profile_queue_lines(state, obj):
     return lines
 
 
+def _tui_file_format_evidence(state, file_obj):
+    """Explain the literal FCB evidence used for 19/51 format association."""
+
+    try:
+        references = state["image"].file_format_references(
+            file_obj,
+            state["inventory"],
+        )
+    except Exception as exc:
+        return [
+            "FCB record-format evidence",
+            "",
+            f"Unable to inspect the *FILE primary: {exc}",
+        ]
+
+    lines = ["FCB record-format evidence"]
+    if not references:
+        lines.extend(
+            [
+                "  No exact recovered 19/51 format-name occurrence was found",
+                "  in the *FILE primary.",
+            ]
+        )
+        return lines
+
+    for reference in references:
+        name_offsets = ", ".join(
+            f"0x{offset:X}" for offset in reference.name_offsets[:8]
+        )
+        if len(reference.name_offsets) > 8:
+            name_offsets += (
+                f", ... ({len(reference.name_offsets):,} occurrences)"
+            )
+
+        if reference.address_offsets:
+            address_offsets = ", ".join(
+                f"0x{offset:X}" for offset in reference.address_offsets[:8]
+            )
+            if len(reference.address_offsets) > 8:
+                address_offsets += (
+                    f", ... ({len(reference.address_offsets):,} occurrences)"
+                )
+            address_text = f"internal address @ {address_offsets}"
+        else:
+            address_text = "internal address not found"
+
+        lines.append(
+            f"  {reference.format_object.name}: "
+            f"name @ {name_offsets}; {address_text}"
+        )
+
+    lines.extend(
+        [
+            "",
+            (
+                "  These are literal byte matches in the recovered *FILE FCB. "
+                "They support format association without assigning undocumented "
+                "FCB field names; an internal-address match is independent "
+                "corroboration when present."
+            ),
+        ]
+    )
+    return lines
+
+
 def _tui_file_storage_evidence(state, file_item, *, formats=None):
     """Summarize recovered *FILE storage without guessing file semantics."""
 
@@ -6667,8 +6732,9 @@ def _tui_file_lines(state, file_item):
         except Exception:
             formats = []
         if formats:
+            label = "Format:" if len(formats) == 1 else "Formats:"
             lines.append(
-                "Format:  "
+                f"{label:<8}"
                 + ", ".join(format_obj.name for format_obj in formats)
             )
 
@@ -7856,7 +7922,14 @@ def _tui_evidence_lines(state):
         if mid is not None and mid["kind"] == "file":
             file_obj = mid.get("object")
             if file_obj is not None:
-                return _tui_object_evidence_lines(file_obj)
+                lines = _tui_object_evidence_lines(file_obj)
+                lines.extend(
+                    [
+                        "",
+                        *_tui_file_format_evidence(state, file_obj),
+                    ]
+                )
+                return lines
             return [
                 f"File evidence: {(mid.get('library') or '<orphan>')}/{mid['name']}",
                 "",
