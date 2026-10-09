@@ -5342,6 +5342,14 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x0B, 0x90): "internal QDDS data space backing a member record stream",
     (0x0C, 0x90): "internal QDDS index associated with member storage",
     (0x0D, 0x50): "member cursor linking a file/member name to its storage",
+    (0x0E, 0x02): (
+        "OS/400 *OUTQ output queue; holds spooled-file entries waiting "
+        "for output processing (offline image does not represent live writers)"
+    ),
+    (0x0E, 0xD1): (
+        "IBM internal *DRX Distribution Recipient Index, used in distribution "
+        "services; contents are not currently decoded"
+    ),
     (0x0E, 0x03): (
         "OS/400 *MSGF message file; an MI index of message descriptions "
         "used by system and application messages"
@@ -5354,6 +5362,18 @@ _TUI_OBJECT_TYPE_CONTEXT = {
     (0x19, 0x02): (
         "OS/400 message queue object used to receive messages for users, "
         "workstations, programs, or system functions"
+    ),
+    (0x19, 0x06): (
+        "OS/400 *TBL table object (not a database physical file); "
+        "its internal contents are not currently decoded"
+    ),
+    (0x19, 0xE0): (
+        "IBM internal *ADO Asynchronous Distribution Object; "
+        "contents are not currently decoded"
+    ),
+    (0x19, 0xEE): (
+        "IBM internal *MSCSP Permanent Miscellaneous Space; "
+        "contents are not currently decoded"
     ),
     (0x19, 0x0E): (
         "QDLS document-library document; the QDOC object name is internal "
