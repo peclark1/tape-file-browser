@@ -570,6 +570,8 @@ class RecoveredObject:
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
             (0x19, 0x02): "*MSGQ",
+            # V2R2 OS/400 DMPOBJ *CMD example confirms MI 19/05.
+            (0x19, 0x05): "*CMD",
             # Observed on the real V2R3 QDOC library and corroborated by
             # the objects' DLO metadata/content. IBM documents QDOC as the
             # backing library for *DOC/*FLR document-library objects.
