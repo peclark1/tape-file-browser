@@ -646,8 +646,10 @@ def _scan_extent_virtual_references(
 def cmd_virtual_xref_map(args):
     """Print bounded candidate VA correlations for one caller-selected extent."""
 
-    if args.top < 0 or args.names < 0:
-        raise ValueError("--top and --names must be non-negative")
+    if args.top < 0:
+        raise ValueError("--top must be non-negative")
+    if args.names < 0:
+        raise ValueError("--names must be non-negative")
     image = _open(args.image)
     result = _scan_extent_virtual_references(
         image,
