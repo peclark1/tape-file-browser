@@ -377,6 +377,12 @@ follow-ups, not prerequisites for the current browser milestone. See
       `#SMSMVT` substring hits on Mark's image belong to the different
       name `#SMSMVTN` (324 with the same preceding four-byte marker).
       These remain name/reference evidence, not located SMVT records.
+- [x] Verify initial explicit virtual pointer candidates inside Mark's
+      preassigned LIC extent: physical LBA 65,600, VA 0x11000000, 4,096
+      pages; two six-byte references on physical LBA 68,860 resolve exactly
+      to independently calculated offsets +0x188 and +0x1A0. Add
+      `virtual-xref` with caller-selected extent and pointer offsets.
+      These identify live local module/linkage structures, not the SMVT root.
 - [ ] Identify SMVT/static-directory and permanent-directory root candidates
       by independently corroborated real-image evidence.
 - [ ] Traverse the identified permanent-directory machine index, preserving
