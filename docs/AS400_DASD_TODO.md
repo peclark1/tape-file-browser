@@ -389,7 +389,11 @@ follow-ups, not prerequisites for the current browser milestone. See
       in-page and next-page source/target offset families. Validate that
       2,146 of the 2,608 matches in the four dominant families also land
       on the observed raw module-name record prefix 02 00 00 00 7B.
-      Add `virtual-xref-map` and synthetic target-prefix regressions.
+      Decode only printable eight-byte candidate names behind matching
+      target markers (572 observed unique, with `#SMSMVTN` occurring
+      126 times as a target). These remain candidate compiled-module
+      references, not an active SMVT or directory. Add `virtual-xref-map`
+      with synthetic address/target-prefix/name regressions.
 - [ ] Identify SMVT/static-directory and permanent-directory root candidates
       by independently corroborated real-image evidence.
 - [ ] Traverse the identified permanent-directory machine index, preserving
