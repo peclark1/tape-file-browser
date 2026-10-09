@@ -9,6 +9,7 @@ FORMAT_MODULE_PATH="${HOME}/.local/bin/tape_formats.py"
 TEXT_MODULE_PATH="${HOME}/.local/bin/tape_text.py"
 DASD_MODULE_PATH="${HOME}/.local/bin/as400_dasd.py"
 GUIDED_MODULE_PATH="${HOME}/.local/bin/as400_5250.py"
+CMD_MODULE_PATH="${HOME}/.local/bin/as400_cmd.py"
 DESKTOP_PATH="${HOME}/.local/share/applications/${APP_ID}.desktop"
 
 rm -f \
@@ -19,6 +20,7 @@ rm -f \
     "${TEXT_MODULE_PATH}" \
     "${DASD_MODULE_PATH}" \
     "${GUIDED_MODULE_PATH}" \
+    "${CMD_MODULE_PATH}" \
     "${DESKTOP_PATH}"
 
 if command -v gsettings >/dev/null 2>&1; then
