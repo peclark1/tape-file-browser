@@ -33,7 +33,6 @@ from as400_dasd import (
     Extent,
     InternalAddress,
     MachineIndexPageHeader,
-    audit_partial_data_space_index_keys,
     ebcdic_preview,
     format_hex,
 )
@@ -418,131 +417,6 @@ def cmd_bootstrap_map(args):
     print(
         "Labels are observed bytes, not proof of SMVT checkpoint,"
         " boot control-block schema, or permanent-directory root."
-    )
-    return 0
-
-
-
-
-def _bootstrap_extent_chain(image, *, descriptor_lba=32, limit=8):
-    """Follow only physically adjacent sector-header candidate extents.
-
-    The initial physical LBA comes from the independently validated
-    DASD UNIT DESC geometry record. A candidate step is corroborated
-    against the *last* physical sector in the extent, not inferred
-    from a matching module name. Stop at the first mismatch.
-    No fields of an SMVT or a permanent directory are decoded here.
-    """
-    if not (1 <= limit <= 32):
-        raise ValueError("--limit must be between 1 and 32")
-    descriptor = DASDUnitDescriptorEvidence(image.read_sector(descriptor_lba).data)
-    if not descriptor.agrees_with_image_size(image.sector_count):
-        raise ValueError("disk descriptor geometry does not match image length")
-    origin = descriptor.candidate_origin_lba
-    if origin == 0 or origin >= image.sector_count:
-        raise ValueError("disk descriptor origin is outside image")
-    if not image.read_sector(origin - 1).header.is_zero:
-        raise ValueError("physical predecessor to descriptor origin is not zero-header")
-
-    rows = []
-    lba = origin
-    for _ in range(limit):
-        start = image.read_sector(lba)
-        header = start.header
-        if header.is_zero or header.is_ff or not header.page_aligned:
-            break
-        pages = header.extent_pages
-        if pages > image.sector_count - lba:
-            break
-        last_lba = lba + pages - 1
-        last = image.read_sector(last_lba)
-        # Preserve unknown bits. Comparing these first five bytes checks
-        # only that the end header retains the candidate base prefix.
-        last_prefix_agrees = (
-            not last.header.is_zero
-            and not last.header.is_ff
-            and last.header.raw[:5] == header.raw[:5]
-        )
-        next_lba = last_lba + 1
-        following = (
-            image.read_sector(next_lba) if next_lba < image.sector_count else None
-        )
-        rows.append((
-            lba, last_lba, pages, header.virtual_address, header.raw,
-            last.header.raw, last_prefix_agrees,
-            following.header.raw if following is not None else None,
-        ))
-        if not last_prefix_agrees or following is None:
-            break
-        if following.header.is_zero or following.header.is_ff:
-            break
-        lba = next_lba
-    return origin, tuple(rows)
-
-
-
-def _bootstrap_extent_payload_occupancy(image, start_lba, pages):
-    """Read-only bounded payload density counts, never byte-content export."""
-    counts = {"zero": 0, "sparse": 0, "dense": 0, "other": 0}
-    with open(image.path, "rb") as handle:
-        handle.seek(start_lba * SECTOR_SIZE)
-        for i in range(pages):
-            raw = handle.read(SECTOR_SIZE)
-            if len(raw) != SECTOR_SIZE:
-                raise ValueError(f"short physical sector at LBA {start_lba + i}")
-            occupied = sum(bool(value) for value in raw[HEADER_SIZE:])
-            if occupied == 0:
-                counts["zero"] += 1
-            elif occupied <= 32:
-                counts["sparse"] += 1
-            elif occupied > 400:
-                counts["dense"] += 1
-            else:
-                counts["other"] += 1
-    return counts
-
-
-
-def cmd_bootstrap_extents(args):
-    """Report bounded preassigned extent candidates anchored to LBA-32 geometry."""
-    image = _open(args.image)
-    origin, rows = _bootstrap_extent_chain(
-        image, descriptor_lba=args.descriptor_lba, limit=args.limit
-    )
-    print(f"Image: {image.path}")
-    print(f"Descriptor-backed relative record origin: physical LBA {origin:,}")
-    print("Adjacent header-derived candidate extents (not classified as IPL or SMVT):")
-    if not rows:
-        print("  none")
-    for start, last, count, va, first_h, last_h, last_ok, next_h in rows:
-        print(
-            f"  LBA {start:,}..{last:,}, {count:,} pages,"
-            f" candidate VA 0x{va:012X}"
-        )
-        print(
-            "    first/last header prefixes: "
-            f"{first_h[:5].hex().upper()} / {last_h[:5].hex().upper()}"
-            f"; boundary corroborated: {'YES' if last_ok else 'NO'}"
-        )
-        print(
-            "    next physical header: "
-            + (next_h.hex().upper() if next_h is not None else "(end of image)")
-        )
-        if args.occupancy:
-            stats = _bootstrap_extent_payload_occupancy(
-                image, start, count
-            )
-            print(
-                "    512-byte payload occupancy: "
-                f"zero={stats['zero']:,}, "
-                f"1..32 nonzero bytes={stats['sparse']:,}, "
-                f"33..400={stats['other']:,}, "
-                f"401..512={stats['dense']:,}"
-            )
-    print(
-        "These are independently bounded sector-header runs, not"
-        " documented HMC allocations, persisted SMVT checkpoint pages,"
-        " static-directory entries, or ASDE mappings."
     )
     return 0
 
@@ -4528,38 +4402,6 @@ def cmd_member(args):
                     f"{traversal.expected_entries:,}  {state}{page_note}  "
                     f"pages {traversal.page_count:,}{partial_note}"
                 )
-                if traversal.partial_key_count:
-                    groups = audit_partial_data_space_index_keys(
-                        index_layout, traversal
-                    )
-                    print(
-                        "  Partial-key audit (raw tree bytes; "
-                        "nominal-length shortfall is not a decoded field):"
-                    )
-                    for group in groups:
-                        print(
-                            f"    DKEY {group.dkey_index}: "
-                            f"{group.observed_partial_entries:,}/"
-                            f"{group.declared_entries:,} partial terminals, "
-                            f"tree text {group.observed_tree_body_min}.."
-                            f"{group.observed_tree_body_max} bytes, "
-                            f"nominal machine length "
-                            f"{group.nominal_machine_key_length}, "
-                            f"length shortfall "
-                            f"{group.machine_length_shortfall_min}.."
-                            f"{group.machine_length_shortfall_max}"
-                        )
-                        print(
-                            f"      4-byte reference ordinal hints: "
-                            f"{group.ordinal_hints_present:,} present, "
-                            f"{group.distinct_ordinal_hints:,} distinct, "
-                            f"range {group.min_ordinal_hint}"
-                            f"..{group.max_ordinal_hint}"
-                        )
-                    print(
-                        "    Shortfall does not establish missing key "
-                        "byte positions or reversible compression."
-                    )
                 for entry in traversal.entries[:32]:
                     key_bytes = entry.display_key_bytes
                     preview = ebcdic_preview(
@@ -9520,25 +9362,6 @@ def build_parser():
         help="physical descriptor sector (observed at LBA 32 on both images)",
     )
     descriptor.set_defaults(func=cmd_disk_descriptor)
-
-    bootstrap_extents = sub.add_parser(
-        "bootstrap-extents",
-        help="trace bounded adjacent header extents from LBA-32 geometry",
-    )
-    bootstrap_extents.add_argument("image")
-    bootstrap_extents.add_argument(
-        "--descriptor-lba", type=int, default=32,
-        help="physical DASD UNIT DESC sector (default 32)",
-    )
-    bootstrap_extents.add_argument(
-        "--limit", type=int, default=8,
-        help="maximum candidate extents to follow, 1..32 (default 8)",
-    )
-    bootstrap_extents.add_argument(
-        "--occupancy", action="store_true",
-        help="count zero/sparse/dense payload pages without showing contents",
-    )
-    bootstrap_extents.set_defaults(func=cmd_bootstrap_extents)
 
     dct = sub.add_parser(
         "dct-evidence",
