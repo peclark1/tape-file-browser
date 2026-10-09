@@ -345,6 +345,70 @@ name/pointer reference scans. Treat that interpretation as observed
 until the formal IBM record layout is found, and do not assume
 other words in the record are understood.
 
+### Mark-specific auxiliary descriptor boundary arithmetic
+
+Mark's LBA-32 descriptor has additional, still-unnamed big-endian
+32-bit values at payload **+0x08 = 148,224 (`0x24300`)** and
+**+0x0C = 64 (`0x40`)**. Pete's corresponding two words are zero.
+The Mark-only sum is **physical LBA 148,288**. The independently
+read sectors at LBA **148,287** have all-zero headers, while LBA
+**148,288** begins a nonzero storage-header run with extent-order
+nibble `0x6` (64 pages). The final page indicated by this
+size is LBA **148,351**, which also has the run's nonzero header;
+the immediately following LBAs **148,352 and 148,353** contain the
+exact EBCDIC marker `DELETED EXTENT  ` at payload start.
+These observations can be independently reproduced by
+`as400-dasd disk-descriptor IMAGE` and `sector` on the four
+boundary locations.
+
+This is evidence of a **disk-control-to-storage-boundary relationship**;
+it is consistent with a load-source-specific reserved/managed-space
+range but neither the official meaning of the two words nor the
+post-boundary segment type is established. The `DELETED EXTENT`
+token is raw text, not an assignment of free-directory or SMVT
+semantics. Crucially, **there is no basis for interpreting LBA
+148,288 as an SMVT checkpoint simply because it is a boundary**.
+
+### Raw DCT table at physical LBA 33
+
+Both disk images have an exact CP037 eight-character `DCT NNNN`
+label at payload `+0x18`. Their first two bytes form a BE16
+candidate count, and the same number of nonzero **32-byte raw slots**
+starts at payload `+0x20`:
+
+| Image | DCT label | Raw BE16 at +0x00 | Nonzero 32-byte slots |
+| --- | --- | ---: | --- |
+| Mark V2R3 load-source | `DCT 0300` | 1 | 1 (at +0x20) |
+| Pete B10 non-load-source | `DCT 0100` | 2 | 2 (at +0x20, +0x40) |
+
+Neither image has additional populated 32-byte slots after the
+candidate count. The slot lengths/counts are independently
+corroborated across two release families and are represented by
+`DCTRawEvidence` / `as400-dasd dct-evidence IMAGE`.
+Field names, byte meanings, any connection with disk unit IDs,
+and the `0100` vs `0300` label suffix are **not decoded**.
+The count may reflect devices, but that interpretation requires
+more hardware/configuration evidence.
+
+### Bounding the entire physical pre-origin area
+
+Scanning **all physical sectors before the descriptor-correlated
+relative-record-zero origin**, not just LBAs 0..63, finds:
+
+- Mark V2R3, LBA 0..63: exactly 7 nonzero-payload sectors
+  (0, 32, 33, 52, 54, 55, 60), totaling **198 nonzero payload bytes**.
+- Pete B10, LBA 0..2111: exactly 3 nonzero-payload sectors
+  (32, 33, 52), totaling **127 nonzero payload bytes**.
+
+All of these sectors have zero eight-byte storage headers. Mark's
+physical LBA 55 `DCTX` payload contains only four nonzero bytes;
+LBA 60 (`MSD  SEC`, `DMDMAIN`) has 26. This sharply limits
+what *actual recorded* bootstrap data survives outside the
+sector-header-managed region, and argues against interpreting
+these labels as a recovered SMVT/static directory. It does **not**
+prove a valid checkpoint cannot be entirely sparse, elsewhere
+reserved, or absent in the present capture.
+
 **Reproduce:** `as400-dasd disk-descriptor IMAGE` (default physical
 LBA 32). The command insists on the exact EBCDIC payload label,
 prints the two raw BE 32-bit values, checks their sum against the
