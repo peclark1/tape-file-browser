@@ -569,11 +569,16 @@ class RecoveredObject:
             (0x0D, 0x50): "*MEM",
             # Historical OS/400 MI subtype catalog: 0E/03 = message file.
             (0x0E, 0x03): "*MSGF",
+            # MI subtype catalog (2000) and IBM i type tables:
+            # external output queues, and internal distribution indexes.
+            (0x0E, 0x02): "*OUTQ",
+            (0x0E, 0xD1): "*DRX",
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
             (0x19, 0x02): "*MSGQ",
             # V2R2 OS/400 DMPOBJ *CMD example confirms MI 19/05.
             (0x19, 0x05): "*CMD",
+            (0x19, 0x06): "*TBL",
             # Observed on the real V2R3 QDOC library and corroborated by
             # the objects' DLO metadata/content. IBM documents QDOC as the
             # backing library for *DOC/*FLR document-library objects.
@@ -584,6 +589,9 @@ class RecoveredObject:
             # as the Object Information Repository space associated with a
             # context/library.
             (0x19, 0x52): "*OIRS",
+            # Historical MI list / IBM internal object type catalog.
+            (0x19, 0xE0): "*ADO",
+            (0x19, 0xEE): "*MSCSP",
         }
         return known.get(
             (self.object_type, self.object_subtype),
