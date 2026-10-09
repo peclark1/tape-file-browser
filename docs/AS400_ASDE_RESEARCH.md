@@ -205,6 +205,26 @@ the extent's derived virtual span, records:
 | `+0x178` | 0 (same page) | `+0x188` | 313 |
 | `+0x078` | 0 (same page) | `+0x088` | 277 |
 
+An independent read of the **physical target payloads** strengthens the
+record-layout evidence. Among those four pointer-position families, the
+following targets begin with the exact raw five-byte sequence
+`02 00 00 00 7B` (followed in many examples by an EBCDIC module name
+starting with `#`):
+
+| Reference family | Valid in-range VA matches | Target raw-prefix matches |
+| --- | ---: | ---: |
+| `+0x0F8 -> same +0x108` | 1,077 | 902 |
+| `+0x1F8 -> next +0x008` | 941 | 772 |
+| `+0x178 -> same +0x188` | 313 | 247 |
+| `+0x078 -> same +0x088` | 277 | 225 |
+
+In total, **2,146 of these 2,608 particular VA matches** land on
+that repeated raw record prefix. The five bytes are a highly correlated
+observed signature, **not** a documented structure name, record size,
+pointer field definition, or ASDE header. The `virtual-xref-map` tool
+now prints the independent prefix-hit count per pointer pattern as well
+as the numeric VA-match count.
+
 **Reproduce** with
 `as400-dasd virtual-xref-map IMAGE 65600 --alignment 2 --top 16`
 or restrict to a physical subset using
