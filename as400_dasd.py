@@ -190,6 +190,50 @@ class OriginCandidate:
         return "MEDIUM"
 
 
+DASD_UNIT_DESCRIPTOR_LABEL = "DASD  UNIT  DESC".encode("cp037")
+DASD_UNIT_DESCRIPTOR_PAYLOAD_LABEL_OFFSET = 0x40
+
+
+@dataclass(frozen=True)
+class DASDUnitDescriptorEvidence:
+    """Observed physical LBA-32 disk-unit record in two CISC images.
+
+    The first two BE 32-bit values independently match (a) the recovered
+    relative-record-zero LBA and (b) total sectors minus that LBA on both
+    available releases. Preserve these as observational interpretations,
+    not as claimed IBM field-name definitions. The label must be exact.
+    """
+
+    payload: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.payload) != PAGE_SIZE:
+            raise ValueError("disk-unit descriptor payload must be 512 bytes")
+        offset = DASD_UNIT_DESCRIPTOR_PAYLOAD_LABEL_OFFSET
+        if self.payload[offset:offset + len(DASD_UNIT_DESCRIPTOR_LABEL)] != (
+            DASD_UNIT_DESCRIPTOR_LABEL
+        ):
+            raise ValueError(
+                "no exact EBCDIC DASD  UNIT  DESC label at payload +0x40"
+            )
+
+    @property
+    def candidate_origin_lba(self) -> int:
+        return int.from_bytes(self.payload[0:4], "big")
+
+    @property
+    def candidate_managed_sector_count(self) -> int:
+        return int.from_bytes(self.payload[4:8], "big")
+
+    @property
+    def candidate_physical_end(self) -> int:
+        """Exclusive physical sector end according to observed arithmetic."""
+        return self.candidate_origin_lba + self.candidate_managed_sector_count
+
+    def agrees_with_image_size(self, physical_sector_count: int) -> bool:
+        return self.candidate_physical_end == physical_sector_count
+
+
 # IBM SY21-0889-5 chapter 7 records 11/16/21/26-byte permanent-directory
 # ASDE entries, one through four extents. These bytes are only *candidate*
 # evidence until an actual storage-directory machine index is identified.
