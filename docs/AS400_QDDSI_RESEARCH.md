@@ -547,6 +547,52 @@ This mapping is an observed V2R3 result independently corroborated by the
 recovered DDS definition. It should not be generalized to additional unknown
 internal type bytes without the same level of evidence.
 
+## Compact-key evidence audit (2026-10-09)
+
+After a bounded, unsuccessful SMVT-checkpoint pointer search, the
+development priority moved back to the eight QAOK long/compact-key
+QDDSI variants. The existing machine-index traversal already gives
+**complete terminal database references** but not complete user-key
+bytes for those variants; we must not conflate the two.
+
+New `audit_partial_data_space_index_keys(layout, traversal)`
+returns per-**DKEY** aggregate evidence without constructing keys:
+
+- number of partial terminal entries compared with the DKEY's
+  declared `key_count`;
+- minimum/maximum **actual recovered tree-key body lengths**,
+  excluding the separately validated four-byte database reference;
+- minimum/maximum numerical difference between the DKEY-declared
+  **machine** key length and `len(tree evidence) + 4`;
+- number and distinct count of positive or otherwise observed
+  three-byte ordinal hints, plus their min/max values.
+
+The numerical length difference does **not** identify where omitted
+key bytes belong, whether compression is reversible, or whether any
+common prefix/suffix can be reconstructed. Complete-key entries
+are excluded from the partial-only grouping. The helper rejects
+out-of-range DKEY numbers, four-byte reference/DKEY mismatches and
+impossibly longer tree paths. The ordinary QDDSI traversal remains
+the source of terminal bytes and already bounds the index itself.
+
+The existing `as400-dasd member IMAGE LIB FILE MEMBER` report now
+shows the per-DKEY audit whenever traversal returns partial keys.
+This provides an immediate *repeatable comparison* for QAOKLAKA,
+QAOKLDKA, QAOKL10A and QAOKS01A..QAOKS05A without exposing user
+data in committed fixtures. Initial regression tests use the
+existing QAOK-style synthetic `3FFF 00000001` terminal
+(102-byte declared machine key, 2 bytes of tree body, and 4 bytes
+of reference, hence **96 bytes numerical shortfall**), plus a
+two-DKEY synthetic partial-index case. The values are *synthetic
+fixture checks*, not eight real-image audit results.
+
+**Next actual decoding gate:** run this report on each of the eight
+real V2R3 access paths, compare the bounded length/ordinal
+distributions against each DKYT field layout and recovered QDDS
+record *metadata*, and look for an independently corroborated
+common- or long-key encoding. Do **not** manufacture an inferred
+literal key from the ordinal or from a repeated `3FFF` marker.
+
 ## Next implementation steps
 
 1. Keep the eight long/compact QAOK variants as an explicit partial-key
