@@ -112,6 +112,60 @@ class DASDToolTests(unittest.TestCase):
                 )
             self.assertIn("exact EBCDIC", err.getvalue())
 
+    def test_bootstrap_extents_uses_descriptor_and_last_header_boundary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "boot-extents.hda"
+            sectors = [bytearray(PAGE_SIZE + 8) for _ in range(40)]
+            descriptor = sectors[32]
+            descriptor[8:12] = (2).to_bytes(4, "big")
+            descriptor[12:16] = (38).to_bytes(4, "big")
+            descriptor[8 + 0x40:8 + 0x50] = (
+                "DASD  UNIT  DESC".encode("cp037")
+            )
+            first = bytes.fromhex("00000B0000030000")
+            second = bytes.fromhex("0000920000040000")
+            for lba in range(2, 10):
+                sectors[lba][:8] = first
+            for lba in range(10, 26):
+                sectors[lba][:8] = second
+            image.write_bytes(b"".join(sectors))
+            original = image.read_bytes()
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(["bootstrap-extents", str(image), "--limit", "5"]), 0
+                )
+            output = stdout.getvalue()
+            self.assertIn("origin: physical LBA 2", output)
+            self.assertIn("LBA 2..9, 8 pages", output)
+            self.assertIn("LBA 10..25, 16 pages", output)
+            self.assertEqual(output.count("boundary corroborated: YES"), 2)
+            self.assertIn("not documented HMC allocations", output)
+            self.assertEqual(image.read_bytes(), original)
+
+            # A bogus end header ends the chain without implying allocation.
+            sectors[9][:8] = bytes(8)
+            image.write_bytes(b"".join(sectors))
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["bootstrap-extents", str(image)]), 0)
+            output = stdout.getvalue()
+            self.assertIn("LBA 2..9", output)
+            self.assertNotIn("LBA 10..25", output)
+            self.assertIn("boundary corroborated: NO", output)
+
+            for args, error in [
+                (["--limit", "0"], "--limit must be between"),
+                (["--limit", "33"], "--limit must be between"),
+                (["--descriptor-lba", "31"], "no exact EBCDIC"),
+            ]:
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    self.assertEqual(
+                        main(["bootstrap-extents", str(image)] + args), 1
+                    )
+                self.assertIn(error, stderr.getvalue())
+
     def test_disk_descriptor_geometry_and_physical_header_boundary(self):
         with tempfile.TemporaryDirectory() as dirname:
             image = Path(dirname) / "descriptor.hda"
