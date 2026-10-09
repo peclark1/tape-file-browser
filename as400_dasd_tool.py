@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from as400_dasd import (
+    ASDEEntryEvidence,
     CONTEXT_MACHINE_INDEX_PAGE_SIZE,
     CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
     EPA_MIN_SIZE,
@@ -343,6 +344,47 @@ def cmd_sector(args):
     print(format_hex(sector.data[: args.hex_bytes]))
     return 0
 
+
+
+def cmd_asde_probe(args):
+    """Inspect an explicit raw ASDE candidate; never discover by guessing."""
+
+    image = _open(args.image)
+    if args.offset < 0 or args.offset >= PAGE_SIZE:
+        raise ValueError(
+            f"ASDE payload offset must be within 0..{PAGE_SIZE - 1}"
+        )
+    if args.length <= 0 or args.offset + args.length > PAGE_SIZE:
+        raise ValueError(
+            "ASDE candidate must fit entirely within one 512-byte payload; "
+            "a cross-page candidate is not yet supported"
+        )
+
+    sector = image.read_sector(args.lba)
+    raw = sector.data[args.offset:args.offset + args.length]
+    candidate = ASDEEntryEvidence(raw)
+
+    print(f"Image:   {image.path}")
+    print(f"LBA:     {args.lba:,} (physical image LBA)")
+    print(f"Offset:  payload +0x{args.offset:X}")
+    print(f"Length:  {len(candidate.raw)} bytes")
+    print(f"Raw:     {candidate.raw.hex(' ').upper()}")
+    print()
+    print(
+        "Tentative System/38 chapter-7 ASDE length partition "
+        "(NOT a validated directory entry):"
+    )
+    print(f"  first six bytes: {candidate.prefix_raw.hex(' ').upper()}")
+    print(f"  following 5-byte groups: {candidate.extent_count}")
+    for index, piece in enumerate(candidate.descriptors_raw, 1):
+        print(f"  raw descriptor {index}: {piece.hex(' ').upper()}")
+    print()
+    print(
+        "No prefix fields, extent address/size, unit, or index location "
+        "have been decoded. IBM's chapter-8 entry lengths differ from "
+        "chapter 7; use only with independently located directory evidence."
+    )
+    return 0
 
 
 def _recover_all(image):
@@ -8656,6 +8698,21 @@ def build_parser():
     sector.add_argument("--preview", type=int, default=128)
     sector.add_argument("--hex-bytes", type=int, default=256)
     sector.set_defaults(func=cmd_sector)
+
+    asde = sub.add_parser(
+        "asde-probe",
+        help="inspect explicitly selected raw ASDE-shaped bytes (not a detector)",
+    )
+    asde.add_argument("image", help="raw 520-byte DASD image")
+    asde.add_argument("lba", type=int, help="physical image LBA")
+    asde.add_argument("offset", type=int, help="offset in the 512-byte sector payload")
+    asde.add_argument(
+        "length",
+        type=int,
+        choices=(11, 16, 21, 26),
+        help="candidate entry length from System/38 chapter 7",
+    )
+    asde.set_defaults(func=cmd_asde_probe)
 
     segments = sub.add_parser(
         "segments",
