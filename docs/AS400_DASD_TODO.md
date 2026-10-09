@@ -4,6 +4,39 @@ This checklist keeps implementation work separate from hypotheses. A checkbox is
 only completed when the behavior is implemented and covered by tests or
 repeatable real-image validation.
 
+## Guided 5250 user/device/mode inspection — current feature milestone
+
+Included in draft PR #14, built on the existing Guided 5250 read-only
+framework. Research: docs/AS400_CONFIG_OBJECT_RESEARCH.md.
+
+- [x] Validate true 08/01 *USRPRF and 10/01 *DEVD primary objects for
+      two same-name historical profiles, and also identify separate
+      corresponding 0E/C4 *INTPRF primaries. Same-name correlations are
+      **not** proof of shared purpose or linkage.
+- [x] Census independent Mark V2R3 primary candidates:
+      43 *USRPRF, 42 *DEVD, 9 *MODD and 17 *INTPRF (raw physical
+      candidates, not active-object census).
+- [x] Observe the repeated *MODD text layout at +0x120/+0x12C across
+      nine independent primaries. Expose only as empirical candidate
+      strings, **not** decoded attributes.
+- [x] Implement Enter/option 5 viewers for three types, plus
+      non-executing DSPUSRPRF, DSPDEVD, DSPMODD name lookups.
+- [x] Preserve normal option 8 details and Back navigation.
+- [x] Never sample, dump, scan or export raw *USRPRF primary bytes
+      through the new object-specific viewer.
+- [x] Guard against selecting duplicate same-name historical primaries
+      nondeterministically; fail closed on ambiguous command lookups.
+- [x] Bound non-profile primary text evidence to 2 KiB and 14 snippets,
+      keep offsets and mark snippets unclassified; add synthetic tests.
+- [ ] Independently establish safe, repeatable USRPRF security/profile
+      metadata fields without any credential retrieval.
+- [ ] Determine device category, model and controller offsets by
+      cross-checking multiple real *DEVD objects with period-accurate
+      DSPDEVD/CRTDEVD documentation.
+- [ ] Decode *MODD mode parameters from corroborated binary structures
+      and test against period-correct DSPMODD output.
+- [ ] Human-test the new screens using the recovered Mark V2R3 image.
+
 ## Guided 5250 command-object inspection — current feature milestone
 
 Work in draft PR #14, branch feature/guided-5250-explorer.
