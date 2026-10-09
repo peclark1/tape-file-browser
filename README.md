@@ -165,7 +165,7 @@ The first image is the reference. A successful comparison verifies logical file/
 
 ## Experimental CISC AS/400 DASD explorer
 
-The `feature/as400-dasd-milestone1` work adds a read-only command-line explorer for raw CISC AS/400 DASD images with 520-byte sectors. The storage-header/recovery model is now independently validated against both the surviving B10/0671S15 image and a separate one-disk V2R3 image from Mark/Patrik.
+The repository includes an experimental, read-only explorer for raw CISC AS/400 DASD images with 520-byte sectors. The storage-header/recovery model and the higher-level object/context/database reconstruction have been independently exercised against both the surviving B10/0671S15 image and a separate one-disk V2R3 image from Mark/Patrik.
 
 Current commands:
 
@@ -214,17 +214,18 @@ The current milestone can:
 - perform the second directory-recovery pass and reconstruct multi-extent segment groups;
 - parse common EPA object headers from recovered primary segments;
 - recover permanent contexts/libraries and assign objects to them through EPA context back-pointers;
-- model IBM's documented expanded context entry form (`T S NL N @`) and use
-  `context-xref` to correlate EPA-known membership with raw context-segment
-  address/name evidence while the compressed machine-index traversal is being
-  reconstructed;
+- traverse ordinary release-2 permanent-context machine indexes, reconstruct
+  compact object/member identities, cross-check context -> object membership
+  against EPA object -> context back-pointers, and retain directory-only
+  identities when an object primary is absent;
 - list real `*FILE` objects and recovered members inside a library;
 - follow member cursors through their direct QDDS/QDDSI pointers, retaining the expected storage address and surviving owned secondary segments even when a primary segment is missing from a partial multi-disk image;
 - decode QDDSI DKEY/DKYT key specifications conservatively, including indexed data-space addresses, key counts/lengths, and raw key-field locations/attributes;
 - decode standard 92-byte AS/400 source physical-file records and print their source text;
 - recover generic fixed-length QDDS ordinal records using the data-space entry count and entry length;
-- identify MI 19/51 record-format objects and recover field names, record offsets, storage lengths, digits, decimal positions, and observed character/zoned/packed types;
+- identify MI 19/51 record-format objects and recover field names, record offsets, storage lengths, digits, decimal positions, and independently validated binary, zoned, packed, character, and DBCS-Open type mappings;
 - decode recovered database records through those field definitions when a format object survives;
+- preserve literal *FILE FCB format-name occurrences in on-disk order and expose exact internal-address matches as independent format-association evidence without assigning undocumented FCB field names;
 - decode permanent database-member cursors (MI 0D/50), splitting the 30-byte cursor name into file/member names;
 - decode the permanent cursor member header, including source type, descriptive text, source-change timestamp, and creation timestamp;
 - resolve the documented load-source shadow-log virtual address `000083000000`; the independent one-disk image maps it to LBA 147,520 and contains exactly 64 KiB of nonzero payload there;
@@ -235,10 +236,7 @@ The current milestone can:
 
 On the surviving B10 D1 image, relative record zero is LBA 2,112. On the independent one-disk V2R3 image it is LBA 64. Both images use the same order-15 free-space delimiter and the same virtual-address/extent-size rules. Unknown flag bits remain explicitly unlabeled. The parser never writes to the image.
 
-The second pass currently recovers about 12.7k segment groups from the surviving B10 disk and 43k from the independent V2R3 disk. On the latter it identifies roughly 31.5k EPA objects and 40 permanent contexts/libraries, including QSYS, QGPL, QUSRSYS, and QSYS2. QGPL can already be browsed offline; recovered `19/01` objects include QCLSRC, QCMDSRC, QDDSSRC, and other files. Library membership currently comes from the object's EPA context back-pointer.
-The `context-xref` diagnostic now cross-correlates that membership with raw
-context-segment address/name evidence; full traversal of the compressed context
-machine index remains the next independent cross-check.
+The second pass currently recovers about 12.7k segment groups from the surviving B10 disk and 43k from the independent V2R3 disk. On the latter it identifies roughly 31.5k EPA objects and 40 permanent contexts/libraries, including QSYS, QGPL, QUSRSYS, and QSYS2. QGPL can already be browsed offline; recovered `19/01` objects include QCLSRC, QCMDSRC, QDDSSRC, and other files. Library membership is now preserved from both independent directions: EPA object -> context back-pointers and permanent-context machine-index -> object references. The browser keeps disagreement evidence rather than silently reconciling it, and context terminals can preserve directory-only names/types/addresses when a primary object is missing from the image.
 
 Source-member contents are now working as well. The real Mark/Patrik image yields readable CL, RPG, DDS, and COBOL source from recovered QDDS data spaces. On the surviving B10 disk, `PPSITEST/QLBLSRC(PROTO)` recovers 107 source lines. The recovered source identifies its author as `JT HUDGINS`, providing a strong preservation/provenance link to the machine's original consulting/programming use. Recovered source itself is not committed to the public repository.
 
@@ -283,31 +281,27 @@ first, with recovery state used only as a secondary distinction; normal
 primary-backed entries therefore do not carry a generic "recovered" badge.
 
 The lower pane is a purpose-specific inspector with six views:
-**Summary, Data, Keys, Storage, Evidence, and Raw**. The selected view is always
-visually distinct; views with no meaningful information for the current
-selection are dimmed but remain selectable so the browser can explain why the
-view does not apply. When a new logical item is selected, the browser chooses a
-useful default (for example, source/database members open in Data and
-directory-only identities open in Evidence); an explicit manual view choice is
-left alone until the selection changes. Summary emphasizes what the
-selected AS/400 object is; Data shows source/database or decoded document
-content; Keys isolates QDDSI/context-index evidence; Storage shows QDDS/QDDSI
-and recovered segment groups; Evidence keeps EPA/context provenance and
-incomplete-media reasoning separate from normal browsing; Raw retains bounded
-hex/EBCDIC forensic access. The active view is always highlighted; views with
-no meaningful data for the current selection are dimmed but remain selectable
-so the browser can explain why that view does not apply. When the logical
-selection changes, the browser chooses a useful default (for example Data for a
-recoverable source/database member and Evidence for a directory-only object);
-manual view changes remain in effect until the selection changes again.
+**Summary, Data, Keys, Storage, Evidence, and Raw**. Summary emphasizes what the
+selected AS/400 item is; Data shows source/database or decoded document content;
+Keys isolates QDDSI/context-index evidence; Storage shows QDDS/QDDSI and
+recovered segment groups; Evidence keeps recovery provenance and literal
+cross-reference evidence separate from normal browsing; Raw retains bounded
+hex/EBCDIC forensic access. The active view stays visually distinct even when a
+navigation pane has keyboard focus. Views with no meaningful data are dimmed
+but remain selectable so the absence is explicit. Selection changes choose a
+useful default (for example Data for source/database members and Evidence for a
+directory-only identity), while a manual inspector choice remains in effect
+until the logical selection changes.
 
 Standard source members are shown as source lines in the Data view. Other QDDS
 members show the recovered field layout plus decoded records; when all decoded
 fields are blank, the browser includes raw EBCDIC and hexadecimal bytes instead
 of leaving an apparently empty RRN line. The leading per-entry byte is labeled
-**DENT** (Data Space Entry Status) rather than generic "status"; IBM documents
-valid/deleted/cross-segment state in that byte, while the remaining bit
-assignments stay intentionally conservative.
+**DENT** (Data Space Entry Status) rather than generic "status". In the current
+V2R3 corpus, 0x80 is independently validated as the ordinary live/valid form
+and 0xC0 as the deleted form, with 0x40 accounting for that observed state
+difference; other documented DENT states/bits remain raw until independently
+established.
 
 Program objects (`*PGM`) now get a forensic program view: recovered owned
 segments, printable EBCDIC strings from the primary-segment prefix, and a
@@ -329,6 +323,12 @@ hierarchy level: focus the left pane for the selected library, the middle pane
 for a file/object type, or the right pane for the selected member/object.
 Focusing the inspector retains the deepest selected item. Inspector views can
 be changed with `[`/`]` or directly with keys `1` through `6`.
+
+For a recovered `*FILE`, the Evidence view also shows the exact FCB byte
+offsets where each recovered 19/51 format name occurs and, when present, the
+independent internal-object-address occurrence. This keeps a convenient
+multi-format view without pretending that undocumented FCB field offsets or
+semantics have been decoded.
 
 Library descriptions are loaded from the editable `as400_libraries.json`
 catalog rather than being hard coded in the TUI. The catalog is seeded with every library currently recovered in
