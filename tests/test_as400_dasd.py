@@ -1328,7 +1328,7 @@ class DASDHeaderTests(unittest.TestCase):
                 dkey_index=0, key_complete=False, key_evidence=body,
             )
             for ordinal, body in enumerate(
-                (b"ABC\\x3f\\xff", b"Q\\x3f\\xff", b"\\x3f\\xff"),
+                (bytes.fromhex("4142433fff"), bytes.fromhex("513fff"), bytes.fromhex("3fff")),
                 start=1,
             )
         )
