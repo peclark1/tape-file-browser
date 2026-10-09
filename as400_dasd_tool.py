@@ -610,7 +610,7 @@ def _scan_extent_virtual_references(
                     target_prefix = target_handle.read(5)
                     if len(target_prefix) != 5:
                         raise ValueError(f"short target read at LBA {target_lba}")
-                    if target_prefix == b"\\x02\\x00\\x00\\x00\\x7b":
+                    if target_prefix == bytes((2, 0, 0, 0, 0x7B)):
                         target_record_prefix_counts[pattern_key] += 1
                 if len(examples) < example_limit:
                     examples.append((lba, offset, target_lba, target_offset))
