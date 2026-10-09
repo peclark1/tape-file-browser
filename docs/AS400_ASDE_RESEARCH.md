@@ -535,6 +535,30 @@ consistent with the documented **two reserved areas**, but
 there is no data-structure evidence assigning those physical
 ranges to HMC, LIC, the SMVT, or anything else in V2R3.
 
+An independent read-only 512-byte payload-occupancy census
+illustrates why these ranges cannot simply be labeled checkpoint
+pages. Counts are classified by **number of nonzero payload bytes**
+(without interpreting or exporting their contents):
+
+| Candidate physical run | Zero-byte payloads | 1–32 nonzero bytes | 33–400 nonzero bytes | 401–512 nonzero bytes |
+| --- | ---: | ---: | ---: | ---: |
+| 64–16,447 (16,384 pages) | 141 | 177 | 2,884 | 13,182 |
+| 16,448–32,831 (16,384 pages) | 3,002 | 27 | 3,981 | 9,374 |
+| 32,832–36,927 (4,096 pages) | 0 | 10 | 644 | 3,442 |
+
+The first two runs have substantial, densely populated payloads.
+The first includes **four** literal CP037 `SMVT` occurrences,
+**two** `STATIC DIRECTORY` phrases, and **two**
+`CHECKPOINT` phrases; local context of the latter includes
+linked/debug strings such as `#LDCKPCT` and a list of
+storage-management **lock names**. These are not the contents
+or address of a checkpoint. Treat density and literal text as
+bounded triage evidence only; neither can distinguish code,
+initialized tables and historical/unreferenced material.
+`bootstrap-extents IMAGE --occupancy` reproduces the four
+aggregate counts in each reported physical run. It never
+emits recovered payload bytes.
+
 **Important diagnostic boundary:** the third 4,096-page
 candidate has a different stored 5-byte header prefix on its
 first versus last page, despite the next physical sector
