@@ -249,8 +249,8 @@ Generic physical-file records are now working as well. The QDDS primary segment 
 
 The **guided 5250** mode uses the same read-only CISC DASD parser as the
 three-pane forensic browser, but presents a familiar library -> object ->
-member -> contents workflow. It is intentionally **not** a 5250 protocol
-emulator, a live OS/400 installation, or a complete PDM implementation.
+member -> contents workflow. It is **not** a 5250 protocol emulator,
+a live OS/400 installation, or a complete PDM implementation.
 
 Start it without installing:
 
@@ -262,13 +262,28 @@ Or after installing with `bash install.sh --text-mode`:
 
 ```bash
 as400-dasd browse5250 marks.hda
-as400-dasd browse5250                 # choose an image
-as400-dasd browse marks.hda            # original three-pane forensic UI
-```NaN`?` gives contextual help; F12 goes back; F3 exits.
+as400-dasd browse5250                # choose an image
+as400-dasd browse marks.hda          # original three-pane forensic UI
+```
+
+Navigation:
+- Up/Down select an entry; Enter opens the selected library, file, or member.
+- Type **12** then Enter to work with a selected library or file.
+- Type **5** then Enter to display a selected member or object details.
+- F4 opens the searchable command catalog with descriptions; type to filter,
+  Up/Down to select, Tab to insert an example, Enter to run.
+- Type a command directly or press `/` to enter one.
+- F1/`?` gives help; F12, **Backspace** (when no numeric option is pending),
+  or **Ctrl+B** goes back. F3 exits.
 - Page Up/Down scroll entries or displayed member contents.
 
+**Tilix note:** Tilix assigns F12 to its **View session sidebar** shortcut
+by default. Reassign/disable that shortcut under Tilix Preferences > Shortcuts
+to pass F12 to the browser, or use the Backspace / Ctrl+B alternatives.
+
 Implemented **read-only** command subset: `WRKLIB`, `WRKLIBPDM`,
-`WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM` and `HELP`.
+`WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM`, and `HELP`.
+
 Examples:
 
 ```text
@@ -278,15 +293,14 @@ WRKMBRPDM FILE(QGPL/QCLSRC)
 DSPPFM FILE(QGPL/QCLSRC) MBR(REFRESH2)
 ```
 
-Only the listed subset and the stated named parameters are supported. Other
-OS/400 commands, including commands for live jobs and destructive operations,
-are **not executed**. The screen displays real recovered data and explicitly
-marks **[dir]** when only a context-directory identity survives and
-**[member-only]** when the file primary is absent but a member cursor survives.
-An empty or unreadable member is not presented as complete.
+Only the listed subset and explicitly supported named parameters are accepted.
+Other OS/400 commands, including live-job and destructive commands, are
+**not executed**. Real recovered image data is shown, with **[dir]** for
+directory-only identities and **[member-only]** when member cursors survive
+without their file primary. Unrecoverable content is not fabricated.
 
-The guided UI and forensic UI are separate while the new interface is
-evaluated. Do not distribute raw image contents in repository fixtures.
+The guided UI and existing forensic UI remain separate during evaluation.
+No raw image contents are committed to public repository fixtures.
 
 ### AS/400 DASD text-mode browser
 
