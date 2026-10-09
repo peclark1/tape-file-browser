@@ -474,10 +474,47 @@ def cmd_disk_descriptor(args):
         )
     else:
         print("Header boundary matches: not checked (origin outside 1..EOF-1)")
+    # The next two words are populated on Mark's load-source image
+    # and both zero on Pete's surviving non-load-source disk. Report
+    # their arithmetic *only* if it resolves inside this image.
+    extra_a = int.from_bytes(sector.data[8:12], "big")
+    extra_b = int.from_bytes(sector.data[12:16], "big")
+    print(f"Uninterpreted BE32 at +0x08: {extra_a:,}")
+    print(f"Uninterpreted BE32 at +0x0C: {extra_b:,}")
+    if extra_a and extra_b and extra_a + extra_b < image.sector_count:
+        target_lba = extra_a + extra_b
+        before = image.read_sector(target_lba - 1)
+        at = image.read_sector(target_lba)
+        boundary = (
+            before.header.is_zero
+            and not at.header.is_zero
+            and not at.header.is_ff
+            and at.header.page_aligned
+        )
+        print(
+            f"Uninterpreted sum +0x08/+0x0C: LBA {target_lba:,}"
+        )
+        print(
+            f"Sum target's preceding header: {before.header.raw.hex(' ').upper()}"
+        )
+        print(f"Sum target header:            {at.header.raw.hex(' ').upper()}")
+        print(
+            "Sum hits zero-to-nonzero header boundary: "
+            + ("YES" if boundary else "NO")
+        )
+        print(
+            "Sum's second operand equals candidate origin: "
+            + ("YES" if extra_b == origin else "NO")
+        )
+    else:
+        print(
+            "Uninterpreted sum not examined: one/both words are zero "
+            "or result is outside this physical image"
+        )
     print(
-        "The first two fields and label are OBSERVED on B10 and V2R3"
-        " images; their official IBM names and surrounding binary"
-        " record layout remain unverified. No SMVT/ASDE is inferred."
+        "Geometry and auxiliary arithmetic are OBSERVED only; "
+        "official IBM field names, the meaning of the optional "
+        "boundary and any SMVT/ASDE relationship remain unverified."
     )
     return 0
 
