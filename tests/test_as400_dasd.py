@@ -38,6 +38,7 @@ from as400_dasd import (
     audit_partial_data_space_index_keys,
     audit_partial_index_literal_prefix_candidate,
     audit_partial_index_record_field_order,
+    audit_qdds_current_length_word_candidate,
     decode_context_machine_index,
     decode_context_terminal_name_hint,
     decode_data_space_index_root,
@@ -1262,6 +1263,42 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[0].distinct_ordinal_hints, 1)
         self.assertEqual(audit[0].min_ordinal_hint, 1)
         self.assertEqual(audit[0].max_ordinal_hint, 1)
+
+    def test_qdds_length_word_audit_does_not_conflate_inactive_backing_bytes(self):
+        records = (
+            DataSpaceRecord(0, 0x80, bytes.fromhex("000000000000")),
+            DataSpaceRecord(1, 0x80, bytes.fromhex("000041424344")),
+            DataSpaceRecord(2, 0x80, bytes.fromhex("000241424344")),
+            DataSpaceRecord(3, 0x80, bytes.fromhex("000841424344")),
+            DataSpaceRecord(4, 0xC0, bytes.fromhex("000000000000")),
+        )
+        audit = audit_qdds_current_length_word_candidate(
+            records, record_offset=0, maximum_length=4,
+        )
+        self.assertEqual(audit.live_records, 3)
+        self.assertEqual(audit.valid_words, 2)
+        self.assertEqual(audit.zero_words, 1)
+        self.assertEqual(audit.positive_words, 1)
+        self.assertEqual(audit.invalid_words, 1)
+        self.assertEqual(audit.truncated_words, 0)
+        self.assertEqual(audit.zero_words_with_nonzero_inactive_storage, 1)
+        self.assertEqual((audit.min_valid_word, audit.max_valid_word), (0, 2))
+
+        short = audit_qdds_current_length_word_candidate(
+            records, record_offset=5, maximum_length=4,
+        )
+        self.assertEqual(short.truncated_words, 3)
+        self.assertIsNone(short.min_valid_word)
+        self.assertIsNone(short.max_valid_word)
+
+        with self.assertRaises(ValueError):
+            audit_qdds_current_length_word_candidate(
+                records, record_offset=0, maximum_length=0,
+            )
+        with self.assertRaises(ValueError):
+            audit_qdds_current_length_word_candidate(
+                records + (records[1],), record_offset=0, maximum_length=4,
+            )
 
     def test_qddsi_candidate_order_checks_ties_and_wrong_field(self):
         # Synthetic records: an exact source-field ordering match need not
