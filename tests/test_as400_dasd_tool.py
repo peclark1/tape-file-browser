@@ -254,6 +254,27 @@ class DASDToolTests(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
+                self.assertEqual(main([
+                    "storage-labels", str(image),
+                    "--symbol", "#SMSHTDN",
+                    "--header-groups", "2",
+                    "--limit", "0",
+                ]), 0)
+            groups = stdout.getvalue()
+            self.assertIn("Raw sector-header groups", groups)
+            self.assertIn("#SMSHTDN: 1", groups)
+            self.assertIn("00 00 00 00 00 00 00 00: 1 occurrences", groups)
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                self.assertEqual(main([
+                    "storage-labels", str(image),
+                    "--header-groups", "-1",
+                ]), 1)
+            self.assertIn("--header-groups must be non-negative", stderr.getvalue())
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
                 rc = main([
                     "storage-labels", str(image),
                     "--symbol", "#SMSMVT",
