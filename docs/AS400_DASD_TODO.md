@@ -372,8 +372,11 @@ follow-ups, not prerequisites for the current browser milestone. See
       bounded `asde-probe` that preserves only raw length-based partitioning,
       not guessed virtual-address or disk extent fields.
 - [x] Add a bounded/reproducible `storage-labels` CP037 xref for documented
-      VMC symbols (`#SMSMVT`, `#SMACDIR`, etc.). Literal hits are only
-      candidate investigation targets and are not treated as directory roots.
+      VMC names (`#SMSMVT`, `#SMSMVTN`, `#SMACDIR`, etc.). Follow-up exact
+      eight-byte EBCDIC matching exposed a false positive: all 332 older
+      `#SMSMVT` substring hits on Mark's image belong to the different
+      name `#SMSMVTN` (324 with the same preceding four-byte marker).
+      These remain name/reference evidence, not located SMVT records.
 - [ ] Identify SMVT/static-directory and permanent-directory root candidates
       by independently corroborated real-image evidence.
 - [ ] Traverse the identified permanent-directory machine index, preserving
