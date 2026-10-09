@@ -24,6 +24,7 @@ from as400_dasd_tool import (
     _qaosss14_path,
     _qaosss14_unresolved_parent_records,
     _qddsi_key_field_labels,
+    _qddsi_key_length_evidence,
     _scan_ebcdic_sysobjnam,
     _tui_breadcrumb,
     _tui_context_lines,
@@ -82,6 +83,30 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_qaok_key_length_evidence_preserves_raw_unexplained_bytes(self):
+        pattern = SimpleNamespace(
+            declared_field_bytes=104,
+            user_key_length=108,
+            user_length_over_field_bytes=4,
+            sequence_01_field_count=2,
+            qaok_two_byte_pattern_matches=True,
+        )
+        result = _qddsi_key_length_evidence(pattern)
+        self.assertIn("DKYT lengths sum 104", result)
+        self.assertIn("unexplained difference +4", result)
+        self.assertIn("seq=0x01 positive-length rows 2", result)
+        self.assertIn("byte meaning unknown", result)
+        other = SimpleNamespace(
+            declared_field_bytes=104,
+            user_key_length=107,
+            user_length_over_field_bytes=3,
+            sequence_01_field_count=2,
+            qaok_two_byte_pattern_matches=False,
+        )
+        self.assertIn("no inferred key bytes", _qddsi_key_length_evidence(other))
+        ordinary = SimpleNamespace(user_length_over_field_bytes=0)
+        self.assertEqual(_qddsi_key_length_evidence(ordinary), "")
+
     def test_qddsi_key_field_labels_require_exact_offset_and_length(self):
         spec = SimpleNamespace(
             fields=(

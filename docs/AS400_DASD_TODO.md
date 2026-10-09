@@ -6,20 +6,45 @@ repeatable real-image validation.
 
 ## Current priority
 
-### Browser milestone cleanup and merge preparation
+### QAOK long/compact QDDSI keys — active bounded follow-up
 
-The database/QDDSI and permanent-context milestones are functionally complete
-for the current B10/V2R3 corpus, and the redesigned TUI has completed its main
-usability/terminology pass. The remaining work before merge is deliberately
-small: keep high-value user-visible decoder cleanup evidence-driven, maintain
-regression coverage, refresh milestone documentation, and avoid opening new
-architectural fronts inside this branch.
+The browser milestone was merged into `main` as PR #9.
+The more architectural storage-directory / SMVT investigation remains
+in separate **draft PR #10** (`feature/as400-asde-reconstruction`),
+at an explicit evidence gate: the SMVT checkpoint and permanent-directory
+root are not yet identified. This new branch keeps QAOK research
+independent, so its validated improvements can be merged without
+depending on experimental ASDE changes.
 
-The next major architecture phase after this browser milestone is
-**storage-directory / ASDE reconstruction**. Nonzero context segment-table-index
-pointers, the eight compressed/indirect QAOK QDDSI variants, exact context page
-header semantics beyond the independently established prefix, and MI program
-decompilation remain explicit follow-up research rather than merge blockers.
+- [x] Verify on Mark's V2R3 disk all eight QAOK DKEY active-key
+      length patterns: user_key_length equals the sum of positive
+      DKYT length_or_fork values plus **two bytes per positive-length
+      DKYT row whose sequence byte is exactly 0x01**. This is
+      arithmetic evidence only, not decoded extra byte semantics.
+- [x] Distinguish eight indexes' 156 existing validated terminal
+      ordinal references from unverified literal user-key bytes.
+      For QAOKLDKA and QAOKL10A separately preserve zero-key
+      DKEY rows targeting QAOKP05A.
+- [x] Record why direct record slicing is not sufficient:
+      QAOKP09A recovered record length is 351 bytes, yet the
+      QAOKLAKA DKYT location 326 + length 47 extends past it.
+      Some QAOK positive-length rows have raw location zero.
+- [x] Add raw DKYT length-accounting properties, conservative
+      CLI/TUI evidence labels and synthetic regressions for all
+      eight active-key patterns, with mismatched and ordinary
+      key shapes left unclassified.
+- [ ] Resolve the actual two extra bytes per selected DKYT row
+      and the full long/compact tree text encoding by verifying
+      independent QDDS row evidence and observed tree-key order.
+      Do not synthesize missing user keys.
+
+### Storage-directory / ASDE — paused at evidence gate
+
+PR #10 retains the IBM-source survey, real disk-geometry and
+VMC-reference cross-checks and read-only bootstrap diagnostics.
+A concrete SMVT checkpoint or permanent-directory root pointer
+is needed before proceeding with real ASDE decoding.
+MI disassembly remains later in the priority order.
 
 ### Database / QDDSI and keyed-file reconstruction — milestone checkpoint
 

@@ -261,6 +261,86 @@ compressed index exposes the full literal user key. Recovering the omitted
 user-key bytes for the eight long/compact variants remains a useful research
 follow-up rather than a prerequisite for keyed navigation.
 
+## The eight QAOK variants: independently corroborated DKYT length accounting
+
+A targeted **read-only real-image pass** on Mark's V2R3 load-source disk
+read only the recovered QDDSI `0C/90` primary-segment key-specification
+tables for the eight unresolved long/compact indexes. The exact object
+name, `0C/90` EPA type, primary sector header, DKEY row, and DKYT
+pointer were verified before comparing these numbers. No live keys or
+database rows are committed here.
+
+For **each populated DKEY row** there is an exact and previously
+unrecognized length identity:
+
+`DKEY user_key_length = sum(positive DKYT length_or_fork values)
+                         + 2 * count(positive-length DKYT rows with
+                                     raw sequence_attributes == 0x01)`
+
+The two extra bytes per `0x01`-sequence row are an **observed
+arithmetic relationship** only: we have *not* established whether
+these bytes are delimiters, field-length prefixes, ordering controls,
+or part of another representation. The zero-length `0x40`-sequence
+rows remain zero-length fork/control candidates and do not affect the
+field-length sum.
+
+| QDDSI index | Populated DKEY row(s) | Terminal references | Raw positive field lengths | Raw `seq=01` field count | Field-byte sum | User / machine key lengths |
+| --- | --- | ---: | --- | ---: | ---: | --- |
+| `QAOKLAKA` | 0 | 13 | 47 | 1 | 47 | 49 / 76 |
+| `QAOKLDKA` | 0 | 13 | 18, 64 | 1 | 82 | 84 / 132 |
+| `QAOKL10A` | 1 | 13 | 10, 64 | 1 | 74 | 76 / 120 |
+| `QAOKS01A` | 0 | 13 | 64 | 1 | 64 | 66 / 102 |
+| `QAOKS02A` | 0 and 1 | 26 | 40, 64 | 2 | 104 | 108 / 164 |
+| `QAOKS03A` | 0 and 1 | 26 | 10, 40, 64 | 2 | 114 | 118 / 181 |
+| `QAOKS04A` | 0 and 1 | 26 | 8, 40, 64 | 2 | 112 | 116 / 178 |
+| `QAOKS05A` | 0 and 1 | 26 | 8, 40, 64 | 2 | 112 | 116 / 178 |
+
+All populated rows point to the independently recovered `QAOKP09A`
+data-space internal address `0001:003D09000000`; 13 QDDS
+RRNs survive there. The `QAOKLDKA` and `QAOKL10A`
+also carry *zero-count* DKEY rows referencing the separate
+`QAOKP05A` data space. The table deliberately excludes these
+zero-count rows when counting active keyed entries.
+
+**Why simple record slicing is not justified:** `QAOKP09A`
+declares a 352-byte QDDS entry including one status byte
+(351 record-data bytes). The `QAOKLAKA` positive-length
+DKYT row has raw location **326** and raw length **47**,
+which exceeds that 351-byte record boundary regardless of
+the usual one-based offset correction. Several other QAOK
+rows have positive lengths and a raw location of **zero**
+(an ambiguity that the ordinary field-name join correctly
+declines to resolve). Therefore copying those regions out
+of the QDDS record and calling them a reconstructed machine
+key would invent a release-specific field-layout rule.
+
+**Additional capacity caution:** the DKEY-reported machine
+key lengths **132, 164, 178 and 181** exceed the
+128-byte machine-index entry limit quoted by the older
+System/38 manual. This is not a demonstrated contradiction
+in the underlying data; the number may represent a logical
+uncompressed length, or the releases may differ. Neither
+explanation is validated. The decoder continues to expose
+only verified tree text and database references.
+
+The backend now reports `declared_field_bytes`,
+`user_length_over_field_bytes`, `sequence_01_field_count`,
+and the narrow `qaok_two_byte_pattern_matches` **arithmetic**
+predicate on each DKEY spec. The CLI/TUI keys view reports
+the unexplained length difference while keeping partial-key
+entries partial. No omitted bytes are padded, inferred, or
+used for sorting. Synthetic regressions reproduce all eight
+observed populated-row shapes and preserve negative cases.
+
+**Next experiment:** compare the per-record key-field
+materializations to documented IBM key conversion rules,
+one field family at a time. Any recovered literal bytes
+must agree with both independent QDDS row evidence and
+the actual machine-index path ordering before they are
+promoted to a real decoded user key. Do not interpret
+`seq=0x01` as a specific variable-length or prefix
+field until that cross-check succeeds.
+
 ## FUNDDEF surviving key evidence
 
 FUNDDEF's QDDSI reports one key and its root page contains a six-byte candidate

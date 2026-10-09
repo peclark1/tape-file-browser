@@ -807,6 +807,31 @@ def _qddsi_key_field_labels(spec, format_fields):
     return tuple(labels)
 
 
+
+def _qddsi_key_length_evidence(spec):
+    """Describe raw DKYT length accounting without inventing key encoding.
+
+    A repeated QAOK* V2R3 pattern is two unexplained user-key bytes
+    per positive-length field with raw sequence byte 0x01. No bytes
+    are inserted or parsed on the strength of this arithmetic.
+    """
+    extra = spec.user_length_over_field_bytes
+    if not extra:
+        return ""
+    message = (
+        f"DKYT lengths sum {spec.declared_field_bytes}; "
+        f"declared user key {spec.user_key_length} "
+        f"(unexplained difference {extra:+d}); "
+        f"seq=0x01 positive-length rows {spec.sequence_01_field_count}"
+    )
+    if spec.qaok_two_byte_pattern_matches:
+        message += " [observed QAOK +2/seq01-row arithmetic; byte meaning unknown]"
+    else:
+        message += " [unexplained; no inferred key bytes]"
+    return message
+
+
+
 def cmd_fields(args):
     image = _open(args.image)
     _, _, inventory = _recover_all(image)
@@ -3686,6 +3711,9 @@ def cmd_member(args):
                     f"user/machine key {spec.user_key_length}/"
                     f"{spec.machine_key_length} bytes"
                 )
+                accounting = _qddsi_key_length_evidence(spec)
+                if accounting:
+                    print(f"      {accounting}")
                 field_labels = _qddsi_key_field_labels(
                     spec,
                     index_format_fields,
@@ -6874,6 +6902,9 @@ def _tui_member_lines(state, member_item):
                 f"user/machine {spec.user_key_length}/"
                 f"{spec.machine_key_length} bytes"
             )
+            accounting = _qddsi_key_length_evidence(spec)
+            if accounting:
+                lines.append(f"    {accounting}")
             labels = _qddsi_key_field_labels(spec, index_format_fields)
             for field_number, field in enumerate(spec.fields, 1):
                 label = labels[field_number - 1]
