@@ -547,6 +547,62 @@ This mapping is an observed V2R3 result independently corroborated by the
 recovered DDS definition. It should not be generalized to additional unknown
 internal type bytes without the same level of evidence.
 
+### Independent eight-index DKEY census on Mark V2R3
+
+A separate **read-only direct physical-page** inspection located all
+eight surviving `0C/90` primary objects using the *combination*
+of the exact eight-byte EBCDIC name at payload +0x24 and MI type
+bytes `0C 90` at +0x22. This is stronger than a disk-wide substring
+match because the index primary's object header and the DKEY/active-root
+pointers corroborate the selected address.
+
+The first physical sector supplies the six-byte virtual-address base;
+the primary's recovered first pages show DKEY count at segment +0x11E,
+six-byte DKEY pointer at +0x12A resolving to +0x400, and an active
+machine-index root reached by the independently observed control
+pointer chain at +0x13A and control +0x20. Each active root has
+page type `0xCC`. Physical sectors were read directly from the
+archived image; **only numerical structural metadata**, never
+recovered user-key bytes or source records, is reported here.
+
+| QDDSI object | Primary LBA | Populated DKEY key counts | DKEY user/machine key lengths (populated rows) | Active root offset |
+| --- | ---: | --- | --- | --- |
+| `QAOKLAKA` | 1,578,960 | 13 | 49/76 | +0x1000 |
+| `QAOKLDKA` | 1,574,256 | 13 + 0 | 84/132 | +0x1000 |
+| `QAOKL10A` | 1,588,128 | 0 + 13 | 76/120 | +0x1000 |
+| `QAOKS01A` | 1,589,344 | 13 | 66/102 | +0x1000 |
+| `QAOKS02A` | 1,588,704 | 13 + 13 | 108/164, both rows | +0x1800 |
+| `QAOKS03A` | 1,588,144 | 13 + 13 | 118/181, both rows | +0x1800 |
+| `QAOKS04A` | 1,588,800 | 13 + 13 | 116/178, both rows | +0x1800 |
+| `QAOKS05A` | 1,588,832 | 13 + 13 | 116/178, both rows | +0x1800 |
+
+**Independent numerical cross-check:**
+`13 + 13 + 13 + 13 + 26 + 26 + 26 + 26 = 156`,
+exactly the number of partial terminal database references
+already independently enumerated through the index trees.
+The zero-count DKEY rows in `QAOKLDKA` and `QAOKL10A` are
+preserved rather than silently omitted or reclassified.
+Only the **populated** row's length pair is printed above for
+those two indexes.
+
+Several declared machine-key lengths exceed the 128-byte
+machine-index entry-length limit discussed in the historical
+System/38 material. This is an *observed disparity* between a DKEY
+length field and that historical text, not proof of a particular
+compression algorithm or a V2R3 architectural exception.
+The live disk's index root, DKEY row, and terminal may encode
+different notions of key length. No bytes have been synthesized
+to make the lengths agree.
+
+**Scope caveat:** the first extent header and the pointer-target
+pages were checked, but not every following physical page has an
+identical eight-byte header; the early object group can contain
+noncontiguous or sparse physical payloads. Do not use the raw
+16-sector probe to assert the entire virtual object has been
+recovered contiguously. The production parser follows the
+validated recovered segment model; the census only corroborates
+the **local primary metadata**.
+
 ## Compact-key evidence audit (2026-10-09)
 
 After a bounded, unsuccessful SMVT-checkpoint pointer search, the
