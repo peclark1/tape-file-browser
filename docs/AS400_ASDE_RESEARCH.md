@@ -93,42 +93,60 @@ It does **not** identify any of these pages as the SMVT or a directory, and
 the difference may also reflect disk initialization/layout choices. No raw
 image contents are committed.
 
-### Targeted VMC/SMVT symbol reconnaissance
+### Corrected VMC/SMVT module-name reconnaissance
 
-The read-only command `as400-dasd storage-labels IMAGE --symbol '#SMSMVT'`
-reproduces literal CP037 matches. It can restrict physical LBAs with
-`--start-lba` and `--sectors`, and shows header bytes plus payload offsets
-without claiming a real directory location. No recovered payloads are logged
-in the research note.
+**Correction to the first pass:** the original literal seven-character
+search for `#SMSMVT` counted **332 substrings of a different eight-character
+name, `#SMSMVTN`**. It found no evidence of the exact eight-character
+space-padded name `#SMSMVT ` (IBM's System/38 SMVT module label).
+This was a real false-positive category, not evidence that the actual
+SMVT was located at LBA 65,673.
 
-A byte-for-byte **EBCDIC CP037 literal** search of sector payloads (never
-counting sector headers, and not assuming program/source semantics) finds on
-Mark's V2R3 image:
+A second read-only full-image pass uses **fixed eight-byte EBCDIC CP037
+name comparisons**, with trailing EBCDIC space padding only for names shorter
+than eight characters. All matches are confined to individual 512-byte
+payloads:
 
-| Literal symbol | Whole-image occurrences |
-| --- | ---: |
-| `#SMSMVT` | 332 |
-| `#SMACDIR` | 18 |
-| `#SMMSIT` | 8 |
-| `#SMDR2` | 8 |
+| Exact eight-byte candidate name | Mark V2R3 | Pete B10 non-load-source |
+| --- | ---: | ---: |
+| `#SMSMVT ` (seven-character name + EBCDIC space) | 0 | 0 |
+| `#SMSMVTN` (distinct eight-character name) | 332 | 0 |
+| `#SMSMVTI` (different eight-character name) | 0 | 0 |
+| `#SMACDIR` | 18 | 0 |
+| `#SMMSIT ` | 8 | 0 |
+| `#SMDR2  ` | 8 | 1 |
 
-The first `#SMSMVT` hit is at physical LBA 65,673, payload offset
-`0x118`; more appear near 65,679, 65,698, and 65,704. These sectors carry
-storage-management headers with the previously decoded preassigned virtual
-address prefix `000011000000`. The first `#SMACDIR` occurrence is LBA
-68,342, payload offset `0x108`.
+The first `#SMSMVTN` match is at LBA 65,673, payload offset `0x118`.
+The surrounding bytes contain other fixed-width names such as `#SMTRFIO`;
+the name often appears amid groups of module references rather than as an
+identified initialized table. The first `#SMACDIR` eight-byte name is at
+LBA 68,342, payload offset `0x108`, again near compiled module metadata.
+These are **potential linker/name-reference structures**, not identified
+resident SMVT records or storage-directory root pointers.
 
-On Pete's surviving non-load-source B10 disk the same literal search finds
-**zero** `#SMSMVT`, `#SMACDIR`, or `#SMMSIT` occurrences; one `#SMDR2`
-occurrence survives elsewhere. This is consistent with the bootstrap/VMC
-content being primarily on Mark's load-source image, not proof of exact
-placement on all releases.
+**Reproduce with the CLI:** `as400-dasd storage-labels IMAGE` now defaults
+to space-padded eight-byte name matching (reporting both `#SMSMVT` and
+`#SMSMVTN` separately). To reproduce the older inflated 332 count for
+the seven-character prefix, explicitly use
+`as400-dasd storage-labels IMAGE --symbol '#SMSMVT' --substring`.
+The `--start-lba` and `--sectors` arguments bound the scan. These are
+forensic name observations only; there are no inferred ASDE mappings.
 
-**Important limitation:** name occurrences may be compiled symbol/reference
-data in VMC code or diagnostics, not the actual resident SMVT/static directory.
-They provide bounded **investigation targets**, not a recovered directory root
-or any decoded ASDE. Never promote a name hit alone into a memory or disk
-address map.
+**Source applicability:** SY21-0889-5 is a System/38 VMC reference. Its
+`#SMSMVT`/SMVT descriptions cannot by themselves establish that a V2R3
+AS/400 nucleus uses the identical exact compiled module label, location or
+layout. A distinct `#SMSMVTN` name could reflect a release-specific
+identifier or another relationship; its role is still unknown.
+
+### Stronger evidence required
+
+Instead of following the first substring hit as a presumed SMVT location,
+look for an independently validated **data-structure location or pointer
+chain** (startup loader records, compiled nucleus module directories,
+a corroborated resident module address, and/or actual static directory entries
+that cross-check known disk extents). Keep module-name references, resident
+SMVT identification, static-directory entries, and the pageable permanent
+machine-index root separate.
 
 ## Next reproducible experiments (read-only)
 
