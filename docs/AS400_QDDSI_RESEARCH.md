@@ -815,6 +815,58 @@ corroborates object identity only. It does not uniquely associate
 the indirect DKYT locations in S02..S05 with QDDS source fields and
 does not resolve the raw `3FFF` pattern.
 
+#### Independent QAOKP09A physical QDDS field census (2026-10-09)
+
+A second read-only check used the original Mark V2R3 image and reconstructed
+the **separate** `0B/90` QDDS primary and its `03/B4` owned data-space
+segment in their validated logical extent order. The first QDDS primary
+pages are at LBA 1,632,236..239, with the remaining physical portions
+at 1,578,830..831, 1,587,564..565, 1,588,276..279,
+1,589,492..495 and 1,591,776..779. The `03/B4` space uses
+LBA 1,632,280..283 followed logically by 1,632,160..175.
+These are **physical sector lists**, not assumptions that an object is
+one contiguous disk run. Each physical sector contributes its 512-byte
+payload after its 8-byte storage header.
+
+The QDDS primary at logical +0x400 has the observed 36-row,
+32-byte-per-row table (`0x0024` count). Relevant raw rows in that
+table independently report the following length/location pairs:
+
+| Zero-based descriptor row | Raw type | Raw length | Raw location |
+| ---: | --- | ---: | ---: |
+| 7 | `0x0009` | 64 | 50 |
+| 10 | `0x0009` | 40 | 60 |
+| 17 | `0x0009` | 10 | 160 |
+| 20 | `0x0009` | 10 | 178 |
+| 21 | `0x0004` | 18 | 188 |
+| 24 | `0x0009` | 40 | 212 |
+| 27 | `0x0004` | 64 | 254 |
+| 30–31 | `0x0004` | 8 each | 287, 295 |
+| 34 | `0x0004` | 47 | 326 |
+
+The raw type values are **not** newly decoded field semantics. The
+presence of two different 40-byte candidates, multiple 10-byte
+candidates and multiple 8-byte candidates is important: matching a
+DKYT *length alone* would be ambiguous even before considering its
+potential intermediate-layout location. The 64-byte field at raw
+location 50 has a separate candidate of raw type `0x0004` at
+location 254. The QDDS table does not, by itself, establish which
+candidate any indirect QAOKS02A..S05A DKYT row uses.
+
+For the reconstructed `03/B4` data space, sector payload offset
+`0x20 + 352*n` (`n=0..13`) holds byte `0x80` in **all 14**
+records. This independently corroborates a 352-byte physical
+record slot (including its status byte), with one default entry and
+13 active entries, against the 13 user ordinals of the QAOK indexes.
+It does not prove a mapping between any `seq=01` raw DKYT row and
+one of the descriptor candidates.
+
+**Evidence gate:** before resolving S02..S05, distinguish the source
+fields using descriptor identity and 13-per-record value comparisons,
+not only raw length/location similarity. Preserve the existing 104
+partial tree bodies and complete database-reference suffixes until
+that comparison produces an unambiguous field-materialization rule.
+
 #### Raw pair-position diagnostic (incremental)
 
 The partial-key audit additionally records the minimum and maximum **byte
