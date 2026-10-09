@@ -784,6 +784,18 @@ no longer printed as a QDDS record offset unless a recovered 19/51 format
 field independently matches both offset and length. Uncorroborated locations
 are now explicitly labelled raw/unverified.
 
+#### Raw pair-position diagnostic (incremental)
+
+The partial-key audit additionally records the minimum and maximum **byte
+offset of the first raw `3F FF` pair** among terminals in each DKEY group.
+The member report exposes this range alongside existing pair counts and
+trailing-run evidence. A varying first-pair offset is useful for isolating
+paths with varying literal prefixes, especially QAOKS04A/QAOKS05A, while
+an offset of zero can be contrasted with marker-only paths. This is a
+diagnostic capability, **not** a new corpus-level finding or a decoded field
+boundary. Its regression uses synthetic examples with offsets 0, 1 and 3.
+No complete user-key bytes are produced.
+
 **Next actual decoding gate:** resolve the intermediate/source-field mapping
 for `QAOKS02A`..`QAOKS05A`, then determine what the `3FFF` field marker
 and raw +0x14 length transform represent architecturally. Any complete-key
