@@ -611,7 +611,14 @@ def cmd_sector(args):
 
 
 
-_STORAGE_SYMBOLS = ("#SMSMVT", "#SMSMVTN", "#SMSMVTI", "#SMACDIR", "#SMMSIT", "#SMDR2")
+# Candidate module labels only. IBM's searchable System/38 VMC text renders
+# the loader fixer as #SMSMVT1 (digit one); keep #SMSMVTI too to make an
+# I-versus-1 transcription ambiguity explicit rather than conflating names.
+# #SMSHTDN is IBM's shutdown module, not a direct checkpoint signature.
+_STORAGE_SYMBOLS = (
+    "#SMSMVT", "#SMSMVTN", "#SMSMVT1", "#SMSMVTI",
+    "#SMSHTDN", "#SMACDIR", "#SMMSIT", "#SMDR2",
+)
 
 
 def _scan_storage_symbol_literals(
