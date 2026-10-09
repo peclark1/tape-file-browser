@@ -29,6 +29,34 @@ def _ebcdic_text(data):
     return data.decode("cp037", errors="replace").rstrip(" \x00")
 
 
+def device_identity_candidates(prefix):
+    """Observed V2R3 *DEVD identity positions; empirical, not API offsets.
+
+    Across all 42 device-description primary candidates in Mark's V2R3
+    raw image, +0x100 contains a two-digit EBCDIC class-like value,
+    +0x104 a four-character type-like value (e.g. 3197, 5251, PEER),
+    and +0x108 four characters resembling a model (e.g. '  D1', 0011).
+    Recognize only byte patterns observed, preserve exact raw text, and
+    avoid treating the interpretation as architecturally verified.
+    """
+    if len(prefix) < 0x10C:
+        return ()
+    raw_class = prefix[0x100:0x102].decode("cp037", errors="replace")
+    raw_type = prefix[0x104:0x108].decode("cp037", errors="replace")
+    raw_model = prefix[0x108:0x10C].decode("cp037", errors="replace")
+    if raw_class not in ("01", "11", "31"):
+        return ()
+    if not re.fullmatch(r"[A-Z0-9]{4}", raw_type):
+        return ()
+    if not re.fullmatch(r"[A-Z0-9 ]{4}", raw_model):
+        return ()
+    return (
+        (0x100, raw_class, "candidate category/class code"),
+        (0x104, raw_type, "candidate device type code"),
+        (0x108, raw_model, "candidate device model code"),
+    )
+
+
 def mode_name_candidates(prefix, expected_name):
     """Observed first-page strings, not validated named CISC fields.
 
@@ -136,10 +164,20 @@ def configuration_information_lines(obj, prefix=b"", *, namesake_objects=(),
     elif name == "*DEVD":
         lines.extend([
             "",
-            "Device attributes — not yet structurally decoded",
-            "  Device category, model, attached controller: unknown",
+            "Device configuration (V2R3 candidate offsets; not verified fields)",
+            "  Device category/model/controller: not structurally decoded",
             "  Configuration strings below are raw evidence, not device fields.",
         ])
+        candidates = device_identity_candidates(prefix)
+        if candidates:
+            for offset, value, meaning in candidates:
+                lines.append(f"    +0x{offset:03X} {value!r:<8} — {meaning}")
+            lines.append(
+                "  Correlation: same offsets in 42/42 sampled V2R3 *DEVD "
+                "primaries; field semantics remain provisional."
+            )
+        else:
+            lines.append("  No matching candidate identity pattern in sample.")
     else:
         lines.extend([
             "",
