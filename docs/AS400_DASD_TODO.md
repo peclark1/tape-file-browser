@@ -8,6 +8,16 @@ repeatable real-image validation.
 
 ### Storage-directory / ASDE reconstruction
 
+**Status: evidence-gated / deferred after 2026-10-09 checkpoint review.**
+We found no independently verified persisted SMVT physical address in
+the documented shutdown description or in the bounded low-level
+control-record/known-extent-start cross-check. Do not add guessed
+ASDE fields while the pointer chain is unresolved. The next bounded
+development effort is the eight QAOK compressed/long-key QDDSI
+formats on independent branch `feature/qddsi-compact-key-audit`
+(draft PR #13); resume this section when CISC loader/checkpoint
+evidence becomes available.
+
 The browser milestone was merged into `main` as PR #9. The active architecture
 phase is now recovery/validation of the **storage-management** static/permanent
 directory, not another library/context index. Use
