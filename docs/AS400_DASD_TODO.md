@@ -33,6 +33,21 @@ depending on experimental ASDE changes.
       CLI/TUI evidence labels and synthetic regressions for all
       eight active-key patterns, with mismatched and ordinary
       key shapes left unclassified.
+- [x] Validate the *independent* raw DKYT location-spacing relation:
+      for consecutive positive-length field rows with seq 00 or 01,
+      next location minus current location equals current length plus
+      2 bytes when seq=01 (otherwise 0). On Mark's V2R3 disk all
+      14/14 candidate pairs in the eight populated QAOKS02/03/04/05
+      DKEY rows match. Fork/control rows are excluded.
+      Add code-level matched/tested counts, UI evidence and negative tests.
+- [x] Test the most direct two-byte length-prefix hypothesis against
+      actual QAOKP09A QDDS rows assembled across *noncontiguous physical
+      extents*. All 13 user records retain status 0x80, but words at
+      raw DKYT offsets 0 and 42 contradict interpreting both as
+      unsigned two-byte length prefixes for their declared fields.
+      This rejects naïve raw record slicing, not an index-specific
+      VARLEN representation. IBM later VARLEN documentation is a
+      plausible analogy only, not a V2R3 field-code definition.
 - [ ] Resolve the actual two extra bytes per selected DKYT row
       and the full long/compact tree text encoding by verifying
       independent QDDS row evidence and observed tree-key order.
