@@ -567,6 +567,8 @@ class RecoveredObject:
             (0x0B, 0x90): "*QDDS",
             (0x0C, 0x90): "*QDDSI",
             (0x0D, 0x50): "*MEM",
+            # Historical OS/400 MI subtype catalog: 0E/03 = message file.
+            (0x0E, 0x03): "*MSGF",
             (0x0E, 0x90): "*QDIDX",
             (0x19, 0x01): "*FILE",
             (0x19, 0x02): "*MSGQ",
