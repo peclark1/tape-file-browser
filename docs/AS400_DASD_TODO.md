@@ -6,6 +6,13 @@ repeatable real-image validation.
 
 ## Current priority
 
+The storage-directory SMVT checkpoint search is **blocked on an
+independently verified CISC loader/startup data pointer**. The current
+bounded engineering focus is the eight outstanding compressed/long-key
+QAOK QDDSI variants, on a separate branch from draft PR #10. The
+storage-management work remains documented and resumable; raw bootstrap
+record matches do not justify speculative ASDE fields.
+
 ### QAOK long/compact QDDSI keys — active bounded follow-up
 
 The browser milestone was merged into `main` as PR #9.
