@@ -146,6 +146,28 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("eight-byte name", stderr.getvalue())
             self.assertEqual(image.read_bytes(), original_image)
 
+    def test_virtual_xref_resolves_only_within_explicit_extent(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            p = Path(dirname) / "sample.hda"
+            base = 0x11000000
+            hdr = (base >> 8).to_bytes(5, "big") + bytes((2, 0, 0))
+            blocks = [bytearray(PAGE_SIZE) for _ in range(4)]
+            addr = base + 3 * PAGE_SIZE + 40
+            blocks[2][24:30] = addr.to_bytes(6, "big")
+            blocks[3][40:44] = b"NEXT"
+            p.write_bytes(b"".join(hdr + bytes(b) for b in blocks))
+            before = p.read_bytes()
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["virtual-xref", str(p), "0", "2", "24"]), 0)
+            self.assertIn("LBA 3, payload +0x028", out.getvalue())
+            self.assertIn("4E 45 58 54", out.getvalue())
+            self.assertEqual(p.read_bytes(), before)
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(main(["virtual-xref", str(p), "0", "1", "24"]), 1)
+            self.assertIn("outside chosen extent", err.getvalue())
+
     def test_asde_probe_reads_only_bounded_candidate_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "synthetic.hda"
