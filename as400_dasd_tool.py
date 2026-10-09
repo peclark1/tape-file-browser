@@ -5959,6 +5959,33 @@ def _tui_command_information_lines(state, obj):
     return command_information_lines(obj, prefix)
 
 
+def _tui_config_information_lines(state, obj):
+    """Read-only *USRPRF/*DEVD/*MODD inspector; no profile payload read.
+
+    Credentials and authentication information may be part of a historical
+    *USRPRF primary. We do not even sample its raw primary in this view.
+    """
+    from as400_config import config_type, configuration_information_lines
+
+    typ = config_type(obj)
+    if typ is None:
+        return ["Not a supported OS/400 profile/device/mode object."]
+    prefix = b""
+    if typ[0] != "*USRPRF":
+        prefix = _tui_segment_prefix(
+            state["image"], obj.segment, limit=2048,
+        )
+    namesakes = [
+        item for item in state["inventory"].objects
+        if item is not obj and item.name.upper() == obj.name.upper()
+    ]
+    return configuration_information_lines(
+        obj, prefix,
+        namesake_objects=namesakes,
+        owned_segments=_tui_owned_segments(state, obj),
+    )
+
+
 def _tui_hex_lines(data, *, base_offset=0):
     """Format bytes as offset + hex + EBCDIC for AS/400 forensic browsing."""
 
@@ -8840,6 +8867,7 @@ def cmd_browse5250(args):
             member_info=state["image"].read_member_info,
             member_loader=member_data,
             command_info_loader=lambda obj: _tui_command_information_lines(state, obj),
+            config_info_loader=lambda obj: _tui_config_information_lines(state, obj),
         )
         run_curses(stdscr, browser)
 
