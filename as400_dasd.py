@@ -190,6 +190,78 @@ class OriginCandidate:
         return "MEDIUM"
 
 
+DCT_LABEL_OFFSET = 0x18
+DCT_RECORD_OFFSET = 0x20
+DCT_RECORD_STRIDE = 0x20
+DCT_MAX_RECORDS = (PAGE_SIZE - DCT_RECORD_OFFSET) // DCT_RECORD_STRIDE
+
+
+@dataclass(frozen=True)
+class DCTRawEvidence:
+    """Observed low-sector DCT record shape; not an IBM schema decoder.
+
+    Both captured physical LBA-33 payloads have an EBCDIC DCT + four-digit
+    label at +0x18, a BE16 candidate count at +0x00, and that many populated
+    32-byte raw slots starting at +0x20. The slots' fields remain unknown.
+    """
+
+    payload: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.payload) != PAGE_SIZE:
+            raise ValueError("DCT payload must be exactly 512 bytes")
+        marker = self.payload[DCT_LABEL_OFFSET:DCT_LABEL_OFFSET + 8]
+        try:
+            label = marker.decode("cp037")
+        except UnicodeError as exc:
+            raise ValueError("invalid DCT label encoding") from exc
+        if not (
+            label.startswith("DCT ")
+            and len(label) == 8
+            and label[4:].isascii()
+            and label[4:].isdigit()
+        ):
+            raise ValueError("no exact EBCDIC 'DCT NNNN' at payload +0x18")
+
+    @property
+    def observed_label(self) -> str:
+        return self.payload[DCT_LABEL_OFFSET:DCT_LABEL_OFFSET + 8].decode(
+            "cp037"
+        )
+
+    @property
+    def candidate_slot_count(self) -> int:
+        return int.from_bytes(self.payload[0:2], "big")
+
+    @property
+    def raw_slots(self) -> tuple[bytes, ...]:
+        if self.candidate_slot_count > DCT_MAX_RECORDS:
+            raise ValueError(
+                "candidate DCT count exceeds 15 available 32-byte slots"
+            )
+        return tuple(
+            self.payload[
+                DCT_RECORD_OFFSET + i * DCT_RECORD_STRIDE:
+                DCT_RECORD_OFFSET + (i + 1) * DCT_RECORD_STRIDE
+            ]
+            for i in range(self.candidate_slot_count)
+        )
+
+    @property
+    def populated_slot_count(self) -> int:
+        return sum(bool(any(raw)) for raw in self.raw_slots)
+
+    @property
+    def trailing_slots_nonzero(self) -> int:
+        if self.candidate_slot_count > DCT_MAX_RECORDS:
+            raise ValueError("candidate DCT count exceeds available slots")
+        start = DCT_RECORD_OFFSET + self.candidate_slot_count * DCT_RECORD_STRIDE
+        return sum(
+            bool(any(self.payload[offset:offset + DCT_RECORD_STRIDE]))
+            for offset in range(start, PAGE_SIZE, DCT_RECORD_STRIDE)
+        )
+
+
 DASD_UNIT_DESCRIPTOR_LABEL = "DASD  UNIT  DESC".encode("cp037")
 DASD_UNIT_DESCRIPTOR_PAYLOAD_LABEL_OFFSET = 0x40
 
