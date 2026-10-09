@@ -177,6 +177,7 @@ as400-dasd map disk.hda
 as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
 as400-dasd asde-probe disk.hda 12345 32 16
+as400-dasd storage-labels disk.hda --symbol '#SMSMVT' --start-lba 64000 --sectors 10000
 as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
