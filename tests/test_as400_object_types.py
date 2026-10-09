@@ -10,7 +10,7 @@ from as400_object_types import (
 )
 from as400_dasd import RecoveredObject
 from as400_5250 import Guided5250
-from as400_dasd_tool import _tui_object_type_context, main
+from as400_dasd_tool import _tui_catalog_type_label, _tui_group_right_items, _tui_object_type_context, main
 
 
 class CatalogTests(unittest.TestCase):
@@ -113,6 +113,21 @@ class CatalogTests(unittest.TestCase):
                                  source="internal")
         with self.assertRaisesRegex(ValueError, "Conflicting"):
             merge_catalogs(external, internal)
+
+    def test_forensic_directory_entries_use_catalog_without_fabricating_primary(self):
+        self.assertEqual("*MENU", _tui_catalog_type_label("19/16"))
+        self.assertEqual("*INTPRF", _tui_catalog_type_label("0E/C4"))
+        self.assertEqual("FE/FF", _tui_catalog_type_label("FE/FF"))
+        entry = NS(
+            library_name="TESTLIB", display_name_hint="MISSING",
+            type_code="19/16", owned_segment_count=0,
+            object_address=NS(address=0x1000),
+        )
+        rows = _tui_group_right_items({"objects": [], "entries": [entry]})
+        self.assertEqual(1, len(rows))
+        self.assertIn("*MENU", rows[0]["label"])
+        self.assertIn("[dir]", rows[0]["label"])
+        self.assertIs(rows[0]["entry"], entry)
 
     def test_guided_rows_and_details_distinguish_internal_external(self):
         internal = NS(name="RECOVERY", object_type=0x19, object_subtype=0xD4,
