@@ -165,7 +165,7 @@ The first image is the reference. A successful comparison verifies logical file/
 
 ## Experimental CISC AS/400 DASD explorer
 
-The repository includes an experimental, read-only explorer for raw CISC AS/400 DASD images with 520-byte sectors. The storage-header/recovery model and the higher-level object/context/database reconstruction have been independently exercised against both the surviving B10/0671S15 image and a separate one-disk V2R3 image from Mark/Patrik.
+The repository includes an experimental, read-only explorer for raw CISC AS/400 DASD images with 520-byte sectors. The storage-header/recovery model and the higher-level object/context/database reconstruction have been independently exercised against both the surviving B10/0671S15 image and a separate one-disk V2R3 image.
 
 Current commands:
 
@@ -238,7 +238,7 @@ On the surviving B10 D1 image, relative record zero is LBA 2,112. On the indepen
 
 The second pass currently recovers about 12.7k segment groups from the surviving B10 disk and 43k from the independent V2R3 disk. On the latter it identifies roughly 31.5k EPA objects and 40 permanent contexts/libraries, including QSYS, QGPL, QUSRSYS, and QSYS2. QGPL can already be browsed offline; recovered `19/01` objects include QCLSRC, QCMDSRC, QDDSSRC, and other files. Library membership is now preserved from both independent directions: EPA object -> context back-pointers and permanent-context machine-index -> object references. The browser keeps disagreement evidence rather than silently reconciling it, and context terminals can preserve directory-only names/types/addresses when a primary object is missing from the image.
 
-Source-member contents are now working as well. The real Mark/Patrik image yields readable CL, RPG, DDS, and COBOL source from recovered QDDS data spaces. On the surviving B10 disk, `PPSITEST/QLBLSRC(PROTO)` recovers 107 source lines. The recovered source identifies its author as `JT HUDGINS`, providing a strong preservation/provenance link to the machine's original consulting/programming use. Recovered source itself is not committed to the public repository.
+Source-member contents are now working as well. The real image yields readable CL, RPG, DDS, and COBOL source from recovered QDDS data spaces. On the surviving B10 disk, `PPSITEST/QLBLSRC(PROTO)` recovers 107 source lines. The recovered source identifies its author as `JT HUDGINS`, providing a strong preservation/provenance link to the machine's original consulting/programming use. Recovered source itself is not committed to the public repository.
 
 The member parser is independently validated against a real QGPL/QCLSRC member named `REFRESH2`. It recovers source type `CLP`, the descriptive text `Refresh PkMS demo data - new version (GE 170)`, source-change time `1998-01-03 02:31:14`, and creation time `1998-01-03 02:31:11`.
 
