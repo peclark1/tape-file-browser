@@ -92,11 +92,12 @@ class Guided5250:
     """Testable navigation model shared by the curses frontend and unit tests."""
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
-                 command_info_loader=None):
+                 command_info_loader=None, config_info_loader=None):
         self.inventory = inventory
         self.member_info = member_info or (lambda obj: None)
         self.member_loader = member_loader or (lambda lib, file, obj: [])
         self.command_info_loader = command_info_loader or (lambda obj: [])
+        self.config_info_loader = config_info_loader or (lambda obj: [])
         self.screen = "libraries"
         self.library = ""
         self.file = ""
@@ -190,6 +191,7 @@ class Guided5250:
             "members": "Work with Members Using PDM",
             "contents": "Display Physical File Member (Recovered)",
             "command_info": "Display Command Information (Recovered)",
+            "config_info": "Display OS/400 Configuration (Recovered)",
             "details": "Display Recovered Object Information",
             "help": "Guided 5250 Help",
         }[self.screen]
@@ -226,6 +228,21 @@ class Guided5250:
         self._goto("command_info", library=self.library, detail=lines)
         self.status = "Read-only command metadata/evidence; no command execution."
 
+    def show_config_info(self, obj):
+        """Navigate to a read-only, evidence-labeled object-specific view."""
+        try:
+            lines = list(self.config_info_loader(obj))
+        except (OSError, ValueError) as exc:
+            lines = [f"Configuration metadata unavailable: {exc}"]
+        if not lines:
+            lines = [
+                "Display Configuration Information — recovered image",
+                f"Object: {obj.name}",
+                "Object-specific CISC fields not yet decoded.",
+            ]
+        self._goto("config_info", library=self.library, detail=lines)
+        self.status = "Read-only recovered configuration evidence; no commands executed."
+
     def open_row(self, index, option=None):
         rows = self.rows()
         if index < 0 or index >= len(rows):
@@ -243,6 +260,10 @@ class Guided5250:
         elif (row["kind"] == "object" and row["type"] == "*CMD"
               and option == "5"):
             self.show_command_info(row["object"])
+        elif (row["kind"] == "object"
+              and row["type"] in ("*USRPRF", "*DEVD", "*MODD")
+              and option == "5"):
+            self.show_config_info(row["object"])
         elif option in ("5", "8") and row["kind"] in ("library", "file", "object", "directory"):
             lines = [
                 "Recovered object details (read-only)",
@@ -352,6 +373,7 @@ class Guided5250:
             "12 + Enter: Work with objects or members",
             "5 + Enter: Display selected member/object",
             "5/Enter on *CMD: Recover command information (evidence-only)",
+            "5/Enter on *USRPRF, *DEVD, *MODD: read-only configuration evidence",
             "Type a command directly, or press ':' to edit the command field.",
             "",
             "Only recovered image contents are displayed.",
@@ -398,7 +420,7 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
     put(1, 2, f"Location: {model.location()}")
     put(2, 2, "Type options, press Enter.  12=Work with  5=Display  8=Details")
     body_height = max(1, height - 10)
-    if model.screen in ("contents", "details", "help", "command_info"):
+    if model.screen in ("contents", "details", "help", "command_info", "config_info"):
         lines = model.detail
         for i, line in enumerate(lines[model.scroll: model.scroll + body_height]):
             put(4 + i, 2, line)
@@ -505,7 +527,7 @@ def run_curses(stdscr, model):
             delta = {curses.KEY_UP: -1, curses.KEY_DOWN: 1,
                      curses.KEY_PPAGE: -max(1, stdscr.getmaxyx()[0] - 10),
                      curses.KEY_NPAGE: max(1, stdscr.getmaxyx()[0] - 10)}[key]
-            if model.screen in ("contents", "details", "help", "command_info"):
+            if model.screen in ("contents", "details", "help", "command_info", "config_info"):
                 model.scroll = max(0, min(max(0, len(model.detail) - 1), model.scroll + delta))
             else:
                 model.selected = max(0, min(max(0, len(model.rows()) - 1),
@@ -515,7 +537,7 @@ def run_curses(stdscr, model):
             option += chr(key)
             option = option[-2:]
         elif key in (10, 13, curses.KEY_ENTER):
-            if model.screen not in ("contents", "details", "help", "command_info"):
+            if model.screen not in ("contents", "details", "help", "command_info", "config_info"):
                 model.open_row(model.selected, option or None)
             option = ""
         elif key in (curses.KEY_BACKSPACE, 8, 127):
