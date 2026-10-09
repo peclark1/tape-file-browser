@@ -8731,6 +8731,51 @@ def cmd_browse(args):
     return 0
 
 
+
+def cmd_browse5250(args):
+    """Start the guided 5250-style browser on the existing read-only recovery model."""
+    try:
+        import curses
+    except ImportError:
+        raise ValueError("the curses module is not available")
+
+    from as400_5250 import Guided5250, run_curses
+
+    def launch(stdscr):
+        path = args.image
+        if path is None:
+            path = _tui_file_picker(stdscr, Path.cwd())
+            if path is None:
+                return
+
+        state = _tui_build_state(stdscr, path)
+
+        def member_data(library, file_name, member):
+            file_item = next(
+                (item for item in _tui_file_items(state, library)
+                 if item["name"] == file_name),
+                None,
+            )
+            if file_item is None:
+                file_item = {
+                    "kind": "file", "name": file_name, "library": library,
+                    "object": None, "members": [member],
+                }
+            return _tui_member_data_lines(
+                state, {"kind": "member", "object": member, "file": file_item}
+            )
+
+        browser = Guided5250(
+            state["inventory"],
+            member_info=state["image"].read_member_info,
+            member_loader=member_data,
+        )
+        run_curses(stdscr, browser)
+
+    curses.wrapper(launch)
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="as400-dasd",
@@ -8750,6 +8795,17 @@ def build_parser():
         help="raw 520-byte DASD image; omit to use the file picker",
     )
     browse.set_defaults(func=cmd_browse)
+
+    guided = sub.add_parser(
+        "browse5250",
+        help="guided read-only 5250-style library/object/member browser",
+    )
+    guided.add_argument(
+        "image",
+        nargs="?",
+        help="raw 520-byte DASD image; omit to use the file picker",
+    )
+    guided.set_defaults(func=cmd_browse5250)
 
     info = sub.add_parser("info", help="show image geometry without a full scan")
     info.add_argument("images", nargs="+")
