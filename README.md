@@ -176,6 +176,15 @@ as400-dasd info disk.hda
 as400-dasd map disk.hda
 as400-dasd regions disk.hda
 as400-dasd sector disk.hda 12345
+as400-dasd bootstrap-map disk.hda --sectors 64
+as400-dasd disk-descriptor disk.hda
+as400-dasd bootstrap-extents disk.hda --limit 8 --occupancy
+as400-dasd dct-evidence disk.hda
+as400-dasd asde-probe disk.hda 12345 32 16
+as400-dasd storage-labels disk.hda --symbol '#SMSMVTN' --start-lba 64000 --sectors 10000
+as400-dasd storage-labels disk.hda --symbol '#SMSHTDN' --symbol '#SMDR2' --header-groups 8
+as400-dasd virtual-xref disk.hda 65600 68860 376
+as400-dasd virtual-xref-map disk.hda 65600 --alignment 2 --top 16 --names 12
 as400-dasd segments disk.hda
 as400-dasd libraries disk.hda
 as400-dasd objects disk.hda
@@ -392,6 +401,107 @@ o               open another DASD image
 r               rescan the current image
 q / Esc         quit
 ```
+
+### Storage-directory / ASDE research
+
+The `dct-evidence IMAGE` diagnostic inspects the distinct LBA-33
+`DCT NNNN` label, its candidate BE16 slot count, and raw 32-byte
+slots at payload +0x20. Mark's V2R3 record has one populated slot;
+Pete's B10 record has two. The `DCT` expansion, slot field names,
+and label suffix meanings remain unknown.
+
+Mark's LBA-32 descriptor also has otherwise-unnamed words
+`+0x08=148224`, `+0x0C=64`: their sum, physical LBA **148288**,
+independently lands on a nonzero storage-header/64-page extent
+boundary immediately after zero-header sectors, followed by the
+literal `DELETED EXTENT` marker. Both words are zero on Pete's
+non-load-source disk. This does not identify the SMVT checkpoint.
+
+The companion read-only `bootstrap-extents IMAGE --limit N`
+diagnostic begins from the geometry-corroborated disk-unit descriptor
+origin and follows only bounded, physically adjacent extent-order
+candidates whose *first and last storage headers* independently
+share their base prefix. It stops when they disagree. Optional `--occupancy` counts
+zero, sparse, intermediate and dense payload pages without displaying
+or exporting raw contents. Mark's
+V2R3 load-source disk begins with two back-to-back 16,384-page
+runs (LBAs 64–16,447 and 16,448–32,831); IBM's System/38 manual
+mentions two defect-free areas reserved for HMC initial loading,
+but that **does not yet identify these actual V2R3 ranges as HMC
+or locate the persisted SMVT checkpoint**. See the ASDE research note.
+
+The `disk-descriptor IMAGE` diagnostic checks the exact CP037
+`DASD  UNIT  DESC` label at physical LBA 32. The first two BE u32
+payload values independently match the physical managed-region origin
+and managed-sector count on **both** Pete's B10 and Mark's V2R3 disks.
+It cross-checks their sum against image geometry, and tests the
+neighboring sector-header transition. The byte interpretation is an
+observed cross-image result, not yet an official IBM field definition.
+
+The `bootstrap-map IMAGE [--start-lba N --sectors N]` command reports
+bounded low-level physical-sector evidence before any storage-management
+virtual address is assumed. It counts nonzero payloads, preserves
+zero-storage-header distinctions, and displays exact EBCDIC literal
+labels such as `DASD  UNIT  DESC`, `DCT `, and `DCTX` without claiming
+they are decoded boot structures. IBM's System/38 internals manual
+describes a persisted SMVT checkpoint on drive 1; no checkpoint location
+has yet been validated in either CISC image.
+
+
+After the TUI/browser milestone, the next phase is reconstruction of the
+storage-management **permanent directory** and its auxiliary-storage directory
+entries (ASDEs). That directory maps permanent virtual addresses to disk
+extents; it is **not** the library/context object-name index.
+
+The companion `virtual-xref-map IMAGE EXTENT_START_LBA` command
+scans a caller-selected physical extent for six-byte numeric values inside
+that extent's derived virtual range. It summarizes recurring source/target
+offset patterns and independently reads each in-range target to count raw
+`02 00 00 00 7B` name-record-prefix matches. The optional `--names`
+summary counts printable eight-byte EBCDIC strings following matching raw
+prefixes (for example, `#SMSMVTN`); these are potential compiled-module
+references, not a location or decoded contents of the SMVT. It does **not**
+claim these values are documented pointers or storage-directory entries. Use
+`--source-start-lba` and `--sectors` to bound a large experiment.
+
+The read-only `virtual-xref IMAGE EXTENT_START_LBA SOURCE_LBA OFFSET` helper
+reads an explicitly selected six-byte candidate virtual pointer and resolves it
+using the header of an **explicitly selected extent**, showing target LBA,
+payload offset, header, and bounded bytes. On Mark's V2R3 image the example
+above resolves a candidate at physical LBA 68,860 to data at payload +0x188,
+corroborating a real local pointer in compiled VMC module metadata. No actual
+SMVT/static-directory or permanent-directory schema is inferred.
+
+The optional `--header-groups N` prints the most common **raw eight-byte
+sector headers** for each exact EBCDIC name, making it easier to separate
+preassigned LIC references from similarly named records elsewhere.
+Exact `#SMSHTDN` shutdown-module references appear in **both** original
+disk images (10 on Mark V2R3, one on Pete B10), with nearby
+`#SMDR2` references in corresponding `A0002D` virtual-address
+regions. This independently corroborates a module/linkage-name
+sequence, **not** the location of the shutdown routine's SMVT checkpoint.
+The System/38 source's SMVT link/loader symbol appears in searchable
+text as `#SMSMVT1` (digit one); `#SMSMVTI` (capital I)
+is deliberately kept as an alternate search spelling. Neither has
+a hit in these two images.
+
+The `storage-labels IMAGE` command defaults to **complete EBCDIC
+space-padded eight-byte candidate names**, not prefix substrings: `#SMSMVT`
+and `#SMSMVTN` are counted separately. Use `--substring` only when deliberately
+looking for substrings; on Mark's V2R3 disk all 332 older `#SMSMVT`
+substring hits are within `#SMSMVTN`. Repeated names and adjacent raw bytes
+are candidate compiled-reference evidence, **not** identified SMVT or directory
+locations. See `docs/AS400_ASDE_RESEARCH.md` for the corrected counts.
+
+The preliminary `asde-probe IMAGE LBA PAYLOAD_OFFSET LENGTH` command inspects
+an **explicitly selected** raw candidate inside one 512-byte sector payload
+(`LENGTH` is 11, 16, 21, or 26 from IBM's System/38 chapter-7 ASDE length
+family). It displays only a tentative six-byte prefix and one-to-four
+five-byte raw pieces. This is a forensic partitioning helper, **not** an ASDE
+locator or a validated field decoder. No ASDE virtual address, device number,
+extent size, or disk location is inferred from these bytes yet. See
+`docs/AS400_ASDE_RESEARCH.md` for documented facts, original-source
+transcription caveats, and the real-image validation plan.
 
 The browser is completely read-only with respect to the DASD image. When a
 selected QDOC `*DOC` has a unique, validated same-base `*DOCBSS` companion,

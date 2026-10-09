@@ -6,20 +6,14 @@ repeatable real-image validation.
 
 ## Current priority
 
-### Browser milestone cleanup and merge preparation
+### Storage-directory / ASDE reconstruction
 
-The database/QDDSI and permanent-context milestones are functionally complete
-for the current B10/V2R3 corpus, and the redesigned TUI has completed its main
-usability/terminology pass. The remaining work before merge is deliberately
-small: keep high-value user-visible decoder cleanup evidence-driven, maintain
-regression coverage, refresh milestone documentation, and avoid opening new
-architectural fronts inside this branch.
-
-The next major architecture phase after this browser milestone is
-**storage-directory / ASDE reconstruction**. Nonzero context segment-table-index
-pointers, the eight compressed/indirect QAOK QDDSI variants, exact context page
-header semantics beyond the independently established prefix, and MI program
-decompilation remain explicit follow-up research rather than merge blockers.
+The browser milestone was merged into `main` as PR #9. The active architecture
+phase is now recovery/validation of the **storage-management** static/permanent
+directory, not another library/context index. Use
+`docs/AS400_ASDE_RESEARCH.md` and the documented/observed/hypothesis
+distinction. Do not decode speculative ASDE bytes until real directory
+locations and independent sector-header cross-checks establish them.
 
 ### Database / QDDSI and keyed-file reconstruction — milestone checkpoint
 
@@ -368,10 +362,114 @@ follow-ups, not prerequisites for the current browser milestone. See
 
 ## Storage-directory / recovery internals
 
-- [ ] Identify static/permanent directory objects.
-- [ ] Parse ASDE/extent descriptors directly as an independent check of the
-      header-based recovery map.
-- [ ] Improve permanent/temporary sector-header indicator decoding.
+- [x] Survey IBM SY21-0889-5 chapters 7 and 8 and AS/400 Redbook terminology
+      for static/lookaside/free/permanent/temporary directories. The static
+      directory is a resident table in the SMVT, not a library context; the
+      permanent directory is a pageable machine index of ASDE entries.
+- [x] Record documented ASDE candidate lengths (chapter 7: 11/16/21/26 bytes,
+      one to four extents), the chapter-8 length discrepancy, and the separate
+      seven-byte free-space-directory extent descriptor. Add a read-only,
+      bounded `asde-probe` that preserves only raw length-based partitioning,
+      not guessed virtual-address or disk extent fields.
+- [x] Add a bounded/reproducible `storage-labels` CP037 xref for documented
+      VMC names (`#SMSMVT`, `#SMSMVTN`, `#SMACDIR`, etc.). Follow-up exact
+      eight-byte EBCDIC matching exposed a false positive: all 332 older
+      `#SMSMVT` substring hits on Mark's image belong to the different
+      name `#SMSMVTN` (324 with the same preceding four-byte marker).
+      These remain name/reference evidence, not located SMVT records.
+- [x] Verify initial explicit virtual pointer candidates inside Mark's
+      preassigned LIC extent: physical LBA 65,600, VA 0x11000000, 4,096
+      pages; two six-byte references on physical LBA 68,860 resolve exactly
+      to independently calculated offsets +0x188 and +0x1A0. Add
+      `virtual-xref` with caller-selected extent and pointer offsets.
+      These identify live local module/linkage structures, not the SMVT root.
+- [x] Scan the independently established 4,096-page Mark VMC extent
+      for bounded six-byte in-range virtual-address candidates. Observe
+      5,216 matches (5,213 four-byte aligned) with strong recurring
+      in-page and next-page source/target offset families. Validate that
+      2,146 of the 2,608 matches in the four dominant families also land
+      on the observed raw module-name record prefix 02 00 00 00 7B.
+      Decode only printable eight-byte candidate names behind matching
+      target markers (572 observed unique, with `#SMSMVTN` occurring
+      126 times as a target). These remain candidate compiled-module
+      references, not an active SMVT or directory. Add `virtual-xref-map`
+      with synthetic address/target-prefix/name regressions.
+- [x] Identify IBM SY21-0889-5's explicit auxiliary-storage initialization
+      write of the SMVT and orderly-shutdown SMVT checkpoint; distinguish
+      this persisted data from compiled `#SMSMVTN` name references.
+- [x] Compare read-only bootstrap physical LBAs 0..63 in Mark V2R3 and
+      Pete B10. Identify seven nonzero sectors on Mark versus three on
+      Pete; preserve exact observed labels (DASD UNIT DESC, DCT,
+      REALLOCATION CONTROL SECTOR, DCTX, MSD SEC, DMDMAIN).
+      Add bounded `bootstrap-map` and synthetic image non-modification
+      and range regression coverage; these remain labels, not decoded
+      structures.
+- [x] Decode only two empirically corroborated fields of the physical
+      `DASD  UNIT  DESC` at LBA 32: 4-byte BE physical origin and
+      4-byte BE managed-sector count. Both images satisfy
+      `origin + managed_count == physical image sector count`, and
+      the physical header at that origin is independently nonzero
+      while its predecessor is zero. Add `DASDUnitDescriptorEvidence`,
+      `disk-descriptor` and synthetic mismatch/read-only regressions.
+- [x] Correlate two additional **unnamed** LBA-32 raw BE32 fields on
+      Mark's load-source image: +0x08=148,224 and +0x0C=64. Their
+      sum gives exact physical LBA 148,288, a zero-to-nonzero
+      header boundary beginning a 64-page extent; the next two
+      sectors after that extent have `DELETED EXTENT` labels.
+      Pete's corresponding fields are zero. Report the arithmetic
+      and independent sector observations, not guessed SMVT semantics.
+- [x] Cross-check LBA-33 `DCT NNNN` records: Mark `DCT 0300`
+      has a BE16 count of one and one populated 32-byte slot,
+      Pete `DCT 0100` has count two and two slots. Add
+      `DCTRawEvidence` and read-only `dct-evidence` diagnostics;
+      do not assign formal field names or device configuration
+      semantics yet.
+- [x] Check **entire** physical pre-origin area on both disks:
+      Mark 7 nonzero-payload sectors/198 nonzero bytes across
+      LBAs 0..63; Pete 3 sectors/127 bytes across LBAs
+      0..2111. These tiny payloads do not establish an SMVT
+      checkpoint and emphasize the need for a real pointer chain.
+- [x] Compare exact shutdown-module name references across both images,
+      rather than assuming the absence of `#SMSMVTN` implies absent
+      storage-management code. `#SMSHTDN` appears 10 times on Mark's
+      V2R3 disk, once on Pete's B10 disk; late-image appearances of
+      `#SMDR2`, `#SMSHTDN` and neighboring names share a raw
+      `A0002D` virtual-prefix family on both disks. Add raw
+      eight-byte header grouping to `storage-labels` and synthetic
+      coverage. Keep `#SMSMVT1` (digit) and `#SMSMVTI` (letter)
+      distinct, acknowledging source glyph ambiguity.
+      These are probable code-symbol/linkage *references*, not checkpoint
+      data or static/permanent directory entries.
+- [x] Independently map the earliest large disk extents using the
+      already cross-validated LBA-32 geometry and *both* endpoint
+      sector headers. Mark V2R3 has two adjacent 16,384-page
+      runs at LBAs 64..16,447 and 16,448..32,831 with agreeing
+      start/end virtual prefixes. The third 4,096-page candidate
+      has a differing first/last prefix, so the conservative
+      diagnostic stops rather than assuming contiguity. Pete's
+      non-load-source LBA 2,112 delimiter does not pass the same
+      endpoint check. Add read-only `bootstrap-extents` with
+      synthetic agreement/disagreement and input-preservation
+      tests. Optional `--occupancy` independently counts zero/sparse/
+      dense payloads: Mark's first 16,384-page run has 141 zero and
+      13,182 high-density (>400 nonzero bytes) pages; its second
+      has 3,002 zero and 9,374 high-density pages. Exact nearby
+      `SMVT`/`CHECKPOINT` text remains compiled/diagnostic
+      evidence, not a checkpoint location.
+      System/38 documentation mentions two HMC-IMPL
+      allocations; **do not** equate the V2R3 extents with these
+      allocations without additional evidence.
+- [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
+      through independently corroborated startup loader or control-block
+      references (not EBCDIC module-name counts).
+- [ ] Identify SMVT/static-directory and permanent-directory root candidates
+      by independently corroborated real-image evidence.
+- [ ] Traverse the identified permanent-directory machine index, preserving
+      raw terminal entries before claiming an ASDE layout.
+- [ ] Validate decoded ASDE-to-LBA/VA/extent mappings against independently
+      recovered sector-header extents across both real images.
+- [ ] Improve permanent/temporary sector-header indicator decoding only after
+      field semantics are corroborated.
 - [ ] Reduce dependence on structural corroboration for ambiguous candidates.
 
 ## Program object / MI decoding

@@ -82,6 +82,420 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_dct_raw_slot_evidence_is_read_only(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            image = Path(dirname) / "slots.hda"
+            sectors = [bytearray(PAGE_SIZE + 8) for _ in range(34)]
+            sector = sectors[33]
+            sector[8:10] = (2).to_bytes(2, "big")
+            sector[8 + 0x18:8 + 0x20] = "DCT 0100".encode("cp037")
+            sector[8 + 0x20] = 1
+            sector[8 + 0x40] = 2
+            image.write_bytes(b"".join(sectors))
+            before = image.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["dct-evidence", str(image)]), 0)
+            output = out.getvalue()
+            self.assertIn("DCT 0100", output)
+            self.assertIn("Candidate count BE16:  2", output)
+            self.assertIn("Populated 32-byte slots: 2", output)
+            self.assertIn("Extra nonzero 32-byte slots after candidate count: 0", output)
+            self.assertIn("not formal IBM DCT", output)
+            self.assertEqual(image.read_bytes(), before)
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["dct-evidence", str(image), "--lba", "32"]), 1
+                )
+            self.assertIn("exact EBCDIC", err.getvalue())
+
+    def test_bootstrap_extents_uses_descriptor_and_last_header_boundary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "boot-extents.hda"
+            sectors = [bytearray(PAGE_SIZE + 8) for _ in range(40)]
+            descriptor = sectors[32]
+            descriptor[8:12] = (2).to_bytes(4, "big")
+            descriptor[12:16] = (38).to_bytes(4, "big")
+            descriptor[8 + 0x40:8 + 0x50] = (
+                "DASD  UNIT  DESC".encode("cp037")
+            )
+            first = bytes.fromhex("00000B0000030000")
+            second = bytes.fromhex("0000920000040000")
+            for lba in range(2, 10):
+                sectors[lba][:8] = first
+            for lba in range(10, 26):
+                sectors[lba][:8] = second
+            sectors[2][8] = 1
+            sectors[3][8:8 + PAGE_SIZE] = bytes([0xA1]) * PAGE_SIZE
+            sectors[11][8:8 + 40] = bytes([0x23]) * 40
+            image.write_bytes(b"".join(sectors))
+            original = image.read_bytes()
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main([
+                        "bootstrap-extents", str(image), "--limit", "5",
+                        "--occupancy",
+                    ]), 0
+                )
+            output = stdout.getvalue()
+            self.assertIn("origin: physical LBA 2", output)
+            self.assertIn("LBA 2..9, 8 pages", output)
+            self.assertIn("LBA 10..25, 16 pages", output)
+            self.assertEqual(output.count("boundary corroborated: YES"), 2)
+            self.assertIn("not documented HMC allocations", output)
+            self.assertIn(
+                "zero=6, 1..32 nonzero bytes=1, 33..400=0, 401..512=1",
+                output,
+            )
+            self.assertIn(
+                "zero=15, 1..32 nonzero bytes=0, 33..400=1, 401..512=0",
+                output,
+            )
+            self.assertEqual(image.read_bytes(), original)
+
+            # A bogus end header ends the chain without implying allocation.
+            sectors[9][:8] = bytes(8)
+            image.write_bytes(b"".join(sectors))
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["bootstrap-extents", str(image)]), 0)
+            output = stdout.getvalue()
+            self.assertIn("LBA 2..9", output)
+            self.assertNotIn("LBA 10..25", output)
+            self.assertIn("boundary corroborated: NO", output)
+
+            for args, error in [
+                (["--limit", "0"], "--limit must be between"),
+                (["--limit", "33"], "--limit must be between"),
+                (["--descriptor-lba", "31"], "no exact EBCDIC"),
+            ]:
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    self.assertEqual(
+                        main(["bootstrap-extents", str(image)] + args), 1
+                    )
+                self.assertIn(error, stderr.getvalue())
+
+    def test_disk_descriptor_geometry_and_physical_header_boundary(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            image = Path(dirname) / "descriptor.hda"
+            sectors = [bytearray(PAGE_SIZE + 8) for _ in range(40)]
+            sectors[32][8:12] = (34).to_bytes(4, "big")
+            sectors[32][12:16] = (6).to_bytes(4, "big")
+            sectors[32][16:20] = (4).to_bytes(4, "big")
+            sectors[32][20:24] = (34).to_bytes(4, "big")
+            sectors[32][8 + 0x40:8 + 0x50] = (
+                "DASD  UNIT  DESC".encode("cp037")
+            )
+            sectors[34][:8] = bytes.fromhex("00000B0000010000")
+            sectors[38][:8] = bytes.fromhex("00000C0000000000")
+            sectors[39][8:8+16] = "DELETED EXTENT  ".encode("cp037")
+            image.write_bytes(b"".join(sectors))
+            before = image.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["disk-descriptor", str(image)]), 0)
+            output = out.getvalue()
+            self.assertIn("Candidate origin LBA:    34", output)
+            self.assertIn("Candidate managed pages: 6", output)
+            self.assertIn("Actual image sectors:    40", output)
+            self.assertIn("Size arithmetic agrees: YES", output)
+            self.assertIn("Header boundary matches: YES", output)
+            self.assertIn("Uninterpreted sum +0x08/+0x0C: LBA 38", output)
+            self.assertIn("Sum hits zero-to-nonzero header boundary: YES", output)
+            self.assertIn("Candidate boundary's extent-style order: 0 (1 pages)", output)
+            self.assertIn("Observed following CP037 label: 'DELETED EXTENT'", output)
+            self.assertIn("Sum's second operand equals candidate origin: YES", output)
+            self.assertIn("Geometry and auxiliary arithmetic are OBSERVED", output)
+            self.assertEqual(image.read_bytes(), before)
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                # Still display the mismatch rather than forcing a field fit.
+                sectors[32][12:16] = (5).to_bytes(4, "big")
+                image.write_bytes(b"".join(sectors))
+                self.assertEqual(main(["disk-descriptor", str(image)]), 0)
+            self.assertIn("Size arithmetic agrees: NO", out.getvalue())
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["disk-descriptor", str(image), "--lba", "31"]), 1
+                )
+            self.assertIn("exact EBCDIC", err.getvalue())
+
+    def test_bootstrap_map_raw_labels_zero_headers_and_bounds(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            image = Path(dirname) / "boot.hda"
+            raw = [bytearray(PAGE_SIZE) for _ in range(4)]
+            raw[0][0:4] = "IMD1".encode("cp037")
+            raw[1][0x40:0x40 + 16] = "DASD  UNIT  DESC".encode("cp037")
+            raw[2][0:4] = "DCTX".encode("cp037")
+            headers = [bytes(8), bytes(8), bytes(8),
+                       bytes.fromhex("0000110000020000")]
+            raw[3][0:4] = "DCTX".encode("cp037")
+            image.write_bytes(
+                b"".join(hdr + bytes(page) for hdr, page in zip(headers, raw))
+            )
+            before = image.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(
+                    main(["bootstrap-map", str(image), "--max-rows", "2"]), 0
+                )
+            output = out.getvalue()
+            self.assertIn("Sectors with nonzero payloads: 4", output)
+            self.assertIn("sectors with zero storage header: 3", output)
+            self.assertIn("'IMD1': 1 matches", output)
+            self.assertIn("'DASD  UNIT  DESC': 1 matches", output)
+            self.assertIn("'DCTX': 2 matches", output)
+            self.assertIn("2 further nonzero-payload sectors not listed", output)
+            self.assertIn("not proof of SMVT checkpoint", output)
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(
+                    main([
+                        "bootstrap-map", str(image), "--start-lba", "1",
+                        "--sectors", "2",
+                    ]),
+                    0,
+                )
+            self.assertIn("Sectors with nonzero payloads: 2", out.getvalue())
+            self.assertIn("'DCTX': 1 matches", out.getvalue())
+            self.assertEqual(image.read_bytes(), before)
+
+            for bad_count in ("0", "4097"):
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    self.assertEqual(
+                        main([
+                            "bootstrap-map", str(image),
+                            "--sectors", bad_count,
+                        ]),
+                        1,
+                    )
+                self.assertIn("between 1 and 4096", err.getvalue())
+
+    def test_storage_labels_exact_padded_ebcdic_names_vs_substrings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "synthetic.hda"
+            one = bytearray(PAGE_SIZE)
+            two = bytearray(PAGE_SIZE)
+            # Both names have the prefix '#SMSMVT', but they are distinct.
+            one[5:13] = "#SMSMVT".ljust(8).encode("cp037")
+            one[16:20] = b"\x02\x00\x00\x00"
+            one[20:28] = "#SMSMVTN".encode("cp037")
+            one[200:207] = b"#SMSMVT"  # ASCII must not match
+            two[30:38] = "#SMACDIR".encode("cp037")
+            two[80:88] = "#SMSMVTN".encode("cp037")
+            two[90:98] = "#SMSHTDN".encode("cp037")
+            two[100:108] = "#SMSMVT1".encode("cp037")
+            image.write_bytes(
+                b"\x00" * 8 + bytes(one)
+                + b"\x00" * 8 + bytes(two)
+            )
+            original_image = image.read_bytes()
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main(["storage-labels", str(image)])
+            self.assertEqual(rc, 0)
+            output = stdout.getvalue()
+            self.assertIn("#SMSMVT: 1", output)
+            self.assertIn("#SMSMVTN: 2", output)
+            self.assertIn("#SMSMVTI: 0", output)
+            self.assertIn("#SMSMVT1: 1", output)
+            self.assertIn("#SMSHTDN: 1", output)
+            self.assertIn("#SMACDIR: 1", output)
+            self.assertIn("payload +0x005", output)
+            self.assertIn("payload +0x014", output)
+            self.assertIn("preceding4 02 00 00 00", output)
+            self.assertIn("space-padded eight-byte name", output)
+            self.assertIn("NOT proven SMVT", output)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main([
+                    "storage-labels", str(image),
+                    "--symbol", "#SMSHTDN",
+                    "--header-groups", "2",
+                    "--limit", "0",
+                ]), 0)
+            groups = stdout.getvalue()
+            self.assertIn("Raw sector-header groups", groups)
+            self.assertIn("#SMSHTDN: 1", groups)
+            self.assertIn("00 00 00 00 00 00 00 00: 1 occurrences", groups)
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                self.assertEqual(main([
+                    "storage-labels", str(image),
+                    "--header-groups", "-1",
+                ]), 1)
+            self.assertIn("--header-groups must be non-negative", stderr.getvalue())
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main([
+                    "storage-labels", str(image),
+                    "--symbol", "#SMSMVT",
+                    "--start-lba", "1",
+                    "--sectors", "1",
+                    "--limit", "1",
+                ])
+            self.assertEqual(rc, 0)
+            self.assertIn("#SMSMVT: 0", stdout.getvalue())
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main([
+                    "storage-labels", str(image),
+                    "--substring", "--symbol", "#SMSMVT",
+                ])
+            self.assertEqual(rc, 0)
+            # Deliberate prefix mode also matches the distinct #SMSMVT1.
+            self.assertIn("#SMSMVT: 4", stdout.getvalue())
+            self.assertIn("CP037 substring", stdout.getvalue())
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                rc = main([
+                    "storage-labels", str(image), "--symbol", "123456789"
+                ])
+            self.assertEqual(rc, 1)
+            self.assertIn("eight-byte name", stderr.getvalue())
+            self.assertEqual(image.read_bytes(), original_image)
+
+    def test_virtual_xref_resolves_only_within_explicit_extent(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            p = Path(dirname) / "sample.hda"
+            base = 0x11000000
+            hdr = (base >> 8).to_bytes(5, "big") + bytes((2, 0, 0))
+            blocks = [bytearray(PAGE_SIZE) for _ in range(4)]
+            addr = base + 3 * PAGE_SIZE + 40
+            blocks[2][24:30] = addr.to_bytes(6, "big")
+            blocks[3][40:44] = b"NEXT"
+            p.write_bytes(b"".join(hdr + bytes(b) for b in blocks))
+            before = p.read_bytes()
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["virtual-xref", str(p), "0", "2", "24"]), 0)
+            self.assertIn("LBA 3, payload +0x028", out.getvalue())
+            self.assertIn("4E 45 58 54", out.getvalue())
+            self.assertEqual(p.read_bytes(), before)
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(main(["virtual-xref", str(p), "0", "1", "24"]), 1)
+            self.assertIn("outside chosen extent", err.getvalue())
+
+    def test_virtual_xref_map_counts_repeating_patterns_without_writes(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            p = Path(dirname) / "patterns.hda"
+            base = 0x11000000
+            hdr = (base >> 8).to_bytes(5, "big") + bytes((2, 0, 0))
+            pages = [bytearray(PAGE_SIZE) for _ in range(4)]
+            for index in (0, 1):
+                page_va = base + index * PAGE_SIZE
+                pages[index][0xF8:0xFE] = (page_va + 0x108).to_bytes(6, "big")
+                pages[index][0x178:0x17E] = (page_va + 0x188).to_bytes(6, "big")
+                pages[index][0x108:0x114] = (
+                    bytes((2, 0, 0, 0)) + "#SAMPLE ".encode("cp037")
+                )
+                pages[index][0x188:0x194] = (
+                    bytes((2, 0, 0, 0)) + "#EXAMPLE".encode("cp037")
+                )
+            pages[0][0x1F8:0x1FE] = (base + 512 + 8).to_bytes(6, "big")
+            pages[1][0x08:0x14] = (
+                bytes((2, 0, 0, 0)) + "#SAMPLE ".encode("cp037")
+            )
+            p.write_bytes(b"".join(hdr + bytes(page) for page in pages))
+            before = p.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc = main([
+                    "virtual-xref-map", str(p), "0",
+                    "--source-start-lba", "0",
+                    "--sectors", "2",
+                    "--top", "3",
+                    "--examples", "3",
+                ])
+            self.assertEqual(rc, 0)
+            output = out.getvalue()
+            self.assertIn("Candidate values within extent: 5", output)
+            self.assertIn("+0x0F8 -> page +0, +0x108    2 occurrences", output)
+            self.assertIn("+0x178 -> page +0, +0x188    2 occurrences", output)
+            self.assertIn("+0x1F8 -> page +1, +0x008    1 occurrences", output)
+            self.assertEqual(output.count("2 occurrences; 2 target prefix matches"), 2)
+            self.assertIn("1 occurrences; 1 target prefix matches", output)
+            self.assertIn("'#SAMPLE ': 3 target references", output)
+            self.assertIn("'#EXAMPLE': 2 target references", output)
+            self.assertIn("not verified pointer fields", output)
+            self.assertEqual(p.read_bytes(), before)
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                rc = main(["virtual-xref-map", str(p), "0", "--sectors", "0"])
+            self.assertEqual(rc, 1)
+            self.assertIn("sectors must be positive", err.getvalue())
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                rc = main([
+                    "virtual-xref-map", str(p), "0",
+                    "--source-start-lba", "4",
+                ])
+            self.assertEqual(rc, 1)
+            self.assertIn("outside chosen extent", err.getvalue())
+
+            empty_image = Path(dirname) / "empty.hda"
+            empty_image.write_bytes(bytes(PAGE_SIZE + 8))
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["virtual-xref-map", str(empty_image), "0"]), 1
+                )
+            self.assertIn("zero/FF storage header", err.getvalue())
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["virtual-xref-map", str(p), "0", "--top", "-1"]), 1
+                )
+            self.assertIn("--top must be non-negative", err.getvalue())
+
+    def test_asde_probe_reads_only_bounded_candidate_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "synthetic.hda"
+            entry = b"PREFIX" + b"ABCDE" + b"FGHIJ" + b"KLMNO"
+            payload = bytearray(PAGE_SIZE)
+            payload[17:17 + len(entry)] = entry
+            image.write_bytes(b"\x00" * 8 + bytes(payload))
+            original_image = image.read_bytes()
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main(["asde-probe", str(image), "0", "17", "21"])
+            self.assertEqual(rc, 0)
+            output = stdout.getvalue()
+            self.assertIn("NOT a validated directory entry", output)
+            self.assertIn("first six bytes: 50 52 45 46 49 58", output)
+            self.assertIn("following 5-byte groups: 3", output)
+            self.assertIn("raw descriptor 3: 4B 4C 4D 4E 4F", output)
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                rc = main(["asde-probe", str(image), "0", "495", "21"])
+            self.assertEqual(rc, 1)
+            self.assertIn("fit entirely", stderr.getvalue())
+            self.assertEqual(image.read_bytes(), original_image)
+
     def test_qddsi_key_field_labels_require_exact_offset_and_length(self):
         spec = SimpleNamespace(
             fields=(

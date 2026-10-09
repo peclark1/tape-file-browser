@@ -190,6 +190,174 @@ class OriginCandidate:
         return "MEDIUM"
 
 
+DCT_LABEL_OFFSET = 0x18
+DCT_RECORD_OFFSET = 0x20
+DCT_RECORD_STRIDE = 0x20
+DCT_MAX_RECORDS = (PAGE_SIZE - DCT_RECORD_OFFSET) // DCT_RECORD_STRIDE
+
+
+@dataclass(frozen=True)
+class DCTRawEvidence:
+    """Observed low-sector DCT record shape; not an IBM schema decoder.
+
+    Both captured physical LBA-33 payloads have an EBCDIC DCT + four-digit
+    label at +0x18, a BE16 candidate count at +0x00, and that many populated
+    32-byte raw slots starting at +0x20. The slots' fields remain unknown.
+    """
+
+    payload: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.payload) != PAGE_SIZE:
+            raise ValueError("DCT payload must be exactly 512 bytes")
+        marker = self.payload[DCT_LABEL_OFFSET:DCT_LABEL_OFFSET + 8]
+        try:
+            label = marker.decode("cp037")
+        except UnicodeError as exc:
+            raise ValueError("invalid DCT label encoding") from exc
+        if not (
+            label.startswith("DCT ")
+            and len(label) == 8
+            and label[4:].isascii()
+            and label[4:].isdigit()
+        ):
+            raise ValueError("no exact EBCDIC 'DCT NNNN' at payload +0x18")
+
+    @property
+    def observed_label(self) -> str:
+        return self.payload[DCT_LABEL_OFFSET:DCT_LABEL_OFFSET + 8].decode(
+            "cp037"
+        )
+
+    @property
+    def candidate_slot_count(self) -> int:
+        return int.from_bytes(self.payload[0:2], "big")
+
+    @property
+    def raw_slots(self) -> tuple[bytes, ...]:
+        if self.candidate_slot_count > DCT_MAX_RECORDS:
+            raise ValueError(
+                "candidate DCT count exceeds 15 available 32-byte slots"
+            )
+        return tuple(
+            self.payload[
+                DCT_RECORD_OFFSET + i * DCT_RECORD_STRIDE:
+                DCT_RECORD_OFFSET + (i + 1) * DCT_RECORD_STRIDE
+            ]
+            for i in range(self.candidate_slot_count)
+        )
+
+    @property
+    def populated_slot_count(self) -> int:
+        return sum(bool(any(raw)) for raw in self.raw_slots)
+
+    @property
+    def trailing_slots_nonzero(self) -> int:
+        if self.candidate_slot_count > DCT_MAX_RECORDS:
+            raise ValueError("candidate DCT count exceeds available slots")
+        start = DCT_RECORD_OFFSET + self.candidate_slot_count * DCT_RECORD_STRIDE
+        return sum(
+            bool(any(self.payload[offset:offset + DCT_RECORD_STRIDE]))
+            for offset in range(start, PAGE_SIZE, DCT_RECORD_STRIDE)
+        )
+
+
+DASD_UNIT_DESCRIPTOR_LABEL = "DASD  UNIT  DESC".encode("cp037")
+DASD_UNIT_DESCRIPTOR_PAYLOAD_LABEL_OFFSET = 0x40
+
+
+@dataclass(frozen=True)
+class DASDUnitDescriptorEvidence:
+    """Observed physical LBA-32 disk-unit record in two CISC images.
+
+    The first two BE 32-bit values independently match (a) the recovered
+    relative-record-zero LBA and (b) total sectors minus that LBA on both
+    available releases. Preserve these as observational interpretations,
+    not as claimed IBM field-name definitions. The label must be exact.
+    """
+
+    payload: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.payload) != PAGE_SIZE:
+            raise ValueError("disk-unit descriptor payload must be 512 bytes")
+        offset = DASD_UNIT_DESCRIPTOR_PAYLOAD_LABEL_OFFSET
+        if self.payload[offset:offset + len(DASD_UNIT_DESCRIPTOR_LABEL)] != (
+            DASD_UNIT_DESCRIPTOR_LABEL
+        ):
+            raise ValueError(
+                "no exact EBCDIC DASD  UNIT  DESC label at payload +0x40"
+            )
+
+    @property
+    def candidate_origin_lba(self) -> int:
+        return int.from_bytes(self.payload[0:4], "big")
+
+    @property
+    def candidate_managed_sector_count(self) -> int:
+        return int.from_bytes(self.payload[4:8], "big")
+
+    @property
+    def candidate_physical_end(self) -> int:
+        """Exclusive physical sector end according to observed arithmetic."""
+        return self.candidate_origin_lba + self.candidate_managed_sector_count
+
+    def agrees_with_image_size(self, physical_sector_count: int) -> bool:
+        return self.candidate_physical_end == physical_sector_count
+
+
+# IBM SY21-0889-5 chapter 7 records 11/16/21/26-byte permanent-directory
+# ASDE entries, one through four extents. These bytes are only *candidate*
+# evidence until an actual storage-directory machine index is identified.
+# The searchable chapter-8 text gives 11/18/21/28 (possibly 6/8 OCR);
+# do not promote this arithmetic to a validated V2R3 field layout.
+ASDE_DOCUMENTED_CH7_SIZES = (11, 16, 21, 26)
+ASDE_CANDIDATE_PREFIX_BYTES = 6
+ASDE_CANDIDATE_DESCRIPTOR_BYTES = 5
+
+
+@dataclass(frozen=True)
+class ASDEEntryEvidence:
+    """One raw, caller-selected, chapter-7-shaped ASDE *candidate*.
+
+    This only partitions documented entry-length families into a six-byte
+    prefix and one to four five-byte raw pieces. It does not assert a recovered
+    directory location, virtual-address encoding, disk unit, or extent mapping.
+    """
+
+    raw: bytes
+
+    def __post_init__(self) -> None:
+        if len(self.raw) not in ASDE_DOCUMENTED_CH7_SIZES:
+            raise ValueError(
+                "ASDE candidate length must be one of "
+                + ", ".join(str(size) for size in ASDE_DOCUMENTED_CH7_SIZES)
+                + " bytes (System/38 chapter 7 family)"
+            )
+
+    @property
+    def extent_count(self) -> int:
+        return (
+            len(self.raw) - ASDE_CANDIDATE_PREFIX_BYTES
+        ) // ASDE_CANDIDATE_DESCRIPTOR_BYTES
+
+    @property
+    def prefix_raw(self) -> bytes:
+        return self.raw[:ASDE_CANDIDATE_PREFIX_BYTES]
+
+    @property
+    def descriptors_raw(self) -> tuple[bytes, ...]:
+        data = self.raw[ASDE_CANDIDATE_PREFIX_BYTES:]
+        return tuple(
+            data[offset:offset + ASDE_CANDIDATE_DESCRIPTOR_BYTES]
+            for offset in range(
+                0,
+                len(data),
+                ASDE_CANDIDATE_DESCRIPTOR_BYTES,
+            )
+        )
+
+
 @dataclass(frozen=True)
 class Extent:
     start_lba: int

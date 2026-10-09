@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import re
@@ -12,6 +13,7 @@ import sys
 from pathlib import Path
 
 from as400_dasd import (
+    ASDEEntryEvidence,
     CONTEXT_MACHINE_INDEX_PAGE_SIZE,
     CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
     EPA_MIN_SIZE,
@@ -24,6 +26,8 @@ from as400_dasd import (
     SEGMENT_HEADER_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DASDUnitDescriptorEvidence,
+    DCTRawEvidence,
     DENT_V2_DELETED,
     DENT_V2_LIVE,
     Extent,
@@ -308,6 +312,393 @@ def cmd_regions(args):
     return 0
 
 
+
+# These EBCDIC byte strings are observed image labels, not decoded boot
+# control-block types. Do not assign IPL or storage-directory semantics.
+_BOOTSTRAP_LITERAL_LABELS = (
+    "IMD1",
+    "DASD  UNIT  DESC",
+    "DCT ",
+    "REALLOCATION CONTROL SECTOR",
+    "DCTX",
+    "MSD  SEC",
+    "DMDMAIN",
+)
+
+
+def _bootstrap_sector_inventory(image, start_lba=0, count=64, *, max_rows=64):
+    """Inspect a bounded physical LBA window without scanning for ASDEs.
+
+    Unlike managed sector/extent discovery, early physical sectors may carry
+    useful data with an all-zero eight-byte storage header. This function
+    reports exact CP037 literal label offsets as raw evidence; a label alone
+    does not identify a checkpoint page or any IBM-specific record structure.
+    """
+    if start_lba < 0 or start_lba >= image.sector_count:
+        raise ValueError("bootstrap start LBA outside image")
+    if count < 1 or count > 4096:
+        raise ValueError("bootstrap count must be between 1 and 4096 sectors")
+    if max_rows < 0:
+        raise ValueError("--max-rows must be non-negative")
+
+    stop = min(image.sector_count, start_lba + count)
+    labels = tuple((name, name.encode("cp037")) for name in _BOOTSTRAP_LITERAL_LABELS)
+    rows = []
+    nonzero_payloads = zero_header_nonzero = 0
+    literal_hits = Counter()
+    with open(image.path, "rb") as handle:
+        handle.seek(start_lba * SECTOR_SIZE)
+        for lba in range(start_lba, stop):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short sector read at LBA {lba}")
+            header, payload = raw[:HEADER_SIZE], raw[HEADER_SIZE:]
+            if not any(payload):
+                continue
+            nonzero_payloads += 1
+            if header == bytes(HEADER_SIZE):
+                zero_header_nonzero += 1
+            found = []
+            for name, pattern in labels:
+                search_from = 0
+                while True:
+                    offset = payload.find(pattern, search_from)
+                    if offset < 0:
+                        break
+                    found.append((name, offset))
+                    literal_hits[name] += 1
+                    search_from = offset + 1
+            if len(rows) < max_rows:
+                rows.append((lba, header, sum(bool(b) for b in payload), tuple(found)))
+    return {
+        "start_lba": start_lba,
+        "stop_lba": stop,
+        "nonzero_payloads": nonzero_payloads,
+        "zero_header_nonzero": zero_header_nonzero,
+        "literal_hits": literal_hits,
+        "rows": tuple(rows),
+    }
+
+
+def cmd_bootstrap_map(args):
+    """Report raw early-physical-sector evidence, without layout claims."""
+    image = _open(args.image)
+    result = _bootstrap_sector_inventory(
+        image, args.start_lba, args.sectors, max_rows=args.max_rows,
+    )
+    print(f"Image: {image.path}")
+    print(
+        f"Physical LBAs: {result['start_lba']:,}..{result['stop_lba'] - 1:,}"
+        " (read-only; no storage origin assumed)"
+    )
+    print(f"Sectors with nonzero payloads: {result['nonzero_payloads']:,}")
+    print(
+        "Of those, sectors with zero storage header: "
+        f"{result['zero_header_nonzero']:,}"
+    )
+    print("Selected raw EBCDIC literal labels:")
+    if result["literal_hits"]:
+        for name, count in sorted(result["literal_hits"].items()):
+            print(f"  {name!r}: {count:,} matches")
+    else:
+        print("  none")
+    print("First nonzero-payload physical sectors:")
+    for lba, header, nonzero, found in result["rows"]:
+        where = ", ".join(f"{name!r}@+0x{off:03X}" for name, off in found)
+        print(
+            f"  LBA {lba:>9,} header {header.hex(' ').upper()}"
+            f" nonzero {nonzero:>3} label evidence: {where or '-'}"
+        )
+    if result["nonzero_payloads"] > len(result["rows"]):
+        print(
+            f"  ... {result['nonzero_payloads'] - len(result['rows']):,}"
+            " further nonzero-payload sectors not listed"
+        )
+    print(
+        "Labels are observed bytes, not proof of SMVT checkpoint,"
+        " boot control-block schema, or permanent-directory root."
+    )
+    return 0
+
+
+
+
+def _bootstrap_extent_chain(image, *, descriptor_lba=32, limit=8):
+    """Follow only physically adjacent sector-header candidate extents.
+
+    The initial physical LBA comes from the independently validated
+    DASD UNIT DESC geometry record. A candidate step is corroborated
+    against the *last* physical sector in the extent, not inferred
+    from a matching module name. Stop at the first mismatch.
+    No fields of an SMVT or a permanent directory are decoded here.
+    """
+    if not (1 <= limit <= 32):
+        raise ValueError("--limit must be between 1 and 32")
+    descriptor = DASDUnitDescriptorEvidence(image.read_sector(descriptor_lba).data)
+    if not descriptor.agrees_with_image_size(image.sector_count):
+        raise ValueError("disk descriptor geometry does not match image length")
+    origin = descriptor.candidate_origin_lba
+    if origin == 0 or origin >= image.sector_count:
+        raise ValueError("disk descriptor origin is outside image")
+    if not image.read_sector(origin - 1).header.is_zero:
+        raise ValueError("physical predecessor to descriptor origin is not zero-header")
+
+    rows = []
+    lba = origin
+    for _ in range(limit):
+        start = image.read_sector(lba)
+        header = start.header
+        if header.is_zero or header.is_ff or not header.page_aligned:
+            break
+        pages = header.extent_pages
+        if pages > image.sector_count - lba:
+            break
+        last_lba = lba + pages - 1
+        last = image.read_sector(last_lba)
+        # Preserve unknown bits. Comparing these first five bytes checks
+        # only that the end header retains the candidate base prefix.
+        last_prefix_agrees = (
+            not last.header.is_zero
+            and not last.header.is_ff
+            and last.header.raw[:5] == header.raw[:5]
+        )
+        next_lba = last_lba + 1
+        following = (
+            image.read_sector(next_lba) if next_lba < image.sector_count else None
+        )
+        rows.append((
+            lba, last_lba, pages, header.virtual_address, header.raw,
+            last.header.raw, last_prefix_agrees,
+            following.header.raw if following is not None else None,
+        ))
+        if not last_prefix_agrees or following is None:
+            break
+        if following.header.is_zero or following.header.is_ff:
+            break
+        lba = next_lba
+    return origin, tuple(rows)
+
+
+
+def _bootstrap_extent_payload_occupancy(image, start_lba, pages):
+    """Read-only bounded payload density counts, never byte-content export."""
+    counts = {"zero": 0, "sparse": 0, "dense": 0, "other": 0}
+    with open(image.path, "rb") as handle:
+        handle.seek(start_lba * SECTOR_SIZE)
+        for i in range(pages):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short physical sector at LBA {start_lba + i}")
+            occupied = sum(bool(value) for value in raw[HEADER_SIZE:])
+            if occupied == 0:
+                counts["zero"] += 1
+            elif occupied <= 32:
+                counts["sparse"] += 1
+            elif occupied > 400:
+                counts["dense"] += 1
+            else:
+                counts["other"] += 1
+    return counts
+
+
+
+def cmd_bootstrap_extents(args):
+    """Report bounded preassigned extent candidates anchored to LBA-32 geometry."""
+    image = _open(args.image)
+    origin, rows = _bootstrap_extent_chain(
+        image, descriptor_lba=args.descriptor_lba, limit=args.limit
+    )
+    print(f"Image: {image.path}")
+    print(f"Descriptor-backed relative record origin: physical LBA {origin:,}")
+    print("Adjacent header-derived candidate extents (not classified as IPL or SMVT):")
+    if not rows:
+        print("  none")
+    for start, last, count, va, first_h, last_h, last_ok, next_h in rows:
+        print(
+            f"  LBA {start:,}..{last:,}, {count:,} pages,"
+            f" candidate VA 0x{va:012X}"
+        )
+        print(
+            "    first/last header prefixes: "
+            f"{first_h[:5].hex().upper()} / {last_h[:5].hex().upper()}"
+            f"; boundary corroborated: {'YES' if last_ok else 'NO'}"
+        )
+        print(
+            "    next physical header: "
+            + (next_h.hex().upper() if next_h is not None else "(end of image)")
+        )
+        if args.occupancy:
+            stats = _bootstrap_extent_payload_occupancy(
+                image, start, count
+            )
+            print(
+                "    512-byte payload occupancy: "
+                f"zero={stats['zero']:,}, "
+                f"1..32 nonzero bytes={stats['sparse']:,}, "
+                f"33..400={stats['other']:,}, "
+                f"401..512={stats['dense']:,}"
+            )
+    print(
+        "These are independently bounded sector-header runs, not"
+        " documented HMC allocations, persisted SMVT checkpoint pages,"
+        " static-directory entries, or ASDE mappings."
+    )
+    return 0
+
+
+
+def cmd_disk_descriptor(args):
+    """Cross-check a known labeled physical disk-unit record against the image."""
+    image = _open(args.image)
+    sector = image.read_sector(args.lba)
+    evidence = DASDUnitDescriptorEvidence(sector.data)
+    origin = evidence.candidate_origin_lba
+    managed_count = evidence.candidate_managed_sector_count
+    end = evidence.candidate_physical_end
+
+    print(f"Image:                  {image.path}")
+    print(f"Descriptor physical LBA: {sector.lba:,}")
+    print(
+        "Exact payload label:     'DASD  UNIT  DESC'"
+        " at payload +0x040 (EBCDIC CP037)"
+    )
+    print(
+        f"Raw first 8 bytes:       {sector.data[:8].hex(' ').upper()}"
+    )
+    print(f"Candidate origin LBA:    {origin:,}")
+    print(f"Candidate managed pages: {managed_count:,}")
+    print(f"Candidate end exclusive: {end:,}")
+    print(f"Actual image sectors:    {image.sector_count:,}")
+    print(
+        "Size arithmetic agrees: "
+        + ("YES" if evidence.agrees_with_image_size(image.sector_count) else "NO")
+    )
+    if 0 < origin < image.sector_count:
+        previous = image.read_sector(origin - 1)
+        first = image.read_sector(origin)
+        print(
+            f"Pre-origin header (LBA {origin - 1:,}): "
+            f"{previous.header.raw.hex(' ').upper()}"
+        )
+        print(
+            f"At-origin header  (LBA {origin:,}): "
+            f"{first.header.raw.hex(' ').upper()}"
+        )
+        print(
+            "Header boundary matches: "
+            + (
+                "YES"
+                if (
+                    previous.header.is_zero
+                    and not first.header.is_zero
+                    and not first.header.is_ff
+                    and first.header.page_aligned
+                )
+                else "NO"
+            )
+        )
+    else:
+        print("Header boundary matches: not checked (origin outside 1..EOF-1)")
+    # The next two words are populated on Mark's load-source image
+    # and both zero on Pete's surviving non-load-source disk. Report
+    # their arithmetic *only* if it resolves inside this image.
+    extra_a = int.from_bytes(sector.data[8:12], "big")
+    extra_b = int.from_bytes(sector.data[12:16], "big")
+    print(f"Uninterpreted BE32 at +0x08: {extra_a:,}")
+    print(f"Uninterpreted BE32 at +0x0C: {extra_b:,}")
+    if extra_a and extra_b and extra_a + extra_b < image.sector_count:
+        target_lba = extra_a + extra_b
+        before = image.read_sector(target_lba - 1)
+        at = image.read_sector(target_lba)
+        boundary = (
+            before.header.is_zero
+            and not at.header.is_zero
+            and not at.header.is_ff
+            and at.header.page_aligned
+        )
+        print(
+            f"Uninterpreted sum +0x08/+0x0C: LBA {target_lba:,}"
+        )
+        print(
+            f"Sum target's preceding header: {before.header.raw.hex(' ').upper()}"
+        )
+        print(f"Sum target header:            {at.header.raw.hex(' ').upper()}")
+        print(
+            "Sum hits zero-to-nonzero header boundary: "
+            + ("YES" if boundary else "NO")
+        )
+        print(
+            "Sum's second operand equals candidate origin: "
+            + ("YES" if extra_b == origin else "NO")
+        )
+        if boundary and at.header.extent_order <= 15:
+            pages = at.header.extent_pages
+            if pages <= image.sector_count - target_lba:
+                last_lba = target_lba + pages - 1
+                last = image.read_sector(last_lba)
+                print(
+                    f"Candidate boundary's extent-style order: "
+                    f"{at.header.extent_order} ({pages:,} pages)"
+                )
+                print(
+                    f"Last described page: LBA {last_lba:,}, "
+                    f"header {last.header.raw.hex(' ').upper()}"
+                )
+                following_lba = last_lba + 1
+                if following_lba < image.sector_count:
+                    following = image.read_sector(following_lba)
+                    deleted_marker = "DELETED EXTENT  ".encode("cp037")
+                    if following.data.startswith(deleted_marker):
+                        print(
+                            f"Observed following CP037 label: "
+                            f"'DELETED EXTENT' at physical LBA "
+                            f"{following_lba:,} (not decoded)"
+                        )
+    else:
+        print(
+            "Uninterpreted sum not examined: one/both words are zero "
+            "or result is outside this physical image"
+        )
+    print(
+        "Geometry and auxiliary arithmetic are OBSERVED only; "
+        "official IBM field names, the meaning of the optional "
+        "boundary and any SMVT/ASDE relationship remain unverified."
+    )
+    return 0
+
+
+
+def cmd_dct_evidence(args):
+    """Compare raw counted DCT slots with the label, without field guesses."""
+    image = _open(args.image)
+    sector = image.read_sector(args.lba)
+    evidence = DCTRawEvidence(sector.data)
+    print(f"Image:                 {image.path}")
+    print(f"Physical LBA:          {sector.lba:,}")
+    print(f"Observed CP037 label:  {evidence.observed_label!r} at payload +0x018")
+    print(f"Candidate count BE16:  {evidence.candidate_slot_count:,}")
+    print(
+        f"Populated 32-byte slots: {evidence.populated_slot_count:,}"
+    )
+    print(
+        "Extra nonzero 32-byte slots after candidate count: "
+        f"{evidence.trailing_slots_nonzero:,}"
+    )
+    print("Raw slot shape (first 8 bytes only; remaining fields unknown):")
+    for index, slot in enumerate(evidence.raw_slots):
+        print(
+            f"  slot {index + 1:>2} at payload"
+            f" +0x{0x20 + 0x20 * index:03X}: "
+            f"{slot[:8].hex(' ').upper()}, nonzero bytes"
+            f" {sum(bool(x) for x in slot)}/32"
+        )
+    print(
+        "Slot count/stride are observed on two disks, not formal IBM DCT "
+        "semantics; a DCT record alone is not an SMVT or ASDE."
+    )
+    return 0
+
+
 def cmd_sector(args):
     image = _open(args.image)
     sector = image.read_sector(args.lba)
@@ -343,6 +734,419 @@ def cmd_sector(args):
     print(format_hex(sector.data[: args.hex_bytes]))
     return 0
 
+
+
+# Candidate module labels only. IBM's searchable System/38 VMC text renders
+# the loader fixer as #SMSMVT1 (digit one); keep #SMSMVTI too to make an
+# I-versus-1 transcription ambiguity explicit rather than conflating names.
+# #SMSHTDN is IBM's shutdown module, not a direct checkpoint signature.
+_STORAGE_SYMBOLS = (
+    "#SMSMVT", "#SMSMVTN", "#SMSMVT1", "#SMSMVTI",
+    "#SMSHTDN", "#SMACDIR", "#SMMSIT", "#SMDR2",
+)
+
+
+def _scan_storage_symbol_literals(
+    image,
+    symbols,
+    *,
+    start_lba=0,
+    sectors=None,
+    limit=50,
+    substring=False,
+):
+    """Count payload CP037 hits; default matches a padded eight-byte name.
+
+    This prevents a seven-character query such as #SMSMVT from accidentally
+    counting the different eight-character name #SMSMVTN. No symbol match
+    alone establishes a VMC module, loaded SMVT or directory root.
+    """
+
+    if start_lba < 0 or start_lba >= image.sector_count:
+        raise ValueError("start LBA is outside the image")
+    if sectors is not None and sectors < 1:
+        raise ValueError("--sectors must be positive")
+    if limit < 0:
+        raise ValueError("--limit must be non-negative")
+
+    patterns = {}
+    for symbol in dict.fromkeys(symbols):
+        max_length = PAGE_SIZE if substring else 8
+        if not symbol or len(symbol) > max_length:
+            raise ValueError(
+                f"symbols must be 1..{max_length} characters "
+                f"({'substring' if substring else 'eight-byte name'} mode)"
+            )
+        try:
+            encoded = (symbol if substring else symbol.ljust(8)).encode("cp037")
+            patterns[symbol] = encoded
+        except UnicodeEncodeError as exc:
+            raise ValueError(f"symbol cannot be EBCDIC CP037 encoded: {symbol}") from exc
+    if not patterns:
+        raise ValueError("no search symbols supplied")
+
+    end_lba = image.sector_count
+    if sectors is not None:
+        end_lba = min(end_lba, start_lba + sectors)
+
+    totals = {symbol: 0 for symbol in patterns}
+    by_header = {symbol: Counter() for symbol in patterns}
+    hits = []
+    with open(image.path, "rb") as handle:
+        handle.seek(start_lba * SECTOR_SIZE)
+        for lba in range(start_lba, end_lba):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short sector read at LBA {lba}")
+            payload = raw[HEADER_SIZE:]
+            for symbol, pattern in patterns.items():
+                start = 0
+                while True:
+                    offset = payload.find(pattern, start)
+                    if offset < 0:
+                        break
+                    totals[symbol] += 1
+                    by_header[symbol][raw[:HEADER_SIZE]] += 1
+                    if not limit or len(hits) < limit:
+                        preceding = payload[offset - 4:offset] if offset >= 4 else b""
+                        hits.append((symbol, lba, offset, raw[:HEADER_SIZE], preceding))
+                    start = offset + 1
+    return totals, tuple(hits), end_lba, by_header
+
+
+def cmd_storage_labels(args):
+    """Report literal storage-management symbol evidence in 512-byte payloads."""
+
+    if args.header_groups < 0:
+        raise ValueError("--header-groups must be non-negative")
+    image = _open(args.image)
+    symbols = args.symbols or _STORAGE_SYMBOLS
+    totals, hits, end_lba, by_header = _scan_storage_symbol_literals(
+        image,
+        symbols,
+        start_lba=args.start_lba,
+        sectors=args.sectors,
+        limit=args.limit,
+        substring=args.substring,
+    )
+
+    print(f"Image:       {image.path}")
+    print(f"Sector span: {args.start_lba:,}..{end_lba - 1:,} (physical LBAs)")
+    mode = ("substring" if args.substring else "space-padded eight-byte name")
+    print(f"Encoding:    literal EBCDIC CP037 {mode}, 512-byte payloads only")
+    print("Occurrences:")
+    for symbol, total in totals.items():
+        print(f"  {symbol}: {total:,}")
+    if args.header_groups:
+        print()
+        print("Raw sector-header groups per exact search symbol:")
+        for symbol in totals:
+            print(f"  {symbol}:")
+            for header, count in by_header[symbol].most_common(
+                args.header_groups
+            ):
+                print(f"    {header.hex(' ').upper()}: {count:,} occurrences")
+            if not by_header[symbol]:
+                print("    none")
+    print()
+    print("First matches:")
+    for symbol, lba, offset, header, preceding in hits:
+        prefix_text = preceding.hex(' ').upper() if preceding else "(start of payload)"
+        print(
+            f"  {symbol:<12} LBA {lba:>9,} payload +0x{offset:03X} "
+            f"preceding4 {prefix_text}  header {header.hex(' ').upper()}"
+        )
+    if args.limit and sum(totals.values()) > len(hits):
+        print(f"  ... {sum(totals.values()) - len(hits):,} additional hits not listed")
+    if not hits:
+        print("  none")
+    print()
+    print(
+        "These are literal text occurrences, NOT proven SMVT or storage-"
+        "directory locations. No ASDE mappings are inferred."
+    )
+    return 0
+
+
+
+def _resolve_extent_relative_address(image, extent_start_lba, address):
+    """Resolve a candidate six-byte VA using an explicitly chosen extent.
+
+    The caller, not a symbolic name match, must identify the extent start.
+    The sector header independently supplies its base VA and extent order.
+    No resident directory or module semantics are inferred.
+    """
+
+    start = image.read_sector(extent_start_lba)
+    header = start.header
+    if header.is_zero or header.is_ff:
+        raise ValueError("chosen extent has a zero/FF storage header")
+    if not header.page_aligned:
+        raise ValueError("chosen extent header is not 512-byte aligned")
+    pages = header.extent_pages
+    if pages > image.sector_count - extent_start_lba:
+        raise ValueError("extent described by header crosses image end")
+    base = header.virtual_address
+    if address < base or address >= base + pages * PAGE_SIZE:
+        raise ValueError(
+            f"candidate VA 0x{address:012X} is outside chosen extent "
+            f"0x{base:012X}..0x{base + pages * PAGE_SIZE - 1:012X}"
+        )
+    page_index, offset = divmod(address - base, PAGE_SIZE)
+    return extent_start_lba + page_index, offset
+
+
+def cmd_virtual_xref(args):
+    """Check an explicit six-byte candidate virtual pointer against an extent."""
+
+    image = _open(args.image)
+    start = image.read_sector(args.extent_start_lba)
+    pages = start.header.extent_pages
+    if not (
+        args.extent_start_lba
+        <= args.source_lba
+        < args.extent_start_lba + pages
+    ):
+        raise ValueError("source sector is not in the selected extent")
+    if args.offset < 0 or args.offset + 6 > PAGE_SIZE:
+        raise ValueError("six-byte candidate must fit inside source payload")
+
+    source = image.read_sector(args.source_lba)
+    pointer_raw = source.data[args.offset:args.offset + 6]
+    candidate_va = int.from_bytes(pointer_raw, "big")
+    target_lba, target_offset = _resolve_extent_relative_address(
+        image, args.extent_start_lba, candidate_va
+    )
+    target = image.read_sector(target_lba)
+    source_va = (
+        start.header.virtual_address
+        + (args.source_lba - args.extent_start_lba) * PAGE_SIZE
+    )
+
+    print(f"Image:              {image.path}")
+    print(f"Chosen extent LBA:  {args.extent_start_lba:,}")
+    print(f"Header base VA:     0x{start.header.virtual_address:012X}")
+    print(f"Header extent size: {pages:,} 512-byte pages")
+    print(
+        f"Source:             LBA {args.source_lba:,}, "
+        f"derived page VA 0x{source_va:012X}, payload +0x{args.offset:03X}"
+    )
+    print(f"Candidate raw:      {pointer_raw.hex(' ').upper()}")
+    print(f"Candidate VA:       0x{candidate_va:012X}")
+    print(f"Resolved target:    LBA {target_lba:,}, payload +0x{target_offset:03X}")
+    print(f"Target header:      {target.header.raw.hex(' ').upper()}")
+    print(
+        "Target bytes:       "
+        + target.data[target_offset:target_offset + args.preview].hex(" ").upper()
+    )
+    print(
+        "This validates only an extent-relative address match. "
+        "The candidate pointer field, module semantics, SMVT and "
+        "storage-directory location remain unverified."
+    )
+    return 0
+
+
+
+def _scan_extent_virtual_references(
+    image,
+    extent_start_lba,
+    *,
+    first_source_lba=None,
+    sectors=None,
+    alignment=2,
+    example_limit=12,
+):
+    """Count candidate in-extent six-byte VAs at aligned payload offsets.
+
+    This is a structural correlation probe, *not* a pointer or ASDE decoder:
+    any matching six-byte number is counted, including potentially coincidental
+    bit patterns. Physical extent start is always caller-selected.
+    """
+    if alignment not in (2, 4, 8):
+        raise ValueError("alignment must be 2, 4, or 8")
+    if example_limit < 0:
+        raise ValueError("example limit must be non-negative")
+    if sectors is not None and sectors < 1:
+        raise ValueError("sectors must be positive")
+    header = image.read_sector(extent_start_lba).header
+    if header.is_zero or header.is_ff:
+        raise ValueError("chosen extent has a zero/FF storage header")
+    if not header.page_aligned:
+        raise ValueError("extent header virtual address is not page-aligned")
+    pages = header.extent_pages
+    if pages > image.sector_count - extent_start_lba:
+        raise ValueError("selected extent extends beyond the image")
+    first_source_lba = (
+        extent_start_lba if first_source_lba is None else first_source_lba
+    )
+    stop_lba = extent_start_lba + pages
+    if not (extent_start_lba <= first_source_lba < stop_lba):
+        raise ValueError("source-start LBA lies outside chosen extent")
+    if sectors is not None:
+        stop_lba = min(stop_lba, first_source_lba + sectors)
+
+    virtual_start = header.virtual_address
+    virtual_end = virtual_start + pages * PAGE_SIZE
+    source_offsets = Counter()
+    pattern_counts = Counter()
+    target_distances = Counter()
+    target_record_prefix_counts = Counter()
+    candidate_record_names = Counter()
+    examples = []
+    total_matches = 0
+    with open(image.path, "rb") as handle, open(image.path, "rb") as target_handle:
+        handle.seek(first_source_lba * SECTOR_SIZE)
+        for lba in range(first_source_lba, stop_lba):
+            raw = handle.read(SECTOR_SIZE)
+            if len(raw) != SECTOR_SIZE:
+                raise ValueError(f"short sector read at LBA {lba}")
+            payload = raw[HEADER_SIZE:]
+            for offset in range(0, PAGE_SIZE - 5, alignment):
+                value = int.from_bytes(payload[offset:offset + 6], "big")
+                if not (virtual_start <= value < virtual_end):
+                    continue
+                target_index, target_offset = divmod(
+                    value - virtual_start, PAGE_SIZE
+                )
+                target_lba = extent_start_lba + target_index
+                delta = target_lba - lba
+                total_matches += 1
+                source_offsets[offset] += 1
+                pattern_key = (offset, delta, target_offset)
+                pattern_counts[pattern_key] += 1
+                target_distances[delta] += 1
+                # A separately read physical target provides stronger *shape*
+                # evidence than range matching. 02 00 00 00 7B is an observed
+                # module-name record prefix, not a validated directory header.
+                if target_offset <= PAGE_SIZE - 5:
+                    target_handle.seek(
+                        target_lba * SECTOR_SIZE + HEADER_SIZE + target_offset
+                    )
+                    read_length = min(12, PAGE_SIZE - target_offset)
+                    target_prefix = target_handle.read(read_length)
+                    if len(target_prefix) != read_length:
+                        raise ValueError(f"short target read at LBA {target_lba}")
+                    if target_prefix[:5] == bytes((2, 0, 0, 0, 0x7B)):
+                        target_record_prefix_counts[pattern_key] += 1
+                        if len(target_prefix) == 12:
+                            name = target_prefix[4:12].decode(
+                                "cp037", errors="replace"
+                            )
+                            if all(ch.isprintable() for ch in name):
+                                candidate_record_names[name] += 1
+                if len(examples) < example_limit:
+                    examples.append((lba, offset, target_lba, target_offset))
+
+    return {
+        "extent_start_lba": extent_start_lba,
+        "extent_pages": pages,
+        "virtual_start": virtual_start,
+        "first_source_lba": first_source_lba,
+        "stop_lba": stop_lba,
+        "total_matches": total_matches,
+        "source_offsets": source_offsets,
+        "patterns": pattern_counts,
+        "target_record_prefix_counts": target_record_prefix_counts,
+        "candidate_record_names": candidate_record_names,
+        "distances": target_distances,
+        "examples": tuple(examples),
+    }
+
+
+def cmd_virtual_xref_map(args):
+    """Print bounded candidate VA correlations for one caller-selected extent."""
+
+    if args.top < 0:
+        raise ValueError("--top must be non-negative")
+    if args.names < 0:
+        raise ValueError("--names must be non-negative")
+    image = _open(args.image)
+    result = _scan_extent_virtual_references(
+        image,
+        args.extent_start_lba,
+        first_source_lba=args.source_start_lba,
+        sectors=args.sectors,
+        alignment=args.alignment,
+        example_limit=args.examples,
+    )
+    print(f"Image:           {image.path}")
+    print(f"Extent start:    physical LBA {result['extent_start_lba']:,}")
+    print(f"Extent pages:    {result['extent_pages']:,}")
+    print(f"Extent base VA:  0x{result['virtual_start']:012X}")
+    print(
+        f"Source scan:     LBA {result['first_source_lba']:,}"
+        f"..{result['stop_lba'] - 1:,}, alignment {args.alignment}"
+    )
+    print(f"Candidate values within extent: {result['total_matches']:,}")
+    print(
+        "Top (source payload offset, target page delta, target offset): "
+        "count; of which targets begin with raw 02 00 00 00 7B"
+    )
+    for (offset, delta, target_offset), count in result["patterns"].most_common(
+        args.top
+    ):
+        key = (offset, delta, target_offset)
+        markers = result["target_record_prefix_counts"][key]
+        print(
+            f"  +0x{offset:03X} -> page {delta:+d}, +0x{target_offset:03X}"
+            f"    {count:,} occurrences; {markers:,} target prefix matches"
+        )
+    print("Top printable CP037 eight-byte names following target record markers:")
+    for name, count in result["candidate_record_names"].most_common(args.names):
+        print(f"  {name!r}: {count:,} target references")
+    print("First candidates:")
+    for src_lba, src_offset, target_lba, target_offset in result["examples"]:
+        print(
+            f"  LBA {src_lba:,} +0x{src_offset:03X}"
+            f" -> LBA {target_lba:,} +0x{target_offset:03X}"
+        )
+    print(
+        "Matches are numerical six-byte VA candidates, not verified pointer"
+        " fields; no SMVT, index-root, or ASDE semantics are inferred."
+    )
+    return 0
+
+
+def cmd_asde_probe(args):
+    """Inspect an explicit raw ASDE candidate; never discover by guessing."""
+
+    image = _open(args.image)
+    if args.offset < 0 or args.offset >= PAGE_SIZE:
+        raise ValueError(
+            f"ASDE payload offset must be within 0..{PAGE_SIZE - 1}"
+        )
+    if args.length <= 0 or args.offset + args.length > PAGE_SIZE:
+        raise ValueError(
+            "ASDE candidate must fit entirely within one 512-byte payload; "
+            "a cross-page candidate is not yet supported"
+        )
+
+    sector = image.read_sector(args.lba)
+    raw = sector.data[args.offset:args.offset + args.length]
+    candidate = ASDEEntryEvidence(raw)
+
+    print(f"Image:   {image.path}")
+    print(f"LBA:     {args.lba:,} (physical image LBA)")
+    print(f"Offset:  payload +0x{args.offset:X}")
+    print(f"Length:  {len(candidate.raw)} bytes")
+    print(f"Raw:     {candidate.raw.hex(' ').upper()}")
+    print()
+    print(
+        "Tentative System/38 chapter-7 ASDE length partition "
+        "(NOT a validated directory entry):"
+    )
+    print(f"  first six bytes: {candidate.prefix_raw.hex(' ').upper()}")
+    print(f"  following 5-byte groups: {candidate.extent_count}")
+    for index, piece in enumerate(candidate.descriptors_raw, 1):
+        print(f"  raw descriptor {index}: {piece.hex(' ').upper()}")
+    print()
+    print(
+        "No prefix fields, extent address/size, unit, or index location "
+        "have been decoded. IBM's chapter-8 entry lengths differ from "
+        "chapter 7 (possibly a scan/OCR artifact); use only with independently located directory evidence."
+    )
+    return 0
 
 
 def _recover_all(image):
@@ -8656,6 +9460,149 @@ def build_parser():
     sector.add_argument("--preview", type=int, default=128)
     sector.add_argument("--hex-bytes", type=int, default=256)
     sector.set_defaults(func=cmd_sector)
+
+    bootstrap = sub.add_parser(
+        "bootstrap-map",
+        help="inventory a bounded raw pre-/early-storage physical LBA window",
+    )
+    bootstrap.add_argument("image")
+    bootstrap.add_argument("--start-lba", type=int, default=0)
+    bootstrap.add_argument(
+        "--sectors", type=int, default=64,
+        help="physical sectors to examine; 1..4096 (default 64)",
+    )
+    bootstrap.add_argument(
+        "--max-rows", type=int, default=64,
+        help="maximum nonzero-payload rows to show (default 64)",
+    )
+    bootstrap.set_defaults(func=cmd_bootstrap_map)
+
+    descriptor = sub.add_parser(
+        "disk-descriptor",
+        help="cross-check exact DASD UNIT DESC label and raw geometry fields",
+    )
+    descriptor.add_argument("image")
+    descriptor.add_argument(
+        "--lba", type=int, default=32,
+        help="physical descriptor sector (observed at LBA 32 on both images)",
+    )
+    descriptor.set_defaults(func=cmd_disk_descriptor)
+
+    bootstrap_extents = sub.add_parser(
+        "bootstrap-extents",
+        help="trace bounded adjacent header extents from LBA-32 geometry",
+    )
+    bootstrap_extents.add_argument("image")
+    bootstrap_extents.add_argument(
+        "--descriptor-lba", type=int, default=32,
+        help="physical DASD UNIT DESC sector (default 32)",
+    )
+    bootstrap_extents.add_argument(
+        "--limit", type=int, default=8,
+        help="maximum candidate extents to follow, 1..32 (default 8)",
+    )
+    bootstrap_extents.add_argument(
+        "--occupancy", action="store_true",
+        help="count zero/sparse/dense payload pages without showing contents",
+    )
+    bootstrap_extents.set_defaults(func=cmd_bootstrap_extents)
+
+    dct = sub.add_parser(
+        "dct-evidence",
+        help="report raw counted slots in observed bootstrap DCT records",
+    )
+    dct.add_argument("image")
+    dct.add_argument(
+        "--lba", type=int, default=33,
+        help="physical DCT sector (observed at LBA 33 on both images)",
+    )
+    dct.set_defaults(func=cmd_dct_evidence)
+
+    asde = sub.add_parser(
+        "asde-probe",
+        help="inspect explicitly selected raw ASDE-shaped bytes (not a detector)",
+    )
+    asde.add_argument("image", help="raw 520-byte DASD image")
+    asde.add_argument("lba", type=int, help="physical image LBA")
+    asde.add_argument("offset", type=int, help="offset in the 512-byte sector payload")
+    asde.add_argument(
+        "length",
+        type=int,
+        choices=(11, 16, 21, 26),
+        help="candidate entry length from System/38 chapter 7",
+    )
+    asde.set_defaults(func=cmd_asde_probe)
+
+    labels = sub.add_parser(
+        "storage-labels",
+        help="scan raw EBCDIC storage-management symbol hints (not a locator)",
+    )
+    labels.add_argument("image", help="raw 520-byte DASD image")
+    labels.add_argument(
+        "--symbol",
+        action="append",
+        dest="symbols",
+        help="literal EBCDIC symbol to search (repeat to search several)",
+    )
+    labels.add_argument("--start-lba", type=int, default=0)
+    labels.add_argument(
+        "--sectors",
+        type=int,
+        help="number of physical sectors to scan (default: through EOF)",
+    )
+    labels.add_argument(
+        "--substring",
+        action="store_true",
+        help=(
+            "use the old literal substring search instead of matching "
+            "complete space-padded eight-byte names; may include other names"
+        ),
+    )
+    labels.add_argument(
+        "--header-groups",
+        type=int,
+        default=0,
+        help="show N most frequent eight-byte sector headers per symbol",
+    )
+    labels.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="maximum occurrence rows to show; 0 lists all",
+    )
+    labels.set_defaults(func=cmd_storage_labels)
+
+    xref = sub.add_parser(
+        "virtual-xref",
+        help="resolve a selected six-byte candidate pointer within an explicit extent",
+    )
+    xref.add_argument("image")
+    xref.add_argument("extent_start_lba", type=int)
+    xref.add_argument("source_lba", type=int)
+    xref.add_argument("offset", type=int, help="six-byte value's payload offset")
+    xref.add_argument(
+        "--preview",
+        type=int,
+        default=16,
+        choices=range(1, 65),
+        metavar="{1..64}",
+        help="target payload bytes to print (1..64; default 16)",
+    )
+    xref.set_defaults(func=cmd_virtual_xref)
+
+    xref_map = sub.add_parser(
+        "virtual-xref-map",
+        help="summarize six-byte address candidates in a selected extent",
+    )
+    xref_map.add_argument("image")
+    xref_map.add_argument("extent_start_lba", type=int)
+    xref_map.add_argument("--source-start-lba", type=int)
+    xref_map.add_argument("--sectors", type=int)
+    xref_map.add_argument("--alignment", type=int, choices=(2, 4, 8), default=2)
+    xref_map.add_argument("--top", type=int, default=12)
+    xref_map.add_argument("--names", type=int, default=10)
+    xref_map.add_argument("--examples", type=int, default=12)
+    xref_map.set_defaults(func=cmd_virtual_xref_map)
 
     segments = sub.add_parser(
         "segments",

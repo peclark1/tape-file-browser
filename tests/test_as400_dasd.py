@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from as400_dasd import (
+    ASDEEntryEvidence,
+    ASDE_DOCUMENTED_CH7_SIZES,
     CONTEXT_MACHINE_INDEX_PAGE_SIZE,
     HEADER_SIZE,
     KNOWN_B10_SHADOW_LOG_VADDR,
@@ -13,6 +15,8 @@ from as400_dasd import (
     SECTOR_SIZE,
     ContextIndexEntry,
     DASDImage,
+    DASDUnitDescriptorEvidence,
+    DCTRawEvidence,
     DataSpaceIndexKeyField,
     DataSpaceIndexKeySpec,
     DataSpaceIndexLayout,
@@ -204,6 +208,92 @@ def write_image(path, sectors):
         for header, payload in sectors:
             handle.write(header)
             handle.write(payload)
+
+
+class ASDEEvidenceTests(unittest.TestCase):
+    def test_chapter7_length_families_split_without_field_interpretation(self):
+        self.assertEqual(ASDE_DOCUMENTED_CH7_SIZES, (11, 16, 21, 26))
+        for count in range(1, 5):
+            raw = b"PREFIX" + b"".join(
+                bytes([index]) * 5
+                for index in range(1, count + 1)
+            )
+            with self.subTest(extents=count):
+                entry = ASDEEntryEvidence(raw)
+                self.assertEqual(entry.raw, raw)
+                self.assertEqual(entry.extent_count, count)
+                self.assertEqual(entry.prefix_raw, b"PREFIX")
+                self.assertEqual(
+                    entry.descriptors_raw,
+                    tuple(bytes([index]) * 5 for index in range(1, count + 1)),
+                )
+
+    def test_ambiguous_or_truncated_candidate_lengths_are_rejected(self):
+        for size in (0, 5, 10, 12, 18, 22, 28, 27):
+            with self.subTest(length=size):
+                with self.assertRaisesRegex(ValueError, "ASDE candidate length"):
+                    ASDEEntryEvidence(bytes(size))
+
+
+class DCTRawEvidenceTests(unittest.TestCase):
+    def test_observed_count_matches_populated_32byte_slots_for_both_disks(self):
+        for name, count in (("DCT 0300", 1), ("DCT 0100", 2)):
+            with self.subTest(count=count):
+                page = bytearray(PAGE_SIZE)
+                page[0:2] = count.to_bytes(2, "big")
+                page[0x18:0x20] = name.encode("cp037")
+                for index in range(count):
+                    page[0x20 + index * 0x20] = index + 1
+                record = DCTRawEvidence(bytes(page))
+                self.assertEqual(record.observed_label, name)
+                self.assertEqual(record.candidate_slot_count, count)
+                self.assertEqual(record.populated_slot_count, count)
+                self.assertEqual(record.trailing_slots_nonzero, 0)
+                self.assertEqual(len(record.raw_slots), count)
+                self.assertTrue(all(len(slot) == 32 for slot in record.raw_slots))
+
+    def test_count_slot_disagreement_is_reported(self):
+        page = bytearray(PAGE_SIZE)
+        page[0:2] = (2).to_bytes(2, "big")
+        page[0x18:0x20] = "DCT 0100".encode("cp037")
+        page[0x20] = 1
+        page[0x60] = 99
+        record = DCTRawEvidence(bytes(page))
+        self.assertEqual(record.populated_slot_count, 1)
+        self.assertEqual(record.trailing_slots_nonzero, 1)
+
+    def test_dct_invalid_payload_label_and_count_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "exactly 512"):
+            DCTRawEvidence(bytes(20))
+        with self.assertRaisesRegex(ValueError, "exact EBCDIC"):
+            DCTRawEvidence(bytes(PAGE_SIZE))
+        page = bytearray(PAGE_SIZE)
+        page[0x18:0x20] = "DCT 0300".encode("cp037")
+        page[0:2] = (16).to_bytes(2, "big")
+        record = DCTRawEvidence(bytes(page))
+        with self.assertRaisesRegex(ValueError, "exceeds 15"):
+            _ = record.raw_slots
+
+
+class DASDDescriptorEvidenceTests(unittest.TestCase):
+    def test_both_image_geometry_models_with_exact_cp037_label(self):
+        for origin, count in ((64, 1931201), (2112, 614280)):
+            page = bytearray(PAGE_SIZE)
+            page[0:4] = origin.to_bytes(4, "big")
+            page[4:8] = count.to_bytes(4, "big")
+            page[0x40:0x50] = "DASD  UNIT  DESC".encode("cp037")
+            evidence = DASDUnitDescriptorEvidence(bytes(page))
+            self.assertEqual(evidence.candidate_origin_lba, origin)
+            self.assertEqual(evidence.candidate_managed_sector_count, count)
+            self.assertEqual(evidence.candidate_physical_end, origin + count)
+            self.assertTrue(evidence.agrees_with_image_size(origin + count))
+            self.assertFalse(evidence.agrees_with_image_size(origin + count - 1))
+
+    def test_disk_descriptor_evidence_requires_full_page_and_exact_label(self):
+        with self.assertRaisesRegex(ValueError, "512 bytes"):
+            DASDUnitDescriptorEvidence(bytes(10))
+        with self.assertRaisesRegex(ValueError, "exact EBCDIC"):
+            DASDUnitDescriptorEvidence(bytes(PAGE_SIZE))
 
 
 class DASDHeaderTests(unittest.TestCase):
