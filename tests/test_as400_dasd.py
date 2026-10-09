@@ -36,6 +36,7 @@ from as400_dasd import (
     SegmentGroupHeader,
     assemble_document_byte_string,
     audit_partial_data_space_index_keys,
+    audit_partial_index_literal_prefix_candidate,
     decode_context_machine_index,
     decode_context_terminal_name_hint,
     decode_data_space_index_root,
@@ -1260,6 +1261,75 @@ class DASDHeaderTests(unittest.TestCase):
         self.assertEqual(audit[0].distinct_ordinal_hints, 1)
         self.assertEqual(audit[0].min_ordinal_hint, 1)
         self.assertEqual(audit[0].max_ordinal_hint, 1)
+
+    def test_qddsi_partial_literal_prefix_candidates_are_evidence_only(self):
+        pair_run = bytes.fromhex("3fff") * 3
+
+        def partial(rrn, dkey, prefix):
+            return DataSpaceIndexEntry(
+                b"", b"", bytes((dkey, 0, 0, rrn)), 0x110,
+                dkey_index=dkey, key_complete=False,
+                key_evidence=prefix + pair_run,
+            )
+
+        # Two 8-byte character fields at independent record offsets.
+        # The test uses fabricated byte strings, never archived disk data.
+        record_data = (
+            b"X" * 8
+            + b"ALPHA" + b"\\x40" * 3
+            + b"BETA" + b"\\x40" * 4
+        )
+        records = (
+            DataSpaceRecord(1, 0x80, record_data),
+            DataSpaceRecord(2, 0xC0, record_data),
+        )
+        entries = (
+            partial(1, 0, b"ALPHA"),
+            partial(1, 1, b"ALPHA"),
+            partial(1, 0, b"BETA"),  # wrong candidate for offset 8
+            partial(2, 0, b"ALPHA"),  # deleted, must not count
+            DataSpaceIndexEntry(
+                b"", b"", bytes.fromhex("00000001"), 0x150,
+                dkey_index=0, key_complete=False, key_evidence=b"NOMARK",
+            ),
+            DataSpaceIndexEntry(
+                b"COMPLETE", b"USER", bytes.fromhex("00000001"), 0x160,
+                dkey_index=0, key_complete=True,
+            ),
+        )
+        traversal = DataSpaceIndexTraversal(
+            entries=entries, expected_entries=6, root_offset=0x1000,
+            page_size=2048, page_type=0xCC, free_bytes=0,
+            first_free_offset=0, complete=True,
+        )
+
+        audit = audit_partial_index_literal_prefix_candidate(
+            traversal, records, record_offset=8, field_length=8,
+        )
+        self.assertEqual(audit.candidate_entries, 5)
+        self.assertEqual(audit.compared_entries, 3)
+        self.assertEqual(audit.exact_matches, 2)
+        self.assertEqual(audit.nonempty_exact_matches, 2)
+        self.assertEqual(audit.empty_exact_matches, 0)
+        self.assertEqual(audit.missing_live_records, 1)
+        self.assertEqual(audit.no_raw_pair, 1)
+        self.assertTrue(all(not e.machine_key for e in entries[:5]))
+
+        other = audit_partial_index_literal_prefix_candidate(
+            traversal, records, record_offset=16, field_length=8,
+        )
+        self.assertEqual(other.exact_matches, 1)
+        self.assertEqual(other.nonempty_exact_matches, 1)
+
+        with self.assertRaises(ValueError):
+            audit_partial_index_literal_prefix_candidate(
+                traversal, records, record_offset=-1, field_length=8,
+            )
+        with self.assertRaises(ValueError):
+            audit_partial_index_literal_prefix_candidate(
+                traversal, records + (records[0],),
+                record_offset=8, field_length=8,
+            )
 
     def test_qddsi_partial_key_audit_groups_dkey_rows_without_filling_keys(self):
         keys = (
