@@ -128,12 +128,18 @@ class DASDToolTests(unittest.TestCase):
                 sectors[lba][:8] = first
             for lba in range(10, 26):
                 sectors[lba][:8] = second
+            sectors[2][8] = 1
+            sectors[3][8:8 + PAGE_SIZE] = bytes([0xA1]) * PAGE_SIZE
+            sectors[11][8:8 + 40] = bytes([0x23]) * 40
             image.write_bytes(b"".join(sectors))
             original = image.read_bytes()
             stdout = io.StringIO()
             with redirect_stdout(stdout):
                 self.assertEqual(
-                    main(["bootstrap-extents", str(image), "--limit", "5"]), 0
+                    main([
+                        "bootstrap-extents", str(image), "--limit", "5",
+                        "--occupancy",
+                    ]), 0
                 )
             output = stdout.getvalue()
             self.assertIn("origin: physical LBA 2", output)
@@ -141,6 +147,14 @@ class DASDToolTests(unittest.TestCase):
             self.assertIn("LBA 10..25, 16 pages", output)
             self.assertEqual(output.count("boundary corroborated: YES"), 2)
             self.assertIn("not documented HMC allocations", output)
+            self.assertIn(
+                "zero=6, 1..32 nonzero bytes=1, 33..400=0, 401..512=1",
+                output,
+            )
+            self.assertIn(
+                "zero=15, 1..32 nonzero bytes=0, 33..400=1, 401..512=0",
+                output,
+            )
             self.assertEqual(image.read_bytes(), original)
 
             # A bogus end header ends the chain without implying allocation.
