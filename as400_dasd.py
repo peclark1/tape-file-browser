@@ -557,52 +557,14 @@ class RecoveredObject:
 
     @property
     def external_type_hint(self) -> str:
-        known = {
-            (0x02, 0x01): "*PGM",
-            (0x04, 0x01): "*LIB",
-            # IBM's MI object-type tables name 06/C1 *DOCBSS:
-            # Document byte string space, used by Document Library Services.
-            (0x06, 0xC1): "*DOCBSS",
-            (0x08, 0x01): "*USRPRF",
-            (0x0B, 0x90): "*QDDS",
-            (0x0C, 0x90): "*QDDSI",
-            (0x0D, 0x50): "*MEM",
-            # Historical OS/400 MI subtype catalog: 0E/03 = message file.
-            (0x0E, 0x03): "*MSGF",
-            # MI subtype catalog (2000) and IBM i type tables:
-            # external output queues, and internal distribution indexes.
-            (0x0E, 0x02): "*OUTQ",
-            # IBM internal object-types catalog: Interactive Profile, 0EC4.
-            (0x0E, 0xC4): "*INTPRF",
-            (0x0E, 0xD1): "*DRX",
-            (0x0E, 0x90): "*QDIDX",
-            (0x19, 0x01): "*FILE",
-            (0x19, 0x02): "*MSGQ",
-            # V2R2 OS/400 DMPOBJ *CMD example confirms MI 19/05.
-            (0x19, 0x05): "*CMD",
-            (0x19, 0x06): "*TBL",
-            # IBM external object-types catalog: Menu Description, 1916.
-            (0x19, 0x16): "*MENU",
-            # Observed on the real V2R3 QDOC library and corroborated by
-            # the objects' DLO metadata/content. IBM documents QDOC as the
-            # backing library for *DOC/*FLR document-library objects.
-            (0x19, 0x0E): "*DOC",
-            (0x19, 0x12): "*FLR",
-            (0x19, 0x51): "*FORMAT",
-            # IBM/MI documentation and context-index research identify 19/52
-            # as the Object Information Repository space associated with a
-            # context/library.
-            (0x19, 0x52): "*OIRS",
-            # Historical MI list / IBM internal object type catalog.
-            # IBM official internal object type table: 19D4 = *DBRCVR.
-            (0x19, 0xD4): "*DBRCVR",
-            (0x19, 0xE0): "*ADO",
-            (0x19, 0xEE): "*MSCSP",
-        }
-        return known.get(
-            (self.object_type, self.object_subtype),
-            "",
-        )
+        """IBM's published MI type label, whether external or internal.
+
+        Kept under the historical property name for compatibility with all
+        read-only DASD inspectors. Unknown codes remain unlabeled.
+        """
+        from as400_object_types import type_hint
+
+        return type_hint(self.object_type, self.object_subtype)
 
     @property
     def is_member_cursor(self) -> bool:
