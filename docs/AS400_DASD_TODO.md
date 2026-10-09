@@ -4,6 +4,29 @@ This checklist keeps implementation work separate from hypotheses. A checkbox is
 only completed when the behavior is implemented and covered by tests or
 repeatable real-image validation.
 
+## Guided 5250 command-object inspection — current feature milestone
+
+Work in draft PR #14, branch feature/guided-5250-explorer.
+The forensic three-pane UI and its pending MI disassembler research remain
+intact; this milestone is an additional, independent read-only capability.
+
+- [x] Make Enter/option 5 on recovered 19/05 *CMD open a dedicated Command
+      Information screen, with option 8 retaining normal object details.
+- [x] Reuse recovered virtual-order primary bytes; show verified identity
+      and addresses separately from tentative command metadata.
+- [x] Sample actual IBM V2R3 commands across several object groups:
+      observed candidate 10-byte EBCDIC names at +0x102/+0x10C and a
+      repeatable, unambiguous command-heading correlation at descriptor+0xB8.
+      No source/byte dumps committed. See docs/AS400_CMD_RESEARCH.md.
+- [x] Add a bounded evidence-only EBCDIC viewer, synthetic regressions,
+      defensive missing-data handling, and preserve the image as read-only.
+- [ ] Validate candidate processing program/library field semantics
+      independently (IBM command-definition docs, cross-object *PGM matches).
+- [ ] Decode source/parameter descriptors only with corroborated format
+      fields and negative tests; build accurate F4 prompt screens afterward.
+- [ ] Human-test on the actual QSYS38 command list; especially long commands,
+      missing primaries, help keys, and partially recovered segments.
+
 ## Current priority
 
 **Next active priority: MI `*PGM` structure and program-template
