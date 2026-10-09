@@ -411,6 +411,24 @@ follow-ups, not prerequisites for the current browser milestone. See
       the physical header at that origin is independently nonzero
       while its predecessor is zero. Add `DASDUnitDescriptorEvidence`,
       `disk-descriptor` and synthetic mismatch/read-only regressions.
+- [x] Correlate two additional **unnamed** LBA-32 raw BE32 fields on
+      Mark's load-source image: +0x08=148,224 and +0x0C=64. Their
+      sum gives exact physical LBA 148,288, a zero-to-nonzero
+      header boundary beginning a 64-page extent; the next two
+      sectors after that extent have `DELETED EXTENT` labels.
+      Pete's corresponding fields are zero. Report the arithmetic
+      and independent sector observations, not guessed SMVT semantics.
+- [x] Cross-check LBA-33 `DCT NNNN` records: Mark `DCT 0300`
+      has a BE16 count of one and one populated 32-byte slot,
+      Pete `DCT 0100` has count two and two slots. Add
+      `DCTRawEvidence` and read-only `dct-evidence` diagnostics;
+      do not assign formal field names or device configuration
+      semantics yet.
+- [x] Check **entire** physical pre-origin area on both disks:
+      Mark 7 nonzero-payload sectors/198 nonzero bytes across
+      LBAs 0..63; Pete 3 sectors/127 bytes across LBAs
+      0..2111. These tiny payloads do not establish an SMVT
+      checkpoint and emphasize the need for a real pointer chain.
 - [ ] Identify a checkpoint/SMVT location on Mark's load-source disk
       through independently corroborated startup loader or control-block
       references (not EBCDIC module-name counts).
