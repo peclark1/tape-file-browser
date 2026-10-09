@@ -1276,8 +1276,8 @@ class DASDHeaderTests(unittest.TestCase):
         # The test uses fabricated byte strings, never archived disk data.
         record_data = (
             b"X" * 8
-            + b"ALPHA" + b"\\x40" * 3
-            + b"BETA" + b"\\x40" * 4
+            + b"ALPHA" + bytes([0x40]) * 3
+            + b"BETA" + bytes([0x40]) * 4
         )
         records = (
             DataSpaceRecord(1, 0x80, record_data),
