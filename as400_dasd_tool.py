@@ -382,7 +382,7 @@ def cmd_asde_probe(args):
     print(
         "No prefix fields, extent address/size, unit, or index location "
         "have been decoded. IBM's chapter-8 entry lengths differ from "
-        "chapter 7; use only with independently located directory evidence."
+        "chapter 7 (possibly a scan/OCR artifact); use only with independently located directory evidence."
     )
     return 0
 
