@@ -82,6 +82,46 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_disk_descriptor_geometry_and_physical_header_boundary(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            image = Path(dirname) / "descriptor.hda"
+            sectors = [bytearray(PAGE_SIZE + 8) for _ in range(40)]
+            sectors[32][8:12] = (34).to_bytes(4, "big")
+            sectors[32][12:16] = (6).to_bytes(4, "big")
+            sectors[32][8 + 0x40:8 + 0x50] = (
+                "DASD  UNIT  DESC".encode("cp037")
+            )
+            sectors[34][:8] = bytes.fromhex("00000B0000010000")
+            image.write_bytes(b"".join(sectors))
+            before = image.read_bytes()
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["disk-descriptor", str(image)]), 0)
+            output = out.getvalue()
+            self.assertIn("Candidate origin LBA:    34", output)
+            self.assertIn("Candidate managed pages: 6", output)
+            self.assertIn("Actual image sectors:    40", output)
+            self.assertIn("Size arithmetic agrees: YES", output)
+            self.assertIn("Header boundary matches: YES", output)
+            self.assertIn("OBSERVED on B10 and V2R3", output)
+            self.assertEqual(image.read_bytes(), before)
+
+            out = io.StringIO()
+            with redirect_stdout(out):
+                # Still display the mismatch rather than forcing a field fit.
+                sectors[32][12:16] = (5).to_bytes(4, "big")
+                image.write_bytes(b"".join(sectors))
+                self.assertEqual(main(["disk-descriptor", str(image)]), 0)
+            self.assertIn("Size arithmetic agrees: NO", out.getvalue())
+
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(
+                    main(["disk-descriptor", str(image), "--lba", "31"]), 1
+                )
+            self.assertIn("exact EBCDIC", err.getvalue())
+
     def test_bootstrap_map_raw_labels_zero_headers_and_bounds(self):
         with tempfile.TemporaryDirectory() as dirname:
             image = Path(dirname) / "boot.hda"
