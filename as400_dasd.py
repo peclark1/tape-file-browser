@@ -2839,6 +2839,80 @@ class DataSpaceIndexTraversal:
         return tuple(pointer for pointer in self.page_pointers if not pointer.followed)
 
 
+
+@dataclass(frozen=True)
+class DataSpaceIndexPartialKeyAudit:
+    """One DKEY group's measured partial-key evidence, without filling gaps."""
+
+    dkey_index: int
+    declared_entries: int
+    observed_partial_entries: int
+    nominal_machine_key_length: int
+    observed_tree_body_min: int
+    observed_tree_body_max: int
+    machine_length_shortfall_min: int
+    machine_length_shortfall_max: int
+    ordinal_hints_present: int
+    distinct_ordinal_hints: int
+    min_ordinal_hint: int | None
+    max_ordinal_hint: int | None
+
+
+def audit_partial_data_space_index_keys(
+    layout: DataSpaceIndexLayout,
+    traversal: DataSpaceIndexTraversal,
+) -> tuple[DataSpaceIndexPartialKeyAudit, ...]:
+    """Summarize incomplete QDDSI tree text and intact 4-byte DB references.
+
+    A shorter terminal tree path does *not* locate the omitted bytes within
+    the logical user key. This function measures length differences only;
+    it neither pads a key nor attempts to reverse undocumented compression.
+    """
+    partial_by_dkey: dict[int, list[DataSpaceIndexEntry]] = {}
+    for entry in traversal.entries:
+        if entry.key_complete:
+            continue
+        if entry.dkey_index < 0 or entry.dkey_index >= len(layout.keys):
+            raise ValueError("partial QDDSI terminal identifies unknown DKEY")
+        if len(entry.database_reference) != 4:
+            raise ValueError("partial QDDSI terminal lacks four-byte reference")
+        if entry.database_reference[0] != entry.dkey_index:
+            raise ValueError("partial QDDSI reference disagrees with DKEY row")
+        partial_by_dkey.setdefault(entry.dkey_index, []).append(entry)
+
+    groups = []
+    for index, entries in sorted(partial_by_dkey.items()):
+        spec = layout.keys[index]
+        lengths = [len(entry.key_evidence) for entry in entries]
+        shortfalls = [
+            spec.machine_key_length - (observed + 4)
+            for observed in lengths
+        ]
+        if min(shortfalls) < 0:
+            raise ValueError("partial QDDSI evidence exceeds nominal machine key")
+        ordinals = [
+            value for entry in entries
+            if (value := entry.ordinal_hint) is not None
+        ]
+        groups.append(
+            DataSpaceIndexPartialKeyAudit(
+                dkey_index=index,
+                declared_entries=spec.key_count,
+                observed_partial_entries=len(entries),
+                nominal_machine_key_length=spec.machine_key_length,
+                observed_tree_body_min=min(lengths),
+                observed_tree_body_max=max(lengths),
+                machine_length_shortfall_min=min(shortfalls),
+                machine_length_shortfall_max=max(shortfalls),
+                ordinal_hints_present=len(ordinals),
+                distinct_ordinal_hints=len(set(ordinals)),
+                min_ordinal_hint=min(ordinals) if ordinals else None,
+                max_ordinal_hint=max(ordinals) if ordinals else None,
+            )
+        )
+    return tuple(groups)
+
+
 def decode_context_machine_index(
     data: bytes,
     *,
