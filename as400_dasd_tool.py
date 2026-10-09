@@ -346,7 +346,7 @@ def cmd_sector(args):
 
 
 
-_STORAGE_SYMBOLS = ("#SMSMVT", "#SMACDIR", "#SMMSIT", "#SMDR2")
+_STORAGE_SYMBOLS = ("#SMSMVT", "#SMSMVTN", "#SMSMVTI", "#SMACDIR", "#SMMSIT", "#SMDR2")
 
 
 def _scan_storage_symbol_literals(
@@ -356,8 +356,14 @@ def _scan_storage_symbol_literals(
     start_lba=0,
     sectors=None,
     limit=50,
+    substring=False,
 ):
-    """Count literal EBCDIC payload hits; do not assign structural meaning."""
+    """Count payload CP037 hits; default matches a padded eight-byte name.
+
+    This prevents a seven-character query such as #SMSMVT from accidentally
+    counting the different eight-character name #SMSMVTN. No symbol match
+    alone establishes a VMC module, loaded SMVT or directory root.
+    """
 
     if start_lba < 0 or start_lba >= image.sector_count:
         raise ValueError("start LBA is outside the image")
@@ -368,10 +374,15 @@ def _scan_storage_symbol_literals(
 
     patterns = {}
     for symbol in dict.fromkeys(symbols):
-        if not symbol or len(symbol) > PAGE_SIZE:
-            raise ValueError("symbols must be 1..512 characters")
+        max_length = PAGE_SIZE if substring else 8
+        if not symbol or len(symbol) > max_length:
+            raise ValueError(
+                f"symbols must be 1..{max_length} characters "
+                f"({'substring' if substring else 'eight-byte name'} mode)"
+            )
         try:
-            patterns[symbol] = symbol.encode("cp037")
+            encoded = (symbol if substring else symbol.ljust(8)).encode("cp037")
+            patterns[symbol] = encoded
         except UnicodeEncodeError as exc:
             raise ValueError(f"symbol cannot be EBCDIC CP037 encoded: {symbol}") from exc
     if not patterns:
@@ -414,11 +425,13 @@ def cmd_storage_labels(args):
         start_lba=args.start_lba,
         sectors=args.sectors,
         limit=args.limit,
+        substring=args.substring,
     )
 
     print(f"Image:       {image.path}")
     print(f"Sector span: {args.start_lba:,}..{end_lba - 1:,} (physical LBAs)")
-    print("Encoding:    literal EBCDIC CP037, within 512-byte payloads only")
+    mode = ("substring" if args.substring else "space-padded eight-byte name")
+    print(f"Encoding:    literal EBCDIC CP037 {mode}, 512-byte payloads only")
     print("Occurrences:")
     for symbol, total in totals.items():
         print(f"  {symbol}: {total:,}")
@@ -8825,6 +8838,14 @@ def build_parser():
         "--sectors",
         type=int,
         help="number of physical sectors to scan (default: through EOF)",
+    )
+    labels.add_argument(
+        "--substring",
+        action="store_true",
+        help=(
+            "use the old literal substring search instead of matching "
+            "complete space-padded eight-byte names; may include other names"
+        ),
     )
     labels.add_argument(
         "--limit",
