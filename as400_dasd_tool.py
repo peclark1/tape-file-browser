@@ -581,6 +581,7 @@ def _scan_extent_virtual_references(
     pattern_counts = Counter()
     target_distances = Counter()
     target_record_prefix_counts = Counter()
+    candidate_record_names = Counter()
     examples = []
     total_matches = 0
     with open(image.path, "rb") as handle, open(image.path, "rb") as target_handle:
@@ -611,11 +612,18 @@ def _scan_extent_virtual_references(
                     target_handle.seek(
                         target_lba * SECTOR_SIZE + HEADER_SIZE + target_offset
                     )
-                    target_prefix = target_handle.read(5)
-                    if len(target_prefix) != 5:
+                    read_length = min(12, PAGE_SIZE - target_offset)
+                    target_prefix = target_handle.read(read_length)
+                    if len(target_prefix) != read_length:
                         raise ValueError(f"short target read at LBA {target_lba}")
-                    if target_prefix == bytes((2, 0, 0, 0, 0x7B)):
+                    if target_prefix[:5] == bytes((2, 0, 0, 0, 0x7B)):
                         target_record_prefix_counts[pattern_key] += 1
+                        if len(target_prefix) == 12:
+                            name = target_prefix[4:12].decode(
+                                "cp037", errors="replace"
+                            )
+                            if all(ch.isprintable() for ch in name):
+                                candidate_record_names[name] += 1
                 if len(examples) < example_limit:
                     examples.append((lba, offset, target_lba, target_offset))
 
@@ -629,6 +637,7 @@ def _scan_extent_virtual_references(
         "source_offsets": source_offsets,
         "patterns": pattern_counts,
         "target_record_prefix_counts": target_record_prefix_counts,
+        "candidate_record_names": candidate_record_names,
         "distances": target_distances,
         "examples": tuple(examples),
     }
@@ -637,8 +646,8 @@ def _scan_extent_virtual_references(
 def cmd_virtual_xref_map(args):
     """Print bounded candidate VA correlations for one caller-selected extent."""
 
-    if args.top < 0:
-        raise ValueError("--top must be non-negative")
+    if args.top < 0 or args.names < 0:
+        raise ValueError("--top and --names must be non-negative")
     image = _open(args.image)
     result = _scan_extent_virtual_references(
         image,
@@ -670,6 +679,9 @@ def cmd_virtual_xref_map(args):
             f"  +0x{offset:03X} -> page {delta:+d}, +0x{target_offset:03X}"
             f"    {count:,} occurrences; {markers:,} target prefix matches"
         )
+    print("Top printable CP037 eight-byte names following target record markers:")
+    for name, count in result["candidate_record_names"].most_common(args.names):
+        print(f"  {name!r}: {count:,} target references")
     print("First candidates:")
     for src_lba, src_offset, target_lba, target_offset in result["examples"]:
         print(
@@ -9112,6 +9124,7 @@ def build_parser():
     xref_map.add_argument("--sectors", type=int)
     xref_map.add_argument("--alignment", type=int, choices=(2, 4, 8), default=2)
     xref_map.add_argument("--top", type=int, default=12)
+    xref_map.add_argument("--names", type=int, default=10)
     xref_map.add_argument("--examples", type=int, default=12)
     xref_map.set_defaults(func=cmd_virtual_xref_map)
 
