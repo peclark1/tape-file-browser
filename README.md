@@ -274,6 +274,33 @@ See [object-type catalog documentation](docs/AS400_OBJECT_TYPE_CATALOG.md)
 for the IBM source URLs, category distinctions, data files, and maintenance
 rules. The install script includes both type tables.
 
+### AS/400 user, device and mode object viewers (experimental)
+
+The Guided 5250 Explorer now opens evidence-labeled, read-only screens
+for recovered `*USRPRF` (08/01), `*DEVD` (10/01) and `*MODD` (15/01).
+Select the object and press Enter (or use option 5). Option 8 still opens
+generic object details. The command prompt recognizes the following
+**non-executing** display operations:
+
+```text
+DSPUSRPRF USRPRF(QSYSOPR)
+DSPDEVD DEVD(QCONSOLE)
+DSPMODD MODD(QPCSUPP)
+```
+
+A name that resolves to multiple recovered primaries will be rejected as
+ambiguous, not silently assigned to an arbitrary copy. Select its exact
+primary in the object list. The viewers display independently recovered
+identity and address metadata, owned-segment counts, and **same-name
+objects as hints**, not as proof of a user/device relationship.
+Device/mode evidence is bounded and unclassified; the on-disk attributes
+are **not fully decoded**. The new `*USRPRF` viewer **does not read
+or print raw authentication-bearing profile bytes**.
+
+See [profile/device/mode research](docs/AS400_CONFIG_OBJECT_RESEARCH.md)
+for the real V2R3 samples, nine-mode candidate offsets, provenance,
+limitations and next validation steps.
+
 ### Guided 5250 Explorer (first milestone)
 
 The **guided 5250** mode uses the same read-only CISC DASD parser as the
