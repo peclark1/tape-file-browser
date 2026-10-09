@@ -82,6 +82,30 @@ def write_simple_image(path):
 
 
 class DASDToolTests(unittest.TestCase):
+    def test_asde_probe_reads_only_bounded_candidate_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "synthetic.hda"
+            entry = b"PREFIX" + b"ABCDE" + b"FGHIJ" + b"KLMNO"
+            payload = bytearray(PAGE_SIZE)
+            payload[17:17 + len(entry)] = entry
+            image.write_bytes(b"\x00" * 8 + bytes(payload))
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main(["asde-probe", str(image), "0", "17", "21"])
+            self.assertEqual(rc, 0)
+            output = stdout.getvalue()
+            self.assertIn("NOT a validated directory entry", output)
+            self.assertIn("first six bytes: 50 52 45 46 49 58", output)
+            self.assertIn("following 5-byte groups: 3", output)
+            self.assertIn("raw descriptor 3: 4B 4C 4D 4E 4F", output)
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                rc = main(["asde-probe", str(image), "0", "495", "21"])
+            self.assertEqual(rc, 1)
+            self.assertIn("fit entirely", stderr.getvalue())
+
     def test_qddsi_key_field_labels_require_exact_offset_and_length(self):
         spec = SimpleNamespace(
             fields=(
