@@ -11,6 +11,7 @@ DASD_TOOL_PATH="${BIN_DIR}/as400-dasd"
 FORMAT_MODULE_PATH="${BIN_DIR}/tape_formats.py"
 TEXT_MODULE_PATH="${BIN_DIR}/tape_text.py"
 DASD_MODULE_PATH="${BIN_DIR}/as400_dasd.py"
+GUIDED_MODULE_PATH="${BIN_DIR}/as400_5250.py"
 DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/tape-file-browser"
 LIBRARY_CATALOG_PATH="${DATA_DIR}/as400_libraries.json"
 DESKTOP_PATH="${APP_DIR}/${APP_ID}.desktop"
@@ -53,6 +54,7 @@ install -m 0755 "${SCRIPT_DIR}/as400_dasd_tool.py" "${DASD_TOOL_PATH}"
 install -m 0644 "${SCRIPT_DIR}/tape_formats.py" "${FORMAT_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/tape_text.py" "${TEXT_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/as400_dasd.py" "${DASD_MODULE_PATH}"
+install -m 0644 "${SCRIPT_DIR}/as400_5250.py" "${GUIDED_MODULE_PATH}"
 install -m 0644 "${SCRIPT_DIR}/as400_libraries.json" "${LIBRARY_CATALOG_PATH}"
 
 if ! ${TEXT_MODE_ONLY}; then
@@ -99,6 +101,7 @@ echo "DASD explorer: ${DASD_TOOL_PATH}"
 echo "Tape core:     ${FORMAT_MODULE_PATH}"
 echo "Text helpers:  ${TEXT_MODULE_PATH}"
 echo "DASD core:     ${DASD_MODULE_PATH}"
+echo "Guided 5250:   ${GUIDED_MODULE_PATH}"
 echo "DASD catalog:  ${LIBRARY_CATALOG_PATH}"
 
 if ${TEXT_MODE_ONLY}; then
@@ -108,6 +111,7 @@ if ${TEXT_MODE_ONLY}; then
     echo "Tape TUI: tape-tool browse"
     echo "DASD CLI: as400-dasd --help"
     echo "DASD TUI: as400-dasd browse"
+    echo "Guided TUI: as400-dasd browse5250"
 else
     echo "GTK4 GUI:      ${BIN_PATH}"
     echo "Launcher:      ${DESKTOP_PATH}"
