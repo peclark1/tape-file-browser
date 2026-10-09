@@ -193,8 +193,8 @@ class OriginCandidate:
 # IBM SY21-0889-5 chapter 7 records 11/16/21/26-byte permanent-directory
 # ASDE entries, one through four extents. These bytes are only *candidate*
 # evidence until an actual storage-directory machine index is identified.
-# Its chapter 8 narrative has inconsistent entry lengths (11/18/21/28);
-# do not promote the following arithmetic to a validated V2R3 field layout.
+# The searchable chapter-8 text gives 11/18/21/28 (possibly 6/8 OCR);
+# do not promote this arithmetic to a validated V2R3 field layout.
 ASDE_DOCUMENTED_CH7_SIZES = (11, 16, 21, 26)
 ASDE_CANDIDATE_PREFIX_BYTES = 6
 ASDE_CANDIDATE_DESCRIPTOR_BYTES = 5
