@@ -90,10 +90,12 @@ def parse_command(text):
 class Guided5250:
     """Testable navigation model shared by the curses frontend and unit tests."""
 
-    def __init__(self, inventory, *, member_info=None, member_loader=None):
+    def __init__(self, inventory, *, member_info=None, member_loader=None,
+                 command_info_loader=None):
         self.inventory = inventory
         self.member_info = member_info or (lambda obj: None)
         self.member_loader = member_loader or (lambda lib, file, obj: [])
+        self.command_info_loader = command_info_loader or (lambda obj: [])
         self.screen = "libraries"
         self.library = ""
         self.file = ""
@@ -182,6 +184,7 @@ class Guided5250:
             "objects": "Work with Objects Using PDM",
             "members": "Work with Members Using PDM",
             "contents": "Display Physical File Member (Recovered)",
+            "command_info": "Display Command Information (Recovered)",
             "details": "Display Recovered Object Information",
             "help": "Guided 5250 Help",
         }[self.screen]
@@ -202,13 +205,29 @@ class Guided5250:
                    member=member.member_name.upper(), detail=lines)
         self.status = "Recovered content; this is not a live OS/400 display."
 
+    def show_command_info(self, command_object):
+        """Use recovered primary metadata/evidence; never execute a command."""
+        try:
+            lines = list(self.command_info_loader(command_object))
+        except (OSError, ValueError) as exc:
+            lines = [f"Command information unavailable: {exc}"]
+        if not lines:
+            lines = [
+                "Display Command Information — recovered image",
+                "",
+                f"Command: {command_object.name}",
+                "No verified compiled-command definition fields are available.",
+            ]
+        self._goto("command_info", library=self.library, detail=lines)
+        self.status = "Read-only command metadata/evidence; no command execution."
+
     def open_row(self, index, option=None):
         rows = self.rows()
         if index < 0 or index >= len(rows):
             self.status = "No entry selected."
             return False
         row = rows[index]
-        default = "5" if row["kind"] == "member" else "12"
+        default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
         if row["kind"] == "library" and option == "12":
             self._goto("objects", library=row["name"])
@@ -216,6 +235,9 @@ class Guided5250:
             self._goto("members", library=self.library, file=row["name"])
         elif row["kind"] == "member" and option == "5":
             self.show_contents(row["object"])
+        elif (row["kind"] == "object" and row["type"] == "*CMD"
+              and option == "5"):
+            self.show_command_info(row["object"])
         elif option in ("5", "8") and row["kind"] in ("library", "file", "object", "directory"):
             lines = [
                 "Recovered object details (read-only)",
@@ -309,6 +331,7 @@ class Guided5250:
             "Up/Down: Select row       Enter: Open selected row",
             "12 + Enter: Work with objects or members",
             "5 + Enter: Display selected member/object",
+            "5/Enter on *CMD: Recover command information (evidence-only)",
             "Type a command directly, or press ':' to edit the command field.",
             "",
             "Only recovered image contents are displayed.",
@@ -353,7 +376,7 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
     put(1, 2, f"Location: {model.location()}")
     put(2, 2, "Type options, press Enter.  12=Work with  5=Display  8=Details")
     body_height = max(1, height - 10)
-    if model.screen in ("contents", "details", "help"):
+    if model.screen in ("contents", "details", "help", "command_info"):
         lines = model.detail
         for i, line in enumerate(lines[model.scroll: model.scroll + body_height]):
             put(4 + i, 2, line)
@@ -460,7 +483,7 @@ def run_curses(stdscr, model):
             delta = {curses.KEY_UP: -1, curses.KEY_DOWN: 1,
                      curses.KEY_PPAGE: -max(1, stdscr.getmaxyx()[0] - 10),
                      curses.KEY_NPAGE: max(1, stdscr.getmaxyx()[0] - 10)}[key]
-            if model.screen in ("contents", "details", "help"):
+            if model.screen in ("contents", "details", "help", "command_info"):
                 model.scroll = max(0, min(max(0, len(model.detail) - 1), model.scroll + delta))
             else:
                 model.selected = max(0, min(max(0, len(model.rows()) - 1),
@@ -470,7 +493,7 @@ def run_curses(stdscr, model):
             option += chr(key)
             option = option[-2:]
         elif key in (10, 13, curses.KEY_ENTER):
-            if model.screen not in ("contents", "details", "help"):
+            if model.screen not in ("contents", "details", "help", "command_info"):
                 model.open_row(model.selected, option or None)
             option = ""
         elif key in (curses.KEY_BACKSPACE, 8, 127):
