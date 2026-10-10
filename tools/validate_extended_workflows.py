@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from as400_afp import AFPExplorer, TYPES as AFP_TYPES, coded_font_references, field_pairs
 from as400_reference_codes import ReferenceCodeExplorer
 from as400_libraries import LibraryExplorer
 from as400_programs import ProgramExplorer
@@ -29,6 +30,7 @@ def validate(path, inventory=None, segments=None):
     if inventory is None or segments is None:
         scan=image.scan();segments=image.recover_segments(scan);inventory=image.recover_objects(scan,segments)
     messages=MessageExplorer(image,inventory,segments);indexes=IndexExplorer(image,inventory,segments)
+    afp=AFPExplorer(image,inventory)
     references=ReferenceCodeExplorer(image,inventory,segments)
     libraries=LibraryExplorer(inventory)
     programs=ProgramExplorer(image,inventory)
@@ -42,12 +44,41 @@ def validate(path, inventory=None, segments=None):
         if obj.type_code=='19/16':return menus.rows(obj)
         if obj.type_code in ('10/01','12/01','11/01'):return connections.rows(obj)
         return capabilities.rows(obj,sample)
-    model=Guided5250(inventory,reference_loader=references.rows,library_loader=libraries.rows,message_loader=messages.rows,index_loader=indexes.rows,
+    model=Guided5250(inventory,afp_loader=afp.rows,reference_loader=references.rows,library_loader=libraries.rows,message_loader=messages.rows,index_loader=indexes.rows,
                     command_definition_loader=lambda o:command_exploration(o,read_prefix(image,o.segment,8192)),
                     directory_loader=directories.rows,queue_loader=queues.rows,record_loader=records.rows,capability_loader=capability)
     counts=Counter();paths=set()
     for obj in inventory.objects:
-        if obj.type_code=='0E/08':
+        if obj.type_code in AFP_TYPES:
+            fields=afp.fields(obj);refs,warnings=coded_font_references(fields);pairs,pair_warnings=field_pairs(fields)
+            counts['AFP '+obj.type_code+' resources']+=1;counts['AFP fields']+=len(fields)
+            counts['AFP dependency references']+=len(refs);counts['AFP semantic warnings']+=len(warnings)
+            counts['AFP boundary warnings']+=len(pair_warnings)
+            for i in set(ref['field'] for ref in refs):
+                rows=afp.rows(obj,field=i)
+                counts['AFP corroborated dependency candidates']+=sum('object' in r for r in rows)
+                counts['AFP missing dependency names']+=sum(r['name']=='Resource missing' for r in rows)
+                counts['AFP dependency kind mismatches']+=sum(r['name']=='Resource kind mismatch' for r in rows)
+            if fields and counts['AFP '+obj.type_code+' walkthroughs']<3:
+                model.show_evidence(dict(obj=obj),afp.rows)
+                selected=next(i for i,r in enumerate(model.rows()) if r.get('request',{}).get('field') is not None)
+                model.selected=selected;model.open_row(selected)
+                if model.rows()[0]['name']!='Structured field':raise ValueError('AFP field not opened')
+                boundary=next((i for i,r in enumerate(model.rows()) if r['name']=='Matching boundary'),None)
+                if boundary is not None:model.open_row(boundary);model.back()
+                model.back()
+                if model.selected!=selected:raise ValueError('AFP field selection lost')
+                counts['AFP '+obj.type_code+' walkthroughs']+=1;paths.add('AFP '+obj.type_code+'/field/boundary/back')
+            if refs and counts['AFP dependency walkthroughs']<3:
+                model.show_evidence(dict(obj=obj,field=refs[0]['field']),afp.rows)
+                selected=next((i for i,r in enumerate(model.rows()) if r.get('object')),None)
+                if selected is not None:
+                    model.selected=selected;model.open_row(selected)
+                    if model.rows()[0]['name']!='AFP resource':raise ValueError('AFP dependency not opened')
+                    model.back()
+                    if model.selected!=selected:raise ValueError('AFP dependency selection lost')
+                    counts['AFP dependency walkthroughs']+=1;paths.add('coded font/dependency/resource/back')
+        elif obj.type_code=='0E/08':
             entries,warnings=references.entries(obj)
             counts['RCT indexes']+=1;counts['RCT entries']+=len(entries);counts['RCT warnings']+=len(warnings)
             storage=references._storage.get(obj.segment.owner_key,())

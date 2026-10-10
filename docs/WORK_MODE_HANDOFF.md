@@ -4,6 +4,22 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## AFP continuation checkpoint — October 10, 2026
+
+RCT commit `257ae2c3f4cd23af5ee6183bbb8376eaefceb48f` is published in PR #23
+and passed Tests run `38089817781`. Continued with print resources. `DSPAFP`
+adds structured-field/boundary browsing for FNTRSC, FORMDF and PAGDFN, with
+FOCA-coded-font dependencies navigable to begin-kind-corroborated targets.
+Mark: 1,547 resources, 9,912 fields, all 2,542 dependencies corroborated. Pete:
+597 resources, 2,922 fields, 478 corroborated / 520 missing dependencies.
+The newer architecture references and independently checked CISC wrapper
+offsets are distinguished in EXTENDED_TYPE_WORKFLOWS.md. Rendering is not claimed.
+
+Current ledger: **29 partial / 239 queued**; 34 binary/evidence-reviewed types.
+Fourteen newly advanced workflow families in this successor branch.
+270 synthetic tests pass; original hashes unchanged. The UIM/PNLGRP simple
+name/address hypotheses failed and are documented. Work remains active.
+
 ## RCT continuation checkpoint — October 10, 2026
 
 Prior follow-on commit `8247c44dfdd1a9c51c909fa0ddbf043c5706aa5d` is published

@@ -26,11 +26,11 @@ class MIResearchInventoryTests(unittest.TestCase):
 
     def test_reviewed_vs_catalog_only_is_explicit(self):
         progress = counts(self.rows)["by_status"]
-        self.assertEqual(31, sum(progress[k] for k, _ in STATUSES
+        self.assertEqual(34, sum(progress[k] for k, _ in STATUSES
                                  if k != "cataloged_only"))
-        self.assertEqual(237, progress["cataloged_only"])
+        self.assertEqual(234, progress["cataloged_only"])
         self.assertEqual(2, progress["substantial_decoder"])
-        self.assertEqual(16, progress["partial_decoder"])
+        self.assertEqual(19, progress["partial_decoder"])
         self.assertEqual(8, progress["evidence_only"])
         self.assertEqual(5, progress["identity_only"])
         found = {r["key"]: r for r in self.rows}

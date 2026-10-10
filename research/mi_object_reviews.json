@@ -871,6 +871,45 @@
       "manual_refs": [],
       "interfaces": [],
       "relationships": []
+    },
+    "1926": {
+      "status": "partial_decoder",
+      "scope": "Empirical CISC wrapper boundaries +0x200 through +0x100 + u32(+0x100), validated AFP field framing and navigable category boundary pairs. FOCA CFC/CFI 25-byte groups decode resource names, size/scale scalars and section; recovered target begin-kind is corroborated.",
+      "implementation": [
+        "as400_afp.py:decode_resource",
+        "as400_afp.py:field_pairs",
+        "as400_afp.py:AFPExplorer"
+      ],
+      "next_step": "Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": []
+    },
+    "1928": {
+      "status": "partial_decoder",
+      "scope": "Empirical CISC wrapper boundaries +0x200 through +0x100 + u32(+0x100), validated AFP field framing and navigable category boundary pairs. Field-specific rendering/layout semantics remain opaque.",
+      "implementation": [
+        "as400_afp.py:decode_resource",
+        "as400_afp.py:field_pairs",
+        "as400_afp.py:AFPExplorer"
+      ],
+      "next_step": "Decode medium maps, controls and placement parameters; establish actual print layout.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": []
+    },
+    "1936": {
+      "status": "partial_decoder",
+      "scope": "Empirical CISC wrapper boundaries +0x200 through +0x100 + u32(+0x100), validated AFP field framing and navigable category boundary pairs. Field-specific rendering/layout semantics remain opaque.",
+      "implementation": [
+        "as400_afp.py:decode_resource",
+        "as400_afp.py:field_pairs",
+        "as400_afp.py:AFPExplorer"
+      ],
+      "next_step": "Decode page-map and line-data formatting semantics against period references.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": []
     }
   }
 }

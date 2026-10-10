@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 26, blocked 0, queued 242.
+States: delivered 0, partial 29, blocked 0, queued 239.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -41,23 +41,23 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 27 | 0E/02 | *OUTQ | queued | No type-specific Guided workflow audited yet. | Research spool file/entry layout and queue index references. |
 | 28 | 0E/C4 | *INTPRF | queued | No type-specific Guided workflow audited yet. | Research internal interactive profile role and corroborate links to user profiles. |
 | 29 | 18/A0 | *JMQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 30 | 19/CE | *LDA | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 31 | 19/15 | *PNLGRP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 32 | 19/09 | *SBSD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 33 | 0E/91 | *MSRVI | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 34 | 0E/07 | *SCHIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 35 | 19/C2 | *SPLCB | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 36 | 19/26 | *FNTRSC | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 37 | 09/01 | *JRN | queued | No type-specific Guided workflow audited yet. | Research journal and receiver object storage relationships. |
-| 38 | 19/04 | *CLS | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 39 | 0A/01 | *DTAQ | queued | No type-specific Guided workflow audited yet. | Document internal queue layout and test against real CISC samples. |
-| 40 | 19/0C | *GSS | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 41 | 0E/09 | *ALRTBL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 42 | 19/28 | *FORMDF | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 43 | 1B/01 | *AUTL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 44 | 19/37 | *BNDDIR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 45 | 0E/0C | *JOBSCD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 46 | 19/36 | *PAGDFN | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 30 | 19/26 | *FNTRSC | partial | DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources. | Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution. |
+| 31 | 19/28 | *FORMDF | partial | DSPAFP -> bounded form-definition field windows -> matched begin/end categories -> opaque field payload windows. | Decode medium maps, controls and placement parameters; establish actual print layout. |
+| 32 | 19/CE | *LDA | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 33 | 19/15 | *PNLGRP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 34 | 19/09 | *SBSD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 35 | 19/36 | *PAGDFN | partial | DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows. | Decode page-map and line-data formatting semantics against period references. |
+| 36 | 0E/91 | *MSRVI | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 37 | 0E/07 | *SCHIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 38 | 19/C2 | *SPLCB | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 39 | 09/01 | *JRN | queued | No type-specific Guided workflow audited yet. | Research journal and receiver object storage relationships. |
+| 40 | 19/04 | *CLS | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 41 | 0A/01 | *DTAQ | queued | No type-specific Guided workflow audited yet. | Document internal queue layout and test against real CISC samples. |
+| 42 | 19/0C | *GSS | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 43 | 0E/09 | *ALRTBL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 44 | 1B/01 | *AUTL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 45 | 19/37 | *BNDDIR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 46 | 0E/0C | *JOBSCD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 47 | 19/1D | *PRDLOD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 48 | 02/02 | *SQLPKG | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 49 | 02/03 | *SRVPGM | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |

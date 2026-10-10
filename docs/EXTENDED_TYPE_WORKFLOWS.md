@@ -208,3 +208,38 @@ LDA primaries found no addresses matching recovered JMQ, LDA, JOBD, JOBQ or MSGQ
 primaries. This rejects only that simple direct-address navigation hypothesis.
 LDA prefixes consistently differ from the supported character DTAARA selector;
 reusing the DTAARA decoder would be unjustified. These families remain queued.
+
+## Embedded AFP print resources
+
+`DSPAFP OBJ(library/name)` lists recovered FNTRSC, FORMDF and PAGDFN objects.
+Select fields, follow matched begin/end category boundaries, inspect payload
+windows, or follow a coded font's character-set/code-page references. Name
+resolution retains all libraries/duplicates and corroborates each target's
+initial AFP kind. Missing resources are explicit. No rendering is implemented.
+
+CISC wrapper offsets are empirical: u32 +0x100 is the object-body length starting
+at +0x100; the embedded stream starts +0x200. Every resource traverses exactly to
+the declared end. Each 5A-prefixed field has a big-endian length excluding 5A,
+three-byte identifier, flags and two raw introducer bytes. Nonzero flags retain
+raw extension/padding/segmentation bytes without semantic decoding.
+
+Architecture sources reviewed October 10, 2026:
+- [AFPC MO:DCA Reference](https://afpcinc.org/wp-content/uploads/2016/08/MODCA-Reference-Mixed-Object-Document-Content-Architecture-Reference.pdf), PDF pages 48–52: field framing and category codes.
+- [AFPC FOCA Reference](https://afpcinc.org/wp-content/uploads/2016/08/FOCA-Reference-Font-Object-Content-Architecture-Reference.pdf), PDF pages 147–154: BCF/BCP/BFN and CFC/CFI.
+These later architecture references support the embedded stream interpretation;
+they do not establish the older CISC wrapper offsets. CFC `1901` and CFI 25-byte
+groups were independently corroborated on both original images. Names use
+CP500 per FOCA; raw field payload previews are only a display lens.
+
+Original aggregates: Mark 1,513 FNTRSC / 12 FORMDF / 22 PAGDFN, 9,912 fields,
+2,542 dependency names, all 2,542 target kinds corroborated. Pete 592 FNTRSC /
+5 FORMDF, 2,922 fields, 998 dependency names, 478 corroborated targets and
+520 absent names. Neither image has category-boundary or supported-CFI warnings.
+Three field/boundary/Back walks per observed family per image and three
+font/dependency/Back walks per image pass. No replacement resources are borrowed
+from the other image.
+
+UIM follow-up: first-4-KiB padded ten-byte PNLGRP-name searches found no matches
+in 569 Mark / 187 Pete U menus. Combined with the earlier full-address probe,
+this rejects simple direct name/address links; compiled UIM ownership/actions
+remain undecoded. PNLGRP remains queued, not promoted by string browsing.

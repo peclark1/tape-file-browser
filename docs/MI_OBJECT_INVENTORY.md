@@ -8,16 +8,16 @@ tools/mi_object_inventory.py command-line script.
 IBM object names come from later published tables; research states
 describe the audited capabilities in this repository only.
 
-**268 types**: 102 external; 166 internal. **31 reviewed types**, **20 with indexed historical manual pages**.
+**268 types**: 102 external; 166 internal. **34 reviewed types**, **20 with indexed historical manual pages**.
 
 ## Decoder maturity
 
 | Status | Count |
 |---|---:|
-| Catalog only | 237 |
+| Catalog only | 234 |
 | Identity | 5 |
 | Evidence | 8 |
-| Partial | 16 |
+| Partial | 19 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -101,9 +101,9 @@ describe the audited capabilities in this repository only.
 | 19/01 | *FILE | external | Partial | primer-1992 p.231 |
 | 19/12 | *FLR | external | Partial | — |
 | 19/51 | *FMT | internal | Partial | — |
-| 19/26 | *FNTRSC | external | Catalog only | — |
+| 19/26 | *FNTRSC | external | Partial | — |
 | 19/2B | *FNTTBL | external | Catalog only | — |
-| 19/28 | *FORMDF | external | Catalog only | — |
+| 19/28 | *FORMDF | external | Partial | — |
 | 19/E8 | *FSO | internal | Catalog only | — |
 | 0E/0B | *FTR | external | Catalog only | — |
 | 19/CD | *GDA | internal | Catalog only | — |
@@ -185,7 +185,7 @@ describe the audited capabilities in this repository only.
 | 0E/02 | *OUTQ | external | Identity | primer-1992 p.233 |
 | 19/29 | *OVL | external | Catalog only | — |
 | 0D/ED | *OWCUR | internal | Catalog only | — |
-| 19/36 | *PAGDFN | external | Catalog only | — |
+| 19/36 | *PAGDFN | external | Partial | — |
 | 19/27 | *PAGSEG | external | Catalog only | — |
 | 19/CC | *PCCR | internal | Catalog only | — |
 | 0E/11 | *PDFMAP | external | Catalog only | — |

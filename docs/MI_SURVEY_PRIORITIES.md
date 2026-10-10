@@ -58,7 +58,7 @@ research/mi_survey_scoring.json.
 | 27 | 0E/02 | *OUTQ | Database and data access | 67.0 | 4/3/4/2/3 | 9 | 2 | identity_only |
 | 28 | 0E/C4 | *INTPRF | Users and security | 66.0 | 4/4/2/2/4 | 17 | 4 | identity_only |
 | 29 | 18/A0 | *JMQ | Core metadata and indexes | 62.0 | 4/4/2/2/2 | 415 | 0 | cataloged_only |
-| 30 | 19/CE | *LDA | Core metadata and indexes | 57.0 | 4/1/3/2/5 | 414 | 20 | cataloged_only |
+| 30 | 19/26 | *FNTRSC | Documents and office | 61.0 | 3/1/4/4/5 | 1513 | 592 | partial_decoder |
 
 ## Full 268-type ranking
 
@@ -97,23 +97,23 @@ metadata. Zero below means **no signature match**, not absence.
 | 27 | *OUTQ | 0E/02 | Database and data access | Tier 2 | 67.0 | 9 | 2 | identity_only | initial_sources |
 | 28 | *INTPRF | 0E/C4 | Users and security | Tier 2 | 66.0 | 17 | 4 | identity_only | unreviewed |
 | 29 | *JMQ | 18/A0 | Core metadata and indexes | Tier 2 | 62.0 | 415 | 0 | cataloged_only | unreviewed |
-| 30 | *LDA | 19/CE | Core metadata and indexes | Tier 3 | 57.0 | 414 | 20 | cataloged_only | unreviewed |
-| 31 | *PNLGRP | 19/15 | Commands, programs and 5250 | Tier 3 | 57.0 | 513 | 234 | cataloged_only | unreviewed |
-| 32 | *SBSD | 19/09 | Database and data access | Tier 3 | 57.0 | 15 | 4 | cataloged_only | unreviewed |
-| 33 | *MSRVI | 0E/91 | Core metadata and indexes | Tier 3 | 53.0 | 6 | 3 | cataloged_only | unreviewed |
-| 34 | *SCHIDX | 0E/07 | Core metadata and indexes | Tier 3 | 53.0 | 1 | 5 | cataloged_only | unreviewed |
-| 35 | *SPLCB | 19/C2 | Core metadata and indexes | Tier 3 | 53.0 | 415 | 19 | cataloged_only | unreviewed |
-| 36 | *FNTRSC | 19/26 | Documents and office | Tier 3 | 51.0 | 1513 | 592 | cataloged_only | unreviewed |
-| 37 | *JRN | 09/01 | Database and data access | Tier 3 | 51.0 | 10 | 4 | identity_only | initial_sources |
-| 38 | *CLS | 19/04 | Commands, programs and 5250 | Tier 3 | 49.0 | 26 | 10 | cataloged_only | unreviewed |
-| 39 | *DTAQ | 0A/01 | Database and data access | Tier 3 | 49.0 | 3 | 0 | identity_only | initial_sources |
-| 40 | *GSS | 19/0C | Devices and communications | Tier 3 | 49.0 | 43 | 21 | cataloged_only | unreviewed |
-| 41 | *ALRTBL | 0E/09 | Commands, programs and 5250 | Tier 3 | 47.0 | 2 | 2 | cataloged_only | unreviewed |
-| 42 | *FORMDF | 19/28 | Commands, programs and 5250 | Tier 3 | 47.0 | 12 | 5 | cataloged_only | unreviewed |
-| 43 | *AUTL | 1B/01 | Users and security | Tier 3 | 45.0 | 2 | 0 | cataloged_only | unreviewed |
-| 44 | *BNDDIR | 19/37 | Commands, programs and 5250 | Tier 3 | 45.0 | 5 | 0 | cataloged_only | unreviewed |
-| 45 | *JOBSCD | 0E/0C | Database and data access | Tier 3 | 45.0 | 1 | 0 | cataloged_only | unreviewed |
-| 46 | *PAGDFN | 19/36 | Commands, programs and 5250 | Tier 3 | 45.0 | 22 | 0 | cataloged_only | unreviewed |
+| 30 | *FNTRSC | 19/26 | Documents and office | Tier 2 | 61.0 | 1513 | 592 | partial_decoder | unreviewed |
+| 31 | *FORMDF | 19/28 | Commands, programs and 5250 | Tier 3 | 57.0 | 12 | 5 | partial_decoder | unreviewed |
+| 32 | *LDA | 19/CE | Core metadata and indexes | Tier 3 | 57.0 | 414 | 20 | cataloged_only | unreviewed |
+| 33 | *PNLGRP | 19/15 | Commands, programs and 5250 | Tier 3 | 57.0 | 513 | 234 | cataloged_only | unreviewed |
+| 34 | *SBSD | 19/09 | Database and data access | Tier 3 | 57.0 | 15 | 4 | cataloged_only | unreviewed |
+| 35 | *PAGDFN | 19/36 | Commands, programs and 5250 | Tier 3 | 55.0 | 22 | 0 | partial_decoder | unreviewed |
+| 36 | *MSRVI | 0E/91 | Core metadata and indexes | Tier 3 | 53.0 | 6 | 3 | cataloged_only | unreviewed |
+| 37 | *SCHIDX | 0E/07 | Core metadata and indexes | Tier 3 | 53.0 | 1 | 5 | cataloged_only | unreviewed |
+| 38 | *SPLCB | 19/C2 | Core metadata and indexes | Tier 3 | 53.0 | 415 | 19 | cataloged_only | unreviewed |
+| 39 | *JRN | 09/01 | Database and data access | Tier 3 | 51.0 | 10 | 4 | identity_only | initial_sources |
+| 40 | *CLS | 19/04 | Commands, programs and 5250 | Tier 3 | 49.0 | 26 | 10 | cataloged_only | unreviewed |
+| 41 | *DTAQ | 0A/01 | Database and data access | Tier 3 | 49.0 | 3 | 0 | identity_only | initial_sources |
+| 42 | *GSS | 19/0C | Devices and communications | Tier 3 | 49.0 | 43 | 21 | cataloged_only | unreviewed |
+| 43 | *ALRTBL | 0E/09 | Commands, programs and 5250 | Tier 3 | 47.0 | 2 | 2 | cataloged_only | unreviewed |
+| 44 | *AUTL | 1B/01 | Users and security | Tier 3 | 45.0 | 2 | 0 | cataloged_only | unreviewed |
+| 45 | *BNDDIR | 19/37 | Commands, programs and 5250 | Tier 3 | 45.0 | 5 | 0 | cataloged_only | unreviewed |
+| 46 | *JOBSCD | 0E/0C | Database and data access | Tier 3 | 45.0 | 1 | 0 | cataloged_only | unreviewed |
 | 47 | *PRDLOD | 19/1D | Devices and communications | Tier 3 | 45.0 | 40 | 0 | cataloged_only | unreviewed |
 | 48 | *SQLPKG | 02/02 | Commands, programs and 5250 | Tier 3 | 45.0 | 1 | 0 | cataloged_only | unreviewed |
 | 49 | *SRVPGM | 02/03 | Commands, programs and 5250 | Tier 3 | 45.0 | 3 | 0 | cataloged_only | unreviewed |

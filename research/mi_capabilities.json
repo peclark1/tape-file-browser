@@ -131,6 +131,21 @@
       "state": "partial",
       "workflow": "DSPRCT filtered eight-byte key lookup -> exact-owner secondary record with inclusive length and repeated-key checks -> paged opaque bytes / missing-storage diagnostic.",
       "next_step": "Establish RCT record field semantics from period references and recover Pete secondary ownership; D/F/S/P variant meanings remain unknown."
+    },
+    "1926": {
+      "state": "partial",
+      "workflow": "DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources.",
+      "next_step": "Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution."
+    },
+    "1928": {
+      "state": "partial",
+      "workflow": "DSPAFP -> bounded form-definition field windows -> matched begin/end categories -> opaque field payload windows.",
+      "next_step": "Decode medium maps, controls and placement parameters; establish actual print layout."
+    },
+    "1936": {
+      "state": "partial",
+      "workflow": "DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows.",
+      "next_step": "Decode page-map and line-data formatting semantics against period references."
     }
   }
 }

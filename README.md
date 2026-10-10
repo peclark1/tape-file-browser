@@ -851,3 +851,8 @@ Guided evidence workflows in PR #23 include `DSPJOBD`, `WRKJOBQ`, `DSPMSG`,
 See [extended workflows](docs/EXTENDED_TYPE_WORKFLOWS.md) for verified fields,
 candidate relationships and unresolved storage. These operate on recovered
 read-only evidence, not a running AS/400.
+
+`DSPRCT` adds filtered reference-code index/record browsing. `DSPAFP` explores
+embedded font, form-definition and page-definition fields, including coded-font
+dependencies and explicit missing resources. Neither executes service actions
+or renders/prints AFP resources.
