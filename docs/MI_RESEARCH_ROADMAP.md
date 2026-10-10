@@ -116,11 +116,15 @@ The dedicated viewer deliberately avoids raw profile sampling.
 ## Documentation indexing — transparent progress
 
 The supplied archive contains 17 PDFs, and the disk-storage Redbook is
-the 18th source. Four selected PDFs have **initial page-level manual
-reviews**, covering object roles, command-processing program concepts,
-security/communications setup, and disk-object metadata. The remaining
-14 are inventoried **but not yet reviewed**. These are research leads,
-not claims of documentation coverage for all 268 types.
+the 18th source. All 18 have now been **automatically searched** for
+literal IBM star-prefixed object type names: 764 textual hits covering
+86 of the 268 catalog types. See docs/MI_MANUAL_SCAN_FIRST_PASS.md.
+These are **unverified candidate page leads only**. Four selected PDFs
+have **initial manual page reviews**, covering object roles, command
+processing, security/communications setup, and disk-object metadata.
+The remaining 14 are indexed and lexically scanned but **not manually
+reviewed**. No exact name hits in the CISC Builder or service manuals
+does NOT mean those sources lack structural information.
 
 Next documentation pass:
 
