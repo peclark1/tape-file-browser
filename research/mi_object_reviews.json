@@ -219,21 +219,28 @@
         "as400_cmd.py:command_information_lines",
         "as400_dasd_tool.py:_tui_command_information_lines"
       ],
-      "next_step": "Validate keyword descriptor records and prompt/default/processing-program links (PR #15 stays separate).",
+      "next_step": "With PR #15 kept separate, verify compiled parameter descriptors, actual processing program pointers, and prompt/message/default links against independent source examples.",
       "manual_refs": [
         {
           "source": "primer-1992",
           "pdf_pages": [
-            230
+            230,
+            438,
+            439
           ],
-          "topic": "command object is interface to processing program"
+          "topic": "command-to-CPP concept and SNDBRKACT parameters/BRK001CL source example"
         },
         {
           "source": "starter-2001",
           "pdf_pages": [
-            478
+            478,
+            479,
+            480,
+            518,
+            519,
+            520
           ],
-          "topic": "command definition example"
+          "topic": "PRTOBJAUT/PRTOBJAUT1 and SNDBRKMSGU parameter/validity/processing program examples"
         }
       ],
       "interfaces": [
@@ -245,7 +252,7 @@
         {
           "target": "0201",
           "relation": "command processing program",
-          "basis": "documented logical relationship; on-disk pointer not decoded"
+          "basis": "Primer PDF 230,438-439 and Starter Kit PDF 478-480; commands invoke distinct CPPs, but specific compiled on-disk pointers are not decoded"
         },
         {
           "target": "0E03",
@@ -355,29 +362,51 @@
         "as400_dasd.py:RecoveredObject",
         "as400_dasd_tool.py:_tui_object_type_context"
       ],
-      "next_step": "Document MI template, instruction stream and ODT from appropriate release manuals; build read-only disassembler.",
+      "next_step": "Research original CISC MI program template/ODT boundaries and instruction format; distinguish strings/data from executable instructions.",
       "manual_refs": [
         {
           "source": "primer-1992",
           "pdf_pages": [
             230,
-            234
+            234,
+            439
           ],
-          "topic": "command processing programs and compiled program object role"
+          "topic": "program as compiled worker, and BRK001CL CPP source for example command"
+        },
+        {
+          "source": "starter-2001",
+          "pdf_pages": [
+            478,
+            480,
+            521,
+            524
+          ],
+          "topic": "PRTOBJAUT1, SNDBRKMSGV and SNDBRKMSGC CPP/validation examples"
         },
         {
           "source": "operations",
           "pdf_pages": [
             111
           ],
-          "topic": "object type differences"
+          "topic": "general object-type distinctions"
         }
       ],
       "interfaces": [
         "CRTPGM",
         "DSPPGM"
       ],
-      "relationships": []
+      "relationships": [
+        {
+          "target": "1905",
+          "relation": "program can be command processing or validity-checking program for command definition",
+          "basis": "Primer PDF pp.230,438-439 and Starter Kit PDF pp.478-480,518-524; no compiled pointer verified"
+        },
+        {
+          "target": "0E03",
+          "relation": "program may send message IDs from a message file",
+          "basis": "Operations PDF pp.146-147,172 and Starter Kit PDF pp.521-524; logical link, storage pointer unverified"
+        }
+      ]
     },
     "0401": {
       "status": "substantial_decoder",
@@ -666,21 +695,57 @@
       "implementation": [
         "as400_object_types.py:lookup"
       ],
-      "next_step": "Decode indexed message entries and use for *CMD prompt and diagnostic references.",
+      "next_step": "Recover a bounded, verifiable internal message-ID index, first-/second-level text and substitution layout from multiple MSGF primaries; no generic decoding yet.",
       "manual_refs": [
         {
           "source": "primer-1992",
           "pdf_pages": [
             233
           ],
-          "topic": "message descriptions in message files"
+          "topic": "message file contains message descriptions, unlike ordinary file"
+        },
+        {
+          "source": "operations",
+          "pdf_pages": [
+            146,
+            147,
+            150,
+            151,
+            152,
+            153,
+            172
+          ],
+          "topic": "message text, severity, substitution, IDs and description management"
+        },
+        {
+          "source": "power-tips",
+          "pdf_pages": [
+            352,
+            353
+          ],
+          "topic": "display-file DDS MSGID references QGPL/USRMSGF message USR0001"
         }
       ],
       "interfaces": [
         "CRTMSGF",
-        "DSPMSGD"
+        "ADDMSGD",
+        "CHGMSGD",
+        "DSPMSGD",
+        "WRKMSGD",
+        "WRKMSGF"
       ],
-      "relationships": []
+      "relationships": [
+        {
+          "target": "1901",
+          "relation": "display-file DDS MSGID field can identify a message file plus message ID",
+          "basis": "Power Tips PDF pp.352-353 example QGPL/USRMSGF, USR0001; persistent binary pointers unverified"
+        },
+        {
+          "target": "1902",
+          "relation": "message definitions supply text delivered as messages to queues",
+          "basis": "Operations PDF pp.146-147 and Primer PDF p.233; MSGF and MSGQ are distinct object types"
+        }
+      ]
     },
     "0E90": {
       "status": "evidence_only",
