@@ -6,10 +6,11 @@ interface and its format offsets must not be assumed to be on-disk offsets.
 """
 
 import re
+from dataclasses import dataclass
 
 
 _NAME = re.compile(r"^[A-Z#$@_][A-Z0-9#$@_]{0,9}$")
-_RUN = re.compile(r"[\x20-\x7e]{6,}")
+_RUN = re.compile(r"[\x20-\x7e]{5,}")
 
 
 def _object_name(raw):
@@ -55,7 +56,7 @@ def embedded_ebcdic_text(primary_prefix, *, scan_bytes=8192, max_items=64):
     # Skip the common segment/EPA headers and fixed candidate program field.
     for match in _RUN.finditer(decoded, 0x160):
         value = match.group().strip()
-        if len(value) < 6 or sum(letter.isalpha() for letter in value) < 4:
+        if len(value) < 5 or sum(letter.isalpha() for letter in value) < 4:
             continue
         # Extremely long runs are often EBCDIC blank space, not field data.
         value = re.sub(r"\s+", " ", value)
@@ -65,6 +66,71 @@ def embedded_ebcdic_text(primary_prefix, *, scan_bytes=8192, max_items=64):
         if len(result) >= min(max_items, 64):
             break
     return tuple(result)
+
+
+@dataclass(frozen=True)
+class ParameterKeywordEvidence:
+    """Observed keyword and ordinal; NOT a complete decoded PARM statement."""
+
+    ordinal: int
+    offset: int
+    keyword: str
+
+
+def candidate_parameter_keywords(primary_prefix, *, max_count=64):
+    """Recover a structurally corroborated V2R3 compiled keyword sequence.
+
+    Across eight distinct sampled command primaries, the candidate parameter
+    count occurs at primary +0x180, the first ten-byte blank-padded EBCDIC
+    keyword at +0x19C, and its big-endian ordinal follows at +10.
+    Further keyword/ordinal pairs occur in increasing byte order with variable
+    descriptor lengths. A four-byte NUL prefix anchors each candidate.
+
+    This is observational recovery, not a published format or validation of
+    PARM semantics, types, defaults, prompts, or pointers. Fail closed unless
+    the complete expected ordinal sequence is present and unambiguous.
+    """
+    data = bytes(primary_prefix[:8192])
+    if len(data) < 0x1A8 or data[0x17E:0x180] != b"\x81\x00":
+        return ()
+    count = data[0x180]
+    if data[0x181] != 0 or not 1 <= count <= min(max_count, 64):
+        return ()
+
+    def keyword_at(offset, ordinal):
+        if offset < 4 or offset + 12 > len(data):
+            return None
+        if data[offset - 4:offset] != b"\x00" * 4:
+            return None
+        name = _object_name(data[offset:offset + 10])
+        if name is None or int.from_bytes(
+            data[offset + 10:offset + 12], "big"
+        ) != ordinal:
+            return None
+        return name
+
+    first_offset = 0x19C
+    first = keyword_at(first_offset, 1)
+    if first is None:
+        return ()
+    found = [ParameterKeywordEvidence(1, first_offset, first)]
+    previous = first_offset
+
+    for ordinal in range(2, count + 1):
+        # The largest observed gap in the independent test corpus is <128B.
+        # Allow some slack, but never search unrelated help/text pages.
+        end = min(len(data) - 12, previous + 12 + 256)
+        possibilities = [
+            (offset, keyword)
+            for offset in range(previous + 12, end + 1)
+            if (keyword := keyword_at(offset, ordinal)) is not None
+        ]
+        if len(possibilities) != 1:
+            return ()
+        offset, keyword = possibilities[0]
+        found.append(ParameterKeywordEvidence(ordinal, offset, keyword))
+        previous = offset
+    return tuple(found)
 
 
 def candidate_command_description(primary_prefix, command_name):
@@ -133,6 +199,19 @@ def command_information_lines(obj, primary_prefix):
             "Candidate description (empirical V2R3 text relation, not decoded)",
             f"  {tentative_description}",
         ])
+    keywords = candidate_parameter_keywords(primary_prefix)
+    if keywords:
+        lines.extend([
+            "",
+            "Candidate parameter keyword sequence (V2R3 structural evidence)",
+            f"  Raw +0x180 parameter-count candidate: {len(keywords)}",
+            "  Ten-byte EBCDIC keywords with ordinal at +10; prompt semantics",
+            "  and defaults are NOT decoded from the descriptor fields.",
+        ])
+        lines.extend(
+            f"   {entry.ordinal:>2}  +0x{entry.offset:04X}  {entry.keyword}"
+            for entry in keywords
+        )
     maybe = candidate_processor(primary_prefix)
     if maybe:
         lines.extend([
