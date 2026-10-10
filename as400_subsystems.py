@@ -43,7 +43,7 @@ class SubsystemExplorer:
         if key not in self._cache:
             data = read_prefix(self.image, obj.segment, MAX_PREFIX)
             matches = []
-            self_count = 0
+            self_offsets = set()
             truncated = False
             # +0x100 keeps the common EPA header/name from being treated as a
             # claimed subsystem relationship. Offset 0x327 often repeats the
@@ -51,7 +51,7 @@ class SubsystemExplorer:
             for at in range(0x100, max(0,len(data)-9)):
                 for target in self._patterns.get(data[at:at+10], ()):
                     if target.name.upper() == obj.name.upper():
-                        self_count += 1
+                        self_offsets.add(at)
                         continue
                     if len(matches) >= MAX_OCCURRENCES:
                         truncated = True
@@ -62,7 +62,7 @@ class SubsystemExplorer:
             matches.sort(key=lambda pair:(pair[0],pair[1].type_code,
                                           pair[1].name,pair[1].library_name or "",
                                           pair[1].segment.start_lba))
-            self._cache[key] = (tuple(matches), self_count, truncated, len(data))
+            self._cache[key] = (tuple(matches), len(self_offsets), truncated, len(data))
         return self._cache[key]
 
     def _reverse_index(self):
