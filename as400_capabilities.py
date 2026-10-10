@@ -240,6 +240,7 @@ class CapabilityExplorer:
                 continue
             addr = prefix.find(fmt.object_address.to_bytes())
             row = object_row(fmt, f"name +0x{off:X}; " + (f"address +0x{addr:X}" if addr >= 0 else "name only"))
+            row["source_file"] = obj
             rows.append(row)
         if len(rows) == 1:
             rows.append(section("Unavailable", ["No recovered format name matched the bounded FCB prefix.",

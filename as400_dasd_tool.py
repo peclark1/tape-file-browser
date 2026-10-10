@@ -8872,10 +8872,16 @@ def cmd_browse5250(args):
             )
 
         from as400_capabilities import CapabilityExplorer
+        from as400_records import RecordExplorer
+        from as400_anchors import AnchorExplorer
         capabilities = CapabilityExplorer(state["image"], state["inventory"], state["segments"])
+        records = RecordExplorer(state["image"], state["inventory"], state["segments"])
+        anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         browser = Guided5250(
             state["inventory"],
-            capability_loader=capabilities.rows,
+            record_loader=records.rows,
+            capability_loader=lambda obj, sample=None: anchors.object_rows(obj) if obj.type_code == "19/12" else capabilities.rows(obj, sample),
+            anchor_loader=anchors.rows,
             member_info=state["image"].read_member_info,
             member_loader=member_data,
             command_definition_loader=lambda obj: _tui_command_definition(state, obj),

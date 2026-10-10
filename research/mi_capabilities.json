@@ -29,23 +29,23 @@
     },
     "1901": {
       "state": "partial",
-      "workflow": "DSPFD: choose every FCB format-name/address candidate, then inspect fields; 12 opens members.",
-      "next_step": "Establish exact FCB format ownership/order; carry explicit format selection into record decoding."
+      "workflow": "DSPFD -> explicit format -> member -> paged selectable records; duplicate candidates retain exact origins.",
+      "next_step": "Establish exact FCB format ownership/order and apply independently decoded logical-file selection rules."
     },
     "1951": {
       "state": "partial",
-      "workflow": "Browse recovered field descriptors by offset, storage type, length and scale.",
-      "next_step": "Validate descriptor completeness, record length and additional field types against independent source."
+      "workflow": "Inspect descriptors and decode selected records using that exact chosen format; mismatched/out-of-record and invalid numeric fields remain visible.",
+      "next_step": "Validate remaining field types, complete schema boundaries and CCSIDs against independent definitions."
     },
     "0D50": {
       "state": "partial",
-      "workflow": "9 on member follows exact QDDS/QDDSI pointers; reverse links return to member contents.",
-      "next_step": "Handle missing primaries via secondary storage and expose recovery completeness alongside content."
+      "workflow": "6 selects a format/raw and browses 50-entry windows; 9 follows exact storage links. Back retains record, format and cursor selection.",
+      "next_step": "Locate missing initial groups independently and support pointer-proven recovery where the QDDS primary is absent."
     },
     "0B90": {
       "state": "partial",
-      "workflow": "Inspect data-space record layout and follow exact referencing member cursors to contents.",
-      "next_step": "Add selectable record/status navigation with explicit incomplete/deleted-entry handling."
+      "workflow": "Bounded random record windows with raw status, live/deleted hints, exact payload and selected field decoding; gaps/overlaps are never concatenated away.",
+      "next_step": "Establish initial-group origin and unknown DENT variants; link validated index entries to exact records."
     },
     "0C90": {
       "state": "partial",
@@ -65,12 +65,17 @@
     "190E": {
       "state": "partial",
       "workflow": "Find DOC primaries and follow all observed QDOC name+F companion candidates.",
-      "next_step": "Connect validated folder/document path anchors; replace name convention with verified ownership pointers."
+      "next_step": "Strengthen anchor-key candidate associations to verified ownership and retain selected source while navigating document/folder graphs."
     },
     "06C1": {
       "state": "partial",
       "workflow": "Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges.",
       "next_step": "Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes."
+    },
+    "1912": {
+      "state": "partial",
+      "workflow": "WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible.",
+      "next_step": "Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there."
     }
   }
 }

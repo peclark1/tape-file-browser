@@ -32,6 +32,7 @@ COMMANDS = (
     CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
+    CommandSpec("WRKFLR", "WRKFLR FLR(*ALL/*)", "Explore recovered folder anchor relationships."),
     CommandSpec("WRKTYP", "WRKTYP TYPE(*)", "Explorer extension: browse all MI types and recovered counts."),
     CommandSpec("DSPDTAARA", "DSPDTAARA DTAARA(*ALL/*)", "Display bounded recovered character data-area values."),
     CommandSpec("DSPFD", "DSPFD FILE(*ALL/*)", "Inspect recovered file/format candidates and field layouts."),
@@ -97,6 +98,7 @@ def parse_command(text):
         "WRKCMD": {"CMD"},
         "DSPCMD": {"CMD"},
         "WRKTYP": {"TYPE"},
+        "WRKFLR": {"FLR"},
         "DSPFD": {"FILE"},
         "DSPDTAARA": {"DTAARA"},
         "DSPTBL": {"TBL", "HEX"},
@@ -113,7 +115,9 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None):
+        self.anchor_loader = anchor_loader
+        self.record_loader = record_loader
         self.capability_loader = capability_loader
         self.command_definition_loader = command_definition_loader
         self.view_rows = []
@@ -371,6 +375,18 @@ class Guided5250:
         self.status = "Read-only. Enter=Inspect; 8=Origin; Back restores selection."
         return True
 
+    def show_records(self, request):
+        try:
+            rows = list(self.record_loader(**request)) if self.record_loader else []
+        except (OSError, ValueError) as exc:
+            rows = [dict(kind="capability_section", name="Unavailable", type="Diagnostic",
+                         note=str(exc), lines=[str(exc), "No data/schema substitute was selected."])]
+        member = request["member"]
+        self._goto("capabilities", library=member.library_name or "<unassigned>",
+                   file=member.member_file_name, member=member.member_name, view_rows=rows)
+        self.status = "Explicit format; recovered ordinals. Enter=Inspect; Next/Previous=50-entry window."
+        return True
+
     def open_row(self, index, option=None):
         rows = self.rows()
         if index < 0 or index >= len(rows):
@@ -379,7 +395,36 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "mi_type" and option in ("5", "12"):
+        if row["kind"] == "anchor_action" and option == "5" and self.anchor_loader:
+            try:
+                links = list(self.anchor_loader(**row["request"]))
+            except (OSError, ValueError) as exc:
+                links = [dict(kind="capability_section", name="Unavailable", type="Diagnostic",
+                              note=str(exc), lines=[str(exc)])]
+            self._goto("capabilities", library=self.library, file=self.file, view_rows=links)
+            self.status = "Anchor key evidence; parent/child paths are not certified QDLS paths."
+            return True
+        elif row["kind"] == "record_action" and option == "5":
+            return self.show_records(row["request"])
+        elif row["kind"] == "record_entry" and option == "5":
+            from as400_records import record_rows
+            self._goto("capabilities", library=self.library, file=self.file, member=self.member,
+                       view_rows=record_rows(row["record"], row["fields"], row["origin"]))
+            return True
+        elif row["kind"] == "record_members" and option == "5":
+            from as400_records import action, section
+            file = row["file_object"]
+            members = [m for m in self.inventory.members(file_name=file.name)
+                       if (m.library_name or "").upper() == (file.library_name or "").upper()]
+            links = [action(m.member_name, m, row["format_object"],
+                            note=f"Cursor LBA {m.segment.start_lba}; explicit selected format") for m in members]
+            if not links:
+                links = [section("Unavailable", ["No recovered member cursor matches this file name/namespace."])]
+            self._goto("capabilities", library=file.library_name or "<unassigned>", file=file.name, view_rows=links)
+            return True
+        elif row["kind"] == "member" and option == "6" and self.record_loader:
+            return self.show_records(dict(member=row["object"], mode="choose"))
+        elif row["kind"] == "mi_type" and option in ("5", "12"):
             from as400_capabilities import select_objects
             self._goto("type_objects", file=row["type"], view_rows=select_objects(
                 self.inventory, object_type=row["code"]))
@@ -390,9 +435,12 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("19/01", "19/51", "19/06", "19/0A", "19/0E", "06/C1", "0B/90", "0C/90")) or
+                ("19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
+                if row.get("source_file") is not None and self.record_loader:
+                    self.view_rows.insert(1, dict(kind="record_members", name="Records", type="Members",
+                        note="Use this explicitly selected format", file_object=row["source_file"], format_object=row["object"]))
                 return True
             self.status = "No object-specific view is available. Use 8 for identity."
             return False
@@ -479,13 +527,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:
@@ -604,11 +652,14 @@ class Guided5250:
             "5 + Enter: Display selected member/object",
             "5/Enter on *CMD: Explore definition, keywords, origin and evidence",
             "WRKTYP: browse every catalog type plus unidentified recovered codes",
+            "WRKFLR FLR(*ALL/*): folder -> anchor source -> parents/children/objects",
             "WRKOBJ OBJ(*ORPHAN/*) OBJTYPE(*TBL): search all/unassigned primaries",
             "WRKOBJ OBJ(QDOC/*) OBJTYPE(*DOC): companion candidates -> byte stream",
             "DSPDTAARA DTAARA(library/name): character value by position",
             "DSPFD FILE(library/file): format candidates -> fields -> descriptor",
             "5 on *FILE: formats; 12: members; 9 on member: direct storage links",
+            "6 on member: choose format/raw -> paged records -> field values",
+            "DSPFD -> select format -> Records: preserve that exact format",
             "DSPTBL TBL(library/table) HEX(C1C2C3): byte map and offline sample",
             "WRKTYP and HEX are explorer extensions, not executed CL commands.",
             "WRKCMD CMD(*ALL/CPY*): find commands across recovered namespaces",
@@ -674,8 +725,8 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         put(2, 2, "Enter=Inspect  Prompt form=Labels/hints  Values=Candidates")
     elif model.screen == "command_prompts":
         put(2, 2, "Labels/hints: linked. Default?/Values?: tentative meanings.")
-    elif model.screen == "capabilities":
-        put(2, 2, "Enter=Inspect  8=Origin  Member: 5=Content, 9=Storage")
+    elif model.screen in ("capabilities", "members"):
+        put(2, 2, "Enter=Inspect  Member: 5=Content  6=Records  9=Storage")
     elif model.screen == "commands":
         put(2, 2, "Enter=Explore  8=Origin  Unassigned=unknown library")
     else:
@@ -812,7 +863,7 @@ def run_curses(stdscr, model):
                 model.selected = max(0, min(max(0, len(model.rows()) - 1),
                                             model.selected + delta))
             option = ""
-        elif key in (ord("5"), ord("8"), ord("1"), ord("2")):
+        elif key in (ord("5"), ord("6"), ord("8"), ord("9"), ord("1"), ord("2")):
             option += chr(key)
             option = option[-2:]
         elif key in (10, 13, curses.KEY_ENTER):

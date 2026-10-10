@@ -12,6 +12,9 @@ GUIDED_MODULE_PATH="${HOME}/.local/bin/as400_5250.py"
 CMD_MODULE_PATH="${HOME}/.local/bin/as400_cmd.py"
 CONFIG_MODULE_PATH="${HOME}/.local/bin/as400_config.py"
 OBJECT_TYPE_MODULE_PATH="${HOME}/.local/bin/as400_object_types.py"
+CAPABILITIES_MODULE_PATH="${HOME}/.local/bin/as400_capabilities.py"
+RECORDS_MODULE_PATH="${HOME}/.local/bin/as400_records.py"
+ANCHORS_MODULE_PATH="${HOME}/.local/bin/as400_anchors.py"
 EXTERNAL_TYPE_PATH="${HOME}/.local/bin/as400_external_types.tsv"
 INTERNAL_TYPE_PATH="${HOME}/.local/bin/as400_internal_types.tsv"
 DESKTOP_PATH="${HOME}/.local/share/applications/${APP_ID}.desktop"
@@ -27,6 +30,9 @@ rm -f \
     "${CMD_MODULE_PATH}" \
     "${CONFIG_MODULE_PATH}" \
     "${OBJECT_TYPE_MODULE_PATH}" \
+    "${CAPABILITIES_MODULE_PATH}" \
+    "${RECORDS_MODULE_PATH}" \
+    "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \
     "${INTERNAL_TYPE_PATH}" \
     "${DESKTOP_PATH}"

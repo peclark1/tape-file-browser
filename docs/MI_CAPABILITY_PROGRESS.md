@@ -5,19 +5,19 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 14, blocked 0, queued 254.
+States: delivered 0, partial 15, blocked 0, queued 253.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 
 | Rank | MI | Type | Workflow state | Usable workflow | Next material result |
 |---:|---|---|---|---|---|
-| 1 | 19/01 | *FILE | partial | DSPFD: choose every FCB format-name/address candidate, then inspect fields; 12 opens members. | Establish exact FCB format ownership/order; carry explicit format selection into record decoding. |
-| 2 | 0D/50 | *MEM | partial | 9 on member follows exact QDDS/QDDSI pointers; reverse links return to member contents. | Handle missing primaries via secondary storage and expose recovery completeness alongside content. |
+| 1 | 19/01 | *FILE | partial | DSPFD -> explicit format -> member -> paged selectable records; duplicate candidates retain exact origins. | Establish exact FCB format ownership/order and apply independently decoded logical-file selection rules. |
+| 2 | 0D/50 | *MEM | partial | 6 selects a format/raw and browses 50-entry windows; 9 follows exact storage links. Back retains record, format and cursor selection. | Locate missing initial groups independently and support pointer-proven recovery where the QDDS primary is absent. |
 | 3 | 19/05 | *CMD | partial | Find commands, traverse linked prompt labels/hints, inspect tentative default/value tokens. | Decode subordinate QUAL/ELEM ownership and value conversions; pursue MSGF/CPP links. |
 | 4 | 04/01 | *LIB | partial | Library/context navigation with missing-primary directory entries. | Expose context-index incompleteness and candidate resolution as navigable recovery diagnostics. |
-| 5 | 19/51 | *FMT | partial | Browse recovered field descriptors by offset, storage type, length and scale. | Validate descriptor completeness, record length and additional field types against independent source. |
-| 6 | 0B/90 | *QDDS | partial | Inspect data-space record layout and follow exact referencing member cursors to contents. | Add selectable record/status navigation with explicit incomplete/deleted-entry handling. |
+| 5 | 19/51 | *FMT | partial | Inspect descriptors and decode selected records using that exact chosen format; mismatched/out-of-record and invalid numeric fields remain visible. | Validate remaining field types, complete schema boundaries and CCSIDs against independent definitions. |
+| 6 | 0B/90 | *QDDS | partial | Bounded random record windows with raw status, live/deleted hints, exact payload and selected field decoding; gaps/overlaps are never concatenated away. | Establish initial-group origin and unknown DENT variants; link validated index entries to exact records. |
 | 7 | 0E/03 | *MSGF | queued | No type-specific Guided workflow audited yet. | Recover a bounded, verifiable internal message-ID index, first-/second-level text and substitution layout from multiple MSGF primaries; no generic decoding yet. |
 | 8 | 02/01 | *PGM | queued | No type-specific Guided workflow audited yet. | Research original CISC MI program template/ODT boundaries and instruction format; distinguish strings/data from executable instructions. |
 | 9 | 0C/90 | *QDDSI | partial | Inspect key specifications and field hints; follow exact referencing member cursors. | Navigate validated index entries to recovered records without treating unresolved key fields as decoded. |
@@ -29,9 +29,9 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 15 | 19/52 | *OIRS | queued | No type-specific Guided workflow audited yet. | Document stable object-directory attributes and links to *QDIDX. |
 | 16 | 08/01 | *USRPRF | partial | Safe identity/relationship view; no credential payload reads. | Add independently established non-sensitive profile relationships, preserving credential exclusion. |
 | 17 | 12/01 | *CTLD | queued | No type-specific Guided workflow audited yet. | Research controller-specific layouts and *DEVD attached-controller references. |
-| 18 | 19/0E | *DOC | partial | Find DOC primaries and follow all observed QDOC name+F companion candidates. | Connect validated folder/document path anchors; replace name convention with verified ownership pointers. |
+| 18 | 19/0E | *DOC | partial | Find DOC primaries and follow all observed QDOC name+F companion candidates. | Strengthen anchor-key candidate associations to verified ownership and retain selected source while navigating document/folder graphs. |
 | 19 | 15/01 | *MODD | partial | Mode identity and bounded configuration evidence. | Correlate mode fields with period definitions and link verified communications relationships. |
-| 20 | 19/12 | *FLR | queued | No type-specific Guided workflow audited yet. | Validate folder membership and deleted-row behavior across larger corpus. |
+| 20 | 19/12 | *FLR | partial | WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible. | Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there. |
 | 21 | 11/01 | *LIND | queued | No type-specific Guided workflow audited yet. | Study line/controller/device relationships and period-correct configuration commands. |
 | 22 | 06/C1 | *DOCBSS | partial | Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges. | Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes. |
 | 23 | 19/0A | *DTAARA | partial | DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens. | Validate selectors 03/84 against known numeric/logical definitions; scale/storage remains unresolved. |
