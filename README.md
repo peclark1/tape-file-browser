@@ -296,8 +296,12 @@ python3 tools/mi_object_inventory.py --check-report
 ```
 
 The 18 historical PDF filenames and initial page-level citations are
-tracked in research/manual_sources.json. Only four PDFs have selected
-pages reviewed in the initial pass. PDF files and source disk images
+tracked in research/manual_sources.json. We ran an initial full
+**18-PDF exact-object-name lexical scan**, yielding **764 matches across
+86 IBM object-type names**. Those are only page leads; four PDFs have
+selected pages independently reviewed so far. See
+[the first-pass manual scan findings](docs/MI_MANUAL_SCAN_FIRST_PASS.md)
+for the results and method limitations. PDF files and source disk images
 are **not** committed to the repository.
 
 For offline *unverified lexical leads* in the supplied PDF archive:
