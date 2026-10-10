@@ -70,9 +70,10 @@ def survey(stream, *, chunk_sectors=8192):
     sector_count = 0
     tail = b""
     while True:
-        buf = tail + stream.read(SECTOR_BYTES * chunk_sectors)
-        if not buf:
+        block = stream.read(SECTOR_BYTES * chunk_sectors)
+        if not block:
             break
+        buf = tail + block
         complete = len(buf) // SECTOR_BYTES
         view = memoryview(buf)
         for i in range(complete):
