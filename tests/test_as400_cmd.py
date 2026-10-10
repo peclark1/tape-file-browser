@@ -9,6 +9,7 @@ from as400_cmd import (
     candidate_command_description,
     command_information_lines,
     embedded_ebcdic_text,
+    candidate_parameter_keywords,
 )
 
 
@@ -52,6 +53,83 @@ class CommandEvidenceTests(unittest.TestCase):
             candidate_command_description(bytes(data), "TESTCMD"))
         # The original recovered bytes are not replaced with the heuristic.
         self.assertEqual(self.sample(), self.sample())
+
+    @staticmethod
+    def parameter_sample():
+        # Synthetic V2R3-shaped structures, no real image/IBM bytes.
+        data = bytearray(2048)
+        data[0x17E:0x180] = b"\x81\x00"
+        data[0x180:0x182] = b"\x09\x00"
+        entries = (
+            (0x19C, "FROMFILE"), (0x1C6, "TOFLR"),
+            (0x1F8, "FROMMBR"), (0x23C, "TODOC"),
+            (0x280, "REPLACE"), (0x2C9, "TRNTBL"),
+            (0x312, "TRNFMT"), (0x35B, "RCDFMT"),
+            (0x39F, "TRNIGC"),
+        )
+        for i, (offset, keyword) in enumerate(entries, 1):
+            data[offset:offset + 10] = keyword.ljust(10).encode("cp037")
+            data[offset + 10:offset + 12] = i.to_bytes(2, "big")
+        return bytes(data)
+
+    def test_nine_keyword_sequence_recovers_short_names_and_ordinals(self):
+        data = self.parameter_sample()
+        values = candidate_parameter_keywords(data)
+        self.assertEqual(9, len(values))
+        self.assertEqual(
+            ["FROMFILE", "TOFLR", "FROMMBR", "TODOC", "REPLACE",
+             "TRNTBL", "TRNFMT", "RCDFMT", "TRNIGC"],
+            [item.keyword for item in values],
+        )
+        self.assertEqual(list(range(1, 10)),
+                         [item.ordinal for item in values])
+        self.assertEqual([0x19C, 0x1C6, 0x1F8, 0x23C,
+                          0x280, 0x2C9, 0x312, 0x35B, 0x39F],
+                         [item.offset for item in values])
+        strings = embedded_ebcdic_text(data)
+        self.assertIn((0x1C6, "TOFLR"), strings)
+        self.assertIn((0x23C, "TODOC"), strings)
+
+    def test_parameter_keyword_decoder_fails_closed_on_corruption(self):
+        data = self.parameter_sample()
+        examples = []
+        modified = bytearray(data)
+        modified[0x180] = 10
+        examples.append(modified)
+        modified = bytearray(data)
+        modified[0x181] = 0xFF
+        examples.append(modified)
+        modified = bytearray(data)
+        modified[0x17E] = 0x00
+        examples.append(modified)
+        modified = bytearray(data)
+        modified[0x1C6 + 10:0x1C6 + 12] = b"\x00\x03"
+        examples.append(modified)
+        modified = bytearray(data)
+        modified[0x19C:0x19C + 10] = b"\x00" * 10
+        examples.append(modified)
+        modified = bytearray(data)
+        modified[0x220:0x22A] = "FAKE".ljust(10).encode("cp037")
+        modified[0x22A:0x22C] = b"\x00\x02"
+        examples.append(modified)
+        for example in examples:
+            with self.subTest(case=examples.index(example)):
+                self.assertEqual((), candidate_parameter_keywords(example))
+        self.assertEqual((), candidate_parameter_keywords(data[:0x1A7]))
+        self.assertEqual((), candidate_parameter_keywords(data, max_count=8))
+        self.assertEqual((), candidate_parameter_keywords(b"\x00" * 2048))
+
+    def test_synthetic_parameter_table_is_shown_as_candidate_not_full_decode(self):
+        obj = NS(name="TESTCMD", library_name="TESTLIB",
+                 segment=NS(virtual_address=0x123400,
+                            start_lba=321, pages=5))
+        view = "\n".join(command_information_lines(obj, self.parameter_sample()))
+        self.assertIn("Candidate parameter keyword sequence", view)
+        self.assertIn("parameter-count candidate: 9", view)
+        self.assertIn("2  +0x01C6  TOFLR", view)
+        self.assertIn("4  +0x023C  TODOC", view)
+        self.assertIn("defaults are NOT decoded", view)
+        self.assertIn("Parameters         : Not yet structurally decoded", view)
 
     def test_bounded_text_scan_preserves_primary_byte_offsets(self):
         sample = self.sample()
