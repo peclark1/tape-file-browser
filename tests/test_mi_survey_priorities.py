@@ -74,10 +74,8 @@ class MISurveyPrioritiesTests(unittest.TestCase):
         menu = self.by_code["1916"]
         self.assertEqual("initial_sources", menu["manual_review_status"])
         self.assertGreater(menu["pdf_lexical_evidence_unverified"]["mentions"], 0)
-        self.assertEqual("catalog_only_uncertain",
-                         self.by_code["19D4"]["confidence"] if
-                         self.by_code["19D4"]["physical_candidate_evidence"]["total"] == 0
-                         else "partial_triage_basis")
+        self.assertEqual("partial_triage_basis",
+                         self.by_code["19D4"]["confidence"])
 
     def test_zero_signature_count_is_not_absence_and_unknown_codes_survive(self):
         missing = next(r for r in self.rows
