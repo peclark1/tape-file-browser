@@ -156,7 +156,7 @@ class Guided5250:
                       if fnmatch.fnmatchcase(name, self.library_filter.upper()))
 
     def rows(self):
-        if self.screen in ("commands", "command_definition", "related_programs"):
+        if self.screen in ("commands", "command_definition", "command_prompts", "related_programs"):
             return self.view_rows
         if self.screen == "libraries":
             return [dict(kind="library", name=name, type="*LIB", note="Recovered namespace")
@@ -210,6 +210,7 @@ class Guided5250:
             "contents": "Display Physical File Member (Recovered)",
             "commands": "Work with Recovered Commands",
             "command_definition": "Explore Command Definition (Read-only)",
+            "command_prompts": "Recovered Command Prompts (Read-only)",
             "related_programs": "Candidate Program Name Matches (Unverified Link)",
             "command_info": "Display Command Information (Recovered)",
             "config_info": "Display OS/400 Configuration (Recovered)",
@@ -277,7 +278,7 @@ class Guided5250:
         if self.command_definition_loader is None:
             self.show_command_info(obj)
             return
-        from as400_cmd import parameter_information_lines
+        from as400_cmd import parameter_information_lines, prompt_form_lines
         try:
             view = self.command_definition_loader(obj)
         except (OSError, ValueError) as exc:
@@ -288,6 +289,21 @@ class Guided5250:
                      note=view.recovery.reason, lines=view.summary),
                 dict(kind="command_section", name="Evidence", type="Tentative",
                      note="Whole-command strings and offsets", lines=view.evidence)]
+        definitions = {p.keyword.ordinal: p for p in view.definition.parameters}
+        prompt_rows = []
+        for ordinal in view.definition.prompt_order:
+            item = definitions[ordinal]
+            label = (item.prompt.text or "[stored prompt blank]" if item.prompt
+                     else "[prompt unavailable]")
+            prompt_rows.append(dict(kind="command_section", name=item.keyword.keyword,
+                type=f"#{ordinal}", note=label,
+                hint=item.hint.text if item.hint else "unavailable",
+                default=repr(item.default_candidate.text) if item.default_candidate else "unknown",
+                values=", ".join(repr(v.text) for v in item.value_candidates) or "unknown",
+                lines=parameter_information_lines(obj, item.keyword, item)))
+        rows.append(dict(kind="prompt_form", name="Prompt form", type="Read only",
+                         note="Linked labels, hints and candidate values", rows=prompt_rows,
+                         lines=prompt_form_lines(obj, view.definition)))
         if view.processor:
             pgm, lib = view.processor
             matches = [o for o in self.inventory.objects
@@ -300,9 +316,13 @@ class Guided5250:
             rows.append(dict(kind="related", name="PGM matches", type="Unverified",
                              note=f"{lib}/{pgm}: {len(matches)} name matches", rows=related))
         for parameter in view.recovery.parameters:
+            definition = definitions.get(parameter.ordinal)
+            prompt = definition.prompt if definition else None
+            note = (prompt.text or "[stored prompt blank]" if prompt is not None
+                    else "[prompt unavailable]")
             rows.append(dict(kind="command_section", name=parameter.keyword,
-                             type=f"#{parameter.ordinal}", note=f"+0x{parameter.offset:04X} empirical keyword",
-                             lines=parameter_information_lines(obj, parameter)))
+                             type=f"#{parameter.ordinal}", note=note,
+                             lines=parameter_information_lines(obj, parameter, definition)))
         self._goto("command_definition", library=obj.library_name or "<unassigned>",
                    file=obj.name, view_rows=rows)
         self.status = (f"{len(view.recovery.parameters)} keywords; stored order, not F4 order."
@@ -333,6 +353,14 @@ class Guided5250:
         option = str(option or default)
         if row["kind"] == "command" and option == "5":
             self.explore_command(row["object"])
+            return True
+        elif row["kind"] == "prompt_form" and option == "5":
+            if row["rows"]:
+                self._goto("command_prompts", library=self.library, file=self.file,
+                           view_rows=row["rows"])
+            else:
+                self._goto("command_info", library=self.library, file=self.file, detail=row["lines"])
+            self.status = "Linked order is empirical. Enter=field evidence; no execution."
             return True
         elif row["kind"] == "command_section" and option in ("5", "8"):
             self._goto("command_info", library=self.library, file=self.file,
@@ -511,7 +539,8 @@ class Guided5250:
             "WRKCMD CMD(*ALL/CPY*): find commands across recovered namespaces",
             "WRKCMD CMD(*ORPHAN/*): include commands with no recovered library",
             "DSPCMD CMD(QIWS/CPYTOPCD): open definition (duplicates stay separate)",
-            "Definition: Enter a keyword, Summary, Evidence or PGM name matches",
+            "Definition: Enter Prompt form for labels/hints/candidate values",
+            "Enter a keyword for linked attributes, origin and unknowns",
             "All command views are offline; no commands or parameters execute.",
             "5/Enter on *USRPRF, *DEVD, *MODD: read-only configuration evidence",
             "DSPUSRPRF/DSPDEVD/DSPMODD NAME(value): inspect recovered identity",
@@ -567,7 +596,9 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
     put(0, 1, f" {model.title()} ", curses.A_BOLD | curses.A_REVERSE)
     put(1, 2, f"Location: {model.location()}")
     if model.screen == "command_definition":
-        put(2, 2, "Enter=Inspect  Keywords=empirical  Prompts/defaults=unknown")
+        put(2, 2, "Enter=Inspect  Prompt form=Labels/hints  Values=Candidates")
+    elif model.screen == "command_prompts":
+        put(2, 2, "Labels/hints: linked. Default?/Values?: tentative meanings.")
     elif model.screen == "commands":
         put(2, 2, "Enter=Explore  8=Origin  Unassigned=unknown library")
     else:
@@ -577,9 +608,21 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         lines = _detail_lines(model, width)
         for i, line in enumerate(lines[model.scroll: model.scroll + body_height]):
             put(4 + i, 2, line)
+    elif model.screen == "command_prompts":
+        rows = model.rows()
+        visible = max(1, body_height // 3)
+        model.selected = min(model.selected, max(0, len(rows) - 1))
+        start = min(max(0, model.selected - visible // 2), max(0, len(rows) - visible))
+        for i, row in enumerate(rows[start:start + visible]):
+            y = 4 + i * 3
+            attr = curses.A_REVERSE if start + i == model.selected else 0
+            put(y, 2, f"{row['type']} {row['name']} — {row['note']}", attr)
+            put(y + 1, 4, f"Hint: {row['hint']}")
+            put(y + 2, 4, f"Default?: {row['default']}  Values?: {row['values']}")
+        put(height - 6, 2, f"{len(rows)} parameters  Selected: {model.selected + 1}")
     else:
         heading = ("Opt  Command      Library     Primary origin" if model.screen == "commands"
-                   else "Opt  Keyword      Ordinal     Evidence" if model.screen == "command_definition"
+                   else "Opt  Keyword      Ordinal     Recovered prompt" if model.screen == "command_definition"
                    else "Opt  Name         Type        Information")
         put(3, 2, heading, curses.A_BOLD)
         rows = model.rows()
@@ -680,9 +723,12 @@ def run_curses(stdscr, model):
                 model.run_command(entered)
             option = ""
         elif key in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_NPAGE, curses.KEY_PPAGE):
+            page_size = max(1, stdscr.getmaxyx()[0] - 10)
+            if model.screen == "command_prompts":
+                page_size = max(1, page_size // 3)
             delta = {curses.KEY_UP: -1, curses.KEY_DOWN: 1,
-                     curses.KEY_PPAGE: -max(1, stdscr.getmaxyx()[0] - 10),
-                     curses.KEY_NPAGE: max(1, stdscr.getmaxyx()[0] - 10)}[key]
+                     curses.KEY_PPAGE: -page_size,
+                     curses.KEY_NPAGE: page_size}[key]
             if model.screen in ("contents", "details", "help", "command_info", "config_info"):
                 model.scroll = max(0, min(max(0, len(_detail_lines(model, stdscr.getmaxyx()[1])) - 1), model.scroll + delta))
             else:

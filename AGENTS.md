@@ -10,6 +10,10 @@
 - Cover every new parser with bounds/short-input and malformed-record tests. Reassemble segmented primary data using virtual extents, not assumed physical contiguity.
 - Keep `main` and Joe's stable checkout protected; check pending PR stack and work in an appropriate feature branch. Don't silently merge or delete branches.
 - Deliver improvements by **user-visible capability**, continuing research + code + UI + tests through a meaningful workflow result or a documented blocker with a pivot. A research note or one extra metadata field is not itself completion.
+- PR #19 keyword/offset browsing is an intermediate increment, not completion
+  of command prompting. Test concrete structural hypotheses against available
+  images before declaring a missing format description a blocker. If blocked,
+  continue with a useful capability; report remaining scope honestly.
 - Before the end of any substantial work session, update the living handoff with the delivered workflow, branch/PR, tests, verified vs unknown data, blockers and next steps.
 
 ## Primary references

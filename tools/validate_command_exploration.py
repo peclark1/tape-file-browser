@@ -41,6 +41,13 @@ def validate(path, specimens):
         counts["recovered_commands"] += 1
         counts["library_assigned"] += bool(obj.library_name)
         counts["complete_keyword_sequences"] += bool(view.recovery.parameters)
+        counts["descriptor_link_tables"] += bool(view.definition.parameters)
+        for parameter in view.definition.parameters:
+            counts["nonblank_linked_prompts"] += bool(parameter.prompt and parameter.prompt.text)
+            counts["nonblank_linked_hints"] += bool(parameter.hint and parameter.hint.text)
+            counts["linked_default_candidates"] += parameter.default_candidate is not None
+            counts["linked_value_candidates"] += len(parameter.value_candidates)
+            counts["parameters_with_unsupported_attributes"] += bool(parameter.issues)
     expected = ({
         "QIWS/CPYTOPCD": "FROMFILE TOFLR FROMMBR TODOC REPLACE TRNTBL TRNFMT RCDFMT TRNIGC",
         "QSYS/ADDPFM": "FILE MBR EXPDATE SHARE TEXT SRCTYPE",
@@ -60,6 +67,23 @@ def validate(path, specimens):
             raise ValueError(f"{qualified}: no complete sequence")
         model.run_command(f"DSPCMD CMD({qualified})")
         assert model.screen == "command_definition"
+        expected_prompt = {"QIWS/CPYTOPCD": ("REPLACE", "Replace document"),
+                           "QSYS/ADDPFM": ("SHARE", "Share open data path"),
+                           "QSYS/DSPCMD": ("OUTPUT", "Output"),
+                           "QSYS/CRTCMD": ("PGM", "Program to process command")}[qualified]
+        parameter = next(p for p in view.definition.parameters if p.keyword.keyword == expected_prompt[0])
+        if not parameter.prompt or parameter.prompt.text != expected_prompt[1]:
+            raise ValueError(f"{qualified}: linked prompt mismatch")
+        if qualified == "QIWS/CPYTOPCD":
+            assert parameter.hint.text == "*NO, *YES"
+            assert parameter.default_candidate.text == "*NO"
+            assert [v.text for v in parameter.value_candidates] == ["*NO", "*YES"]
+            assert view.definition.prompt_order == (1, 2, 3, 4, 5, 6, 7, 9, 8)
+        form_index = next(i for i,r in enumerate(model.rows()) if r["name"] == "Prompt form")
+        model.open_row(form_index)
+        assert model.screen == "command_prompts"
+        assert any(r["note"] == expected_prompt[1] for r in model.rows())
+        model.back()
         for index, row in enumerate(model.rows()):
             if row["type"].startswith("#"):
                 model.selected = index
@@ -80,6 +104,11 @@ def validate(path, specimens):
         view = _tui_command_definition(state, obj)
         if [p.keyword for p in view.recovery.parameters] != "FILE MBR EXPDATE SHARE TEXT".split():
             raise ValueError("Pete ADDPFM stored keyword sequence mismatch")
+        item = next(p for p in view.definition.parameters if p.keyword.keyword == "SHARE")
+        assert item.prompt.text == "Share open data path"
+        assert item.hint.text == "*NO, *YES"
+        assert item.default_candidate.text == "*NO"
+        assert [v.text for v in item.value_candidates] == ["*NO", "*YES"]
         model.run_command("WRKCMD CMD(*ORPHAN/ADDPFM)")
         index = next(i for i, row in enumerate(model.rows()) if row["object"] is obj)
         model.open_row(index)
