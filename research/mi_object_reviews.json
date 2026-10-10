@@ -66,11 +66,18 @@
       "next_step": "Study line/controller/device relationships and period-correct configuration commands.",
       "manual_refs": [
         {
+          "source": "primer-1992",
+          "pdf_pages": [
+            233
+          ],
+          "topic": "line descriptions in QSYS"
+        },
+        {
           "source": "operations",
           "pdf_pages": [
             615
           ],
-          "topic": "communication line and device families"
+          "topic": "communications description command families"
         }
       ],
       "interfaces": [
@@ -166,9 +173,9 @@
         {
           "source": "primer-1992",
           "pdf_pages": [
-            231
+            233
           ],
-          "topic": "message queue and job interaction (context)"
+          "topic": "message queues and user-profile association"
         }
       ],
       "interfaces": [
@@ -182,6 +189,28 @@
           "basis": "one observed address correlation plus same-name convention"
         }
       ]
+    },
+    "1903": {
+      "status": "identity_only",
+      "scope": "Job description identity recognized; job attributes not decoded from primary storage.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Recover non-secret job attributes and references.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            232
+          ],
+          "topic": "batch job descriptor attributes"
+        }
+      ],
+      "interfaces": [
+        "CRTJOBD",
+        "DSPJOBD"
+      ],
+      "relationships": []
     },
     "1905": {
       "status": "evidence_only",
@@ -256,10 +285,9 @@
         {
           "source": "primer-1992",
           "pdf_pages": [
-            230,
-            231
+            233
           ],
-          "topic": "AS/400 object type roles"
+          "topic": "menu role and display/message/program associations"
         }
       ],
       "interfaces": [
@@ -316,16 +344,17 @@
         {
           "source": "primer-1992",
           "pdf_pages": [
-            230
+            230,
+            234
           ],
-          "topic": "command processing program association"
+          "topic": "command processing programs and compiled program object role"
         },
         {
           "source": "operations",
           "pdf_pages": [
             111
           ],
-          "topic": "program object functional distinction"
+          "topic": "object type differences"
         }
       ],
       "interfaces": [
@@ -393,6 +422,28 @@
         }
       ]
     },
+    "0701": {
+      "status": "identity_only",
+      "scope": "Journal receiver identity recognized; payload/entries not decoded.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Identify receiver entry structure and retention semantics.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            232
+          ],
+          "topic": "journal receivers"
+        }
+      ],
+      "interfaces": [
+        "CRTJRNRCV",
+        "DSPJRNRCVA"
+      ],
+      "relationships": []
+    },
     "0801": {
       "status": "evidence_only",
       "scope": "User profile identity; bounded safe viewer and same-name object correlation. No raw credential storage displayed.",
@@ -439,6 +490,50 @@
           "basis": "observed name correlation only"
         }
       ]
+    },
+    "0901": {
+      "status": "identity_only",
+      "scope": "Journal identity recognized; journal header and entries not decoded.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Research journal and receiver object storage relationships.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            232
+          ],
+          "topic": "journaling basics"
+        }
+      ],
+      "interfaces": [
+        "CRTJRN",
+        "DSPJRN"
+      ],
+      "relationships": []
+    },
+    "0A01": {
+      "status": "identity_only",
+      "scope": "IBM data queue identity recognized; entries and queue semantics not decoded from disk.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Document internal queue layout and test against real CISC samples.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            231
+          ],
+          "topic": "data queue and entry behavior"
+        }
+      ],
+      "interfaces": [
+        "CRTDTAQ",
+        "DSPDTAQ"
+      ],
+      "relationships": []
     },
     "0B90": {
       "status": "partial_decoder",
@@ -507,6 +602,50 @@
         }
       ]
     },
+    "0E01": {
+      "status": "identity_only",
+      "scope": "Job queue identity recognized; queued job entries not decoded.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Identify index/layout differences for queue objects.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            232
+          ],
+          "topic": "job queues and subsystem link"
+        }
+      ],
+      "interfaces": [
+        "CRTJOBQ",
+        "WRKJOBQ"
+      ],
+      "relationships": []
+    },
+    "0E02": {
+      "status": "identity_only",
+      "scope": "IBM output queue identity recognized; spool-entry internals not decoded.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Research spool file/entry layout and queue index references.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            233
+          ],
+          "topic": "print output queues"
+        }
+      ],
+      "interfaces": [
+        "CRTOUTQ",
+        "WRKOUTQ"
+      ],
+      "relationships": []
+    },
     "0E03": {
       "status": "identity_only",
       "scope": "Message file type recognized; message descriptions/index layout not yet decoded.",
@@ -514,7 +653,15 @@
         "as400_object_types.py:lookup"
       ],
       "next_step": "Decode indexed message entries and use for *CMD prompt and diagnostic references.",
-      "manual_refs": [],
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            233
+          ],
+          "topic": "message descriptions in message files"
+        }
+      ],
       "interfaces": [
         "CRTMSGF",
         "DSPMSGD"
