@@ -191,7 +191,7 @@ def command_information_lines(obj, primary_prefix):
         "",
         "Command-definition fields — research status",
         "  Processing program : Not yet verified from on-disk format",
-        "  Parameters         : Not yet structurally decoded",
+        "  Parameter types/values : Not yet structurally decoded",
         "  Defaults/prompting  : Not yet structurally decoded",
     ]
     tentative_description = candidate_command_description(primary_prefix, name)
