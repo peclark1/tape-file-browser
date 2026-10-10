@@ -4,6 +4,107 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## Active mandate and cross-type results — October 10, 2026
+
+The accepted program is sustained material improvement across **all 268 documented
+MI types**, using the ranked inventory as a queue. Command exploration is one
+workstream. Research → implementation → Guided workflow → testing must continue
+across type families; a commit/PR is a checkpoint, not program completion.
+Generic browsing does not promote 268 types to decoded. This section supersedes
+older command-only next-step instructions below.
+
+Branch `feature/type-capability-workflows` is based on #20 at
+`2cd7d0bdf6999717f649166e892f940c54690acb`. Publication status is updated below
+when the review PR is created. Live startup review confirmed #15–#20 all open,
+#15–#18 drafts; none merged. Main remains `bcf80ded77bdda86b57b5870bb1cd61c2d68810f`.
+Joe's stable checkout is untouched. No merge is authorized.
+
+**Delivered in this pass:** nine types have new or newly integrated Guided paths:
+FILE, FMT, MEM, QDDS, QDDSI, TBL, DTAARA, DOC and DOCBSS.
+
+- `WRKTYP` lists all catalog types plus recovered unidentified codes; Enter
+  navigates recovered primaries. `WRKOBJ OBJ(*ORPHAN/*) OBJTYPE(*TBL)` searches
+  otherwise hard-to-reach namespaces, retaining duplicate origins. Exact catalog
+  names take precedence over wildcard interpretation. Unknown raw codes stay raw.
+- `DSPFD FILE(library/file)` → every format candidate → selectable field
+  descriptors. 5 on a file opens schemas; 12 retains member navigation.
+- 9 on a member → exact QDDS/QDDSI pointer targets → layout/key specifications
+  → reverse member references → 5 for content. No same-name pointer substitution.
+- `DSPTBL TBL(*ALL/QASCII) HEX(C1C2C3)` → 256-byte map, sample result, individual
+  byte evidence and collision inspection. HEX is an offline extension.
+- `DSPDTAARA DTAARA(*ALL/*)` → selector-04 values by position, exact hex and
+  CP037 display. Other selectors are withheld; no inferred numeric conversion.
+- `WRKOBJ OBJ(QDOC/*) OBJTYPE(*DOC)` → all name-convention DOCBSS candidates →
+  validated byte streams/ranges, including owner-matched contiguous continuations.
+  Name matching is not claimed to be an ownership pointer.
+
+**Evidence:** TBL and character DTAARA are new empirical partial decoders. The
+other workflows reuse existing validated components with bounded virtual-extent
+reads. New readers stop at gaps instead of shifting later bytes into the gap.
+FILE format associations remain literal name/address evidence, not decoded FCB
+fields; schema completeness and DOC companion ownership are not claimed.
+Profile credential payloads remain excluded.
+
+**Validation:** 228 synthetic tests pass, including new malformed/truncated/type
+bounds, duplicate identities, exact pointers, continuation validation, UI Back,
+keyboard/rendering and orphan isolation. Python compilation, shell syntax,
+three generated-report sync checks and whitespace checks pass. Whole-image
+recovery/validation runs completed on both originals, followed by real-image
+navigation walkthroughs using the already-recovered inventory caches. These
+walkthroughs caught and fixed exact *TBL selection; both images then passed
+catalog/table/byte, file/format/field and member/storage/reverse/Back paths.
+This is not a manual Tilix acceptance test on Joe's workstation.
+
+| Observed result | Mark | Pete |
+|---|---:|---:|
+| TBL maps opened | 629 | 88 |
+| Character DTAARA opened | 35 | 54 |
+| DTAARA variants explicitly withheld | 2 | 0 |
+| FILE primaries inspected | 1,343 | 942 |
+| FCB format candidate links | 1,714 | 454 |
+| FMT field descriptors | 13,786 | 4,077 |
+| Exact member/storage links | 4,063 | 909 |
+| DOCBSS streams validated/opened | 1,832 | 0 recovered |
+
+Counts are normal recovery results, not physical EPA candidate or live-object
+counts. Mark's normal recovery identifies 112 raw type codes, unlike the older
+104-code conservative physical-signature survey; those different methods must
+not be conflated. Aggregate-only results, sizes and unchanged hashes are in
+`research/type_capability_validation.json`. No image or private value is committed.
+Original files remain 0444 and hashes unchanged after all validation.
+
+**Full queue:** `research/mi_capabilities.json` and generated
+`docs/MI_CAPABILITY_PROGRESS.md` contain 14 audited partial workflows (including
+five prior ones), 254 queued, zero universally completed. Queued means no audited
+type-specific Guided outcome yet; it does not erase existing forensic decoders.
+Binary inventory now has 30 reviewed types: 238 catalog-only, 12 identity,
+6 evidence, 10 partial, 2 substantial. None means universally complete.
+
+**Remaining issues and precise next work:**
+
+1. Continue FILE/FMT/OIRS/QDDS/QDDSI: carry the user's explicit format selection
+   into a selectable record view; do not silently choose the first name match.
+   Start `as400_capabilities.py:CapabilityExplorer.file_rows` and existing
+   `as400_dasd_tool.py:_resolve_format_fields` / `_tui_member_data_lines`.
+2. Research MSGF ID/key → exact text records in virtual order, then MENU/PGM
+   links, using the ranked queue. These are still queued, not newly declared
+   blocked or completed by generic object browsing. Retain CMD nested QUAL/ELEM
+   and value conversion experiments as a parallel queue item, not the whole scope.
+3. DTAARA selector 03 (one Mark specimen, length-like word 15) and 84 (one,
+   word 1) are specifically withheld. Known numeric/logical definitions and
+   several corresponding values/display outputs would resolve storage/scale
+   ambiguities. The program proceeded to DOC/DOCBSS instead of waiting.
+4. DOC/FLR: use independently validated QDLS anchor/path relationships to
+   navigate folders; replace companion-name conventions only with stronger
+   evidence. Pete has no normally recovered DOCBSS samples to validate that path.
+5. Keep iterating across remaining ranked families. Do not treat this review
+   checkpoint or partial-workflow count as completion of the full inventory.
+
+Reproduce with `python as400_dasd_tool.py browse5250 /path/to/image.hda` and
+commands above. Original validation: `python tools/validate_type_capabilities.py
+/path/to/image.hda`. Detailed bounds/source notes:
+[TYPE_CAPABILITY_WORKFLOWS.md](TYPE_CAPABILITY_WORKFLOWS.md).
+
 ## Scope correction — October 10, 2026
 
 PR #19 is an **intermediate keyword-browsing increment**, not completion of

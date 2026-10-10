@@ -200,7 +200,8 @@ class Guided5250Tests(unittest.TestCase):
 
     def test_catalog_supports_descriptions_and_search(self):
         matches = command_matches("wrk")
-        self.assertEqual(6, len(matches))
+        self.assertEqual({"WRKLIB", "WRKLIBPDM", "WRKOBJ", "WRKOBJPDM",
+                          "WRKMBRPDM", "WRKCMD", "WRKTYP"}, {m.name for m in matches})
         self.assertTrue(all(item.description for item in matches))
         self.assertIn("DSPPFM", [item.name for item in command_matches("contents")])
         self.assertNotIn("WRKACTJOB", [item.name for item in command_matches()])

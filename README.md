@@ -399,6 +399,21 @@ See [profile/device/mode research](docs/AS400_CONFIG_OBJECT_RESEARCH.md)
 for the real V2R3 samples, nine-mode candidate offsets, provenance,
 limitations and next validation steps.
 
+### Cross-type Guided workflows (pending feature PR)
+
+On `feature/type-capability-workflows` (stacked on pending #20), use `WRKTYP`
+to browse all MI types and `WRKOBJ OBJ(*ORPHAN/*) OBJTYPE(*TBL)` to find
+unassigned primaries. `DSPFD` opens selectable format candidates and fields;
+9 on a member follows exact storage pointers and reverse member links.
+`DSPTBL TBL(*ALL/QASCII) HEX(C1C2C3)` inspects a byte map and offline sample;
+`DSPDTAARA DTAARA(*ALL/*)` displays supported character values by position.
+`WRKOBJ OBJ(QDOC/*) OBJTYPE(*DOC)` follows candidate byte-string companions.
+
+All operations are read-only. Shared browsing does not complete type decoding.
+See [workflows and evidence](docs/TYPE_CAPABILITY_WORKFLOWS.md),
+[the full 268-type capability queue](docs/MI_CAPABILITY_PROGRESS.md), and
+[the current handoff](docs/WORK_MODE_HANDOFF.md) for limitations and PR state.
+
 ### Guided 5250 Explorer (first milestone)
 
 The **guided 5250** mode uses the same read-only CISC DASD parser as the
@@ -451,7 +466,8 @@ to pass F12 to the browser, or use the Backspace / Ctrl+B alternatives.
 
 Implemented **read-only** command subset: `WRKLIB`, `WRKLIBPDM`,
 `WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM`, `WRKCMD`, `DSPCMD`,
-`DSPUSRPRF`, `DSPDEVD`, `DSPMODD`, and `HELP`.
+`DSPUSRPRF`, `DSPDEVD`, `DSPMODD`, `DSPFD`, `DSPTBL`, `DSPDTAARA`,
+`WRKTYP` (explorer extension), and `HELP`.
 
 Examples:
 

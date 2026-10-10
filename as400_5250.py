@@ -32,6 +32,10 @@ COMMANDS = (
     CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
+    CommandSpec("WRKTYP", "WRKTYP TYPE(*)", "Explorer extension: browse all MI types and recovered counts."),
+    CommandSpec("DSPDTAARA", "DSPDTAARA DTAARA(*ALL/*)", "Display bounded recovered character data-area values."),
+    CommandSpec("DSPFD", "DSPFD FILE(*ALL/*)", "Inspect recovered file/format candidates and field layouts."),
+    CommandSpec("DSPTBL", "DSPTBL TBL(*ALL/QASCII) HEX(C1C2C3)", "Inspect a byte map; HEX is an offline sample extension."),
     CommandSpec("HELP", "HELP", "Show guided navigation and supported commands."),
 )
 _COMMAND_MAP = {item.name: item for item in COMMANDS}
@@ -84,7 +88,7 @@ def parse_command(text):
         "WRKLIBPDM": {"LIB"},
         "WRKLIB": {"LIB"},
         "WRKOBJPDM": {"LIB"},
-        "WRKOBJ": {"LIB"},
+        "WRKOBJ": {"LIB", "OBJ", "OBJTYPE"},
         "WRKMBRPDM": {"FILE"},
         "DSPPFM": {"FILE", "MBR"},
         "DSPUSRPRF": {"USRPRF"},
@@ -92,6 +96,10 @@ def parse_command(text):
         "DSPMODD": {"MODD"},
         "WRKCMD": {"CMD"},
         "DSPCMD": {"CMD"},
+        "WRKTYP": {"TYPE"},
+        "DSPFD": {"FILE"},
+        "DSPDTAARA": {"DTAARA"},
+        "DSPTBL": {"TBL", "HEX"},
         "HELP": set(),
     }[name]
     extra = set(parameters) - allowed
@@ -105,7 +113,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None):
+                 command_definition_loader=None, capability_loader=None):
+        self.capability_loader = capability_loader
         self.command_definition_loader = command_definition_loader
         self.view_rows = []
         self.inventory = inventory
@@ -156,7 +165,8 @@ class Guided5250:
                       if fnmatch.fnmatchcase(name, self.library_filter.upper()))
 
     def rows(self):
-        if self.screen in ("commands", "command_definition", "command_prompts", "related_programs"):
+        if self.screen in ("commands", "command_definition", "command_prompts", "related_programs",
+                           "mi_types", "type_objects", "capabilities"):
             return self.view_rows
         if self.screen == "libraries":
             return [dict(kind="library", name=name, type="*LIB", note="Recovered namespace")
@@ -194,6 +204,8 @@ class Guided5250:
         if self.screen == "members":
             result = []
             for obj in self.inventory.members(library=self.library, file_name=self.file):
+                if not self.library and obj.library_name:
+                    continue
                 info = self.member_info(obj)
                 result.append(dict(
                     kind="member", name=obj.member_name.upper(),
@@ -204,6 +216,9 @@ class Guided5250:
 
     def title(self):
         return {
+            "mi_types": "MI Types — Recovered Primaries (Not Live Counts)",
+            "type_objects": "Search Recovered Objects",
+            "capabilities": "Explore Recovered Object Capability",
             "libraries": "Work with Libraries Using PDM",
             "objects": "Work with Objects Using PDM",
             "members": "Work with Members Using PDM",
@@ -343,6 +358,19 @@ class Guided5250:
         self._goto("config_info", library=obj.library_name or self.library, detail=lines)
         self.status = "Read-only recovered configuration evidence; no commands executed."
 
+    def explore_object(self, obj, sample=None):
+        try:
+            rows = list(self.capability_loader(obj, sample) if self.capability_loader else [])
+        except (OSError, ValueError) as exc:
+            rows = [dict(kind="capability_section", name="Unavailable", type="Diagnostic",
+                         note=str(exc), lines=[str(exc), "No substitute layout or bytes were guessed."])]
+        if not rows:
+            return False
+        self._goto("capabilities", library=obj.library_name or "<unassigned>",
+                   file=obj.name, view_rows=rows)
+        self.status = "Read-only. Enter=Inspect; 8=Origin; Back restores selection."
+        return True
+
     def open_row(self, index, option=None):
         rows = self.rows()
         if index < 0 or index >= len(rows):
@@ -351,7 +379,24 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "command" and option == "5":
+        if row["kind"] == "mi_type" and option in ("5", "12"):
+            from as400_capabilities import select_objects
+            self._goto("type_objects", file=row["type"], view_rows=select_objects(
+                self.inventory, object_type=row["code"]))
+            self.status = "Recovered primaries only; zero matches does not prove absence."
+            return True
+        elif row["kind"] == "capability_section" and option in ("5", "8"):
+            self._goto("details", library=self.library, file=self.file, detail=row["lines"])
+            return True
+        elif (row.get("object") is not None and self.capability_loader and
+              ((option == "5" and row["object"].type_code in
+                ("19/01", "19/51", "19/06", "19/0A", "19/0E", "06/C1", "0B/90", "0C/90")) or
+               (option == "9" and row["object"].is_member_cursor))):
+            if self.explore_object(row["object"], row.get("sample")):
+                return True
+            self.status = "No object-specific view is available. Use 8 for identity."
+            return False
+        elif row["kind"] == "command" and option == "5":
             self.explore_command(row["object"])
             return True
         elif row["kind"] == "prompt_form" and option == "5":
@@ -373,9 +418,11 @@ class Guided5250:
         elif row["kind"] == "library" and option == "12":
             self._goto("objects", library=row["name"])
         elif row["kind"] == "file" and option == "12":
-            self._goto("members", library=self.library, file=row["name"])
+            self._goto("members", library=(getattr(row.get("object"), "library_name", None)
+                                              or ("" if row.get("object") else self.library)), file=row["name"])
         elif row["kind"] == "member" and option == "5":
-            self.show_contents(row["object"])
+            obj = row["object"]
+            self.show_contents(obj, library=obj.library_name or "", file=obj.member_file_name)
         elif (row["kind"] == "object" and row["type"] == "*CMD"
               and option == "5"):
             self.explore_command(row["object"])
@@ -428,6 +475,26 @@ class Guided5250:
             name, params = parse_command(text)
             if name == "HELP":
                 self._goto("help", detail=self.help_lines())
+            elif name == "WRKTYP":
+                from as400_capabilities import type_rows
+                self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
+                self.status = "Later catalog names; not proof of CISC presence or decoder support."
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+                from as400_capabilities import select_objects, hex_sample
+                if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
+                    raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA"}.get(name, "OBJ")
+                pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA"}.get(name, params.get("OBJTYPE", "*ALL"))
+                sample = hex_sample(params["HEX"]) if "HEX" in params else None
+                rows = select_objects(self.inventory, pattern, objtype)
+                for row in rows:
+                    row["sample"] = sample
+                if name != "WRKOBJ" and len(rows) == 1 and self.explore_object(rows[0]["object"], sample):
+                    pass
+                else:
+                    self._goto("type_objects", file=pattern, view_rows=rows)
+                    self.status = "Select a primary; duplicate names retain library/LBA. 5=Inspect; 8=Origin."
             elif name in ("WRKCMD", "DSPCMD"):
                 pattern = params.get("CMD", "*ALL/*" if name == "WRKCMD" else "")
                 if not pattern:
@@ -536,6 +603,14 @@ class Guided5250:
             "12 + Enter: Work with objects or members",
             "5 + Enter: Display selected member/object",
             "5/Enter on *CMD: Explore definition, keywords, origin and evidence",
+            "WRKTYP: browse every catalog type plus unidentified recovered codes",
+            "WRKOBJ OBJ(*ORPHAN/*) OBJTYPE(*TBL): search all/unassigned primaries",
+            "WRKOBJ OBJ(QDOC/*) OBJTYPE(*DOC): companion candidates -> byte stream",
+            "DSPDTAARA DTAARA(library/name): character value by position",
+            "DSPFD FILE(library/file): format candidates -> fields -> descriptor",
+            "5 on *FILE: formats; 12: members; 9 on member: direct storage links",
+            "DSPTBL TBL(library/table) HEX(C1C2C3): byte map and offline sample",
+            "WRKTYP and HEX are explorer extensions, not executed CL commands.",
             "WRKCMD CMD(*ALL/CPY*): find commands across recovered namespaces",
             "WRKCMD CMD(*ORPHAN/*): include commands with no recovered library",
             "DSPCMD CMD(QIWS/CPYTOPCD): open definition (duplicates stay separate)",
@@ -599,6 +674,8 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         put(2, 2, "Enter=Inspect  Prompt form=Labels/hints  Values=Candidates")
     elif model.screen == "command_prompts":
         put(2, 2, "Labels/hints: linked. Default?/Values?: tentative meanings.")
+    elif model.screen == "capabilities":
+        put(2, 2, "Enter=Inspect  8=Origin  Member: 5=Content, 9=Storage")
     elif model.screen == "commands":
         put(2, 2, "Enter=Explore  8=Origin  Unassigned=unknown library")
     else:

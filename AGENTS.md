@@ -16,6 +16,17 @@
   continue with a useful capability; report remaining scope honestly.
 - Before the end of any substantial work session, update the living handoff with the delivered workflow, branch/PR, tests, verified vs unknown data, blockers and next steps.
 
+## Full-inventory mandate
+
+The accepted goal is material tool progress across **all 268 documented types**.
+Use the ranked inventory as a continuing queue. For each type/family, research,
+implement, integrate, test and evaluate a usable workflow, or record a concrete
+blocker and proceed to another useful family. A completed increment, commit or PR
+is a review checkpoint, not completion of this program. Do not repeatedly narrow
+work back to *CMD. Shared navigation does not count as 268 completed decoders.
+Track per-type workflow status independently of binary decoder maturity in
+`research/mi_capabilities.json` and `docs/MI_CAPABILITY_PROGRESS.md`.
+
 ## Primary references
 
 - [docs/MI_OBJECT_INVENTORY.md](docs/MI_OBJECT_INVENTORY.md): all 268 catalog types and audited decoder status

@@ -8,16 +8,16 @@ tools/mi_object_inventory.py command-line script.
 IBM object names come from later published tables; research states
 describe the audited capabilities in this repository only.
 
-**268 types**: 102 external; 166 internal. **28 reviewed types**, **19 with indexed historical manual pages**.
+**268 types**: 102 external; 166 internal. **30 reviewed types**, **20 with indexed historical manual pages**.
 
 ## Decoder maturity
 
 | Status | Count |
 |---|---:|
-| Catalog only | 240 |
+| Catalog only | 238 |
 | Identity | 12 |
 | Evidence | 6 |
-| Partial | 8 |
+| Partial | 10 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -82,7 +82,7 @@ describe the audited capabilities in this repository only.
 | 0E/D1 | *DRX | internal | Catalog only | — |
 | 19/E9 | *DSNXO | internal | Catalog only | — |
 | 1F/01 | *DSTMF | external | Catalog only | — |
-| 19/0A | *DTAARA | external | Catalog only | — |
+| 19/0A | *DTAARA | external | Partial | primer-1992 p.230,294,295 |
 | 19/20 | *DTADCT | external | Catalog only | — |
 | 0A/01 | *DTAQ | external | Identity | primer-1992 p.231 |
 | 19/E2 | *DTO | internal | Catalog only | — |
@@ -271,7 +271,7 @@ describe the audited capabilities in this repository only.
 | 19/D3 | *SYSBC | internal | Catalog only | — |
 | 19/D6 | *SYSPRTI | internal | Catalog only | — |
 | 19/D8 | *SYSRPYL | internal | Catalog only | — |
-| 19/06 | *TBL | external | Catalog only | — |
+| 19/06 | *TBL | external | Partial | — |
 | 0A/C7 | *TCPIPQ | internal | Catalog only | — |
 | 19/60 | *TDS | internal | Catalog only | — |
 | 19/2F | *TIMZON | external | Catalog only | — |

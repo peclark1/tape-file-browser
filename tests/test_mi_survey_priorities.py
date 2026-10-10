@@ -26,7 +26,7 @@ class MISurveyPrioritiesTests(unittest.TestCase):
         self.assertEqual(162, self.s["named_types_without_signature_match"])
         self.assertEqual(["0E00", "19C4", "19ED"],
                          self.s["unmapped_raw_codes"])
-        self.assertEqual(19, self.s["with_verified_manual_pages"])
+        self.assertEqual(20, self.s["with_verified_manual_pages"])
         self.assertEqual(86, self.s["with_unverified_lexical_hits"])
         self.assertEqual(
             20271, self.s["image_candidates"]["marks-v2r3"]["primary_candidates"])
