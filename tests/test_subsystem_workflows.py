@@ -82,7 +82,9 @@ class SubsystemTests(unittest.TestCase):
         dup=obj("QWORK",(0x19,0x04),75,None)
         ex2=SubsystemExplorer(Image([(s,fixture(s))]),inventory([s,c,dup]))
         links=[r for r in ex2.rows(s) if r.get("object") is not None]
-        self.assertEqual({c,dup},set(r["object"] for r in links))
+        self.assertEqual(2,len(links))
+        self.assertTrue(any(r["object"] is c for r in links))
+        self.assertTrue(any(r["object"] is dup for r in links))
 
 
 if __name__=="__main__":
