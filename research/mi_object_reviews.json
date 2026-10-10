@@ -1,0 +1,580 @@
+{
+  "schema_version": 1,
+  "basis": "Audited main at bcf80ded77bdda86b57b5870bb1cd61c2d68810f; draft PR #15 excluded.",
+  "status_vocabulary": {
+    "cataloged_only": "Named in sourced IBM type tables; no object-specific repository decoder verified.",
+    "identity_only": "Recovered MI type and common object identity; no validated type-specific payload fields.",
+    "evidence_only": "Read-only type-specific evidence/correlations; identified bytes not yet established as full field schema.",
+    "partial_decoder": "Some type-specific binary fields or relationships decoded and tested; coverage incomplete.",
+    "substantial_decoder": "Significant type-specific decoding validated on corpus and tests; still not complete or universal."
+  },
+  "documentation_state_vocabulary": {
+    "unreviewed": "No type-specific manual page reference in this audited registry.",
+    "initial_sources": "One or more verified manual passages indexed, without exhaustive documentation review."
+  },
+  "source_ids": [
+    "primer-1992",
+    "operations",
+    "redbook-sg245693",
+    "starter-2001"
+  ],
+  "reviews": {
+    "1001": {
+      "status": "evidence_only",
+      "scope": "Device description identity and bounded candidate class/type/model strings at observed primary offsets; no verified controller fields.",
+      "implementation": [
+        "as400_config.py:device_identity_candidates",
+        "as400_config.py:configuration_information_lines"
+      ],
+      "next_step": "Correlate type/model/controller structure against period-correct CRTDEV*/DSPDEVD output.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            230,
+            231
+          ],
+          "topic": "device/controller object descriptions"
+        },
+        {
+          "source": "operations",
+          "pdf_pages": [
+            615
+          ],
+          "topic": "device description command families"
+        }
+      ],
+      "interfaces": [
+        "DSPDEVD",
+        "QDCRDEVD",
+        "CRTDEVDSP"
+      ],
+      "relationships": [
+        {
+          "target": "1201",
+          "relation": "device may be associated with controller",
+          "basis": "documented configuration relationship; disk pointer not decoded"
+        }
+      ]
+    },
+    "1101": {
+      "status": "identity_only",
+      "scope": "IBM documented line-description type; no object-specific decoder.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Study line/controller/device relationships and period-correct configuration commands.",
+      "manual_refs": [
+        {
+          "source": "operations",
+          "pdf_pages": [
+            615
+          ],
+          "topic": "communication line and device families"
+        }
+      ],
+      "interfaces": [
+        "DSPLIND"
+      ],
+      "relationships": []
+    },
+    "1201": {
+      "status": "identity_only",
+      "scope": "IBM documented controller-description type; generic object primary browsing only.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Research controller-specific layouts and *DEVD attached-controller references.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            230
+          ],
+          "topic": "controller description role"
+        }
+      ],
+      "interfaces": [
+        "DSPCTLD"
+      ],
+      "relationships": []
+    },
+    "1501": {
+      "status": "evidence_only",
+      "scope": "Mode description identity; empirical repeating name-like bytes at +0x120/+0x12C, no attribute decoder.",
+      "implementation": [
+        "as400_config.py:mode_name_candidates"
+      ],
+      "next_step": "Identify mode parameters, session limits and reference offsets using V2R3 samples.",
+      "manual_refs": [
+        {
+          "source": "operations",
+          "pdf_pages": [
+            597,
+            615
+          ],
+          "topic": "APPN mode and CRTMODD/CHGMODD"
+        }
+      ],
+      "interfaces": [
+        "DSPMODD",
+        "CRTMODD",
+        "CHGMODD"
+      ],
+      "relationships": []
+    },
+    "1901": {
+      "status": "partial_decoder",
+      "scope": "File primary discovery, file/member relationship recovery, member storage correlation and format references.",
+      "implementation": [
+        "as400_dasd.py:ObjectInventory",
+        "as400_dasd.py:resolve_file_formats",
+        "as400_dasd_tool.py:cmd_files"
+      ],
+      "next_step": "Decode and validate further file attributes, including logical-file-specific metadata.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            231
+          ],
+          "topic": "file object and physical/logical variants"
+        }
+      ],
+      "interfaces": [
+        "CRTPF",
+        "CRTLF",
+        "DSPFD"
+      ],
+      "relationships": [
+        {
+          "target": "0D50",
+          "relation": "file contains members referenced by member cursors",
+          "basis": "observed in recovered image"
+        }
+      ]
+    },
+    "1902": {
+      "status": "evidence_only",
+      "scope": "Message queue primary; cross-object name/address correlation in one recovered case; queue entries not decoded.",
+      "implementation": [
+        "as400_dasd_tool.py:_tui_msgq_profile_link",
+        "as400_dasd_tool.py:_tui_profile_queue_lines"
+      ],
+      "next_step": "Decode message-entry structure after independent pointer and layout validation.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            231
+          ],
+          "topic": "message queue and job interaction (context)"
+        }
+      ],
+      "interfaces": [
+        "CRTMSGQ",
+        "DSPMSG"
+      ],
+      "relationships": [
+        {
+          "target": "0801",
+          "relation": "some queues linked to profile",
+          "basis": "one observed address correlation plus same-name convention"
+        }
+      ]
+    },
+    "1905": {
+      "status": "evidence_only",
+      "scope": "Compiled command title and candidate program text; on main branch only unclassified keyword strings; more complete keyword/ordinal parser is in separate draft PR #15.",
+      "implementation": [
+        "as400_cmd.py:command_information_lines",
+        "as400_dasd_tool.py:_tui_command_information_lines"
+      ],
+      "next_step": "Validate keyword descriptor records and prompt/default/processing-program links (PR #15 stays separate).",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            230
+          ],
+          "topic": "command object is interface to processing program"
+        },
+        {
+          "source": "starter-2001",
+          "pdf_pages": [
+            478
+          ],
+          "topic": "command definition example"
+        }
+      ],
+      "interfaces": [
+        "CRTCMD",
+        "DSPCMD",
+        "QCDRCMDI"
+      ],
+      "relationships": [
+        {
+          "target": "0201",
+          "relation": "command processing program",
+          "basis": "documented logical relationship; on-disk pointer not decoded"
+        },
+        {
+          "target": "0E03",
+          "relation": "possible message file for command messages/prompts",
+          "basis": "documented concept; particular object pointers not decoded"
+        }
+      ]
+    },
+    "1912": {
+      "status": "partial_decoder",
+      "scope": "QDLS folder identities and partial parent-path reconstruction through QAOSS anchor records.",
+      "implementation": [
+        "as400_dasd_tool.py:cmd_dlo_paths",
+        "as400_dasd_tool.py:_qaosss14_path"
+      ],
+      "next_step": "Validate folder membership and deleted-row behavior across larger corpus.",
+      "manual_refs": [],
+      "interfaces": [
+        "DSPFLR"
+      ],
+      "relationships": [
+        {
+          "target": "190E",
+          "relation": "folder contains documents",
+          "basis": "observed in QDLS index records"
+        }
+      ]
+    },
+    "1916": {
+      "status": "identity_only",
+      "scope": "Menu description recognized by IBM MI catalog; compiled menu payload undecoded.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Compare compiled menu objects and menu-source/prompt files to build safe menu viewer.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            230,
+            231
+          ],
+          "topic": "AS/400 object type roles"
+        }
+      ],
+      "interfaces": [
+        "CRTMNU",
+        "DSPMNU"
+      ],
+      "relationships": []
+    },
+    "1951": {
+      "status": "partial_decoder",
+      "scope": "Internal *FMT file-format primary recovered and field definitions decoded in supported formats.",
+      "implementation": [
+        "as400_dasd.py:FormatField",
+        "as400_dasd.py:decode_format_fields",
+        "as400_dasd.py:resolve_file_formats"
+      ],
+      "next_step": "Decode additional internal field/format variants and attributes.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "1901",
+          "relation": "format metadata belongs to file definition",
+          "basis": "observed"
+        }
+      ]
+    },
+    "1952": {
+      "status": "evidence_only",
+      "scope": "Object Information Repository (*OIRS) space recognized in recovered context structures; not a generic payload decoder.",
+      "implementation": [
+        "as400_dasd_tool.py:_tui_object_type_context"
+      ],
+      "next_step": "Document stable object-directory attributes and links to *QDIDX.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "0E90",
+          "relation": "index to object-information repository",
+          "basis": "observed"
+        }
+      ]
+    },
+    "0201": {
+      "status": "identity_only",
+      "scope": "Compiled program identity and raw segment access; no reliable general MI instruction or ODT decoder.",
+      "implementation": [
+        "as400_dasd.py:RecoveredObject",
+        "as400_dasd_tool.py:_tui_object_type_context"
+      ],
+      "next_step": "Document MI template, instruction stream and ODT from appropriate release manuals; build read-only disassembler.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            230
+          ],
+          "topic": "command processing program association"
+        },
+        {
+          "source": "operations",
+          "pdf_pages": [
+            111
+          ],
+          "topic": "program object functional distinction"
+        }
+      ],
+      "interfaces": [
+        "CRTPGM",
+        "DSPPGM"
+      ],
+      "relationships": []
+    },
+    "0401": {
+      "status": "substantial_decoder",
+      "scope": "Context/library recovery with EPA identity, context machine-index traversal, and independent library membership evidence.",
+      "implementation": [
+        "as400_dasd.py:read_context_machine_index",
+        "as400_dasd.py:ObjectInventory.resolve_context_entry",
+        "as400_dasd_tool.py:cmd_context_page"
+      ],
+      "next_step": "Investigate previously unobserved nonzero segment-table index pointers; validate across more CISC releases.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            217,
+            218,
+            230
+          ],
+          "topic": "libraries and object namespace"
+        },
+        {
+          "source": "operations",
+          "pdf_pages": [
+            110,
+            111,
+            112
+          ],
+          "topic": "object management and libraries"
+        }
+      ],
+      "interfaces": [
+        "CRTLIB",
+        "DSPLIB"
+      ],
+      "relationships": [
+        {
+          "target": "1901",
+          "relation": "library contains named objects, including files",
+          "basis": "documented logical relationship; independent context index recovered"
+        }
+      ]
+    },
+    "06C1": {
+      "status": "partial_decoder",
+      "scope": "DOCBSS metadata-page/payload boundary and validated DLO workstation stream extraction.",
+      "implementation": [
+        "as400_dasd.py:DocumentByteStringInfo",
+        "as400_dasd.py:assemble_document_byte_string"
+      ],
+      "next_step": "Expand document storage variants while enforcing export size/type checks.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "190E",
+          "relation": "companion document byte content",
+          "basis": "observed on recovered QDOC cases"
+        }
+      ]
+    },
+    "0801": {
+      "status": "evidence_only",
+      "scope": "User profile identity; bounded safe viewer and same-name object correlation. No raw credential storage displayed.",
+      "implementation": [
+        "as400_config.py:configuration_information_lines",
+        "as400_dasd_tool.py:_tui_profile_queue_lines"
+      ],
+      "next_step": "Validate non-secret security/profile attribute fields; never expose authentication bytes.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            28,
+            29,
+            31,
+            32
+          ],
+          "topic": "profiles and environment"
+        },
+        {
+          "source": "operations",
+          "pdf_pages": [
+            16,
+            34,
+            35
+          ],
+          "topic": "profile operation context"
+        }
+      ],
+      "interfaces": [
+        "CRTUSRPRF",
+        "DSPUSRPRF",
+        "QSYRUSRI"
+      ],
+      "relationships": [
+        {
+          "target": "1902",
+          "relation": "default profile message queue (same name)",
+          "basis": "documented convention; not always a proven physical pointer"
+        },
+        {
+          "target": "0EC4",
+          "relation": "internal interactive profile namesake",
+          "basis": "observed name correlation only"
+        }
+      ]
+    },
+    "0B90": {
+      "status": "partial_decoder",
+      "scope": "QDDS data-space layout and record-stream decoding for verified member storage.",
+      "implementation": [
+        "as400_dasd.py:DataSpaceLayout",
+        "as400_dasd.py:read_data_space_records"
+      ],
+      "next_step": "Expand physical/logical file variants, deleted records and absent-space handling.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "0D50",
+          "relation": "member storage backing data space",
+          "basis": "observed"
+        }
+      ]
+    },
+    "0C90": {
+      "status": "partial_decoder",
+      "scope": "QDDSI index layout/traversal and key-field clues; incomplete page/key semantics.",
+      "implementation": [
+        "as400_dasd.py:DataSpaceIndexLayout",
+        "as400_dasd.py:read_data_space_index_traversal"
+      ],
+      "next_step": "Validate key-field lengths/offsets and more index page forms.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "0B90",
+          "relation": "data-space index relationship",
+          "basis": "observed"
+        }
+      ]
+    },
+    "0D50": {
+      "status": "substantial_decoder",
+      "scope": "Member cursor, header metadata, member name/type/text/timestamps, and data-space pointer recovery.",
+      "implementation": [
+        "as400_dasd.py:MemberCursorInfo",
+        "as400_dasd.py:MemberStoragePointers",
+        "as400_dasd.py:read_member_info"
+      ],
+      "next_step": "Broaden header and pointer verification on fragmented or incomplete images.",
+      "manual_refs": [
+        {
+          "source": "operations",
+          "pdf_pages": [
+            110,
+            112
+          ],
+          "topic": "file and source-member roles"
+        }
+      ],
+      "interfaces": [
+        "ADDPFM",
+        "DSPPFM"
+      ],
+      "relationships": [
+        {
+          "target": "0B90",
+          "relation": "member cursor references data-space storage",
+          "basis": "observed and parser validated"
+        }
+      ]
+    },
+    "0E03": {
+      "status": "identity_only",
+      "scope": "Message file type recognized; message descriptions/index layout not yet decoded.",
+      "implementation": [
+        "as400_object_types.py:lookup"
+      ],
+      "next_step": "Decode indexed message entries and use for *CMD prompt and diagnostic references.",
+      "manual_refs": [],
+      "interfaces": [
+        "CRTMSGF",
+        "DSPMSGD"
+      ],
+      "relationships": []
+    },
+    "0E90": {
+      "status": "evidence_only",
+      "scope": "Internal independent index used in context research; full generic index decoder not yet established.",
+      "implementation": [
+        "as400_dasd_tool.py:_tui_object_type_context"
+      ],
+      "next_step": "Identify reusable generic index page/element structures.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "1952",
+          "relation": "context object repository correlation",
+          "basis": "observed in image research"
+        }
+      ]
+    },
+    "0EC4": {
+      "status": "identity_only",
+      "scope": "Recognized internal interactive-profile type and namesake correlation; no primary attribute decoder.",
+      "implementation": [
+        "as400_object_types.py:lookup",
+        "as400_config.py:configuration_information_lines"
+      ],
+      "next_step": "Research internal interactive profile role and corroborate links to user profiles.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": [
+        {
+          "target": "0801",
+          "relation": "possible associated user profile",
+          "basis": "same-name coincidence; linkage unverified"
+        }
+      ]
+    },
+    "190E": {
+      "status": "partial_decoder",
+      "scope": "QDLS document identities and selected QAOSS anchor/index correlations; not a general DLO schema decoder.",
+      "implementation": [
+        "as400_dasd_tool.py:cmd_dlo_paths",
+        "as400_dasd_tool.py:_match_qdoc_anchor_record"
+      ],
+      "next_step": "Decode remaining DLO field abbreviations and validate across images.",
+      "manual_refs": [],
+      "interfaces": [
+        "DSPDOC"
+      ],
+      "relationships": [
+        {
+          "target": "06C1",
+          "relation": "document byte stream companion",
+          "basis": "observed for selected QDOC documents"
+        }
+      ]
+    }
+  }
+}
