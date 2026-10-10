@@ -1,0 +1,80 @@
+{
+  "method": "Read-only full new-workflow corpus validation using inventory/segments recovered this session; private inventory caches reused. Exact record checks, model selection/Back paths, and before/after hashes. No raw text exported.",
+  "images": {
+    "marks": {
+      "image_bytes": 1004257800,
+      "sha256": "49e4e989fcc6732ffb21bd0d0a610ffcf9afd582d5cd84e3af8f02ccc8593898",
+      "unchanged": true,
+      "counts": {
+        "QDDSI opened": 281,
+        "Repository match": 17611,
+        "complete index traversals": 281,
+        "configuration 10/01->12/01 +128": 36,
+        "configuration 12/01->11/01 +128": 4,
+        "configuration 12/01->11/01 +200": 1,
+        "configuration 12/01->11/01 +718": 2,
+        "configuration address occurrences": 43,
+        "configuration primaries": 64,
+        "directory entries": 17611,
+        "directory indexes": 40,
+        "directory warnings": 0,
+        "index record walkthroughs": 3,
+        "index terminals": 128347,
+        "literal message first": 1927,
+        "literal message second": 57,
+        "menu target candidates": 10,
+        "menu variant C6": 2,
+        "menu variant D7": 2,
+        "menu variant E4": 569,
+        "message IDs": 39107,
+        "message files": 55,
+        "message warnings": 7,
+        "partial keys": 245,
+        "validated message ancillary": 19423,
+        "validated message first": 39107,
+        "validated message second": 27513
+      },
+      "paths": [
+        "configuration relationship/back",
+        "directory identity/repository/back",
+        "key/record/raw/back",
+        "menu target/back",
+        "message ID/record/back"
+      ]
+    },
+    "petes": {
+      "image_bytes": 320523840,
+      "sha256": "1fc2e7be114d74a8e8f386565e38a636c76bde529161d93bd53bbeed8a0955f6",
+      "unchanged": true,
+      "counts": {
+        "QDDSI opened": 138,
+        "Repository missing": 254,
+        "complete index traversals": 138,
+        "configuration 10/01->12/01 +118": 6,
+        "configuration 12/01->11/01 +1B0": 1,
+        "configuration 12/01->11/01 +3C8": 1,
+        "configuration address occurrences": 8,
+        "configuration primaries": 17,
+        "directory entries": 254,
+        "directory indexes": 17,
+        "directory warnings": 0,
+        "index record walkthroughs": 1,
+        "index terminals": 20022,
+        "menu target candidates": 0,
+        "menu variant E4": 187,
+        "message IDs": 27920,
+        "message Text unavailable": 27920,
+        "message files": 35,
+        "message warnings": 11,
+        "partial keys": 30,
+        "record links with missing storage": 36
+      },
+      "paths": [
+        "configuration relationship/back",
+        "directory identity/repository/back",
+        "key/record/raw/back",
+        "message ID/record/back"
+      ]
+    }
+  }
+}

@@ -19,8 +19,8 @@
     },
     "1001": {
       "state": "partial",
-      "workflow": "Device identity and bounded class/type/model evidence.",
-      "next_step": "Validate controller association before linking device/controller/line workflows."
+      "workflow": "Device details plus navigable full-address occurrence candidates to controllers, retaining duplicates and reverse links.",
+      "next_step": "Prove attachment field semantics against independent configuration output."
     },
     "1501": {
       "state": "partial",
@@ -49,8 +49,8 @@
     },
     "0C90": {
       "state": "partial",
-      "workflow": "Inspect key specifications and field hints; follow exact referencing member cursors.",
-      "next_step": "Navigate validated index entries to recovered records without treating unresolved key fields as decoded."
+      "workflow": "Paged tree-order keys with complete/partial distinction; exact two-pointer member matching opens a candidate ordinal record window.",
+      "next_step": "Resolve partial key materialization and independently establish initial data-group origins."
     },
     "1906": {
       "state": "partial",
@@ -76,6 +76,36 @@
       "state": "partial",
       "workflow": "WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible.",
       "next_step": "Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there."
+    },
+    "0E03": {
+      "state": "partial",
+      "workflow": "DSPMSGD: paged message IDs, validated first/second/ancillary record links and literal-text display; compressed bytes stay opaque.",
+      "next_step": "Decode compressed text and older-release secondary storage; preserve count mismatches."
+    },
+    "1201": {
+      "state": "partial",
+      "workflow": "Controller address-occurrence candidates link devices and lines in both directions.",
+      "next_step": "Establish release-specific field roles; current links are evidence, not active topology."
+    },
+    "1101": {
+      "state": "partial",
+      "workflow": "Line view reaches all recovered controller address-occurrence candidates.",
+      "next_step": "Decode line attributes and certify controller relationship semantics."
+    },
+    "1916": {
+      "state": "partial",
+      "workflow": "DSPMNU: observed P/F qualified-name candidates navigate program identities and display/message files. UIM stays unsupported.",
+      "next_step": "Decode UIM option/action structures; confirm P/F attributes independently of names."
+    },
+    "0E90": {
+      "state": "partial",
+      "workflow": "Paged directory type/name entries cross-check candidate OIRS slots and expose missing repository/primary evidence.",
+      "next_step": "Validate repository ownership pointer and additional directory variants."
+    },
+    "1952": {
+      "state": "partial",
+      "workflow": "OIRS -> candidate QDIDX -> selected identity slot cross-check without arbitrary payload display.",
+      "next_step": "Decode safe directory attributes and locate indexes missing on older images."
     }
   }
 }

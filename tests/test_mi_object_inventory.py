@@ -30,9 +30,9 @@ class MIResearchInventoryTests(unittest.TestCase):
                                  if k != "cataloged_only"))
         self.assertEqual(238, progress["cataloged_only"])
         self.assertEqual(2, progress["substantial_decoder"])
-        self.assertEqual(10, progress["partial_decoder"])
+        self.assertEqual(14, progress["partial_decoder"])
         self.assertEqual(6, progress["evidence_only"])
-        self.assertEqual(12, progress["identity_only"])
+        self.assertEqual(8, progress["identity_only"])
         found = {r["key"]: r for r in self.rows}
         self.assertEqual("substantial_decoder", found["0401"]["status"])
         self.assertEqual("partial_decoder", found["1905"]["status"])
@@ -97,9 +97,9 @@ class MIResearchInventoryTests(unittest.TestCase):
             {"1901", "0E03", "0201"},
             {link["target"] for link in menu["relationships"]}
         )
-        self.assertEqual("identity_only", msgf["status"])
+        self.assertEqual("partial_decoder", msgf["status"])
         self.assertEqual("identity_only", pgm["status"])
-        self.assertEqual("identity_only", menu["status"])
+        self.assertEqual("partial_decoder", menu["status"])
         self.assertEqual("partial_decoder", cmd["status"])
 
     def test_partial_image_presence_preserves_unscanned_distinction(self):

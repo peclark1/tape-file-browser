@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 15, blocked 0, queued 253.
+States: delivered 0, partial 21, blocked 0, queued 247.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -17,22 +17,22 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 3 | 19/05 | *CMD | partial | Find commands, traverse linked prompt labels/hints, inspect tentative default/value tokens. | Decode subordinate QUAL/ELEM ownership and value conversions; pursue MSGF/CPP links. |
 | 4 | 04/01 | *LIB | partial | Library/context navigation with missing-primary directory entries. | Expose context-index incompleteness and candidate resolution as navigable recovery diagnostics. |
 | 5 | 19/51 | *FMT | partial | Inspect descriptors and decode selected records using that exact chosen format; mismatched/out-of-record and invalid numeric fields remain visible. | Validate remaining field types, complete schema boundaries and CCSIDs against independent definitions. |
-| 6 | 0B/90 | *QDDS | partial | Bounded random record windows with raw status, live/deleted hints, exact payload and selected field decoding; gaps/overlaps are never concatenated away. | Establish initial-group origin and unknown DENT variants; link validated index entries to exact records. |
-| 7 | 0E/03 | *MSGF | queued | No type-specific Guided workflow audited yet. | Recover a bounded, verifiable internal message-ID index, first-/second-level text and substitution layout from multiple MSGF primaries; no generic decoding yet. |
-| 8 | 02/01 | *PGM | queued | No type-specific Guided workflow audited yet. | Research original CISC MI program template/ODT boundaries and instruction format; distinguish strings/data from executable instructions. |
-| 9 | 0C/90 | *QDDSI | partial | Inspect key specifications and field hints; follow exact referencing member cursors. | Navigate validated index entries to recovered records without treating unresolved key fields as decoded. |
-| 10 | 0E/90 | *QDIDX | queued | No type-specific Guided workflow audited yet. | Identify reusable generic index page/element structures. |
-| 11 | 10/01 | *DEVD | partial | Device identity and bounded class/type/model evidence. | Validate controller association before linking device/controller/line workflows. |
-| 12 | 19/16 | *MENU | queued | No type-specific Guided workflow audited yet. | Trace compiled menu to separately recovered display file and message file or program using period-correct source examples; validate binary pointers. |
+| 6 | 0E/03 | *MSGF | partial | DSPMSGD: paged message IDs, validated first/second/ancillary record links and literal-text display; compressed bytes stay opaque. | Decode compressed text and older-release secondary storage; preserve count mismatches. |
+| 7 | 0E/90 | *QDIDX | partial | Paged directory type/name entries cross-check candidate OIRS slots and expose missing repository/primary evidence. | Validate repository ownership pointer and additional directory variants. |
+| 8 | 19/16 | *MENU | partial | DSPMNU: observed P/F qualified-name candidates navigate program identities and display/message files. UIM stays unsupported. | Decode UIM option/action structures; confirm P/F attributes independently of names. |
+| 9 | 0B/90 | *QDDS | partial | Bounded random record windows with raw status, live/deleted hints, exact payload and selected field decoding; gaps/overlaps are never concatenated away. | Establish initial-group origin and unknown DENT variants; link validated index entries to exact records. |
+| 10 | 02/01 | *PGM | queued | No type-specific Guided workflow audited yet. | Research original CISC MI program template/ODT boundaries and instruction format; distinguish strings/data from executable instructions. |
+| 11 | 0C/90 | *QDDSI | partial | Paged tree-order keys with complete/partial distinction; exact two-pointer member matching opens a candidate ordinal record window. | Resolve partial key materialization and independently establish initial data-group origins. |
+| 12 | 10/01 | *DEVD | partial | Device details plus navigable full-address occurrence candidates to controllers, retaining duplicates and reverse links. | Prove attachment field semantics against independent configuration output. |
 | 13 | 19/06 | *TBL | partial | DSPTBL: inspect 256 byte mappings/collisions and translate a bounded HEX sample offline. | Establish table purpose/CCSID/variant flags; compare other independently known conversion pairs. |
-| 14 | 19/02 | *MSGQ | queued | No type-specific Guided workflow audited yet. | Decode message-entry structure after independent pointer and layout validation. |
-| 15 | 19/52 | *OIRS | queued | No type-specific Guided workflow audited yet. | Document stable object-directory attributes and links to *QDIDX. |
-| 16 | 08/01 | *USRPRF | partial | Safe identity/relationship view; no credential payload reads. | Add independently established non-sensitive profile relationships, preserving credential exclusion. |
-| 17 | 12/01 | *CTLD | queued | No type-specific Guided workflow audited yet. | Research controller-specific layouts and *DEVD attached-controller references. |
-| 18 | 19/0E | *DOC | partial | Find DOC primaries and follow all observed QDOC name+F companion candidates. | Strengthen anchor-key candidate associations to verified ownership and retain selected source while navigating document/folder graphs. |
-| 19 | 15/01 | *MODD | partial | Mode identity and bounded configuration evidence. | Correlate mode fields with period definitions and link verified communications relationships. |
-| 20 | 19/12 | *FLR | partial | WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible. | Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there. |
-| 21 | 11/01 | *LIND | queued | No type-specific Guided workflow audited yet. | Study line/controller/device relationships and period-correct configuration commands. |
+| 14 | 12/01 | *CTLD | partial | Controller address-occurrence candidates link devices and lines in both directions. | Establish release-specific field roles; current links are evidence, not active topology. |
+| 15 | 19/02 | *MSGQ | queued | No type-specific Guided workflow audited yet. | Decode message-entry structure after independent pointer and layout validation. |
+| 16 | 19/52 | *OIRS | partial | OIRS -> candidate QDIDX -> selected identity slot cross-check without arbitrary payload display. | Decode safe directory attributes and locate indexes missing on older images. |
+| 17 | 11/01 | *LIND | partial | Line view reaches all recovered controller address-occurrence candidates. | Decode line attributes and certify controller relationship semantics. |
+| 18 | 08/01 | *USRPRF | partial | Safe identity/relationship view; no credential payload reads. | Add independently established non-sensitive profile relationships, preserving credential exclusion. |
+| 19 | 19/0E | *DOC | partial | Find DOC primaries and follow all observed QDOC name+F companion candidates. | Strengthen anchor-key candidate associations to verified ownership and retain selected source while navigating document/folder graphs. |
+| 20 | 15/01 | *MODD | partial | Mode identity and bounded configuration evidence. | Correlate mode fields with period definitions and link verified communications relationships. |
+| 21 | 19/12 | *FLR | partial | WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible. | Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there. |
 | 22 | 06/C1 | *DOCBSS | partial | Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges. | Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes. |
 | 23 | 19/0A | *DTAARA | partial | DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens. | Validate selectors 03/84 against known numeric/logical definitions; scale/storage remains unresolved. |
 | 24 | 19/03 | *JOBD | queued | No type-specific Guided workflow audited yet. | Recover non-secret job attributes and references. |

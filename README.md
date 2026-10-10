@@ -838,3 +838,10 @@ python3 -m unittest discover -s tests -v
 ```bash
 bash uninstall.sh
 ```
+
+### Extended Guided workflows (experimental feature branch)
+
+See [message/index/configuration/menu/directory workflows](docs/EXTENDED_TYPE_WORKFLOWS.md)
+for `DSPMSGD`, `DSPCTLD`, `DSPLIND`, `DSPMNU`, keyed-record navigation, and
+`WRKTYP TYPE(*QDIDX)` / `WRKTYP TYPE(*OIRS)`. These are read-only recovered
+views with explicit missing/partial/candidate evidence. They do not execute CL.

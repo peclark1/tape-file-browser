@@ -13,6 +13,11 @@ CMD_MODULE_PATH="${HOME}/.local/bin/as400_cmd.py"
 CONFIG_MODULE_PATH="${HOME}/.local/bin/as400_config.py"
 OBJECT_TYPE_MODULE_PATH="${HOME}/.local/bin/as400_object_types.py"
 CAPABILITIES_MODULE_PATH="${HOME}/.local/bin/as400_capabilities.py"
+DIRECTORY_MODULE_PATH="${HOME}/.local/bin/as400_directory.py"
+MENUS_MODULE_PATH="${HOME}/.local/bin/as400_menus.py"
+CONNECTIONS_MODULE_PATH="${HOME}/.local/bin/as400_connections.py"
+INDEXES_MODULE_PATH="${HOME}/.local/bin/as400_indexes.py"
+MESSAGES_MODULE_PATH="${HOME}/.local/bin/as400_messages.py"
 RECORDS_MODULE_PATH="${HOME}/.local/bin/as400_records.py"
 ANCHORS_MODULE_PATH="${HOME}/.local/bin/as400_anchors.py"
 EXTERNAL_TYPE_PATH="${HOME}/.local/bin/as400_external_types.tsv"
@@ -31,7 +36,7 @@ rm -f \
     "${CONFIG_MODULE_PATH}" \
     "${OBJECT_TYPE_MODULE_PATH}" \
     "${CAPABILITIES_MODULE_PATH}" \
-    "${RECORDS_MODULE_PATH}" \
+    "${DIRECTORY_MODULE_PATH}" "${MENUS_MODULE_PATH}" "${CONNECTIONS_MODULE_PATH}" "${INDEXES_MODULE_PATH}" "${MESSAGES_MODULE_PATH}" "${RECORDS_MODULE_PATH}" \
     "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \
     "${INTERNAL_TYPE_PATH}" \

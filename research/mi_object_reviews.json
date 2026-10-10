@@ -24,7 +24,8 @@
       "scope": "Device description identity and bounded candidate class/type/model strings at observed primary offsets; no verified controller fields.",
       "implementation": [
         "as400_config.py:device_identity_candidates",
-        "as400_config.py:configuration_information_lines"
+        "as400_config.py:configuration_information_lines",
+        "as400_connections.py:ConnectionExplorer"
       ],
       "next_step": "Correlate type/model/controller structure against period-correct CRTDEV*/DSPDEVD output.",
       "manual_refs": [
@@ -58,12 +59,13 @@
       ]
     },
     "1101": {
-      "status": "identity_only",
-      "scope": "IBM documented line-description type; no object-specific decoder.",
+      "status": "evidence_only",
+      "scope": "Reverse full-address occurrence navigation to controllers; attributes remain unknown.",
       "implementation": [
-        "as400_object_types.py:lookup"
+        "as400_object_types.py:lookup",
+        "as400_connections.py:ConnectionExplorer"
       ],
-      "next_step": "Study line/controller/device relationships and period-correct configuration commands.",
+      "next_step": "Decode line attributes and certify controller relationship semantics.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -86,12 +88,13 @@
       "relationships": []
     },
     "1201": {
-      "status": "identity_only",
-      "scope": "IBM documented controller-description type; generic object primary browsing only.",
+      "status": "evidence_only",
+      "scope": "Full-address occurrence navigation to devices/lines; attachment semantics unproven.",
       "implementation": [
-        "as400_object_types.py:lookup"
+        "as400_object_types.py:lookup",
+        "as400_connections.py:ConnectionExplorer"
       ],
-      "next_step": "Research controller-specific layouts and *DEVD attached-controller references.",
+      "next_step": "Establish release-specific field roles; current links are evidence, not active topology.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -289,12 +292,13 @@
       ]
     },
     "1916": {
-      "status": "identity_only",
-      "scope": "Menu description recognized by IBM MI catalog; compiled menu payload undecoded.",
+      "status": "partial_decoder",
+      "scope": "Bounded P/F menu qualified-name pairs; UIM and actual menu options remain unresolved.",
       "implementation": [
-        "as400_object_types.py:lookup"
+        "as400_object_types.py:lookup",
+        "as400_menus.py:menu_references"
       ],
-      "next_step": "Trace compiled menu to separately recovered display file and message file or program using period-correct source examples; validate binary pointers.",
+      "next_step": "Decode UIM option/action structures; confirm P/F attributes independently of names.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -346,12 +350,13 @@
       ]
     },
     "1952": {
-      "status": "evidence_only",
-      "scope": "Object Information Repository (*OIRS) space recognized in recovered context structures; not a generic payload decoder.",
+      "status": "partial_decoder",
+      "scope": "512-byte slot type/name cross-check corroborated against Mark QDIDX entries; other attributes unresolved.",
       "implementation": [
-        "as400_dasd_tool.py:_tui_object_type_context"
+        "as400_dasd_tool.py:_tui_object_type_context",
+        "as400_directory.py:DirectoryExplorer"
       ],
-      "next_step": "Document stable object-directory attributes and links to *QDIDX.",
+      "next_step": "Decode safe directory attributes and locate indexes missing on older images.",
       "manual_refs": [],
       "interfaces": [],
       "relationships": [
@@ -697,12 +702,13 @@
       "relationships": []
     },
     "0E03": {
-      "status": "identity_only",
-      "scope": "Message file type recognized; message descriptions/index layout not yet decoded.",
+      "status": "partial_decoder",
+      "scope": "Empirical MSGF index and redundant-ID record framing; literal records displayed, compression/older secondary layout unresolved.",
       "implementation": [
-        "as400_object_types.py:lookup"
+        "as400_object_types.py:lookup",
+        "as400_messages.py:decode_message_index"
       ],
-      "next_step": "Recover a bounded, verifiable internal message-ID index, first-/second-level text and substitution layout from multiple MSGF primaries; no generic decoding yet.",
+      "next_step": "Decode compressed text and older-release secondary storage; preserve count mismatches.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -755,12 +761,13 @@
       ]
     },
     "0E90": {
-      "status": "evidence_only",
-      "scope": "Internal independent index used in context research; full generic index decoder not yet established.",
+      "status": "partial_decoder",
+      "scope": "Empirical 24-byte directory index identities and candidate OIRS slot ordinals; ownership unresolved.",
       "implementation": [
-        "as400_dasd_tool.py:_tui_object_type_context"
+        "as400_dasd_tool.py:_tui_object_type_context",
+        "as400_directory.py:decode_directory_index"
       ],
-      "next_step": "Identify reusable generic index page/element structures.",
+      "next_step": "Validate repository ownership pointer and additional directory variants.",
       "manual_refs": [],
       "interfaces": [],
       "relationships": [

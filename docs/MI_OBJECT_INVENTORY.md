@@ -15,9 +15,9 @@ describe the audited capabilities in this repository only.
 | Status | Count |
 |---|---:|
 | Catalog only | 238 |
-| Identity | 12 |
+| Identity | 8 |
 | Evidence | 6 |
-| Partial | 10 |
+| Partial | 14 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -55,7 +55,7 @@ describe the audited capabilities in this repository only.
 | 19/35 | *CSI | external | Catalog only | — |
 | 19/22 | *CSPMAP | external | Catalog only | — |
 | 19/23 | *CSPTBL | external | Catalog only | — |
-| 12/01 | *CTLD | external | Identity | primer-1992 p.230 |
+| 12/01 | *CTLD | external | Evidence | primer-1992 p.230 |
 | 19/55 | *DBCOLES | internal | Catalog only | — |
 | 19/50 | *DBDIR | internal | Catalog only | — |
 | 19/D4 | *DBRCVR | internal | Catalog only | — |
@@ -145,7 +145,7 @@ describe the audited capabilities in this repository only.
 | 19/CE | *LDA | internal | Catalog only | — |
 | 04/01 | *LIB | external | Substantial | primer-1992 p.217,218,230; operations p.110,111,112 |
 | 19/D1 | *LIBRCVR | internal | Catalog only | — |
-| 11/01 | *LIND | external | Identity | primer-1992 p.233; operations p.615 |
+| 11/01 | *LIND | external | Evidence | primer-1992 p.233; operations p.615 |
 | 19/F2 | *LIRCVR | internal | Catalog only | — |
 | 19/21 | *LOCALE | external | Catalog only | — |
 | 1E/04 | *M36 | external | Catalog only | — |
@@ -157,7 +157,7 @@ describe the audited capabilities in this repository only.
 | 19/E6 | *MDOC | internal | Catalog only | — |
 | 19/1C | *MEDDFN | external | Catalog only | — |
 | 0D/50 | *MEM | internal | Substantial | operations p.110,112 |
-| 19/16 | *MENU | external | Identity | primer-1992 p.233 |
+| 19/16 | *MENU | external | Partial | primer-1992 p.233 |
 | 19/2D | *MGTCOL | external | Catalog only | — |
 | 0E/C1 | *MNINX | internal | Catalog only | — |
 | 19/CB | *MNTXT | internal | Catalog only | — |
@@ -165,7 +165,7 @@ describe the audited capabilities in this repository only.
 | 03/01 | *MODULE | external | Catalog only | — |
 | 19/DF | *MQLOCK | internal | Catalog only | — |
 | 19/EE | *MSCSP | internal | Catalog only | — |
-| 0E/03 | *MSGF | external | Identity | primer-1992 p.233; operations p.146,147,150,151,152,153,172; power-tips p.352,353 |
+| 0E/03 | *MSGF | external | Partial | primer-1992 p.233; operations p.146,147,150,151,152,153,172; power-tips p.352,353 |
 | 19/02 | *MSGQ | external | Evidence | primer-1992 p.233 |
 | 0E/91 | *MSRVI | internal | Catalog only | — |
 | 19/E5 | *NFSP | internal | Catalog only | — |
@@ -177,7 +177,7 @@ describe the audited capabilities in this repository only.
 | 1D/01 | *NWSD | external | Catalog only | — |
 | 0D/EF | *OCUR | internal | Catalog only | — |
 | 0D/EE | *OHCUR | internal | Catalog only | — |
-| 19/52 | *OIRS | internal | Evidence | — |
+| 19/52 | *OIRS | internal | Partial | — |
 | 1E/51 | *OLBSF | internal | Catalog only | — |
 | 06/A0 | *OPTBSS | internal | Catalog only | — |
 | 1E/ED | *OPTSTMF | internal | Catalog only | — |
@@ -207,7 +207,7 @@ describe the audited capabilities in this repository only.
 | 01/90 | *QDAG | internal | Catalog only | — |
 | 0B/90 | *QDDS | internal | Partial | — |
 | 0C/90 | *QDDSI | internal | Partial | — |
-| 0E/90 | *QDIDX | internal | Evidence | — |
+| 0E/90 | *QDIDX | internal | Partial | — |
 | 1A/90 | *QDPCS | internal | Catalog only | — |
 | 0A/90 | *QDQ | internal | Catalog only | — |
 | 19/90 | *QDSP | internal | Catalog only | — |

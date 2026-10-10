@@ -4,6 +4,43 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## Sustained cross-family checkpoint — October 10, 2026
+
+Branch `feature/message-index-workflows` starts from PR #22 head `03cb891`.
+PR #21/#22 and main remain untouched. The user explicitly reaffirmed continuing
+through the ranked queue without stopping for reprompts at commits/tests/PRs.
+The continuation contract is now also in AGENTS.md.
+
+Delivered Guided paths: MSGF ID -> validated record -> literal text/opaque bytes;
+QDDSI keyed entries -> exact two-pointer member match -> candidate record window;
+DEVD/CTLD/LIND address-occurrence navigation; P/F MENU qualified-name target
+navigation; QDIDX entry -> OIRS identity-slot cross-check / missing primary
+candidate, with reverse OIRS -> index navigation. Detailed evidence, bounds,
+manual references, probes and remaining experiments are in
+[EXTENDED_TYPE_WORKFLOWS.md](EXTENDED_TYPE_WORKFLOWS.md).
+
+The ledger now records **21 partial / 247 queued**, zero universal completions.
+Six newly audited partial families: MSGF, CTLD, LIND, MENU, QDIDX and OIRS.
+PGM stays queued: following a menu to program identity is not a program decoder.
+
+Original validation aggregates are in `research/extended_workflow_validation.json`:
+Mark 39,107 message IDs / 86,043 corroborated records / 1,984 literal text records;
+Pete 27,920 IDs with text storage unavailable. Mark 128,347 / Pete 20,022 index
+terminals; partial keys remain partial. Three Mark and one Pete key-to-record
+model walkthroughs passed. Configuration: 43 / 8 full-address occurrences.
+Mark 17,611 directory identities match candidate repository slots; Pete 254
+identities retain missing-repository diagnostics. Both SHA-256 hashes match the
+previous checkpoint and remain unchanged after validation. Originals remain
+0444. No private records or manuals are committed.
+
+Synthetic tests, strict page bounds, installed-module smoke test, generated
+reports and UI keyboard/rendering checks accompany the implementation. This
+is model/curses-loop validation, not a human terminal acceptance test.
+
+Next queue: deeper UIM MENU structures; MSGF compression and Pete's older
+text-storage ownership; JOBD/queue relationships; MSGQ/PGM evidence gates.
+Do not stop at publication of this checkpoint if execution capacity remains.
+
 ## Explicit records and folder navigation — October 10, 2026
 
 Current work branch: `feature/explicit-record-explorer`, based on PR #21 head

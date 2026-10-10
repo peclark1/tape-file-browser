@@ -3231,6 +3231,8 @@ def decode_context_machine_index(
     data: bytes,
     *,
     root_offset: int = CONTEXT_MACHINE_INDEX_ROOT_OFFSET,
+    page_size: int = CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+    strict_pages: bool = False,
 ) -> ContextMachineIndexTraversal:
     """Traverse an ordinary permanent-context release-2 machine index.
 
@@ -3247,6 +3249,8 @@ def decode_context_machine_index(
     evidence rather than guessed.
     """
 
+    if page_size not in (1024, 2048):
+        raise ValueError("Unsupported machine-index page size")
     if root_offset < 0 or root_offset + 3 > len(data):
         raise ValueError("context machine-index root is outside recovered segment")
 
@@ -3314,10 +3318,10 @@ def decode_context_machine_index(
             )
             return
 
-        if (page_start - root_offset) % CONTEXT_MACHINE_INDEX_PAGE_SIZE:
+        if (page_start - root_offset) % page_size:
             mark_incomplete(
                 f"context machine-index page 0x{page_start:04X} is not aligned "
-                f"to the observed {CONTEXT_MACHINE_INDEX_PAGE_SIZE}-byte page size"
+                f"to the observed {page_size}-byte page size"
             )
         expected_type = 0xCC if page_start == root_offset else 0x55
         if page_header.page_type != expected_type:
@@ -3326,18 +3330,26 @@ def decode_context_machine_index(
                 f"0x{page_header.page_type:02X}; expected 0x{expected_type:02X}"
             )
         tail_free = page_header.tail_free_bytes(
-            page_size=CONTEXT_MACHINE_INDEX_PAGE_SIZE,
+            page_size=page_size,
         )
         if tail_free is None:
             mark_incomplete(
                 f"context machine-index page 0x{page_start:04X} has first-free "
-                "outside its observed 1024-byte page"
+                "outside its declared page"
             )
         elif page_header.free_bytes < tail_free:
             mark_incomplete(
                 f"context machine-index page 0x{page_start:04X} reports fewer "
                 "free bytes than its unused tail"
             )
+
+        if strict_pages and (tail_free is None or page_header.free_bytes < tail_free
+                             or page_start + page_size > len(data)
+                             or (page_start-root_offset) % page_size
+                             or page_header.page_type != expected_type):
+            mark_incomplete("invalid or incomplete machine-index page withheld")
+            return
+        used_end = page_header.first_free_offset()
 
         visited_pages.add(page_start)
         page_offsets.append(page_start)
@@ -3359,6 +3371,9 @@ def decode_context_machine_index(
                     f"context text at 0x{element_offset:04X} "
                     "points outside recovered segment"
                 )
+                return None
+            if strict_pages and not page_start + 8 <= text_offset < end <= used_end:
+                mark_incomplete("message text element exceeds in-use page range")
                 return None
             return data[text_offset:end]
 
@@ -3406,6 +3421,9 @@ def decode_context_machine_index(
                     f"context node offset 0x{node_offset:04X} is outside segment"
                 )
                 return
+            if strict_pages and not page_start <= node_offset < node_offset+3 <= used_end:
+                mark_incomplete("message node exceeds in-use page range")
+                return
             node = MachineIndexElement(data[node_offset : node_offset + 3])
             if node.kind != "node" or node.xor_displacement is None:
                 mark_incomplete(f"expected context node at 0x{node_offset:04X}")
@@ -3422,6 +3440,9 @@ def decode_context_machine_index(
                 )
                 return
 
+            if strict_pages and not page_start+8 <= cluster_offset < cluster_offset+required <= used_end:
+                mark_incomplete("message cluster exceeds in-use page range")
+                return
             branch_prefix = node_prefix
             if node.common_text_present:
                 common_offset = cluster_offset + 6

@@ -29,9 +29,13 @@ COMMANDS = (
     CommandSpec("DSPPFM", "DSPPFM FILE(QGPL/QCLSRC) MBR(MEMBER)", "Display recovered physical-file member contents."),
     CommandSpec("DSPUSRPRF", "DSPUSRPRF USRPRF(QSYSOPR)", "Display recovered user-profile identity and relationships (no credentials)."),
     CommandSpec("DSPDEVD", "DSPDEVD DEVD(QCONSOLE)", "Display recovered device-description evidence."),
+    CommandSpec("DSPCTLD", "DSPCTLD CTLD(*ALL/*)", "Inspect controller address-occurrence links to devices and lines."),
+    CommandSpec("DSPLIND", "DSPLIND LIND(*ALL/*)", "Inspect line reverse address-occurrence links."),
     CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
+    CommandSpec("DSPMNU", "DSPMNU MENU(*ALL/*)", "Inspect supported menu variants and name-qualified target candidates."),
+    CommandSpec("DSPMSGD", "DSPMSGD MSGF(*ALL/QIWSMSG) MSGID(IWN*)", "Browse recovered message IDs and validated message records."),
     CommandSpec("WRKFLR", "WRKFLR FLR(*ALL/*)", "Explore recovered folder anchor relationships."),
     CommandSpec("WRKTYP", "WRKTYP TYPE(*)", "Explorer extension: browse all MI types and recovered counts."),
     CommandSpec("DSPDTAARA", "DSPDTAARA DTAARA(*ALL/*)", "Display bounded recovered character data-area values."),
@@ -94,11 +98,15 @@ def parse_command(text):
         "DSPPFM": {"FILE", "MBR"},
         "DSPUSRPRF": {"USRPRF"},
         "DSPDEVD": {"DEVD"},
+        "DSPCTLD": {"CTLD"},
+        "DSPLIND": {"LIND"},
         "DSPMODD": {"MODD"},
         "WRKCMD": {"CMD"},
         "DSPCMD": {"CMD"},
         "WRKTYP": {"TYPE"},
         "WRKFLR": {"FLR"},
+        "DSPMSGD": {"MSGF", "MSGID"},
+        "DSPMNU": {"MENU"},
         "DSPFD": {"FILE"},
         "DSPDTAARA": {"DTAARA"},
         "DSPTBL": {"TBL", "HEX"},
@@ -115,8 +123,11 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None):
         self.anchor_loader = anchor_loader
+        self.directory_loader = directory_loader
+        self.message_loader = message_loader
+        self.index_loader = index_loader
         self.record_loader = record_loader
         self.capability_loader = capability_loader
         self.command_definition_loader = command_definition_loader
@@ -387,6 +398,20 @@ class Guided5250:
         self.status = "Explicit format; recovered ordinals. Enter=Inspect; Next/Previous=50-entry window."
         return True
 
+    def show_evidence(self, request, loader):
+        if loader is None:
+            self.status = "Evidence service is unavailable."
+            return False
+        try:
+            rows = list(loader(**request))
+        except (OSError, ValueError) as exc:
+            from as400_capabilities import section
+            rows = [section("Unavailable", [str(exc)])]
+        obj = request["obj"]
+        self._goto("capabilities", library=obj.library_name or "<unassigned>",
+                   file=obj.name, view_rows=rows)
+        return True
+
     def open_row(self, index, option=None):
         rows = self.rows()
         if index < 0 or index >= len(rows):
@@ -395,7 +420,15 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "anchor_action" and option == "5" and self.anchor_loader:
+        if row["kind"] == "directory_action" and option == "5":
+            return self.show_evidence(row["request"], self.directory_loader)
+        elif row.get("object") is not None and row["object"].type_code in ("0E/90","19/52") and option == "5":
+            return self.show_evidence(dict(obj=row["object"]), self.directory_loader)
+        elif row["kind"] in ("message_action", "index_action") and option == "5":
+            return self.show_evidence(row["request"], self.message_loader if row["kind"] == "message_action" else self.index_loader)
+        elif row.get("object") is not None and row["object"].type_code == "0E/03" and option == "5":
+            return self.show_evidence(dict(obj=row["object"], pattern=row.get("message_pattern", "*")), self.message_loader)
+        elif row["kind"] == "anchor_action" and option == "5" and self.anchor_loader:
             try:
                 links = list(self.anchor_loader(**row["request"]))
             except (OSError, ValueError) as exc:
@@ -435,7 +468,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
@@ -523,17 +556,32 @@ class Guided5250:
             name, params = parse_command(text)
             if name == "HELP":
                 self._goto("help", detail=self.help_lines())
+            elif name in ("DSPCTLD", "DSPLIND") or (name == "DSPDEVD" and self.capability_loader):
+                from as400_capabilities import select_objects
+                arg,kind = {"DSPDEVD":("DEVD","*DEVD"),"DSPCTLD":("CTLD","*CTLD"),"DSPLIND":("LIND","*LIND")}[name]
+                rows=select_objects(self.inventory,params.get(arg,"*ALL/*"),kind)
+                if len(rows)==1:self.explore_object(rows[0]["object"])
+                else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPMSGD":
+                from as400_capabilities import select_objects
+                rows = select_objects(self.inventory, params.get("MSGF", "*ALL/*"), "*MSGF")
+                pattern = params.get("MSGID", "*")
+                for row in rows: row["message_pattern"] = pattern
+                if len(rows) == 1:
+                    self.show_evidence(dict(obj=rows[0]["object"], pattern=pattern), self.message_loader)
+                else:
+                    self._goto("type_objects", view_rows=rows)
             elif name == "WRKTYP":
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:
@@ -652,6 +700,7 @@ class Guided5250:
             "5 + Enter: Display selected member/object",
             "5/Enter on *CMD: Explore definition, keywords, origin and evidence",
             "WRKTYP: browse every catalog type plus unidentified recovered codes",
+            "DSPMSGD MSGF(library/file) MSGID(pattern): IDs -> validated text/opaque records",
             "WRKFLR FLR(*ALL/*): folder -> anchor source -> parents/children/objects",
             "WRKOBJ OBJ(*ORPHAN/*) OBJTYPE(*TBL): search all/unassigned primaries",
             "WRKOBJ OBJ(QDOC/*) OBJTYPE(*DOC): companion candidates -> byte stream",

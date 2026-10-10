@@ -1,0 +1,124 @@
+# Message, index, configuration, menu and directory workflows
+
+This is a checkpoint in the continuing 268-type program, not its completion.
+All commands below are offline Guided 5250 operations. Nothing executes on OS/400.
+
+## What to try
+
+| Workflow | Guided path | What remains unresolved |
+|---|---|---|
+| Message descriptions | `DSPMSGD MSGF(*ALL/QIWSMSG) MSGID(IWN*)` -> ID -> First/Second | Compressed text, substitutions, ancillary attributes, older text-storage layout |
+| Database keys | Member 9 -> QDDSI -> Browse keyed entries -> key -> candidate member record -> raw bytes | Partial key materialization, missing initial record groups; RRN remains a hint |
+| Configuration | `DSPDEVD DEVD(*ALL/*)` -> device -> controller -> line; also DSPCTLD/DSPLIND | Full-address occurrences are candidates, not certified active attachments |
+| Menus | `DSPMNU MENU(*ALL/ASSIST)` or `DSPMNU MENU(*ALL/PCOMNU)` -> target candidate | Only observed P/F forms; UIM forms and menu options/actions remain undecoded |
+| Directory evidence | `WRKTYP TYPE(*QDIDX)` -> index -> entry -> repository cross-check / primary candidate | Same-name repository/library scope is provisional; no live-object claim |
+| Repository evidence | `WRKTYP TYPE(*OIRS)` -> repository -> candidate index -> entry | Missing indexes and mismatching slots are explicitly retained |
+
+Duplicate names retain origin/LBA. Enter selects; F12 returns to the previous
+selection. Lists have selectable Next/Previous windows of 50 entries.
+No message, directory or index screen substitutes a same-name object for an
+unresolved address. Menu target matching is explicitly name-based.
+
+## MSGF evidence
+
+Observed `0E/03` prefix +100..105 is `6000002c0007`. The stored count is the
+four-byte +106 scalar. A six-byte active-root reference at +420 is relative to
+the primary virtual address; +42A is the four-byte page-size scalar (1024 on
+examined older images, 2048 on examined V2R3 images). Release-2 traversal uses
+these independently observed values rather than assuming context placement.
+Strict message/directory traversal rejects page-size/type/alignment/free-range
+violations, cycles, missing pages, and out-of-used-page node/text references.
+
+Supported message terminals are 44 bytes: seven-byte ID, with candidate
+first/second/ancillary record offsets at +9/+13/+21 (four bytes each). On Mark,
+one exact-owner `0280` secondary per nonempty MSGF corroborates each pointer at
+secondary offset `32 + stored_offset`: four-byte inclusive length, role tag at
++4, repeated ID at +5..11. First/second payload begins at +16 and its two-byte
+length is at +14. Tags 01/02 carry literal text; 81/82 stay opaque compressed
+payloads; tag 10 ancillary payload is not interpreted. All lengths, repeated
+IDs, tags and recovered virtual ranges are checked before display. No text
+search is used to manufacture an association.
+
+Plain text is a CP037 display lens, not a decoded CCSID. Substitution markers
+are not expanded. Severity and other terminal fields remain undecoded.
+The text-record bound is 64 KiB; index reads stop at 8 MiB or the first virtual
+gap. Multiple owner-matched secondary candidates cause withholding, not an
+arbitrary first choice. Pete currently exposes IDs but lacks the matching
+normally recovered `0280` storage. Seven older-image index count mismatches
+remain visible; no missing entries are fabricated.
+
+## QDDSI evidence
+
+Existing DKEY/DKYT and tree decoders now feed paginated selectable entries in
+stored traversal order. Partial keys retain tree evidence and never acquire
+invented user-key bytes. A candidate record link requires an exact match of
+**both** cursor QDDSI pointer and cursor QDDS pointer against the selected
+DKEY's data-space address. Duplicate matching cursors stay separate. The
+record window starts at the positive ordinal hint and initially uses raw bytes.
+A missing first data group is still not independently ruled out, so these are
+candidate record links, not a proof that every displayed ordinal is historical.
+
+## Configuration and menus
+
+Configuration search reads only DEVD and CTLD bounded primary bytes, compares
+full eight-byte internal addresses to CTLD/LIND identities, and excludes the
+common EPA region. It does not read profile credentials or scan unrelated
+object payloads. Mark DEVD matches occur at +128, older Pete matches at +118;
+controller/line occurrences vary. This is useful navigation evidence, not a
+field-schema declaration. Device details remain accessible.
+
+Menu +100 observed P (`D7`) carries program/library names at +130/+13A.
+Observed F (`C6`) carries display-file/library there and message-file/library at
++144/+14E. Every name is a bounded ten-byte field. Type, name and explicit
+library must match; *LIBL/*CURLIB retain all origins without pretending to know
+a historical job's library list. Two P examples and two duplicate F primaries
+were found on Mark; Pete's normally recovered menus are U variants. The U
+variant remains explicitly unsupported. Program target selection displays
+identity only; this does not promote PGM to a decoded workflow.
+
+Period references rechecked locally: AS/400 Primer PDF p.233 distinguishes
+message descriptions and the menu/display-file/message-file/program logical
+relationship. Understanding AS400 System Operations PDF pp.146–147 describes
+IDs, first/second text and substitutions. Neither supplies persistent offsets.
+
+## QDIDX/OIRS evidence
+
+Supported QDIDX control prefix is `60000018000c`, using independently checked
+active-root/page-size values as above. Its 24-byte terminals contain a two-byte
+type and ten-byte name; the +16 four-byte ordinal points to a candidate OIRS
+512-byte slot. A same-name OIRS is only a candidate until the slot's +4..15
+repeats the exact type/name key. All duplicates are checked individually.
+Only these safe identity fields/results are displayed; no arbitrary OIRS
+payload, profile material or inferred attributes are shown.
+
+All 17,611 Mark identities matched their predicted slots. A one-byte shifted
+identity control failed for all 17,611. Pete's 254 index entries currently have
+no same-name recovered repository. A library/type/name primary match is shown
+as another candidate, never as a recovered pointer. Missing primary and
+repository cases preserve the surviving index evidence.
+
+## Remaining experiments and pivots
+
+- MSGF compressed records: role/length/ID framing is corroborated, but dictionary
+  and token semantics are not. Implement a bounded decompressor only after
+  independent multi-message checks; do not present printable runs as full text.
+- MENU: a bounded +100..+FFF full-address search in 573 Mark / 187 Pete menu
+  primaries found no recovered FILE, PGM or MSGF address matches. This rejects
+  that narrow pointer hypothesis, not all linking possibilities. P/F qualified
+  names yielded useful navigation; UIM offset/descriptor ownership is next.
+- JOBD: +10C/+116 name/library candidates match a JOBQ for 34/34 Mark primaries,
+  but none of 15 Pete primaries under the same hypothesis. Do not generalize.
+- JOBQ/OUTQ: a preliminary shared-tree probe recovered 48-byte terminals on both
+  images; entry field semantics and active-vs-stale meaning are not established.
+  This is a research lead, not a completed queue-management capability.
+- PGM, MSGQ, OIRS attributes, library ownership pointers and numeric/logical
+  DTAARA remain queued or partial as recorded in the capability ledger.
+
+## Validation
+
+`python3 -m unittest discover -s tests -v` includes synthetic malformed records,
+relocated roots, both page sizes, duplicate origins, wrong IDs/types/pointers,
+missing secondary storage, partial keys and navigation/Back checks.
+`python3 tools/validate_extended_workflows.py /path/to/image.hda` performs
+read-only corpus and model-path checks, emits aggregates only, and verifies the
+image hash before/after. It does not replace a human terminal acceptance test.
