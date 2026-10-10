@@ -48,8 +48,13 @@ class SubsystemExplorer:
             # +0x100 keeps the common EPA header/name from being treated as a
             # claimed subsystem relationship. Offset 0x327 often repeats the
             # subsystem's own name and is tracked but not followed.
+            own_name = (obj.name.upper().ljust(10).encode("cp037")
+                        if NAME.fullmatch(obj.name.upper()) else None)
             for at in range(0x100, max(0,len(data)-9)):
-                for target in self._patterns.get(data[at:at+10], ()):
+                token = data[at:at+10]
+                if own_name is not None and token == own_name:
+                    self_offsets.add(at)
+                for target in self._patterns.get(token, ()):
                     if target.name.upper() == obj.name.upper():
                         self_offsets.add(at)
                         continue
