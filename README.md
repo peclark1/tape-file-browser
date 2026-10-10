@@ -860,3 +860,7 @@ or renders/prints AFP resources.
 ### Saved OUTQ index browsing (offline)
 
 Use `WRKOUTQ OUTQ(*ALL/QPRINT)` to inspect recovered 48-byte index keys. `FORM(*STD)` filters the observed EBCDIC candidate at key offset +0x20; `KEYHEX(C1)` filters exact key prefixes. Selecting a key shows its full hex/CP037 bytes. FA-prefixed control-like keys are counted separately; this is **not** a live spool queue, a spooled-file decoder, or a reconstruction of job order. Details and evidence limits: [OUTQ workflow](docs/OUTQ_WORKFLOW.md).
+
+### Internal-profile identity explorer (offline)
+
+Run `DSPINTPRF INTPRF(*ALL/*)` to browse recovered CISC internal-profile identities and follow exact-name user-profile candidates. The viewer uses only already recovered object identity metadata and never opens profile credential bodies. Missing or duplicated matches are reported without inventing pointers. See [evidence and limitations](docs/INTERNAL_PROFILE_WORKFLOW.md).
