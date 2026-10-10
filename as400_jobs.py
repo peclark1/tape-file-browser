@@ -33,11 +33,6 @@ class JobExplorer:
         rows=[section('Queue relationships',[f'JOBQ {obj.library_name or "<unassigned>"}/{obj.name}; LBA {obj.segment.start_lba}',
               'These are saved job-description name references, not jobs currently waiting or running.',
               'No runtime queue contents, routing, authority or active state is inferred.'])]
-        # Saved entries are archival index evidence, not current jobs.
-        rows.append(dict(kind="outq_action", name="Saved queue-index keys",
-                         type="Saved JOBQ index",
-                         note="Offline 48-byte keys; active jobs not inferred",
-                         request=dict(obj=obj)))
         for desc,names,error in self._descriptions:
             if names is None:continue
             user,queue,library=names
@@ -50,7 +45,11 @@ class JobExplorer:
                 note=f'{library} candidate; runtime library list unknown'
             else:continue
             rows.append(object_row(desc,note))
-        if len(rows)==2:rows.append(section('No referring descriptions',['No supported recovered JOBD names this queue under the stated matching rules.']))
+        if len(rows)==1:rows.append(section('No referring descriptions',['No supported recovered JOBD names this queue under the stated matching rules.']))
+        rows.append(dict(kind="outq_action", name="Saved queue-index keys",
+                         type="Saved JOBQ index",
+                         note="Offline 48-byte keys; active jobs not inferred",
+                         request=dict(obj=obj)))
         return rows
 
     def description_rows(self,obj):
