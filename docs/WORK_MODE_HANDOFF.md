@@ -7,7 +7,11 @@
 ## Explicit records and folder navigation — October 10, 2026
 
 Current work branch: `feature/explicit-record-explorer`, based on PR #21 head
-`a6bdcbe4129efb5f2b27bd3e489bf4649522aa98`. Publication status is recorded below.
+`a6bdcbe4129efb5f2b27bd3e489bf4649522aa98`. [PR #22](https://github.com/peclark1/tape-file-browser/pull/22) is open, ready
+for review, and targets PR #21. Implementation commit
+`ac3ba31515a5bb6da4c8b3e49b29e97b94c513f5` passed
+[Tests run 38057345370](https://github.com/peclark1/tape-file-browser/actions/runs/38057345370).
+A documentation-only follow-up records publication; the PR head is authoritative.
 PR #21's `feature/type-capability-workflows` remains unchanged for user testing.
 Main and Joe's stable version are untouched; no merge is authorized.
 

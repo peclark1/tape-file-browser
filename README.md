@@ -45,8 +45,9 @@ Browsing is read-only. Conversion writes a new output image and then reopens it 
 
 ## Guided 5250 record and folder exploration
 
-The follow-up branch `feature/explicit-record-explorer` adds member **6** for
-explicit format selection and paged record/field inspection; **9** opens storage
+[PR #22](https://github.com/peclark1/tape-file-browser/pull/22), branch
+`feature/explicit-record-explorer`, adds member **6 + Enter** for
+explicit format selection and paged record/field inspection; **9 + Enter** opens storage
 and fixes the previous key-loop omission. `DSPFD` → format → **Records** retains
 the selected schema. `WRKFLR FLR(*ALL/*)` opens folder anchor-source/root navigation.
 These are read-only offline workflows; uncertain associations are labeled.
