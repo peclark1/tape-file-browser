@@ -1,6 +1,6 @@
-"""Read-only saved OUTQ machine-index browsing, not a live spool queue.
+"""Read-only saved OUTQ/JOBQ machine-index browsing, not live queues.
 
-Observed on both CISC images: 0E/02 primary +0x100 begins 20 00 00 30
+Observed on both CISC images: 0E/02 and 0E/01 primaries +0x100 begins 20 00 00 30
 00 20; a six-byte root address occurs at +0x420, and the page-size word
 at +0x42A is 2048 (Mark) or 1024 (Pete). Supported terminal keys have
 48 bytes. The numeric scalars near +0x108 have NOT been established as
@@ -77,8 +77,8 @@ class OutputQueueExplorer:
         self._cache = {}
 
     def entries(self, obj):
-        if obj.type_code != "0E/02":
-            raise ValueError("Not a recovered output queue")
+        if obj.type_code not in ("0E/02", "0E/01"):
+            raise ValueError("Not a recovered output or job queue")
         key = (obj.segment.start_lba, obj.segment.virtual_address)
         if key not in self._cache:
             data = read_prefix(self.image, obj.segment, MAX_PRIMARY_BYTES)
@@ -99,17 +99,22 @@ class OutputQueueExplorer:
             c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789*#$@_" for c in form)):
             raise ValueError("FORM must be a ten-character-or-shorter literal candidate")
         keys, warnings = self.entries(obj)
+        kind = "JOBQ" if obj.type_code == "0E/01" else "OUTQ"
+        if kind == "JOBQ" and form:
+            raise ValueError("FORM is not a verified JOBQ key attribute")
         if entry is not None:
             if entry not in keys:
-                raise ValueError("OUTQ entry does not belong to this recovered primary")
+                raise ValueError("Queue key does not belong to this recovered primary")
             key = entry.raw
-            rows = [section("Saved output-queue key", [
-                f"OUTQ {obj.library_name or '<unassigned>'}/{obj.name}; "
+            rows = [section(f"Saved {kind} key", [
+                f"{kind} {obj.library_name or '<unassigned>'}/{obj.name}; "
                 f"primary LBA {obj.segment.start_lba}",
                 f"Terminal +0x{entry.terminal_offset:X}; 48 bytes; "
                 f"control-like marker: {'yes' if entry.control_like else 'no'}",
-                f"Candidate form token at +0x20: {entry.form_candidate or '<unverified>'}",
-                "Form token is an observed byte pattern, not a verified spool-file attribute.",
+                (f"Candidate form token at +0x20: {entry.form_candidate or '<unverified>'}"
+                 if kind == "OUTQ" else "No JOBQ key fields have verified meanings"),
+                ("Form token is an observed byte pattern, not a verified spool-file attribute."
+                 if kind == "OUTQ" else "Never infer live jobs or saved job identities from these bytes."),
                 "All other fields are opaque; no live entries, job states, "
                 "spooled content or chronological ordering inferred.",
                 *warnings])]
@@ -124,15 +129,16 @@ class OutputQueueExplorer:
                   if not e.control_like and e.raw.startswith(prefix)
                   and (not form or e.form_candidate == form)]
         controls = sum(e.control_like for e in keys)
-        rows = [section("Saved OUTQ index", [
-            f"OUTQ {obj.library_name or '<unassigned>'}/{obj.name}; "
+        rows = [section(f"Saved {kind} index", [
+            f"{kind} {obj.library_name or '<unassigned>'}/{obj.name}; "
             f"primary LBA {obj.segment.start_lba}",
             f"Supported 48-byte terminals {len(keys)}; "
             f"control-like {controls}; candidate entries matching filters {len(active)}",
             "Tree order is archival index order, not verified spool/job chronology.",
             "FA-prefixed keys are control-like and excluded from the entry list, "
             "but retained in the total; their meaning remains unknown.",
-            "Select a candidate for its exact 48-byte bytes and possible form token.",
+            ("Select a candidate for exact 48-byte keys and possible form token."
+             if kind == "OUTQ" else "Select any non-control key for exact bytes; job identity remains unknown."),
             *warnings])]
         if start:
             rows.append(outq_action("Previous", obj, start=max(0, start-50),
@@ -145,7 +151,8 @@ class OutputQueueExplorer:
             row = outq_action(f"Key {index+1}", obj, entry=e)
             row["note"] = (
                 f"terminal +0x{e.terminal_offset:X}; "
-                f"form candidate {token or '<unknown>'}; "
+                (f"form candidate {token or '<unknown>'}; "
+                 if kind == "OUTQ" else "job key (opaque); ")
                 f"prefix {e.raw[:8].hex().upper()}")
             rows.append(row)
         return rows
