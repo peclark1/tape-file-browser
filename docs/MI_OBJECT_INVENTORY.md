@@ -281,7 +281,7 @@ describe the audited capabilities in this repository only.
 | 19/D9 | *UFCB | internal | Catalog only | — |
 | 19/E7 | *UFO | internal | Catalog only | — |
 | 0E/0A | *USRIDX | external | Catalog only | — |
-| 08/01 | *USRPRF | external | Evidence | primer-1992 p.28,29,31,32; operations p.16,34,35 |
+| 08/01 | *USRPRF | external | Evidence | primer-1992 p.28,29,31,32; operations p.34 |
 | 0A/02 | *USRQ | external | Catalog only | — |
 | 19/34 | *USRSPC | external | Catalog only | — |
 | 0E/10 | *VLDL | external | Catalog only | — |
