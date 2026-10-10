@@ -7,6 +7,9 @@ All commands below are offline Guided 5250 operations. Nothing executes on OS/40
 
 | Workflow | Guided path | What remains unresolved |
 |---|---|---|
+| Program reference exploration | `DSPPGM PGM(*ALL/name)` -> CMD/P-menu candidate -> definition | Not a call graph; CPP pointers, ODT and instructions remain unknown |
+| Saved message references | `DSPMSG MSGQ(*ALL/*)` -> compound reference -> matching MSGF ID | Entry boundaries, active state, chronology and delivered text are unknown |
+| Job relationships | `DSPJOBD JOBD(*ALL/*)` -> queue -> referring descriptions; `WRKJOBQ JOBQ(*ALL/*)` | Name-based references, not active job state |
 | Message descriptions | `DSPMSGD MSGF(*ALL/QIWSMSG) MSGID(IWN*)` -> ID -> First/Second | Compressed text, substitutions, ancillary attributes, older text-storage layout |
 | Database keys | Member 9 -> QDDSI -> Browse keyed entries -> key -> candidate member record -> raw bytes | Partial key materialization, missing initial record groups; RRN remains a hint |
 | Configuration | `DSPDEVD DEVD(*ALL/*)` -> device -> controller -> line; also DSPCTLD/DSPLIND | Full-address occurrences are candidates, not certified active attachments |
@@ -73,8 +76,8 @@ Observed F (`C6`) carries display-file/library there and message-file/library at
 library must match; *LIBL/*CURLIB retain all origins without pretending to know
 a historical job's library list. Two P examples and two duplicate F primaries
 were found on Mark; Pete's normally recovered menus are U variants. The U
-variant remains explicitly unsupported. Program target selection displays
-identity only; this does not promote PGM to a decoded workflow.
+variant remains explicitly unsupported. Program target selection opens a reverse CMD/P-menu name-reference view. This
+is a workflow improvement, not a program-payload decoder or disassembler.
 
 Period references rechecked locally: AS/400 Primer PDF p.233 distinguishes
 message descriptions and the menu/display-file/message-file/program logical
@@ -106,12 +109,34 @@ repository cases preserve the surviving index evidence.
   primaries found no recovered FILE, PGM or MSGF address matches. This rejects
   that narrow pointer hypothesis, not all linking possibilities. P/F qualified
   names yielded useful navigation; UIM offset/descriptor ownership is next.
-- JOBD: +10C/+116 name/library candidates match a JOBQ for 34/34 Mark primaries,
-  but none of 15 Pete primaries under the same hypothesis. Do not generalize.
+- JOBD continuation: +10C/+116 queue/library names match assigned queues for
+  34/34 Mark primaries. Pete's normally recovered queues are unassigned, so exact
+  library matching alone found none; retaining labeled unassigned candidates
+  resolves 10/15 descriptions. Five remain unresolved. +102 profile-name
+  correlations only navigate safe identity views, never profile payloads.
+- MSGQ continuation: bounded compound `09 + name(10) + library(10) + 06 + ID(7)`
+  occurrences link 97/97 Mark and 93/96 Pete references to IDs actually recovered
+  from candidate message indexes. Three Pete references remain unresolved.
+  Offsets are byte-occurrence order, NOT message chronology. This does not decode
+  queue-entry boundaries, sender/time/severity or substitution bodies.
+- Pete MSGF follow-up: no matching text-secondary owner was recovered even when
+  only the virtual owner address was compared, ignoring the extender. A raw
+  whole-image search found no contiguous FMX0010 string; its index ID is
+  reconstructed from tree pieces. This is negative evidence for simple missing
+  owner metadata, not proof that all message text is absent or irrecoverable.
 - JOBQ/OUTQ: a preliminary shared-tree probe recovered 48-byte terminals on both
   images; entry field semantics and active-vs-stale meaning are not established.
   This is a research lead, not a completed queue-management capability.
-- PGM, MSGQ, OIRS attributes, library ownership pointers and numeric/logical
+- PGM continuation: reverse command/P-menu name candidates now provide a path
+  into command definitions. 773 Mark and 218 Pete program primaries have such
+  candidates (2,479 / 418 links). Duplicated primaries may share candidates;
+  these counts are not distinct callers or a call graph.
+- SBSD/CLS bounded probe: no full-address occurrences to recovered JOBD, JOBQ,
+  CLS or PGM primaries were found in the first 16 KiB of 14/4 SBSD and 26/10 CLS
+  primaries. Mark QBASE pointers at +118/+128/+138 address ranges not represented
+  by recovered segments (the QBASE primary has six pages). Resolving those
+  tables needs a verified storage mapping/continuation, not guessed offsets.
+- PGM instructions, delivered MSGQ records, OIRS attributes, library ownership pointers and numeric/logical
   DTAARA remain queued or partial as recorded in the capability ledger.
 
 ## Validation
@@ -122,3 +147,29 @@ missing secondary storage, partial keys and navigation/Back checks.
 `python3 tools/validate_extended_workflows.py /path/to/image.hda` performs
 read-only corpus and model-path checks, emits aggregates only, and verifies the
 image hash before/after. It does not replace a human terminal acceptance test.
+
+## Library recovery diagnostics
+
+`WRKTYP TYPE(*LIB)` -> recovered primary -> option 5 opens recovery diagnostics.
+Entries are scoped by the full context address; filters show all, missing,
+ambiguous or resolved references in 50-entry windows. Select a reference to see
+all exact reconstructed address/type primary candidates. Duplicate candidates
+are retained, including same-address copies; missing primaries remain visible
+with owned-segment counts. No payload is synthesized from those counts.
+Warnings in the existing inventory are keyed by library name, and the view
+explicitly warns that these may include another same-name context.
+
+Original validation: 40 Mark contexts, 21,531 resolved / 61 missing references;
+16 Pete contexts, 206 resolved / 185 missing references. Three reference ->
+candidates -> Back walkthroughs pass on each image. Synthetic duplicate-address,
+same-name/different-context, unknown-address, filter and paging cases pass.
+Library maturity remains partial; this adds recovery diagnostics rather than
+claiming completeness.
+
+## Output-queue next probe
+
+A bounded first-4-KiB search of JOBD, DEVD and LDA primaries for recovered OUTQ
+fixed-width names found one Mark JOBD occurrence at +0x17E followed by QGPL, and
+none on Pete. Treating +0x17E as a general qualified-name field failed on 33 of
+34 Mark and all 15 Pete descriptions. The general-layout hypothesis is rejected;
+this does not prove other queue references or saved spool files are absent.

@@ -4,6 +4,42 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## Continued after publication — October 10, 2026
+
+[PR #23](https://github.com/peclark1/tape-file-browser/pull/23) is open on
+`feature/message-index-workflows`, targeting #22. Initial implementation
+`fb581ac5b29aee861c9533650aa1f3a5fb4671a9` passed Tests run `38088615048`.
+Local Git push lacks credentials, so publication uses the connected GitHub
+Git-data API; content trees are compared before synchronizing the local branch.
+
+Work continued immediately after publication. Added JOBD/JOBQ saved-reference
+navigation (`DSPJOBD` / `WRKJOBQ`) and MSGQ -> corroborated MSGF-ID navigation
+(`DSPMSG`). All 34 Mark JOBD and 10 Pete JOBD queue paths pass forward/reverse/Back
+walkthroughs; five Pete descriptions retain unresolved references. Three queue
+reference walkthroughs per image pass; 97 Mark and 93 Pete references have IDs
+confirmed, three Pete references do not. No live jobs/message chronology are
+claimed. Safe profile-name links never inspect credentials.
+
+Ledger: **25 partial / 243 queued**. The full-inventory task remains active.
+See extended workflow documentation and the refreshed aggregate validation JSON.
+Program reference exploration was added after the queue pass: DSPPGM reaches
+command definitions through qualified-name candidates. It does not decode MI
+instructions or establish CPP pointers. Original walkthroughs pass on three
+programs per image; 773/218 program primaries have candidates. This supersedes
+the earlier checkpoint note keeping PGM queued after identity-only navigation.
+
+Library diagnostics now scope entries by full context address and retain all
+matching primary candidates. Missing/ambiguous/resolved filters and paging are
+reachable through WRKTYP TYPE(*LIB), option 5 on a primary. Mark/Pete: 61/185
+missing references, 21,531/206 resolved; three model walkthroughs each pass.
+
+Follow-on validation: **263 tests pass**, isolated installed-module imports pass,
+and both original hashes remain unchanged. The aggregate validator's program
+checks were moved out of an unreachable loader branch into the inventory loop;
+the refreshed report now includes all six program walkthroughs.
+
+All currently added workflow modules are included in the installer/uninstaller.
+
 ## Sustained cross-family checkpoint — October 10, 2026
 
 Branch `feature/message-index-workflows` starts from PR #22 head `03cb891`.

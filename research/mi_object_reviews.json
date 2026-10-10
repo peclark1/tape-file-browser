@@ -166,12 +166,13 @@
     },
     "1902": {
       "status": "evidence_only",
-      "scope": "Message queue primary; cross-object name/address correlation in one recovered case; queue entries not decoded.",
+      "scope": "Compound definition references corroborated against MSGF IDs; message boundaries, state and substitutions remain unknown.",
       "implementation": [
         "as400_dasd_tool.py:_tui_msgq_profile_link",
-        "as400_dasd_tool.py:_tui_profile_queue_lines"
+        "as400_dasd_tool.py:_tui_profile_queue_lines",
+        "as400_message_queues.py:message_references"
       ],
-      "next_step": "Decode message-entry structure after independent pointer and layout validation.",
+      "next_step": "Establish message entry boundaries, substitution payloads and active/stale membership independently.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -194,12 +195,13 @@
       ]
     },
     "1903": {
-      "status": "identity_only",
-      "scope": "Job description identity recognized; job attributes not decoded from primary storage.",
+      "status": "partial_decoder",
+      "scope": "Empirical fixed-width profile and queue/library names; attribute semantics beyond these references unknown.",
       "implementation": [
-        "as400_object_types.py:lookup"
+        "as400_object_types.py:lookup",
+        "as400_jobs.py:job_description_names"
       ],
-      "next_step": "Recover non-secret job attributes and references.",
+      "next_step": "Decode independently corroborated job-description attributes and validate reference semantics on older releases.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -368,11 +370,12 @@
       ]
     },
     "0201": {
-      "status": "identity_only",
-      "scope": "Compiled program identity and raw segment access; no reliable general MI instruction or ODT decoder.",
+      "status": "evidence_only",
+      "scope": "Reverse CMD/P-menu qualified-name evidence; no program payload/instruction or ODT decoding.",
       "implementation": [
         "as400_dasd.py:RecoveredObject",
-        "as400_dasd_tool.py:_tui_object_type_context"
+        "as400_dasd_tool.py:_tui_object_type_context",
+        "as400_programs.py:ProgramExplorer"
       ],
       "next_step": "Research original CISC MI program template/ODT boundaries and instruction format; distinguish strings/data from executable instructions.",
       "manual_refs": [
@@ -658,12 +661,13 @@
       ]
     },
     "0E01": {
-      "status": "identity_only",
-      "scope": "Job queue identity recognized; queued job entries not decoded.",
+      "status": "evidence_only",
+      "scope": "Reverse saved JOBD name-reference candidates; no live-job or queue-entry interpretation.",
       "implementation": [
-        "as400_object_types.py:lookup"
+        "as400_object_types.py:lookup",
+        "as400_jobs.py:JobExplorer"
       ],
-      "next_step": "Identify index/layout differences for queue objects.",
+      "next_step": "Decode saved queue entries and distinguish active/stale structures before presenting queued jobs.",
       "manual_refs": [
         {
           "source": "primer-1992",

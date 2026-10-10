@@ -1,11 +1,13 @@
 {
-  "method": "Read-only full new-workflow corpus validation using inventory/segments recovered this session; private inventory caches reused. Exact record checks, model selection/Back paths, and before/after hashes. No raw text exported.",
+  "method": "Read-only original-image validation; session-recovered inventory caches reused. Aggregate output only; before/after hashes and model walkthroughs.",
   "images": {
     "marks": {
       "image_bytes": 1004257800,
       "sha256": "49e4e989fcc6732ffb21bd0d0a610ffcf9afd582d5cd84e3af8f02ccc8593898",
       "unchanged": true,
       "counts": {
+        "0E/01 job workflow opened": 16,
+        "19/03 job workflow opened": 34,
         "QDDSI opened": 281,
         "Repository match": 17611,
         "complete index traversals": 281,
@@ -20,6 +22,14 @@
         "directory warnings": 0,
         "index record walkthroughs": 3,
         "index terminals": 128347,
+        "job forward/reverse/back walkthroughs": 34,
+        "job links to 08/01": 22,
+        "job links to 0E/01": 34,
+        "job links to 19/03": 34,
+        "library contexts opened": 40,
+        "library recovery walkthroughs": 3,
+        "library references MISSING": 61,
+        "library references RESOLVED": 21531,
         "literal message first": 1927,
         "literal message second": 57,
         "menu target candidates": 10,
@@ -28,8 +38,17 @@
         "menu variant E4": 569,
         "message IDs": 39107,
         "message files": 55,
+        "message queues": 45,
         "message warnings": 7,
         "partial keys": 245,
+        "program definition walkthroughs": 3,
+        "program name-reference links": 2479,
+        "program primaries": 8691,
+        "programs with name references": 773,
+        "queue definition references": 97,
+        "queue definition walkthroughs": 3,
+        "queue references with ID confirmed": 97,
+        "queue references without ID confirmed": 0,
         "validated message ancillary": 19423,
         "validated message first": 39107,
         "validated message second": 27513
@@ -37,9 +56,13 @@
       "paths": [
         "configuration relationship/back",
         "directory identity/repository/back",
+        "job description/queue/reverse/back",
         "key/record/raw/back",
+        "library reference/all candidates/back",
         "menu target/back",
-        "message ID/record/back"
+        "message ID/record/back",
+        "program name reference/command definition/back",
+        "queue reference/message definition/back"
       ]
     },
     "petes": {
@@ -47,6 +70,8 @@
       "sha256": "1fc2e7be114d74a8e8f386565e38a636c76bde529161d93bd53bbeed8a0955f6",
       "unchanged": true,
       "counts": {
+        "0E/01 job workflow opened": 4,
+        "19/03 job workflow opened": 15,
         "QDDSI opened": 138,
         "Repository missing": 254,
         "complete index traversals": 138,
@@ -60,20 +85,42 @@
         "directory warnings": 0,
         "index record walkthroughs": 1,
         "index terminals": 20022,
+        "job forward/reverse/back walkthroughs": 10,
+        "job links to 08/01": 2,
+        "job links to 0E/01": 10,
+        "job links to 19/03": 10,
+        "job unassigned candidates": 22,
+        "library contexts opened": 16,
+        "library recovery walkthroughs": 3,
+        "library references MISSING": 185,
+        "library references RESOLVED": 206,
         "menu target candidates": 0,
         "menu variant E4": 187,
         "message IDs": 27920,
         "message Text unavailable": 27920,
         "message files": 35,
+        "message queues": 23,
         "message warnings": 11,
         "partial keys": 30,
+        "program definition walkthroughs": 3,
+        "program name-reference links": 418,
+        "program primaries": 3102,
+        "programs with name references": 218,
+        "queue definition references": 96,
+        "queue definition walkthroughs": 3,
+        "queue references with ID confirmed": 93,
+        "queue references without ID confirmed": 3,
         "record links with missing storage": 36
       },
       "paths": [
         "configuration relationship/back",
         "directory identity/repository/back",
+        "job description/queue/reverse/back",
         "key/record/raw/back",
-        "message ID/record/back"
+        "library reference/all candidates/back",
+        "message ID/record/back",
+        "program name reference/command definition/back",
+        "queue reference/message definition/back"
       ]
     }
   }

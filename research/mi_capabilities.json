@@ -4,8 +4,8 @@
   "types": {
     "0401": {
       "state": "partial",
-      "workflow": "Library/context navigation with missing-primary directory entries.",
-      "next_step": "Expose context-index incompleteness and candidate resolution as navigable recovery diagnostics."
+      "workflow": "Context-address-scoped recovery diagnostics with missing/ambiguous filters, paged references and all exact address/type primary candidates.",
+      "next_step": "Recover missing context branches and distinguish name-scoped warnings for duplicate library primaries."
     },
     "1905": {
       "state": "partial",
@@ -106,6 +106,26 @@
       "state": "partial",
       "workflow": "OIRS -> candidate QDIDX -> selected identity slot cross-check without arbitrary payload display.",
       "next_step": "Decode safe directory attributes and locate indexes missing on older images."
+    },
+    "1903": {
+      "state": "partial",
+      "workflow": "DSPJOBD follows stored queue/library-name candidates and safe profile-name correlations, preserving missing/unassigned origins.",
+      "next_step": "Decode independently corroborated job-description attributes and validate reference semantics on older releases."
+    },
+    "0E01": {
+      "state": "partial",
+      "workflow": "WRKJOBQ browses queue identities and reverse referring JOBD name candidates; never claims live waiting jobs.",
+      "next_step": "Decode saved queue entries and distinguish active/stale structures before presenting queued jobs."
+    },
+    "1902": {
+      "state": "partial",
+      "workflow": "DSPMSG follows compound saved definition references to IDs confirmed in candidate MSGFs. Queue chronology and delivered-message bodies are not inferred.",
+      "next_step": "Establish message entry boundaries, substitution payloads and active/stale membership independently."
+    },
+    "0201": {
+      "state": "partial",
+      "workflow": "DSPPGM reverse command/P-menu name-reference candidates lead into recovered command definitions, with duplicate and unassigned origins retained. No call graph or MI instructions are inferred.",
+      "next_step": "Validate actual CPP/ODT references and program structures; retain reference-navigation versus binary-decoder distinction."
     }
   }
 }

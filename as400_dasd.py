@@ -3247,6 +3247,10 @@ def decode_context_machine_index(
     recovered context segment, the same physical pointer encoding seen in
     QDDSI. Nonzero segment-table indexes remain unresolved and are preserved as
     evidence rather than guessed.
+
+    MSGF and QDIDX callers supply independently corroborated root/page-size
+    fields and enable strict_pages: reject invalid pages and references into
+    free/out-of-page bytes. Defaults preserve the existing context API.
     """
 
     if page_size not in (1024, 2048):
@@ -3373,7 +3377,7 @@ def decode_context_machine_index(
                 )
                 return None
             if strict_pages and not page_start + 8 <= text_offset < end <= used_end:
-                mark_incomplete("message text element exceeds in-use page range")
+                mark_incomplete("machine-index text element exceeds in-use page range")
                 return None
             return data[text_offset:end]
 
@@ -3422,7 +3426,7 @@ def decode_context_machine_index(
                 )
                 return
             if strict_pages and not page_start <= node_offset < node_offset+3 <= used_end:
-                mark_incomplete("message node exceeds in-use page range")
+                mark_incomplete("machine-index node exceeds in-use page range")
                 return
             node = MachineIndexElement(data[node_offset : node_offset + 3])
             if node.kind != "node" or node.xor_displacement is None:
@@ -3441,7 +3445,7 @@ def decode_context_machine_index(
                 return
 
             if strict_pages and not page_start+8 <= cluster_offset < cluster_offset+required <= used_end:
-                mark_incomplete("message cluster exceeds in-use page range")
+                mark_incomplete("machine-index cluster exceeds in-use page range")
                 return
             branch_prefix = node_prefix
             if node.common_text_present:

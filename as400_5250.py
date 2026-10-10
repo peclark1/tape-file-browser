@@ -34,6 +34,10 @@ COMMANDS = (
     CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
+    CommandSpec("DSPPGM", "DSPPGM PGM(*ALL/*)", "Explore command/menu program-name references; no instruction decoding."),
+    CommandSpec("DSPMSG", "DSPMSG MSGQ(*ALL/*)", "Inspect saved message-definition references, not live queue messages."),
+    CommandSpec("DSPJOBD", "DSPJOBD JOBD(*ALL/*)", "Follow saved job-description queue-name candidates."),
+    CommandSpec("WRKJOBQ", "WRKJOBQ JOBQ(*ALL/*)", "Browse saved job-queue identities and referring descriptions, not live jobs."),
     CommandSpec("DSPMNU", "DSPMNU MENU(*ALL/*)", "Inspect supported menu variants and name-qualified target candidates."),
     CommandSpec("DSPMSGD", "DSPMSGD MSGF(*ALL/QIWSMSG) MSGID(IWN*)", "Browse recovered message IDs and validated message records."),
     CommandSpec("WRKFLR", "WRKFLR FLR(*ALL/*)", "Explore recovered folder anchor relationships."),
@@ -107,6 +111,10 @@ def parse_command(text):
         "WRKFLR": {"FLR"},
         "DSPMSGD": {"MSGF", "MSGID"},
         "DSPMNU": {"MENU"},
+        "DSPJOBD": {"JOBD"},
+        "DSPMSG": {"MSGQ"},
+        "DSPPGM": {"PGM"},
+        "WRKJOBQ": {"JOBQ"},
         "DSPFD": {"FILE"},
         "DSPDTAARA": {"DTAARA"},
         "DSPTBL": {"TBL", "HEX"},
@@ -123,8 +131,10 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None):
+        self.library_loader = library_loader
         self.anchor_loader = anchor_loader
+        self.queue_loader = queue_loader
         self.directory_loader = directory_loader
         self.message_loader = message_loader
         self.index_loader = index_loader
@@ -420,13 +430,21 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "directory_action" and option == "5":
+        if row["kind"] == "library_action" and option == "5":
+            return self.show_evidence(row["request"], self.library_loader)
+        elif self.library_loader and row.get("object") is not None and row["object"].type_code == "04/01" and option == "5":
+            return self.show_evidence(dict(obj=row["object"]), self.library_loader)
+        elif row["kind"] == "queue_action" and option == "5":
+            return self.show_evidence(row["request"], self.queue_loader)
+        elif self.queue_loader and row.get("object") is not None and row["object"].type_code == "19/02" and option == "5":
+            return self.show_evidence(dict(obj=row["object"]), self.queue_loader)
+        elif row["kind"] == "directory_action" and option == "5":
             return self.show_evidence(row["request"], self.directory_loader)
-        elif row.get("object") is not None and row["object"].type_code in ("0E/90","19/52") and option == "5":
+        elif self.directory_loader and row.get("object") is not None and row["object"].type_code in ("0E/90","19/52") and option == "5":
             return self.show_evidence(dict(obj=row["object"]), self.directory_loader)
         elif row["kind"] in ("message_action", "index_action") and option == "5":
             return self.show_evidence(row["request"], self.message_loader if row["kind"] == "message_action" else self.index_loader)
-        elif row.get("object") is not None and row["object"].type_code == "0E/03" and option == "5":
+        elif self.message_loader and row.get("object") is not None and row["object"].type_code == "0E/03" and option == "5":
             return self.show_evidence(dict(obj=row["object"], pattern=row.get("message_pattern", "*")), self.message_loader)
         elif row["kind"] == "anchor_action" and option == "5" and self.anchor_loader:
             try:
@@ -468,7 +486,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("02/01", "19/03", "0E/01", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
@@ -562,6 +580,11 @@ class Guided5250:
                 rows=select_objects(self.inventory,params.get(arg,"*ALL/*"),kind)
                 if len(rows)==1:self.explore_object(rows[0]["object"])
                 else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPMSG":
+                from as400_capabilities import select_objects
+                rows=select_objects(self.inventory,params.get("MSGQ","*ALL/*"),"*MSGQ")
+                if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.queue_loader)
+                else:self._goto("type_objects",view_rows=rows)
             elif name == "DSPMSGD":
                 from as400_capabilities import select_objects
                 rows = select_objects(self.inventory, params.get("MSGF", "*ALL/*"), "*MSGF")
@@ -575,13 +598,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:

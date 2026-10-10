@@ -845,3 +845,9 @@ See [message/index/configuration/menu/directory workflows](docs/EXTENDED_TYPE_WO
 for `DSPMSGD`, `DSPCTLD`, `DSPLIND`, `DSPMNU`, keyed-record navigation, and
 `WRKTYP TYPE(*QDIDX)` / `WRKTYP TYPE(*OIRS)`. These are read-only recovered
 views with explicit missing/partial/candidate evidence. They do not execute CL.
+
+Guided evidence workflows in PR #23 include `DSPJOBD`, `WRKJOBQ`, `DSPMSG`,
+`DSPPGM`, and library recovery diagnostics (`WRKTYP TYPE(*LIB)`, then option 5).
+See [extended workflows](docs/EXTENDED_TYPE_WORKFLOWS.md) for verified fields,
+candidate relationships and unresolved storage. These operate on recovered
+read-only evidence, not a running AS/400.

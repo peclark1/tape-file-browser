@@ -30,13 +30,13 @@ class MIResearchInventoryTests(unittest.TestCase):
                                  if k != "cataloged_only"))
         self.assertEqual(238, progress["cataloged_only"])
         self.assertEqual(2, progress["substantial_decoder"])
-        self.assertEqual(14, progress["partial_decoder"])
-        self.assertEqual(6, progress["evidence_only"])
-        self.assertEqual(8, progress["identity_only"])
+        self.assertEqual(15, progress["partial_decoder"])
+        self.assertEqual(8, progress["evidence_only"])
+        self.assertEqual(5, progress["identity_only"])
         found = {r["key"]: r for r in self.rows}
         self.assertEqual("substantial_decoder", found["0401"]["status"])
         self.assertEqual("partial_decoder", found["1905"]["status"])
-        self.assertEqual("identity_only", found["0201"]["status"])
+        self.assertEqual("evidence_only", found["0201"]["status"])
         self.assertEqual("cataloged_only", found["19D4"]["status"])
         self.assertEqual("unreviewed", found["19D4"]["documentation"])
 
@@ -98,7 +98,7 @@ class MIResearchInventoryTests(unittest.TestCase):
             {link["target"] for link in menu["relationships"]}
         )
         self.assertEqual("partial_decoder", msgf["status"])
-        self.assertEqual("identity_only", pgm["status"])
+        self.assertEqual("evidence_only", pgm["status"])
         self.assertEqual("partial_decoder", menu["status"])
         self.assertEqual("partial_decoder", cmd["status"])
 

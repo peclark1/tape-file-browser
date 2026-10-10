@@ -15,9 +15,9 @@ describe the audited capabilities in this repository only.
 | Status | Count |
 |---|---:|
 | Catalog only | 238 |
-| Identity | 8 |
-| Evidence | 6 |
-| Partial | 14 |
+| Identity | 5 |
+| Evidence | 8 |
+| Partial | 15 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -132,8 +132,8 @@ describe the audited capabilities in this repository only.
 | 04/C2 | *ISYSLIB | internal | Catalog only | — |
 | 19/CA | *JAR | internal | Catalog only | — |
 | 18/A0 | *JMQ | internal | Catalog only | — |
-| 19/03 | *JOBD | external | Identity | primer-1992 p.232 |
-| 0E/01 | *JOBQ | external | Identity | primer-1992 p.232 |
+| 19/03 | *JOBD | external | Partial | primer-1992 p.232 |
+| 0E/01 | *JOBQ | external | Evidence | primer-1992 p.232 |
 | 0E/0C | *JOBSCD | external | Catalog only | — |
 | 09/01 | *JRN | external | Identity | primer-1992 p.232 |
 | 0E/A6 | *JRNIX | internal | Catalog only | — |
@@ -191,7 +191,7 @@ describe the audited capabilities in this repository only.
 | 0E/11 | *PDFMAP | external | Catalog only | — |
 | 19/30 | *PDG | external | Catalog only | — |
 | 19/C7 | *PDT | internal | Catalog only | — |
-| 02/01 | *PGM | external | Identity | primer-1992 p.230,234,439; starter-2001 p.478,480,521,524; operations p.111 |
+| 02/01 | *PGM | external | Evidence | primer-1992 p.230,234,439; starter-2001 p.478,480,521,524; operations p.111 |
 | 19/15 | *PNLGRP | external | Catalog only | — |
 | 1E/B2 | *POBSF | internal | Catalog only | — |
 | 19/33 | *PRDAVL | external | Catalog only | — |

@@ -8873,6 +8873,10 @@ def cmd_browse5250(args):
 
         from as400_capabilities import CapabilityExplorer
         from as400_records import RecordExplorer
+        from as400_message_queues import MessageQueueExplorer
+        from as400_libraries import LibraryExplorer
+        from as400_programs import ProgramExplorer
+        from as400_jobs import JobExplorer
         from as400_directory import DirectoryExplorer
         from as400_menus import MenuExplorer
         from as400_connections import ConnectionExplorer
@@ -8882,9 +8886,13 @@ def cmd_browse5250(args):
         capabilities = CapabilityExplorer(state["image"], state["inventory"], state["segments"])
         records = RecordExplorer(state["image"], state["inventory"], state["segments"])
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
+        programs = ProgramExplorer(state["image"], state["inventory"])
+        jobs = JobExplorer(state["image"], state["inventory"])
         menus = MenuExplorer(state["image"], state["inventory"])
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
+            if obj.type_code == "02/01": return programs.rows(obj)
+            if obj.type_code in ("19/03", "0E/01"): return jobs.rows(obj)
             if obj.type_code == "19/12": return anchors.object_rows(obj)
             if obj.type_code == "19/16": return menus.rows(obj)
             if obj.type_code in ("10/01", "12/01", "11/01"):
@@ -8897,6 +8905,8 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            library_loader=LibraryExplorer(state["inventory"]).rows,
+            queue_loader=MessageQueueExplorer(state["image"], state["inventory"]).rows,
             directory_loader=DirectoryExplorer(state["image"], state["inventory"]).rows,
             index_loader=IndexExplorer(state["image"], state["inventory"], state["segments"]).rows,
             message_loader=MessageExplorer(state["image"], state["inventory"], state["segments"]).rows,
