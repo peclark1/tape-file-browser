@@ -138,7 +138,7 @@ class CommandEvidenceTests(unittest.TestCase):
         self.assertIn("2  +0x01C6  TOFLR", view)
         self.assertIn("4  +0x023C  TODOC", view)
         self.assertIn("defaults are NOT decoded", view)
-        self.assertIn("Parameters         : Not yet structurally decoded", view)
+        self.assertIn("Parameter types/values : Not yet structurally decoded", view)
 
     def test_bounded_text_scan_preserves_primary_byte_offsets(self):
         sample = self.sample()
@@ -163,7 +163,7 @@ class CommandEvidenceTests(unittest.TestCase):
         self.assertIn("0x102 PGM text : QTESTPGM", screen)
         self.assertIn("0x10C LIB text : QTEST", screen)
         self.assertIn("Synthetic Command", screen)
-        self.assertIn("Parameters         : Not yet structurally decoded", screen)
+        self.assertIn("Parameter types/values : Not yet structurally decoded", screen)
         self.assertIn("NOT verified command parameters", screen)
 
     def test_real_reader_uses_extent_pages_and_never_writes(self):
