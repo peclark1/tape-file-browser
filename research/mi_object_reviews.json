@@ -466,11 +466,9 @@
         {
           "source": "operations",
           "pdf_pages": [
-            16,
-            34,
-            35
+            34
           ],
-          "topic": "profile operation context"
+          "topic": "user identity/profile and sign-on"
         }
       ],
       "interfaces": [
