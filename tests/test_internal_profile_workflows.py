@@ -17,7 +17,7 @@ class InternalProfileTests(unittest.TestCase):
         rows = service.rows(internal)
         self.assertEqual([two, one], [r["object"] for r in rows if r.get("object")])
         self.assertIn("2 exact-name", rows[0]["lines"][2])
-        self.assertTrue(all("Name equality" in line for line in rows[0]["lines"] if "Name equality" in line))
+        self.assertTrue(any("Name equality" in line for line in rows[0]["lines"]))
         model = Guided5250(inv, capability_loader=lambda o, sample=None:service.rows(o),
                            config_info_loader=lambda o:["Recovered identity only",o.name])
         model.run_command("DSPINTPRF INTPRF(QEXAMPLE)")
@@ -39,7 +39,7 @@ class InternalProfileTests(unittest.TestCase):
             ex.rows(unrelated)
 
     def test_selection_is_identity_only_and_never_reads_image(self):
-        internal = obj("PROFILE", (0x0E, 0xC4), 10)
+        internal = obj("PROFILE", (0x0E, 0xC4), 10, None)
         user = obj("PROFILE", (0x08, 0x01), 20)
         inv = inventory([internal,user])
         image = Image([])
