@@ -20,6 +20,7 @@ AFP_MODULE_PATH="${HOME}/.local/bin/as400_afp.py"
 OUTQ_MODULE_PATH="${HOME}/.local/bin/as400_outq.py"
 INTPRF_MODULE_PATH="${HOME}/.local/bin/as400_internal_profiles.py"
 SBSD_MODULE_PATH="${HOME}/.local/bin/as400_subsystems.py"
+ARCHIDX_MODULE_PATH="${HOME}/.local/bin/as400_archival_indexes.py"
 MESSAGE_QUEUES_MODULE_PATH="${HOME}/.local/bin/as400_message_queues.py"
 JOBS_MODULE_PATH="${HOME}/.local/bin/as400_jobs.py"
 DIRECTORY_MODULE_PATH="${HOME}/.local/bin/as400_directory.py"
@@ -52,6 +53,7 @@ rm -f \
     "${OUTQ_MODULE_PATH}" \
     "${INTPRF_MODULE_PATH}" \
     "${SBSD_MODULE_PATH}" \
+    "${ARCHIDX_MODULE_PATH}" \
     "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \
     "${INTERNAL_TYPE_PATH}" \
