@@ -47,6 +47,7 @@ rm -f \
     "${LIBRARIES_MODULE_PATH}" \
     "${REFERENCE_CODES_MODULE_PATH}" \
     "${AFP_MODULE_PATH}" \
+    "${OUTQ_MODULE_PATH}" \
     "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \
     "${INTERNAL_TYPE_PATH}" \
