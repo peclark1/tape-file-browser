@@ -8879,6 +8879,7 @@ def cmd_browse5250(args):
         from as400_reference_codes import ReferenceCodeExplorer
         from as400_libraries import LibraryExplorer
         from as400_programs import ProgramExplorer
+        from as400_archival_indexes import ArchivalIndexExplorer
         from as400_subsystems import SubsystemExplorer
         from as400_internal_profiles import InternalProfileExplorer
         from as400_jobs import JobExplorer
@@ -8914,6 +8915,7 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            archival_index_loader=ArchivalIndexExplorer(state["image"]).rows,
             subsystem_loader=subsystem_explorer.rows,
             outq_loader=OutputQueueExplorer(state["image"]).rows,
             afp_loader=AFPExplorer(state["image"], state["inventory"]).rows,
