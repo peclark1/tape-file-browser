@@ -46,6 +46,16 @@ class MIResearchInventoryTests(unittest.TestCase):
         self.assertEqual(4, sum(s["review_status"] == "selected_pages_reviewed"
                                 for s in sources.values()))
         self.assertEqual(19, counts(self.rows)["manual_refs"])
+        scan = self.manuals["lexical_scan_summary"]
+        self.assertEqual(18, scan["manuals_scanned"])
+        self.assertEqual(764, scan["total_type_mentions"])
+        self.assertEqual(86, scan["distinct_ibm_type_names_across_corpus"])
+        self.assertEqual(
+            764, sum(source["lexical_scan"]["exact_token_mentions"]
+                     for source in sources.values()))
+        self.assertTrue(all(source["lexical_scan"]["status"]
+                            == "automated_unverified_text_layer"
+                            for source in sources.values()))
         cmd = self.reviews["reviews"]["1905"]
         ref = next(r for r in cmd["manual_refs"]
                    if r["source"] == "primer-1992")
