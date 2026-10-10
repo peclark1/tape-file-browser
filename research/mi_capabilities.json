@@ -151,6 +151,11 @@
       "state": "partial",
       "workflow": "WRKOUTQ selects saved 48-byte machine-index keys, offers exact-hex and observed +0x20 form-token filtering, and inspects opaque key bytes; FA-prefixed control-like keys are not called live entries.",
       "next_step": "Independently validate saved spool-entry field boundaries, key identity and actual spooled-file references before assigning status, chronology or spool contents."
+    },
+    "0EC4": {
+      "state": "partial",
+      "workflow": "DSPINTPRF navigates recovered 0E/C4 internal-profile identities to exact-name *USRPRF primary candidates without opening either profile body; missing and duplicate matches remain explicit.",
+      "next_step": "Establish period-specific INTPRF structural semantics and certified links, if available, without reading password or authorization material."
     }
   }
 }
