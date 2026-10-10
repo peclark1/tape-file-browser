@@ -31,7 +31,7 @@ research/mi_survey_scoring.json.
 |---:|---|---|---|---:|---|---:|---:|---|
 | 1 | 19/01 | *FILE | Database and data access | 97.0 | 5/5/5/4/5 | 1325 | 1009 | partial_decoder |
 | 2 | 0D/50 | *MEM | Core metadata and indexes | 93.0 | 5/5/4/4/5 | 505 | 73 | substantial_decoder |
-| 3 | 19/05 | *CMD | Commands, programs and 5250 | 92.0 | 5/4/5/4/5 | 3129 | 1117 | evidence_only |
+| 3 | 19/05 | *CMD | Commands, programs and 5250 | 92.0 | 5/4/5/4/5 | 3129 | 1117 | partial_decoder |
 | 4 | 04/01 | *LIB | Core metadata and indexes | 92.0 | 5/5/5/3/4 | 50 | 22 | substantial_decoder |
 | 5 | 19/51 | *FMT | Core metadata and indexes | 89.0 | 5/5/3/4/5 | 751 | 311 | partial_decoder |
 | 6 | 0B/90 | *QDDS | Core metadata and indexes | 86.0 | 5/5/3/3/5 | 490 | 66 | partial_decoder |
@@ -70,7 +70,7 @@ metadata. Zero below means **no signature match**, not absence.
 |---:|---|---|---|---|---:|---:|---:|---|---|
 | 1 | *FILE | 19/01 | Database and data access | Tier 1 | 97.0 | 1325 | 1009 | partial_decoder | initial_sources |
 | 2 | *MEM | 0D/50 | Core metadata and indexes | Tier 1 | 93.0 | 505 | 73 | substantial_decoder | initial_sources |
-| 3 | *CMD | 19/05 | Commands, programs and 5250 | Tier 1 | 92.0 | 3129 | 1117 | evidence_only | initial_sources |
+| 3 | *CMD | 19/05 | Commands, programs and 5250 | Tier 1 | 92.0 | 3129 | 1117 | partial_decoder | initial_sources |
 | 4 | *LIB | 04/01 | Core metadata and indexes | Tier 1 | 92.0 | 50 | 22 | substantial_decoder | initial_sources |
 | 5 | *FMT | 19/51 | Core metadata and indexes | Tier 1 | 89.0 | 751 | 311 | partial_decoder | unreviewed |
 | 6 | *QDDS | 0B/90 | Core metadata and indexes | Tier 1 | 86.0 | 490 | 66 | partial_decoder | unreviewed |

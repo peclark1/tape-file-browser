@@ -4,6 +4,65 @@
 
 **Status checked:** October 9, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## Latest capability session — October 9–10, 2026
+
+**Delivered:** Interactive Command Exploration, with an intentional safe subset
+of historical command-definition recovery. Branch
+`feature/interactive-command-explorer`, based on `feature/mi-full-corpus-survey`
+commit `f3bb5394d3d9be9f426176ae459917ac4519c168`.
+PR link and committed revision are recorded below when published.
+
+- `WRKCMD CMD(*ALL/CPY*)` searches all recovered *CMD identities, including
+  unassigned primaries; duplicates retain library and LBA. `DSPCMD
+  CMD(QIWS/CPYTOPCD)` opens the definition, as does Enter/5 in normal object
+  navigation. Stored keywords are selectable; Enter shows field offsets,
+  ordinal, origin and unknown attributes. Back restores the selected row.
+- Summary includes recovery diagnostics and library-assignment provenance;
+  Evidence retains unclassified text; PGM matches navigates matching recovered
+  program identities without claiming a validated CPP pointer.
+- Details wrap at ordinary terminal widths. F4 still selects implemented
+  offline browser operations. No CL execution or editable parameter values.
+- Selectively incorporated #15's decoder/tests/research, then added structured
+  diagnostics, duplicate-keyword rejection, UI integration and regression tests.
+  No pending branch was merged into main. #15 itself remains unchanged.
+- Startup live review: #15–18 all open drafts, no submitted reviews, each head's
+  PR-triggered GitHub Actions Tests run successful. Stack topology below holds.
+
+**Validation:** 201 synthetic tests passed (`python3 -m unittest discover -s
+ tests -v`), module compilation, shell syntax, both generated-report checks,
+ and `git diff --check`. Frontend key-loop/rendering tests cover 80x24 and
+ 64x16; original-image model workflows cover CPYTOPCD (9), CRTCMD (27),
+ ADDPFM (6), DSPCMD (2) on Mark plus unassigned ADDPFM (5) on Pete.
+ This is not a manual test in Joe's Tilix environment.
+
+Both ZIPs extracted successfully with CRC validation; original HDA sizes are
+1,004,257,800 and 320,523,840 bytes. Extracted images are mode 0444, outside
+Git, opened read-only; SHA-256 unchanged after full original-image validation.
+Normal recovery found 3,118 / 1,098 commands, of which 2,571 / 476 have complete
+empirical keyword sequences. Pete has 1,096 unassigned command primaries;
+these are now reachable with `WRKCMD CMD(*ORPHAN/*)`. They are distinct from
+physical-signature counts and do not establish active/consistent commands.
+
+**Evidence and blockers:** keywords/count/ordinals are empirical partial
+decoding; types/defaults/choices/prompts/CPP pointers and historical F4 order
+remain unknown. Pete CPYTOPCD and CRTCMD have missing required ordinal slots.
+Pete's library-assigned STRDFU primary contains CRTDUPOBJ-like payload clues;
+it is expressly excluded as a semantically validated example. Exact LBAs,
+offsets, negative evidence and required comparison inputs are in
+[the capability record](INTERACTIVE_COMMAND_EXPLORATION.md).
+
+**Next session:** start at `as400_cmd.py:recover_parameter_keywords`,
+`as400_5250.py:Guided5250.explore_command`, and the capability record's
+blockers. First obtain a period-correct source/compiled-object/DSPCMD or F4
+triplet (ideally a one-attribute PROMPT/DFT/VALUES change) before decoding
+prompt/value pointers. Separately compare Pete LBA 587728 EPA/context and
+payload against another capture to investigate stale/reused/renamed storage;
+do not rename it from text clues. Until that evidence exists, retain the
+safe browsing workflow and prioritize user-tested navigation improvements.
+Joe can reproduce with `python3 as400_dasd_tool.py browse5250 /path/to/marks.hda`,
+then the WRKCMD/DSPCMD commands above. Opt-in whole-image checks are in
+`tools/validate_command_exploration.py`; see capability record for exact commands.
+
 ## Repository and branch topology
 
 - Repository: https://github.com/peclark1/tape-file-browser
@@ -20,7 +79,7 @@
 - App is a **read-only** GTK4/tape/browser and experimental CISC OS/400 DASD explorer, with terminal Guided 5250 mode via `as400-dasd browse5250 /path/to/image.hda` (or entry point verified in the checked-out README). Supports libraries, objects, members, records, source views, and evidence-labeled forensic screens.
 - Historical CISC AS/400 sectors are **520 bytes physical**, usually comprising an **8-byte physical header** and **512-byte logical payload**. Reassemble object data through **virtual extents**, not an unsupported assumption of contiguous physical pages.
 - IBM published 268 later-version MI catalog labels: **102 external and 166 internal**. **Not** all are certified to exist in V2R3.
-- Current initial decoder audit: **28 type-specific reviews**; **240 catalog-only**. Maturity labels distinguish object identity, unclassified byte evidence, partial decoding and substantial decoding; none claims a universal complete decoder.
+- Initial survey decoder audit: **28 type-specific reviews**; **240 catalog-only**. Maturity labels distinguish object identity, unclassified byte evidence, partial decoding and substantial decoding; none claims a universal complete decoder.
 - Surveyed two private HDA archives: Mark V2R3 (`marks.hda.zip`) and Pete B10 (`petes.hda.zip`). A conservative complete physical-primary signature survey observed **109 raw MI codes** across both (106 in the published later IBM catalog); **0E/00, 19/C4, 19/ED** remain unidentified. These are **physical candidate signatures**, not an inventory of live/context-confirmed objects.
 - Mark: **1,931,265** 520-byte sectors, **20,271** candidate primary pages, **104** raw MI codes; Pete: **616,392** sectors, **7,570** candidates, **64** raw MI codes. **162 of the 268 names** had no signature match; this does not demonstrate absence.
 - A local archive contains **17 AS/400 PDF manuals** plus a separate disk-storage Redbook (**18 PDFs**). The automated exact-token pass recorded **764** mentions covering **86** types. Automated lexical matches are **unverified leads**, distinct from manually verified PDF-page citations.

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+import textwrap
 from dataclasses import dataclass
 from as400_object_types import lookup as lookup_object_type
 
@@ -29,6 +30,8 @@ COMMANDS = (
     CommandSpec("DSPUSRPRF", "DSPUSRPRF USRPRF(QSYSOPR)", "Display recovered user-profile identity and relationships (no credentials)."),
     CommandSpec("DSPDEVD", "DSPDEVD DEVD(QCONSOLE)", "Display recovered device-description evidence."),
     CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
+    CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
+    CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("HELP", "HELP", "Show guided navigation and supported commands."),
 )
 _COMMAND_MAP = {item.name: item for item in COMMANDS}
@@ -87,6 +90,8 @@ def parse_command(text):
         "DSPUSRPRF": {"USRPRF"},
         "DSPDEVD": {"DEVD"},
         "DSPMODD": {"MODD"},
+        "WRKCMD": {"CMD"},
+        "DSPCMD": {"CMD"},
         "HELP": set(),
     }[name]
     extra = set(parameters) - allowed
@@ -99,7 +104,10 @@ class Guided5250:
     """Testable navigation model shared by the curses frontend and unit tests."""
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
-                 command_info_loader=None, config_info_loader=None):
+                 command_info_loader=None, config_info_loader=None,
+                 command_definition_loader=None):
+        self.command_definition_loader = command_definition_loader
+        self.view_rows = []
         self.inventory = inventory
         self.member_info = member_info or (lambda obj: None)
         self.member_loader = member_loader or (lambda lib, file, obj: [])
@@ -119,12 +127,13 @@ class Guided5250:
 
     def _snapshot(self):
         return (self.screen, self.library, self.file, self.member,
-                self.library_filter, self.selected, self.scroll, list(self.detail))
+                self.library_filter, self.selected, self.scroll, list(self.detail), list(self.view_rows))
 
-    def _goto(self, screen, *, library="", file="", member="", detail=None, library_filter="*"):
+    def _goto(self, screen, *, library="", file="", member="", detail=None, library_filter="*", view_rows=None):
         self.history.append(self._snapshot())
         self.screen, self.library, self.file, self.member = screen, library, file, member
         self.detail = list(detail or [])
+        self.view_rows = list(view_rows or [])
         self.library_filter = library_filter
         self.selected = self.scroll = 0
 
@@ -133,7 +142,7 @@ class Guided5250:
             self.status = "Already at the top level."
             return False
         (self.screen, self.library, self.file, self.member,
-         self.library_filter, self.selected, self.scroll, self.detail) = self.history.pop()
+         self.library_filter, self.selected, self.scroll, self.detail, self.view_rows) = self.history.pop()
         self.status = ""
         return True
 
@@ -147,6 +156,8 @@ class Guided5250:
                       if fnmatch.fnmatchcase(name, self.library_filter.upper()))
 
     def rows(self):
+        if self.screen in ("commands", "command_definition", "related_programs"):
+            return self.view_rows
         if self.screen == "libraries":
             return [dict(kind="library", name=name, type="*LIB", note="Recovered namespace")
                     for name in self._libraries()]
@@ -197,6 +208,9 @@ class Guided5250:
             "objects": "Work with Objects Using PDM",
             "members": "Work with Members Using PDM",
             "contents": "Display Physical File Member (Recovered)",
+            "commands": "Work with Recovered Commands",
+            "command_definition": "Explore Command Definition (Read-only)",
+            "related_programs": "Candidate Program Name Matches (Unverified Link)",
             "command_info": "Display Command Information (Recovered)",
             "config_info": "Display OS/400 Configuration (Recovered)",
             "details": "Display Recovered Object Information",
@@ -235,6 +249,65 @@ class Guided5250:
         self._goto("command_info", library=self.library, detail=lines)
         self.status = "Read-only command metadata/evidence; no command execution."
 
+    def command_rows(self, pattern="*ALL/*"):
+        """Search identities only; do not read every primary or hide duplicates."""
+        parts = pattern.split("/")
+        if len(parts) == 1:
+            parts = ["*ALL", parts[0]]
+        if len(parts) != 2 or not all(parts):
+            raise ValueError("Use CMD(name), CMD(library/name), or CMD(*ALL/pattern).")
+        lib, name = parts
+        if not all(re.fullmatch(r"[A-Z0-9#$@_*?]+", value) for value in parts):
+            raise ValueError("Command search accepts names and * or ? wildcards only.")
+        name = "*" if name == "*ALL" else name
+        result = []
+        for obj in self.inventory.objects:
+            if (obj.object_type, obj.object_subtype) != (0x19, 0x05):
+                continue
+            library = obj.library_name or "*UNASSIGNED"
+            lib_match = (lib == "*ALL" or
+                         (lib == "*ORPHAN" and not obj.library_name) or
+                         (obj.library_name and fnmatch.fnmatchcase(library.upper(), lib)))
+            if lib_match and fnmatch.fnmatchcase(obj.name.upper(), name):
+                result.append(dict(kind="command", name=obj.name, type=library,
+                                   note=f"LBA {obj.segment.start_lba}", object=obj))
+        return sorted(result, key=lambda r: (r["name"], r["type"], r["object"].segment.start_lba))
+
+    def explore_command(self, obj):
+        if self.command_definition_loader is None:
+            self.show_command_info(obj)
+            return
+        from as400_cmd import parameter_information_lines
+        try:
+            view = self.command_definition_loader(obj)
+        except (OSError, ValueError) as exc:
+            self._goto("command_info", library=obj.library_name or "<unassigned>",
+                       file=obj.name, detail=[f"Command recovery unavailable: {exc}"])
+            return
+        rows = [dict(kind="command_section", name="Summary", type="Origin",
+                     note=view.recovery.reason, lines=view.summary),
+                dict(kind="command_section", name="Evidence", type="Tentative",
+                     note="Whole-command strings and offsets", lines=view.evidence)]
+        if view.processor:
+            pgm, lib = view.processor
+            matches = [o for o in self.inventory.objects
+                       if (o.object_type, o.object_subtype) == (2, 1)
+                       and o.name.upper() == pgm
+                       and (o.library_name or "").upper() == lib]
+            related = [dict(kind="object", name=o.name, type="*PGM", object=o,
+                            note=f"{lib} LBA {o.segment.start_lba}; name match only")
+                       for o in sorted(matches, key=lambda o: o.segment.start_lba)]
+            rows.append(dict(kind="related", name="PGM matches", type="Unverified",
+                             note=f"{lib}/{pgm}: {len(matches)} name matches", rows=related))
+        for parameter in view.recovery.parameters:
+            rows.append(dict(kind="command_section", name=parameter.keyword,
+                             type=f"#{parameter.ordinal}", note=f"+0x{parameter.offset:04X} empirical keyword",
+                             lines=parameter_information_lines(obj, parameter)))
+        self._goto("command_definition", library=obj.library_name or "<unassigned>",
+                   file=obj.name, view_rows=rows)
+        self.status = (f"{len(view.recovery.parameters)} keywords; stored order, not F4 order."
+                       if view.recovery.parameters else view.recovery.reason)
+
     def show_config_info(self, obj):
         """Navigate to a read-only, evidence-labeled object-specific view."""
         try:
@@ -258,7 +331,18 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "library" and option == "12":
+        if row["kind"] == "command" and option == "5":
+            self.explore_command(row["object"])
+            return True
+        elif row["kind"] == "command_section" and option in ("5", "8"):
+            self._goto("command_info", library=self.library, file=self.file,
+                       member=row["name"], detail=row["lines"])
+        elif row["kind"] == "related" and option == "5":
+            self._goto("related_programs", library=self.library, file=self.file,
+                       view_rows=row["rows"])
+            self.status = "Name matches only; CPP pointer unverified. Empty is not proof of absence."
+            return True
+        elif row["kind"] == "library" and option == "12":
             self._goto("objects", library=row["name"])
         elif row["kind"] == "file" and option == "12":
             self._goto("members", library=self.library, file=row["name"])
@@ -266,17 +350,21 @@ class Guided5250:
             self.show_contents(row["object"])
         elif (row["kind"] == "object" and row["type"] == "*CMD"
               and option == "5"):
-            self.show_command_info(row["object"])
+            self.explore_command(row["object"])
+            return True
         elif (row["kind"] == "object"
               and row["type"] in ("*USRPRF", "*DEVD", "*MODD")
               and option == "5"):
             self.show_config_info(row["object"])
-        elif option in ("5", "8") and row["kind"] in ("library", "file", "object", "directory"):
+        elif option in ("5", "8") and row["kind"] in ("library", "file", "object", "directory", "command"):
+            obj = row.get("object")
+            origin_library = (getattr(obj, "library_name", None) or "<unassigned>"
+                              if obj is not None else self.library or row["name"])
             lines = [
                 "Recovered object details (read-only)",
                 f"Name:    {row['name']}",
-                f"Type:    {row['type']}",
-                f"Library: {self.library or row['name']}",
+                f"Type:    {getattr(obj, 'external_type_hint', None) or row['type']}",
+                f"Library: {origin_library}",
                 f"Status:  {row.get('note') or 'Primary object recovered'}",
             ]
             info = row.get("catalog_info")
@@ -294,7 +382,13 @@ class Guided5250:
                     "Catalog: modern IBM i documentation (V2R3 presence unverified)",
                     f"Reference: {info.source}",
                 ])
-            self._goto("details", library=self.library, file=self.file, detail=lines)
+            if obj is not None and hasattr(obj, "segment"):
+                lines.extend([f"Primary LBA: {obj.segment.start_lba}",
+                              f"Virtual address: {obj.segment.virtual_address:012X}"])
+            if self.screen == "related_programs":
+                lines.append("Candidate processor name match only; not a verified CPP link.")
+            self._goto("details", library=getattr(obj, "library_name", None) or self.library,
+                       file=self.file, detail=lines)
         else:
             self.status = f"Option {option} is not available for this selection."
             return False
@@ -306,6 +400,17 @@ class Guided5250:
             name, params = parse_command(text)
             if name == "HELP":
                 self._goto("help", detail=self.help_lines())
+            elif name in ("WRKCMD", "DSPCMD"):
+                pattern = params.get("CMD", "*ALL/*" if name == "WRKCMD" else "")
+                if not pattern:
+                    raise ValueError("Specify CMD(library/name) or CMD(name).")
+                rows = self.command_rows(pattern)
+                if name == "DSPCMD" and len(rows) == 1:
+                    self.explore_command(rows[0]["object"])
+                else:
+                    self._goto("commands", file=pattern, view_rows=rows)
+                    self.status = ("Select an individual primary; library and LBA distinguish duplicates."
+                                   if rows else "No recovered command matches. Try WRKCMD CMD(*ALL/*).")
             elif name in ("DSPUSRPRF", "DSPDEVD", "DSPMODD"):
                 specs = {
                     "DSPUSRPRF": ("USRPRF", (0x08, 0x01)),
@@ -402,7 +507,12 @@ class Guided5250:
             "Up/Down: Select row       Enter: Open selected row",
             "12 + Enter: Work with objects or members",
             "5 + Enter: Display selected member/object",
-            "5/Enter on *CMD: Recover command information (evidence-only)",
+            "5/Enter on *CMD: Explore definition, keywords, origin and evidence",
+            "WRKCMD CMD(*ALL/CPY*): find commands across recovered namespaces",
+            "WRKCMD CMD(*ORPHAN/*): include commands with no recovered library",
+            "DSPCMD CMD(QIWS/CPYTOPCD): open definition (duplicates stay separate)",
+            "Definition: Enter a keyword, Summary, Evidence or PGM name matches",
+            "All command views are offline; no commands or parameters execute.",
             "5/Enter on *USRPRF, *DEVD, *MODD: read-only configuration evidence",
             "DSPUSRPRF/DSPDEVD/DSPMODD NAME(value): inspect recovered identity",
             "Type a command directly, or press ':' to edit the command field.",
@@ -436,6 +546,13 @@ def _safe_display_text(value):
     )
 
 
+def _detail_lines(model, width):
+    """Wrap evidence so ordinary terminals do not silently hide qualifiers."""
+    return [part for line in model.detail
+            for part in (textwrap.wrap(_safe_display_text(line), max(1, width - 4),
+                                        replace_whitespace=False) or [" "])]
+
+
 def _draw(screen, model, option="", command="", suggestions=None, active=False, suggestion_index=0):
     import curses
 
@@ -449,14 +566,22 @@ def _draw(screen, model, option="", command="", suggestions=None, active=False, 
         y, x, _safe_display_text(text), max(0, width - x - 1), attr)
     put(0, 1, f" {model.title()} ", curses.A_BOLD | curses.A_REVERSE)
     put(1, 2, f"Location: {model.location()}")
-    put(2, 2, "Type options, press Enter.  12=Work with  5=Display  8=Details")
+    if model.screen == "command_definition":
+        put(2, 2, "Enter=Inspect  Keywords=empirical  Prompts/defaults=unknown")
+    elif model.screen == "commands":
+        put(2, 2, "Enter=Explore  8=Origin  Unassigned=unknown library")
+    else:
+        put(2, 2, "Type options, press Enter.  12=Work with  5=Display  8=Details")
     body_height = max(1, height - 10)
     if model.screen in ("contents", "details", "help", "command_info", "config_info"):
-        lines = model.detail
+        lines = _detail_lines(model, width)
         for i, line in enumerate(lines[model.scroll: model.scroll + body_height]):
             put(4 + i, 2, line)
     else:
-        put(3, 2, "Opt  Name         Type        Information", curses.A_BOLD)
+        heading = ("Opt  Command      Library     Primary origin" if model.screen == "commands"
+                   else "Opt  Keyword      Ordinal     Evidence" if model.screen == "command_definition"
+                   else "Opt  Name         Type        Information")
+        put(3, 2, heading, curses.A_BOLD)
         rows = model.rows()
         model.selected = min(model.selected, max(0, len(rows) - 1))
         start = min(max(0, model.selected - body_height // 2),
@@ -559,7 +684,7 @@ def run_curses(stdscr, model):
                      curses.KEY_PPAGE: -max(1, stdscr.getmaxyx()[0] - 10),
                      curses.KEY_NPAGE: max(1, stdscr.getmaxyx()[0] - 10)}[key]
             if model.screen in ("contents", "details", "help", "command_info", "config_info"):
-                model.scroll = max(0, min(max(0, len(model.detail) - 1), model.scroll + delta))
+                model.scroll = max(0, min(max(0, len(_detail_lines(model, stdscr.getmaxyx()[1])) - 1), model.scroll + delta))
             else:
                 model.selected = max(0, min(max(0, len(model.rows()) - 1),
                                             model.selected + delta))

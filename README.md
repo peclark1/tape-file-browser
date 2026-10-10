@@ -424,11 +424,18 @@ Navigation:
 - Up/Down select an entry; Enter opens the selected library, file, or member.
 - Type **12** then Enter to work with a selected library or file.
 - Type **5** then Enter to display a selected member or object details.
-- Enter (or **5**) on an OS/400 **`*CMD`** object opens a recovered
-  **Command Information** screen. The object name, library, MI 19/05 type,
-  primary disk address and byte counts are verified. Candidate processing
-  program and title strings are marked **tentative**; parameter definitions
-  are not yet decoded from V2R3 on-disk metadata.
+- Enter (or **5**) on a recovered **`*CMD`** opens **Explore Command Definition**.
+  Browse empirical keywords in stored ordinal order; Enter opens a parameter's
+  offsets and known/unknown fields. Summary shows origin and recovery failures;
+  Evidence preserves tentative whole-command text. PGM matches follows candidate
+  names without claiming a decoded processing-program pointer.
+- `WRKCMD CMD(*ALL/CPY*)` searches recovered command identities across libraries.
+  `DSPCMD CMD(QIWS/CPYTOPCD)` opens a specific definition; duplicate primaries
+  remain separate, labeled by library and LBA. `WRKCMD CMD(*ORPHAN/*)` exposes
+  commands whose library context could not be recovered.
+- Parameters, defaults and commands cannot be entered or executed. Stored order
+  is not verified historical F4 order; a valid keyword sequence does not prove
+  that recovered identity and payload are semantically consistent.
 - Type **8** on a command object to see ordinary object details instead.
 - F4 opens the searchable command catalog with descriptions; type to filter,
   Up/Down to select, Tab to insert an example, Enter to run.
@@ -442,7 +449,8 @@ by default. Reassign/disable that shortcut under Tilix Preferences > Shortcuts
 to pass F12 to the browser, or use the Backspace / Ctrl+B alternatives.
 
 Implemented **read-only** command subset: `WRKLIB`, `WRKLIBPDM`,
-`WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM`, and `HELP`.
+`WRKOBJ`, `WRKOBJPDM`, `WRKMBRPDM`, `DSPPFM`, `WRKCMD`, `DSPCMD`,
+`DSPUSRPRF`, `DSPDEVD`, `DSPMODD`, and `HELP`.
 
 Examples:
 
@@ -451,7 +459,11 @@ WRKLIBPDM LIB(Q*)
 WRKOBJPDM LIB(QGPL)
 WRKMBRPDM FILE(QGPL/QCLSRC)
 DSPPFM FILE(QGPL/QCLSRC) MBR(REFRESH2)
+WRKCMD CMD(*ALL/CPY*)
+DSPCMD CMD(QIWS/CPYTOPCD)
 ```
+
+See [command exploration evidence and validation](docs/INTERACTIVE_COMMAND_EXPLORATION.md).
 
 Only the listed subset and explicitly supported named parameters are accepted.
 Other OS/400 commands, including live-job and destructive commands, are

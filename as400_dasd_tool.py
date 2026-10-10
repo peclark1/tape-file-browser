@@ -5949,6 +5949,15 @@ def _tui_segment_prefix(image, segment, limit=1024):
     return bytes(result[:limit])
 
 
+def _tui_command_definition(state, obj):
+    """Bounded virtual-order *CMD loader; reject other object types before reading."""
+    from as400_cmd import command_exploration
+    if (obj.object_type, obj.object_subtype) != (0x19, 0x05):
+        raise ValueError("Selected object is not a recovered *CMD primary.")
+    prefix = _tui_segment_prefix(state["image"], obj.segment, limit=8192)
+    return command_exploration(obj, prefix)
+
+
 def _tui_command_information_lines(state, obj):
     """Read only a bounded real *CMD primary for the guided 5250 inspector."""
     from as400_cmd import command_information_lines
@@ -8866,6 +8875,7 @@ def cmd_browse5250(args):
             state["inventory"],
             member_info=state["image"].read_member_info,
             member_loader=member_data,
+            command_definition_loader=lambda obj: _tui_command_definition(state, obj),
             command_info_loader=lambda obj: _tui_command_information_lines(state, obj),
             config_info_loader=lambda obj: _tui_config_information_lines(state, obj),
         )
