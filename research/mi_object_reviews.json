@@ -280,7 +280,7 @@
       "implementation": [
         "as400_object_types.py:lookup"
       ],
-      "next_step": "Compare compiled menu objects and menu-source/prompt files to build safe menu viewer.",
+      "next_step": "Trace compiled menu to separately recovered display file and message file or program using period-correct source examples; validate binary pointers.",
       "manual_refs": [
         {
           "source": "primer-1992",
@@ -294,7 +294,23 @@
         "CRTMNU",
         "DSPMNU"
       ],
-      "relationships": []
+      "relationships": [
+        {
+          "target": "1901",
+          "relation": "menu may use display file as presentation object",
+          "basis": "AS/400 Primer (1992), PDF p.233 documents menu tied to display file; no compiled on-disk pointer decoded"
+        },
+        {
+          "target": "0E03",
+          "relation": "menu may use message file",
+          "basis": "AS/400 Primer (1992), PDF p.233 describes message file OR program; selection/pointer not decoded"
+        },
+        {
+          "target": "0201",
+          "relation": "menu may invoke program",
+          "basis": "AS/400 Primer (1992), PDF p.233 describes program alternative; selection/pointer not decoded"
+        }
+      ]
     },
     "1951": {
       "status": "partial_decoder",
