@@ -102,7 +102,7 @@ class OutputQueueTests(unittest.TestCase):
         self.assertEqual("capabilities",model.screen)
         model.run_command("WRKOUTQ OUTQ(QPRINT) KEYHEX(GG)")
         self.assertIn("non-hexadecimal",model.status)
-        self.assertNotIn("job",ex.rows(item)[0]["lines"][2].lower())
+        self.assertIn("not verified spool/job chronology",ex.rows(item)[0]["lines"][2].lower())
 
 
 if __name__ == "__main__":
