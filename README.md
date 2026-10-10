@@ -868,3 +868,7 @@ Run `DSPINTPRF INTPRF(*ALL/*)` to browse recovered CISC internal-profile identit
 ### Saved subsystem and class candidates (offline)
 
 Use `DSPSBSD SBSD(*ALL/*)` to browse exact ten-byte padded-name occurrences referring to recovered `*JOBQ`, `*CLS`, and `*PGM` identities, or `DSPCLS CLS(*ALL/*)` for reverse candidate navigation. This is *not* decoded subsystem/class assignment; self-name echoes, duplicates and unknown ownership remain explicit. [Evidence and safeguards](docs/SUBSYSTEM_NAME_WORKFLOWS.md).
+
+### Saved scheduler and service indexes (offline)
+
+Use `DSPSCHIDX SCHIDX(*ALL/*)` and `DSPMSRVI MSRVI(*ALL/*)` to select recovered CISC machine-index key evidence, page through supported terminals, apply `KEYHEX(C1)`, and inspect opaque hex/CP037 bytes. Neither command decodes historical actions or service records. See [documented evidence limits](docs/ARCHIVAL_INDEX_WORKFLOWS.md).
