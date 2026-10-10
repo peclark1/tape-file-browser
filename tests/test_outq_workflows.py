@@ -96,6 +96,48 @@ class OutputQueueTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ex.rows(item,entry=NS(raw=unknown.raw,terminal_offset=-1))
 
+    def test_jobq_saved_index_navigation_without_active_job_claims(self):
+        from as400_jobs import JobExplorer
+        for control in (False, True):
+            item = obj("QBATCH", (0x0E, 0x01))
+            item.segment.virtual_address = 0x100000
+            data = outq_fixture(control=control)
+            item.segment.extents = (NS(start_lba=10, virtual_address=0x100000,
+                                       pages=len(data)//512),)
+            inv = inventory([item]); im = Image([(item, data)])
+            queue_index = OutputQueueExplorer(im)
+            job = JobExplorer(im, inv)
+            model = Guided5250(inv, capability_loader=lambda o,sample=None:job.rows(o),
+                               outq_loader=queue_index.rows)
+            model.run_command("WRKJOBQ JOBQ(QBATCH)")
+            action = next(i for i,r in enumerate(model.rows())
+                          if r["name"]=="Saved queue-index keys")
+            model.selected=action;model.open_row(action)
+            self.assertEqual("Saved JOBQ index", model.rows()[0]["name"])
+            self.assertEqual(1 if control else 2,len(model.rows()))
+            if not control:
+                model.open_row(1)
+                self.assertEqual("Saved JOBQ key",model.rows()[0]["name"])
+                self.assertIn("No JOBQ key fields",model.rows()[0]["lines"][2])
+                model.back()
+            model.back()
+            self.assertEqual(action,model.selected)
+            with self.assertRaises(ValueError):
+                queue_index.rows(item, form="*STD")
+
+    def test_key_paging_keeps_exact_origin_and_stable_selection(self):
+        from as400_outq import OutputQueueKey
+        item,ex,model = self.fixture_model()
+        keys = tuple(OutputQueueKey(b"\\xC1"+i.to_bytes(2,"big")+bytes(45), 0x800+i)
+                     for i in range(76))
+        ex._cache[(item.segment.start_lba,item.segment.virtual_address)]=(keys,())
+        rows=ex.rows(item)
+        self.assertEqual(50,sum(r["name"].startswith("Key ") for r in rows))
+        nxt=next(r for r in rows if r["name"]=="Next")
+        self.assertEqual(26,sum(r["name"].startswith("Key ")
+                                for r in ex.rows(**nxt["request"])))
+        self.assertEqual("Key 51",ex.rows(**nxt["request"])[2]["name"])
+
     def test_command_is_not_execution(self):
         item,ex,model = self.fixture_model()
         model.run_command("WRKOUTQ OUTQ(*ALL/QPRINT)")
