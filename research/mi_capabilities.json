@@ -126,6 +126,11 @@
       "state": "partial",
       "workflow": "DSPPGM reverse command/P-menu name-reference candidates lead into recovered command definitions, with duplicate and unassigned origins retained. No call graph or MI instructions are inferred.",
       "next_step": "Validate actual CPP/ODT references and program structures; retain reference-navigation versus binary-decoder distinction."
+    },
+    "0E08": {
+      "state": "partial",
+      "workflow": "DSPRCT filtered eight-byte key lookup -> exact-owner secondary record with inclusive length and repeated-key checks -> paged opaque bytes / missing-storage diagnostic.",
+      "next_step": "Establish RCT record field semantics from period references and recover Pete secondary ownership; D/F/S/P variant meanings remain unknown."
     }
   }
 }

@@ -4,6 +4,22 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## RCT continuation checkpoint — October 10, 2026
+
+Prior follow-on commit `8247c44dfdd1a9c51c909fa0ddbf043c5706aa5d` is published
+in PR #23 and passed Tests run `38089462003`. Work continued through RCT.
+`DSPRCT` now provides byte-prefix key lookup -> exact-owner, length/repeated-key
+validated record -> paged opaque bytes. 36,794 Mark records pass; all 8,451 Pete
+index entries remain navigable with explicit unavailable-storage diagnostics.
+Both original hashes remain unchanged; six model paths and 266 synthetic tests
+pass, plus isolated installed-module imports.
+
+Current ledger: **26 partial / 242 queued**, zero universal completions; 31 types
+have some audited binary/evidence coverage. RCT is the eleventh newly advanced
+family in this successor branch. Full record semantics remain unknown.
+JMQ/LDA direct-address probes are documented; next investigation is the UIM
+MENU -> PNLGRP relationship. Earlier checkpoint counts below are historical.
+
 ## Continued after publication — October 10, 2026
 
 [PR #23](https://github.com/peclark1/tape-file-browser/pull/23) is open on

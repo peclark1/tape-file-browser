@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from as400_reference_codes import ReferenceCodeExplorer
 from as400_libraries import LibraryExplorer
 from as400_programs import ProgramExplorer
 from as400_cmd import command_exploration
@@ -28,6 +29,7 @@ def validate(path, inventory=None, segments=None):
     if inventory is None or segments is None:
         scan=image.scan();segments=image.recover_segments(scan);inventory=image.recover_objects(scan,segments)
     messages=MessageExplorer(image,inventory,segments);indexes=IndexExplorer(image,inventory,segments)
+    references=ReferenceCodeExplorer(image,inventory,segments)
     libraries=LibraryExplorer(inventory)
     programs=ProgramExplorer(image,inventory)
     jobs=JobExplorer(image,inventory);queues=MessageQueueExplorer(image,inventory)
@@ -40,12 +42,31 @@ def validate(path, inventory=None, segments=None):
         if obj.type_code=='19/16':return menus.rows(obj)
         if obj.type_code in ('10/01','12/01','11/01'):return connections.rows(obj)
         return capabilities.rows(obj,sample)
-    model=Guided5250(inventory,library_loader=libraries.rows,message_loader=messages.rows,index_loader=indexes.rows,
+    model=Guided5250(inventory,reference_loader=references.rows,library_loader=libraries.rows,message_loader=messages.rows,index_loader=indexes.rows,
                     command_definition_loader=lambda o:command_exploration(o,read_prefix(image,o.segment,8192)),
                     directory_loader=directories.rows,queue_loader=queues.rows,record_loader=records.rows,capability_loader=capability)
     counts=Counter();paths=set()
     for obj in inventory.objects:
-        if obj.type_code=='04/01':
+        if obj.type_code=='0E/08':
+            entries,warnings=references.entries(obj)
+            counts['RCT indexes']+=1;counts['RCT entries']+=len(entries);counts['RCT warnings']+=len(warnings)
+            storage=references._storage.get(obj.segment.owner_key,())
+            if len(storage)!=1:counts['RCT indexes without unique storage']+=1
+            else:
+                for entry in entries:
+                    record=references.record(obj,entry)
+                    counts['RCT corroborated records']+=1
+                    counts['RCT record variant '+entry.key[:1].hex().upper()]+=1
+            if entries and counts['RCT record walkthroughs']<3:
+                model.show_evidence(dict(obj=obj),references.rows)
+                selected=next(i for i,r in enumerate(model.rows()) if r.get("request",{}).get("entry") is not None)
+                model.selected=selected;model.open_row(selected)
+                expected='Corroborated record' if len(storage)==1 else 'Unavailable'
+                if model.rows()[0]['name']!=expected:raise ValueError('RCT record/diagnostic not opened')
+                model.back()
+                if model.selected!=selected:raise ValueError('RCT selection lost')
+                counts['RCT record walkthroughs']+=1;paths.add('RCT key/record or missing storage/back')
+        elif obj.type_code=='04/01':
             rows=libraries.rows(obj);counts['library contexts opened']+=1
             entries=libraries._entries.get(obj.object_address.key,())
             for entry in entries:counts['library references '+libraries.status(entry)]+=1

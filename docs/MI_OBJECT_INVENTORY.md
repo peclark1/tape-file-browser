@@ -8,16 +8,16 @@ tools/mi_object_inventory.py command-line script.
 IBM object names come from later published tables; research states
 describe the audited capabilities in this repository only.
 
-**268 types**: 102 external; 166 internal. **30 reviewed types**, **20 with indexed historical manual pages**.
+**268 types**: 102 external; 166 internal. **31 reviewed types**, **20 with indexed historical manual pages**.
 
 ## Decoder maturity
 
 | Status | Count |
 |---|---:|
-| Catalog only | 238 |
+| Catalog only | 237 |
 | Identity | 5 |
 | Evidence | 8 |
-| Partial | 15 |
+| Partial | 16 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -222,7 +222,7 @@ describe the audited capabilities in this repository only.
 | 1A/EF | *QTPCS | internal | Catalog only | — |
 | 0A/EF | *QTQ | internal | Catalog only | — |
 | 19/EF | *QTSP | internal | Catalog only | — |
-| 0E/08 | *RCT | external | Catalog only | — |
+| 0E/08 | *RCT | external | Partial | — |
 | 19/A0 | *RCYAP | internal | Catalog only | — |
 | 19/C5 | *RWCB | internal | Catalog only | — |
 | 19/A3 | *RZHRIPD | internal | Catalog only | — |

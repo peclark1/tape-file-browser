@@ -9,6 +9,15 @@
         "0E/01 job workflow opened": 16,
         "19/03 job workflow opened": 34,
         "QDDSI opened": 281,
+        "RCT corroborated records": 36794,
+        "RCT entries": 36794,
+        "RCT indexes": 171,
+        "RCT record variant C4": 4591,
+        "RCT record variant C6": 10557,
+        "RCT record variant D7": 110,
+        "RCT record variant E2": 21536,
+        "RCT record walkthroughs": 3,
+        "RCT warnings": 0,
         "Repository match": 17611,
         "complete index traversals": 281,
         "configuration 10/01->12/01 +128": 36,
@@ -54,6 +63,7 @@
         "validated message second": 27513
       },
       "paths": [
+        "RCT key/record or missing storage/back",
         "configuration relationship/back",
         "directory identity/repository/back",
         "job description/queue/reverse/back",
@@ -73,6 +83,11 @@
         "0E/01 job workflow opened": 4,
         "19/03 job workflow opened": 15,
         "QDDSI opened": 138,
+        "RCT entries": 8451,
+        "RCT indexes": 47,
+        "RCT indexes without unique storage": 47,
+        "RCT record walkthroughs": 3,
+        "RCT warnings": 0,
         "Repository missing": 254,
         "complete index traversals": 138,
         "configuration 10/01->12/01 +118": 6,
@@ -113,6 +128,7 @@
         "record links with missing storage": 36
       },
       "paths": [
+        "RCT key/record or missing storage/back",
         "configuration relationship/back",
         "directory identity/repository/back",
         "job description/queue/reverse/back",

@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 25, blocked 0, queued 243.
+States: delivered 0, partial 26, blocked 0, queued 242.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -31,14 +31,14 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 17 | 19/03 | *JOBD | partial | DSPJOBD follows stored queue/library-name candidates and safe profile-name correlations, preserving missing/unassigned origins. | Decode independently corroborated job-description attributes and validate reference semantics on older releases. |
 | 18 | 11/01 | *LIND | partial | Line view reaches all recovered controller address-occurrence candidates. | Decode line attributes and certify controller relationship semantics. |
 | 19 | 08/01 | *USRPRF | partial | Safe identity/relationship view; no credential payload reads. | Add independently established non-sensitive profile relationships, preserving credential exclusion. |
-| 20 | 0E/01 | *JOBQ | partial | WRKJOBQ browses queue identities and reverse referring JOBD name candidates; never claims live waiting jobs. | Decode saved queue entries and distinguish active/stale structures before presenting queued jobs. |
-| 21 | 19/0E | *DOC | partial | Find DOC primaries and follow all observed QDOC name+F companion candidates. | Strengthen anchor-key candidate associations to verified ownership and retain selected source while navigating document/folder graphs. |
-| 22 | 15/01 | *MODD | partial | Mode identity and bounded configuration evidence. | Correlate mode fields with period definitions and link verified communications relationships. |
-| 23 | 19/12 | *FLR | partial | WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible. | Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there. |
-| 24 | 06/C1 | *DOCBSS | partial | Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges. | Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes. |
-| 25 | 19/0A | *DTAARA | partial | DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens. | Validate selectors 03/84 against known numeric/logical definitions; scale/storage remains unresolved. |
-| 26 | 0E/02 | *OUTQ | queued | No type-specific Guided workflow audited yet. | Research spool file/entry layout and queue index references. |
-| 27 | 0E/08 | *RCT | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 20 | 0E/08 | *RCT | partial | DSPRCT filtered eight-byte key lookup -> exact-owner secondary record with inclusive length and repeated-key checks -> paged opaque bytes / missing-storage diagnostic. | Establish RCT record field semantics from period references and recover Pete secondary ownership; D/F/S/P variant meanings remain unknown. |
+| 21 | 0E/01 | *JOBQ | partial | WRKJOBQ browses queue identities and reverse referring JOBD name candidates; never claims live waiting jobs. | Decode saved queue entries and distinguish active/stale structures before presenting queued jobs. |
+| 22 | 19/0E | *DOC | partial | Find DOC primaries and follow all observed QDOC name+F companion candidates. | Strengthen anchor-key candidate associations to verified ownership and retain selected source while navigating document/folder graphs. |
+| 23 | 15/01 | *MODD | partial | Mode identity and bounded configuration evidence. | Correlate mode fields with period definitions and link verified communications relationships. |
+| 24 | 19/12 | *FLR | partial | WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible. | Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there. |
+| 25 | 06/C1 | *DOCBSS | partial | Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges. | Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes. |
+| 26 | 19/0A | *DTAARA | partial | DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens. | Validate selectors 03/84 against known numeric/logical definitions; scale/storage remains unresolved. |
+| 27 | 0E/02 | *OUTQ | queued | No type-specific Guided workflow audited yet. | Research spool file/entry layout and queue index references. |
 | 28 | 0E/C4 | *INTPRF | queued | No type-specific Guided workflow audited yet. | Research internal interactive profile role and corroborate links to user profiles. |
 | 29 | 18/A0 | *JMQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 30 | 19/CE | *LDA | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |

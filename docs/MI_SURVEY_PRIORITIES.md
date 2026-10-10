@@ -48,14 +48,14 @@ research/mi_survey_scoring.json.
 | 17 | 19/03 | *JOBD | Database and data access | 79.0 | 4/3/5/4/4 | 34 | 15 | partial_decoder |
 | 18 | 11/01 | *LIND | Devices and communications | 79.0 | 4/4/5/3/3 | 5 | 2 | evidence_only |
 | 19 | 08/01 | *USRPRF | Users and security | 78.0 | 4/4/5/2/4 | 43 | 10 | evidence_only |
-| 20 | 0E/01 | *JOBQ | Database and data access | 76.0 | 4/3/5/3/4 | 22 | 4 | evidence_only |
-| 21 | 19/0E | *DOC | Documents and office | 74.0 | 4/3/4/3/5 | 2016 | 258 | partial_decoder |
-| 22 | 15/01 | *MODD | Devices and communications | 74.0 | 4/3/5/3/3 | 9 | 4 | evidence_only |
-| 23 | 19/12 | *FLR | Documents and office | 72.0 | 4/3/4/3/4 | 24 | 5 | partial_decoder |
-| 24 | 06/C1 | *DOCBSS | Documents and office | 69.0 | 4/4/3/3/2 | 1987 | 0 | partial_decoder |
-| 25 | 19/0A | *DTAARA | Database and data access | 69.0 | 4/1/5/4/4 | 37 | 54 | partial_decoder |
-| 26 | 0E/02 | *OUTQ | Database and data access | 67.0 | 4/3/4/2/3 | 9 | 2 | identity_only |
-| 27 | 0E/08 | *RCT | Core metadata and indexes | 67.0 | 4/3/3/2/5 | 172 | 48 | cataloged_only |
+| 20 | 0E/08 | *RCT | Core metadata and indexes | 77.0 | 4/3/4/4/5 | 172 | 48 | partial_decoder |
+| 21 | 0E/01 | *JOBQ | Database and data access | 76.0 | 4/3/5/3/4 | 22 | 4 | evidence_only |
+| 22 | 19/0E | *DOC | Documents and office | 74.0 | 4/3/4/3/5 | 2016 | 258 | partial_decoder |
+| 23 | 15/01 | *MODD | Devices and communications | 74.0 | 4/3/5/3/3 | 9 | 4 | evidence_only |
+| 24 | 19/12 | *FLR | Documents and office | 72.0 | 4/3/4/3/4 | 24 | 5 | partial_decoder |
+| 25 | 06/C1 | *DOCBSS | Documents and office | 69.0 | 4/4/3/3/2 | 1987 | 0 | partial_decoder |
+| 26 | 19/0A | *DTAARA | Database and data access | 69.0 | 4/1/5/4/4 | 37 | 54 | partial_decoder |
+| 27 | 0E/02 | *OUTQ | Database and data access | 67.0 | 4/3/4/2/3 | 9 | 2 | identity_only |
 | 28 | 0E/C4 | *INTPRF | Users and security | 66.0 | 4/4/2/2/4 | 17 | 4 | identity_only |
 | 29 | 18/A0 | *JMQ | Core metadata and indexes | 62.0 | 4/4/2/2/2 | 415 | 0 | cataloged_only |
 | 30 | 19/CE | *LDA | Core metadata and indexes | 57.0 | 4/1/3/2/5 | 414 | 20 | cataloged_only |
@@ -87,14 +87,14 @@ metadata. Zero below means **no signature match**, not absence.
 | 17 | *JOBD | 19/03 | Database and data access | Tier 1 | 79.0 | 34 | 15 | partial_decoder | initial_sources |
 | 18 | *LIND | 11/01 | Devices and communications | Tier 1 | 79.0 | 5 | 2 | evidence_only | initial_sources |
 | 19 | *USRPRF | 08/01 | Users and security | Tier 1 | 78.0 | 43 | 10 | evidence_only | initial_sources |
-| 20 | *JOBQ | 0E/01 | Database and data access | Tier 1 | 76.0 | 22 | 4 | evidence_only | initial_sources |
-| 21 | *DOC | 19/0E | Documents and office | Tier 2 | 74.0 | 2016 | 258 | partial_decoder | unreviewed |
-| 22 | *MODD | 15/01 | Devices and communications | Tier 2 | 74.0 | 9 | 4 | evidence_only | initial_sources |
-| 23 | *FLR | 19/12 | Documents and office | Tier 2 | 72.0 | 24 | 5 | partial_decoder | unreviewed |
-| 24 | *DOCBSS | 06/C1 | Documents and office | Tier 2 | 69.0 | 1987 | 0 | partial_decoder | unreviewed |
-| 25 | *DTAARA | 19/0A | Database and data access | Tier 2 | 69.0 | 37 | 54 | partial_decoder | initial_sources |
-| 26 | *OUTQ | 0E/02 | Database and data access | Tier 2 | 67.0 | 9 | 2 | identity_only | initial_sources |
-| 27 | *RCT | 0E/08 | Core metadata and indexes | Tier 2 | 67.0 | 172 | 48 | cataloged_only | unreviewed |
+| 20 | *RCT | 0E/08 | Core metadata and indexes | Tier 1 | 77.0 | 172 | 48 | partial_decoder | unreviewed |
+| 21 | *JOBQ | 0E/01 | Database and data access | Tier 1 | 76.0 | 22 | 4 | evidence_only | initial_sources |
+| 22 | *DOC | 19/0E | Documents and office | Tier 2 | 74.0 | 2016 | 258 | partial_decoder | unreviewed |
+| 23 | *MODD | 15/01 | Devices and communications | Tier 2 | 74.0 | 9 | 4 | evidence_only | initial_sources |
+| 24 | *FLR | 19/12 | Documents and office | Tier 2 | 72.0 | 24 | 5 | partial_decoder | unreviewed |
+| 25 | *DOCBSS | 06/C1 | Documents and office | Tier 2 | 69.0 | 1987 | 0 | partial_decoder | unreviewed |
+| 26 | *DTAARA | 19/0A | Database and data access | Tier 2 | 69.0 | 37 | 54 | partial_decoder | initial_sources |
+| 27 | *OUTQ | 0E/02 | Database and data access | Tier 2 | 67.0 | 9 | 2 | identity_only | initial_sources |
 | 28 | *INTPRF | 0E/C4 | Users and security | Tier 2 | 66.0 | 17 | 4 | identity_only | unreviewed |
 | 29 | *JMQ | 18/A0 | Core metadata and indexes | Tier 2 | 62.0 | 415 | 0 | cataloged_only | unreviewed |
 | 30 | *LDA | 19/CE | Core metadata and indexes | Tier 3 | 57.0 | 414 | 20 | cataloged_only | unreviewed |

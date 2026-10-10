@@ -34,6 +34,7 @@ COMMANDS = (
     CommandSpec("DSPMODD", "DSPMODD MODD(QPCSUPP)", "Display recovered communications mode-description evidence."),
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
+    CommandSpec("DSPRCT", "DSPRCT RCT(*ALL/*) KEYHEX(E2)", "Browse reference-code keys and corroborated opaque records."),
     CommandSpec("DSPPGM", "DSPPGM PGM(*ALL/*)", "Explore command/menu program-name references; no instruction decoding."),
     CommandSpec("DSPMSG", "DSPMSG MSGQ(*ALL/*)", "Inspect saved message-definition references, not live queue messages."),
     CommandSpec("DSPJOBD", "DSPJOBD JOBD(*ALL/*)", "Follow saved job-description queue-name candidates."),
@@ -114,6 +115,7 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPRCT": {"RCT", "KEYHEX"},
         "WRKJOBQ": {"JOBQ"},
         "DSPFD": {"FILE"},
         "DSPDTAARA": {"DTAARA"},
@@ -131,7 +133,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None):
+        self.reference_loader = reference_loader
         self.library_loader = library_loader
         self.anchor_loader = anchor_loader
         self.queue_loader = queue_loader
@@ -430,7 +433,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "library_action" and option == "5":
+        if row["kind"] == "reference_action" and option == "5":
+            return self.show_evidence(row["request"], self.reference_loader)
+        elif self.reference_loader and row.get("object") is not None and row["object"].type_code == "0E/08" and option == "5":
+            return self.show_evidence(dict(obj=row["object"], keyhex=row.get("reference_keyhex", "")), self.reference_loader)
+        elif row["kind"] == "library_action" and option == "5":
             return self.show_evidence(row["request"], self.library_loader)
         elif self.library_loader and row.get("object") is not None and row["object"].type_code == "04/01" and option == "5":
             return self.show_evidence(dict(obj=row["object"]), self.library_loader)
@@ -579,6 +586,15 @@ class Guided5250:
                 arg,kind = {"DSPDEVD":("DEVD","*DEVD"),"DSPCTLD":("CTLD","*CTLD"),"DSPLIND":("LIND","*LIND")}[name]
                 rows=select_objects(self.inventory,params.get(arg,"*ALL/*"),kind)
                 if len(rows)==1:self.explore_object(rows[0]["object"])
+                else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPRCT":
+                from as400_capabilities import select_objects
+                keyhex=params.get("KEYHEX", "")
+                prefix=bytes.fromhex(keyhex)
+                if len(prefix)>8:raise ValueError("KEYHEX exceeds eight bytes")
+                rows=select_objects(self.inventory,params.get("RCT","*ALL/*"),"*RCT")
+                for row in rows:row["reference_keyhex"]=keyhex
+                if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"],keyhex=keyhex),self.reference_loader)
                 else:self._goto("type_objects",view_rows=rows)
             elif name == "DSPMSG":
                 from as400_capabilities import select_objects

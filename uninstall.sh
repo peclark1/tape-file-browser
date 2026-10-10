@@ -15,6 +15,7 @@ OBJECT_TYPE_MODULE_PATH="${HOME}/.local/bin/as400_object_types.py"
 CAPABILITIES_MODULE_PATH="${HOME}/.local/bin/as400_capabilities.py"
 PROGRAMS_MODULE_PATH="${HOME}/.local/bin/as400_programs.py"
 LIBRARIES_MODULE_PATH="${HOME}/.local/bin/as400_libraries.py"
+REFERENCE_CODES_MODULE_PATH="${HOME}/.local/bin/as400_reference_codes.py"
 MESSAGE_QUEUES_MODULE_PATH="${HOME}/.local/bin/as400_message_queues.py"
 JOBS_MODULE_PATH="${HOME}/.local/bin/as400_jobs.py"
 DIRECTORY_MODULE_PATH="${HOME}/.local/bin/as400_directory.py"
@@ -42,6 +43,7 @@ rm -f \
     "${CAPABILITIES_MODULE_PATH}" \
     "${PROGRAMS_MODULE_PATH}" "${MESSAGE_QUEUES_MODULE_PATH}" "${JOBS_MODULE_PATH}" "${DIRECTORY_MODULE_PATH}" "${MENUS_MODULE_PATH}" "${CONNECTIONS_MODULE_PATH}" "${INDEXES_MODULE_PATH}" "${MESSAGES_MODULE_PATH}" "${RECORDS_MODULE_PATH}" \
     "${LIBRARIES_MODULE_PATH}" \
+    "${REFERENCE_CODES_MODULE_PATH}" \
     "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \
     "${INTERNAL_TYPE_PATH}" \

@@ -858,6 +858,19 @@
         "CRTDTAARA"
       ],
       "relationships": []
+    },
+    "0E08": {
+      "status": "partial_decoder",
+      "scope": "Empirical 12-byte index terminals (key8 + offset4), strict tree traversal, exact-owner 0280 record offsets +32, inclusive u16 lengths and repeated keys for observed D/F/S/P variants. Remaining bytes are opaque.",
+      "implementation": [
+        "as400_reference_codes.py:decode_reference_index",
+        "as400_reference_codes.py:validate_reference_record",
+        "as400_reference_codes.py:ReferenceCodeExplorer"
+      ],
+      "next_step": "Establish service-code record fields and older-image secondary storage; do not infer service actions from opaque bytes.",
+      "manual_refs": [],
+      "interfaces": [],
+      "relationships": []
     }
   }
 }

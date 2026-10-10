@@ -173,3 +173,38 @@ fixed-width names found one Mark JOBD occurrence at +0x17E followed by QGPL, and
 none on Pete. Treating +0x17E as a general qualified-name field failed on 33 of
 34 Mark and all 15 Pete descriptions. The general-layout hypothesis is rejected;
 this does not prove other queue references or saved spool files are absent.
+
+## Reference code translate tables (RCT)
+
+`DSPRCT RCT(*ALL/*) KEYHEX(E2)` filters the observed eight-byte keys by byte
+prefix. Select a key to inspect a corroborated opaque record in 256-byte
+windows. No service actions or field meanings are inferred from those bytes.
+
+The empirical header is `6000000c0008` at +0x100; count is u32 +0x106,
+root address is six bytes +0x420 and page size is u32 +0x42A. Strict generic
+machine-index traversal yields 12-byte terminals: key8 + u32 offset.
+Mark has a unique exact-owner 0280 secondary for each RCT; record address is
+secondary +32+offset and the leading u16 is an inclusive length. Key variants:
+D/F: record[2:6] equals key[1:5]; S: record[2:4] equals key[1:3];
+P: record[2:8] equals key[0]+key[2:6]+key[1]. Unused key bytes must be zero.
+These variants are byte patterns, not established semantic names.
+
+All 171 Mark indexes / 36,794 terminals and all 47 Pete indexes / 8,451 terminals
+match stored counts with no traversal warnings. All 36,794 Mark records pass
+full length and repeated-key checks: D 4,591, F 10,557, S 21,536, P 110.
+Pete has no exact-owner recovered 0280 segments, so records remain unavailable.
+Three model key -> record/diagnostic -> Back walkthroughs pass per image.
+Synthetic tests cover short headers, invalid pages, count discrepancies, all
+four repeated-key variants, length/key mismatches, missing/duplicate storage,
+filtering and byte pagination.
+
+Rejected hypothesis: neither terminal bytes[0:8] nor [4:12] matches a recovered
+full object address. The validated offset relationship supersedes that guess.
+
+## Job-private structure probe
+
+Bounded first-4-KiB full-address searches of 410 Mark JMQ and 409 Mark / 20 Pete
+LDA primaries found no addresses matching recovered JMQ, LDA, JOBD, JOBQ or MSGQ
+primaries. This rejects only that simple direct-address navigation hypothesis.
+LDA prefixes consistently differ from the supported character DTAARA selector;
+reusing the DTAARA decoder would be unjustified. These families remain queued.
