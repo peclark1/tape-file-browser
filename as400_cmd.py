@@ -80,7 +80,7 @@ class ParameterKeywordEvidence:
 def candidate_parameter_keywords(primary_prefix, *, max_count=64):
     """Recover a structurally corroborated V2R3 compiled keyword sequence.
 
-    Across eight distinct sampled command primaries, the candidate parameter
+    Across sampled command primaries, the candidate parameter
     count occurs at primary +0x180, the first ten-byte blank-padded EBCDIC
     keyword at +0x19C, and its big-endian ordinal follows at +10.
     Further keyword/ordinal pairs occur in increasing byte order with variable
@@ -91,7 +91,9 @@ def candidate_parameter_keywords(primary_prefix, *, max_count=64):
     the complete expected ordinal sequence is present and unambiguous.
     """
     data = bytes(primary_prefix[:8192])
-    if len(data) < 0x1A8 or data[0x17E:0x180] != b"\x81\x00":
+    # High byte at +0x17E varies among V2R3 objects (81, B9, 61, ...).
+    # Do not mistake that unidentified byte for a fixed structure marker.
+    if len(data) < 0x1A8 or data[0x17E] == 0 or data[0x17F] != 0:
         return ()
     count = data[0x180]
     if data[0x181] != 0 or not 1 <= count <= min(max_count, 64):
