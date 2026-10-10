@@ -47,7 +47,14 @@ def read_data(root=ROOT):
             path = root / file
             if not colon or not symbol or not path.is_file():
                 raise ValueError("Unknown implementation: " + code + " " + spec)
-            if symbol not in path.read_text():
+            source = path.read_text(encoding="utf-8")
+            # A qualified Class.method name does not literally occur in a
+            # Python def statement; verify its declaration components.
+            names = symbol.split(".")
+            if not all(re.search(
+                r"\\b(?:class|def)\\s+" + re.escape(name) + r"\\b",
+                source,
+            ) for name in names):
                 raise ValueError("Missing implementation symbol: " + spec)
         for ref in review["manual_refs"]:
             doc = source_ids.get(ref["source"])
