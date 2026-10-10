@@ -128,7 +128,7 @@ class OutputQueueTests(unittest.TestCase):
     def test_key_paging_keeps_exact_origin_and_stable_selection(self):
         from as400_outq import OutputQueueKey
         item,ex,model = self.fixture_model()
-        keys = tuple(OutputQueueKey(b"\\xC1"+i.to_bytes(2,"big")+bytes(45), 0x800+i)
+        keys = tuple(OutputQueueKey(bytes([0xC1])+i.to_bytes(2,"big")+bytes(45), 0x800+i)
                      for i in range(76))
         ex._cache[(item.segment.start_lba,item.segment.virtual_address)]=(keys,())
         rows=ex.rows(item)
