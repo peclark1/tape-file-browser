@@ -31,6 +31,12 @@
             615
           ],
           "topic": "APPN session modes, device and mode description commands"
+        },
+        {
+          "pdf_pages": [
+            34
+          ],
+          "topic": "user profile identity and sign-on"
         }
       ]
     },
@@ -168,6 +174,16 @@
       "review_status": "selected_pages_reviewed",
       "pdf_page_count": 464,
       "verified_sections": [
+        {
+          "pdf_pages": [
+            28,
+            29,
+            30,
+            31,
+            32
+          ],
+          "topic": "device descriptions and user profiles during initial setup"
+        },
         {
           "pdf_pages": [
             30,
