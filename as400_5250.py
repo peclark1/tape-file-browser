@@ -39,6 +39,8 @@ COMMANDS = (
     CommandSpec("DSPRCT", "DSPRCT RCT(*ALL/*) KEYHEX(E2)", "Browse reference-code keys and corroborated opaque records."),
     CommandSpec("DSPPGM", "DSPPGM PGM(*ALL/*)", "Explore command/menu program-name references; no instruction decoding."),
     CommandSpec("DSPMSG", "DSPMSG MSGQ(*ALL/*)", "Inspect saved message-definition references, not live queue messages."),
+    CommandSpec("DSPSBSD", "DSPSBSD SBSD(*ALL/*)", "Navigate bounded subsystem name candidates and matching classes; references are unverified."),
+    CommandSpec("DSPCLS", "DSPCLS CLS(*ALL/*)", "Find candidate subsystem name occurrences referring to saved classes."),
     CommandSpec("DSPINTPRF", "DSPINTPRF INTPRF(*ALL/*)", "Match saved internal-profile identities to recovered user-profile names without inspecting credentials."),
     CommandSpec("DSPJOBD", "DSPJOBD JOBD(*ALL/*)", "Follow saved job-description queue-name candidates."),
     CommandSpec("WRKJOBQ", "WRKJOBQ JOBQ(*ALL/*)", "Browse saved job-queue identities and referring descriptions, not live jobs."),
@@ -115,6 +117,8 @@ def parse_command(text):
         "WRKFLR": {"FLR"},
         "DSPMSGD": {"MSGF", "MSGID"},
         "DSPMNU": {"MENU"},
+        "DSPSBSD": {"SBSD"},
+        "DSPCLS": {"CLS"},
         "DSPINTPRF": {"INTPRF"},
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
@@ -139,7 +143,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None):
+        self.subsystem_loader = subsystem_loader
         self.outq_loader = outq_loader
         self.afp_loader = afp_loader
         self.reference_loader = reference_loader
@@ -441,7 +446,9 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "outq_action" and option == "5":
+        if row["kind"] == "subsystem_action" and option == "5":
+            return self.show_evidence(row["request"], self.subsystem_loader)
+        elif row["kind"] == "outq_action" and option == "5":
             return self.show_evidence(row["request"], self.outq_loader)
         elif self.outq_loader and row.get("object") is not None and row["object"].type_code == "0E/02" and option == "5":
             return self.show_evidence(dict(obj=row["object"], keyhex=row.get("outq_keyhex", ""), form=row.get("outq_form", "")), self.outq_loader)
@@ -509,7 +516,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("02/01", "19/03", "0E/01", "0E/C4", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("02/01", "19/03", "0E/01", "0E/C4", "19/09", "19/04", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
@@ -649,13 +656,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:
