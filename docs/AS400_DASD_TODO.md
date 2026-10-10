@@ -37,6 +37,28 @@ framework. Research: docs/AS400_CONFIG_OBJECT_RESEARCH.md.
       and test against period-correct DSPMODD output.
 - [ ] Human-test the new screens using the recovered Mark V2R3 image.
 
+## Compiled command parameter table — experimental next milestone
+
+Branch feature/cmd-parameter-evidence, based on the merged main / PR #14.
+See docs/AS400_CMD_PARAMETER_RESEARCH.md for byte offsets and caveats.
+
+- [x] Inspect original Mark V2R3 QIWS/CPYTOPCD primary and capture the
+      9-keyword sequence, including five-character TOFLR and TODOC.
+- [x] Independently corroborate apparent keyword count at +0x180 and the
+      ten-byte EBCDIC name/ordinal record pattern across eight separate
+      IBM *CMD primaries, with first keyword at +0x19C.
+- [x] Add a bounded, fail-closed candidate sequence helper, explicit
+      raw offsets and ordinals to Guided 5250, and corruption tests.
+- [x] Lower incidental printable-EBCDIC hint threshold from 6 to 5
+      to avoid hiding legitimate short CL parameter identifiers.
+- [ ] Decode parameter attribute/type/default fields and the relationships
+      to prompt/help text; do not assume IBM API return layout equals disk.
+- [ ] Establish whether recovered ordinal order equals historical V2R3
+      F4 presentation order. Modern IBM documentation orders at least
+      two parameter groups differently.
+- [ ] Confirm on another original AS/400 disk image/OS release and
+      interactively test real commands before promoting to full F4 prompting.
+
 ## Guided 5250 command-object inspection — current feature milestone
 
 Work in draft PR #14, branch feature/guided-5250-explorer.
