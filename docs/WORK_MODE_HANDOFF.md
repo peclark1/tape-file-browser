@@ -10,11 +10,17 @@
 of historical command-definition recovery. Branch
 `feature/interactive-command-explorer`, based on `feature/mi-full-corpus-survey`
 commit `f3bb5394d3d9be9f426176ae459917ac4519c168`.
-PR link and committed revision are recorded below when published.
+[PR #19](https://github.com/peclark1/tape-file-browser/pull/19) is open,
+ready for review, targeting the #18 survey branch. Implementation commit:
+`430b64e87b920b9bad46a6e46cc6bc4345b5707d`; this handoff publication adds a
+metadata-only follow-up. GitHub Actions Tests run
+[38024171555](https://github.com/peclark1/tape-file-browser/actions/runs/38024171555)
+passed on the implementation commit. Main remains `bcf80ded`; no merge or
+stable-checkout update occurred. Final PR head is the authoritative current
+revision; no additional implementation changes follow the tested commit.
 
 - `WRKCMD CMD(*ALL/CPY*)` searches all recovered *CMD identities, including
-  unassigned primaries; duplicates retain library and LBA. `DSPCMD
-  CMD(QIWS/CPYTOPCD)` opens the definition, as does Enter/5 in normal object
+  unassigned primaries; duplicates retain library and LBA. `DSPCMD CMD(QIWS/CPYTOPCD)` opens the definition, as does Enter/5 in normal object
   navigation. Stored keywords are selectable; Enter shows field offsets,
   ordinal, origin and unknown attributes. Back restores the selected row.
 - Summary includes recovery diagnostics and library-assignment provenance;
@@ -28,8 +34,7 @@ PR link and committed revision are recorded below when published.
 - Startup live review: #15–18 all open drafts, no submitted reviews, each head's
   PR-triggered GitHub Actions Tests run successful. Stack topology below holds.
 
-**Validation:** 201 synthetic tests passed (`python3 -m unittest discover -s
- tests -v`), module compilation, shell syntax, both generated-report checks,
+**Validation:** 201 synthetic tests passed (`python3 -m unittest discover -s tests -v`), module compilation, shell syntax, both generated-report checks,
  and `git diff --check`. Frontend key-loop/rendering tests cover 80x24 and
  64x16; original-image model workflows cover CPYTOPCD (9), CRTCMD (27),
  ADDPFM (6), DSPCMD (2) on Mark plus unassigned ADDPFM (5) on Pete.
