@@ -4,6 +4,10 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## Identity-only INTPRF continuation — October 10, 2026
+
+Successor branch `feature/internal-profile-identity-explorer` starts from PR #24 at `4189371`, keeping PR #24, PR #23 and main fixed for testing. The new `DSPINTPRF INTPRF(*ALL/*)` navigates 0E/C4 archived internal-profile identity -> same-name 08/01 user-profile candidates using recovered EPA metadata only. It never reads credential or authorization payloads. Missing and duplicate name correlations are explicit and not interpreted as certified binary pointers. A direct physical-sector **name-only** census found 17 0E/C4 candidates (16 distinct matching names, one duplicated) on Mark and 4 candidates (one name match) on Pete; do not conflate raw primary candidates with complete recovery. Ledger: **31 partial, 237 queued**, zero universally completed. Synthetic tests, original-image validator, installation, and source-backed limitations are documented; check GitHub CI before accepting the checkpoint. Next: JMQ/LDA/PNLGRP/SBSD/CLS investigation, moving past unsolved semantics without inventing fields.
+
 ## OUTQ saved index checkpoint — October 10, 2026
 
 Successor branch `feature/outq-saved-entry-explorer` starts at PR #23 head `8ddc9cb` without modifying that test branch. The new `WRKOUTQ OUTQ(*ALL/QPRINT) FORM(*STD) KEYHEX(C1)` path is read-only: it reconstructs 48-byte tree keys using the independently observed root/page-size control fields, pages/filter candidates, and permits exact opaque key-byte inspection. FA-prefixed control-like terminals are counted separately and never presented as historical live spool entries. Form tokens are supported *as byte candidates only*. `research/mi_capabilities.json` now records 30 partial / 238 queued and zero universal completions. Synthetic tests and GitHub CI results must be checked on the new branch before treating this as validated. Both original disk images were inspected separately read-only; full recovery/UI validation against them remains a follow-up. Further OUTQ semantics, INTPRF/JMQ/LDA and SBSD/CLS are queued.
