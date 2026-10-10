@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 29, blocked 0, queued 239.
+States: delivered 0, partial 30, blocked 0, queued 238.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -38,7 +38,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 24 | 19/12 | *FLR | partial | WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible. | Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there. |
 | 25 | 06/C1 | *DOCBSS | partial | Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges. | Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes. |
 | 26 | 19/0A | *DTAARA | partial | DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens. | Validate selectors 03/84 against known numeric/logical definitions; scale/storage remains unresolved. |
-| 27 | 0E/02 | *OUTQ | queued | No type-specific Guided workflow audited yet. | Research spool file/entry layout and queue index references. |
+| 27 | 0E/02 | *OUTQ | partial | WRKOUTQ browses saved 48-byte index keys with hex filtering and observed +0x20 form-token candidates; opaque key detail and FA-prefix control-like markers stay distinct from live spool state. | Establish complete saved spool-file key schema, identity and cross-object links; no active queue semantics inferred. |
 | 28 | 0E/C4 | *INTPRF | queued | No type-specific Guided workflow audited yet. | Research internal interactive profile role and corroborate links to user profiles. |
 | 29 | 18/A0 | *JMQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 30 | 19/26 | *FNTRSC | partial | DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources. | Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution. |
