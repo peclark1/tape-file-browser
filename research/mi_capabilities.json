@@ -166,6 +166,16 @@
       "state": "partial",
       "workflow": "DSPINTPRF navigates recovered 0E/C4 internal-profile identities to exact-name *USRPRF primary candidates without opening either profile body; missing and duplicate matches remain explicit.",
       "next_step": "Establish period-specific INTPRF structural semantics and certified links, if available, without reading password or authorization material."
+    },
+    "0E07": {
+      "state": "partial",
+      "workflow": "DSPSCHIDX browses strict release-2 machine-index terminal keys with 50-entry pages, literal hex prefix search and opaque byte details; no historical schedule action semantics inferred.",
+      "next_step": "Validate scheduler-key field boundaries, ordering and target record references against period CISC sources before identifying jobs or actions."
+    },
+    "0E91": {
+      "state": "partial",
+      "workflow": "DSPMSRVI browses supported saved machine-index terminal keys in paged byte/hex detail, retaining full traversal and stored-header-count discrepancies without interpreting service records.",
+      "next_step": "Establish MSRVI record identity and secondary storage pointer semantics on both releases before decoding service actions."
     }
   }
 }
