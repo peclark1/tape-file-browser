@@ -367,6 +367,16 @@ interpret a plausible on-disk string as a validated parameter/default.
 See [V2R3 *CMD research notes](docs/AS400_CMD_RESEARCH.md) for actual
 specimen comparisons, tentative offset relationships, and evidence gates.
 
+The experimental `*CMD` inspector also recovers a **candidate keyword
+count and ordinal sequence** on corroborated V2R3 primaries. For example,
+`QIWS/CPYTOPCD` yields all nine historical keywords, including the
+five-character `TOFLR` and `TODOC`; the unclassified text scanner
+now includes printable five-character EBCDIC runs. Parameter types,
+defaults, prompting links and execution remain undecoded. See
+[command parameter research](docs/AS400_CMD_PARAMETER_RESEARCH.md)
+for original-image evidence, synthetic tests and historical-version
+ordering caveats.
+
 The guided renderer escapes any recovered NUL, ESC, or other control
 characters for **display only** (for example, `\\x00`); the source bytes
 are retained by the parser. This prevents damaged or unusual member contents
