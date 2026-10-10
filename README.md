@@ -399,9 +399,10 @@ See [profile/device/mode research](docs/AS400_CONFIG_OBJECT_RESEARCH.md)
 for the real V2R3 samples, nine-mode candidate offsets, provenance,
 limitations and next validation steps.
 
-### Cross-type Guided workflows (pending feature PR)
+### Cross-type Guided workflows (PR #21)
 
-On `feature/type-capability-workflows` (stacked on pending #20), use `WRKTYP`
+On [`feature/type-capability-workflows`, PR #21](https://github.com/peclark1/tape-file-browser/pull/21)
+(stacked on pending #20), use `WRKTYP`
 to browse all MI types and `WRKOBJ OBJ(*ORPHAN/*) OBJTYPE(*TBL)` to find
 unassigned primaries. `DSPFD` opens selectable format candidates and fields;
 9 on a member follows exact storage pointers and reverse member links.

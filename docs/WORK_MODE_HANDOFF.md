@@ -14,8 +14,13 @@ Generic browsing does not promote 268 types to decoded. This section supersedes
 older command-only next-step instructions below.
 
 Branch `feature/type-capability-workflows` is based on #20 at
-`2cd7d0bdf6999717f649166e892f940c54690acb`. Publication status is updated below
-when the review PR is created. Live startup review confirmed #15–#20 all open,
+`2cd7d0bdf6999717f649166e892f940c54690acb`. [PR #21](https://github.com/peclark1/tape-file-browser/pull/21) is open and ready
+for review, targeting #20. Implementation commit
+`943476c5b7d7a79790768e93ef962a7f3c16ffa1` passed
+[GitHub Actions Tests run 38055836048](https://github.com/peclark1/tape-file-browser/actions/runs/38055836048).
+The documentation-only publication follow-up leaves the tested implementation
+unchanged; the PR head is the authoritative final revision.
+Live startup review confirmed #15–#20 all open,
 #15–#18 drafts; none merged. Main remains `bcf80ded77bdda86b57b5870bb1cd61c2d68810f`.
 Joe's stable checkout is untouched. No merge is authorized.
 
