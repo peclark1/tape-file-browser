@@ -52,7 +52,7 @@ def read_data(root=ROOT):
             # Python def statement; verify its declaration components.
             names = symbol.split(".")
             if not all(re.search(
-                r"\\b(?:class|def)\\s+" + re.escape(name) + r"\\b",
+                r"\b(?:class|def)\s+" + re.escape(name) + r"\b",
                 source,
             ) for name in names):
                 raise ValueError("Missing implementation symbol: " + spec)
