@@ -96,7 +96,10 @@ Both hashes match the prior session; validation hashes before/after also match:
 
 | Aggregate across recovered complete keyword tables | Mark | Pete |
 |---|---:|---:|
-| Descriptor-link tables | 2,571 | 476 |
+| Primary descriptor-link tables | 2,571 | 476 |
+| Complete secondary chains | 2,501 | 474 |
+| Secondary-chain fallbacks to ordinal order | 70 | 2 |
+| Valid secondary orders differing from ordinal order | 345 | 83 |
 | Nonblank linked prompt labels | 13,851 | 2,889 |
 | Nonblank linked display hints | 16,163 | 2,538 |
 | Linked default candidates | 11,335 | 1,896 |

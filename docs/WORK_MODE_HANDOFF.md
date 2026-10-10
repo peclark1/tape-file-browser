@@ -65,9 +65,13 @@ labels until semantics are established. Keep scope-based acceptance checks;
 PR publication and passing tests alone are not completion criteria.
 
 Git: continuation branch `feature/command-prompt-links` targets #19's
-`feature/interactive-command-explorer` at `9dd282f`. Published PR/revision and
-CI results are recorded in the follow-up below. Main and Joe's stable checkout
-remain unchanged; no merges are authorized.
+`feature/interactive-command-explorer` at `9dd282f`. [PR #20](https://github.com/peclark1/tape-file-browser/pull/20) is open for review.
+Implementation commit `03a2ad11eb0d66feee36e4c1220ecf1084c17132` passed
+[GitHub Actions Tests run 38053877451](https://github.com/peclark1/tape-file-browser/actions/runs/38053877451).
+A documentation-only follow-up records publication and corpus ordering counts;
+the PR head identifies that final revision. PR #19's title/body now explicitly
+mark it as intermediate and link #20. #15–#19 are still open and unmerged.
+Main and Joe's stable checkout remain unchanged; no merges are authorized.
 
 ## Latest capability session — October 9–10, 2026
 
