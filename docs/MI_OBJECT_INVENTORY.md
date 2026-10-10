@@ -293,6 +293,20 @@ describe the audited capabilities in this repository only.
 | 0E/A1 | *ZMFINX | internal | Catalog only | — |
 | 19/A2 | *ZMFSPC | internal | Catalog only | — |
 
+## Physical primary candidate evidence (partial scan)
+
+These numbers are **not active/context-resolved objects**. A dash
+means not scanned, **not** that the object was absent.
+
+| MI | IBM type | Mark V2R3 | Pete B10 |
+|---|---|---:|---:|
+| 02/01 | *PGM | 4286 | 3081 |
+| 0E/03 | *MSGF | 56 | 38 |
+| 19/05 | *CMD | 3129 | 1117 |
+| 19/16 | *MENU | 574 | 223 |
+
+For all other IBM types, image census remains **not scanned**.
+
 ## Next steps and safety
 
 Run the script with --type-code 19/05 for full decoder evidence,
