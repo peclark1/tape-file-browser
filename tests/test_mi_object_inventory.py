@@ -102,6 +102,29 @@ class MIResearchInventoryTests(unittest.TestCase):
         self.assertEqual("identity_only", menu["status"])
         self.assertEqual("evidence_only", cmd["status"])
 
+    def test_partial_image_presence_preserves_unscanned_distinction(self):
+        by_code = {row["key"]: row for row in self.rows}
+        self.assertEqual(
+            "not_scanned", by_code["19D4"]["image_evidence"]["status"])
+        self.assertEqual(
+            "scanned_physical_primary_candidates",
+            by_code["0E03"]["image_evidence"]["status"])
+        expected = {
+            "1905": (3129, 1117), "0E03": (56, 38),
+            "1916": (574, 223), "0201": (4286, 3081),
+        }
+        for code, (marks, petes) in expected.items():
+            with self.subTest(code=code):
+                sample = by_code[code]["image_evidence"]["images"]
+                self.assertEqual(
+                    marks, sample["marks-v2r3"]["primary_candidates"])
+                self.assertEqual(
+                    petes, sample["petes-b10"]["primary_candidates"])
+        self.assertEqual(
+            264, sum(row["image_evidence"]["status"] == "not_scanned"
+                     for row in self.rows))
+        self.assertIn("not scanned", markdown(self.rows))
+
     def test_generated_markdown_is_in_sync(self):
         path = ROOT / "docs/MI_OBJECT_INVENTORY.md"
         self.assertEqual(markdown(self.rows), path.read_text(encoding="utf-8"))
