@@ -151,8 +151,8 @@ class OutputQueueExplorer:
             row = outq_action(f"Key {index+1}", obj, entry=e)
             row["note"] = (
                 f"terminal +0x{e.terminal_offset:X}; "
-                (f"form candidate {token or '<unknown>'}; "
-                 if kind == "OUTQ" else "job key (opaque); ")
-                f"prefix {e.raw[:8].hex().upper()}")
+                + (f"form candidate {token or '<unknown>'}; "
+                   if kind == "OUTQ" else "job key (opaque); ")
+                + f"prefix {e.raw[:8].hex().upper()}")
             rows.append(row)
         return rows
