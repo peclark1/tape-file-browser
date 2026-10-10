@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "purpose": "Archive source discovery and manually verified section references; indexed document titles are not evidence that their contents were reviewed.",
+  "caveats": [
+    "These PDFs are supplied in the local AS/400 project materials and are not committed to the public repository.",
+    "PDF page numbers are 1-based PDF viewer pages, not the printed page labels (which differ).",
+    "Page references establish logical OS/400 behavior or disk management context only, not published raw CISC binary offsets.",
+    "Do not copy proprietary manual pages or historic account data into the repository."
+  ],
+  "sources": [
+    {
+      "id": "operations",
+      "title": "Understanding AS/400 System Operations",
+      "location": "as400 manuals.zip",
+      "archive_member": "Understanding AS400 System Operations.pdf",
+      "format": "PDF",
+      "review_status": "selected_pages_reviewed",
+      "pdf_page_count": 818,
+      "verified_sections": [
+        {
+          "pdf_pages": [
+            110,
+            111,
+            112
+          ],
+          "topic": "AS/400 object management, type and library basics"
+        },
+        {
+          "pdf_pages": [
+            597,
+            615
+          ],
+          "topic": "APPN session modes, device and mode description commands"
+        }
+      ]
+    },
+    {
+      "id": "repair-2xx-1994",
+      "title": "SY44-3942-00_AS400_9402-9404_Models_2xx_Repair_and_Parts_Version_3_1st_ed_199405",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY44-3942-00_AS400_9402-9404_Models_2xx_Repair_and_Parts_Version_3_1st_ed_199405.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "analysis-2xx",
+      "title": "SY44-3941-0 AS400 9402-9404 Models 2xx Provlem Analysis",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY44-3941-0 AS400 9402-9404 Models 2xx Provlem Analysis.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "upgrade-2xx",
+      "title": "SY44-3940-0 AS400 9402-9404 Models 2xx Upgrade",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY44-3940-0 AS400 9402-9404 Models 2xx Upgrade.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "service-9401-1994",
+      "title": "SY44-0038-01_AS400_9401_Service_Information_Version_2_199403",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY44-0038-01_AS400_9401_Service_Information_Version_2_199403.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "installation-9404-1989",
+      "title": "SY31-9066-3 AS400_System_Support_-_Installation_Guide_9404_4th_ed_198909",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY31-9066-3 AS400_System_Support_-_Installation_Guide_9404_4th_ed_198909.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "analyzing-problems-9404-1990",
+      "title": "SY31-9064-2_AS400_System_Support_-_Analyzing_Problems Guide_9404_3rd_ed_199001",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY31-9064-2_AS400_System_Support_-_Analyzing_Problems Guide_9404_3rd_ed_199001.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "unit-reference-9404-1990",
+      "title": "SY31-9062-3_AS400_System_Support_-_Unit_Reference_Code_Guide_9404_4th_ed_199001",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY31-9062-3_AS400_System_Support_-_Unit_Reference_Code_Guide_9404_4th_ed_199001.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "service-guide-9404-1990",
+      "title": "SY31-9051-2_AS400_System_Support_-_Service_Guide_9404_3rd_ed_199001",
+      "location": "as400 manuals.zip",
+      "archive_member": "SY31-9051-2_AS400_System_Support_-_Service_Guide_9404_3rd_ed_199001.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "starter-2001",
+      "title": "Starter Kit: IBM iSeries & AS/400 — Guthrie and Madden (2001)",
+      "location": "as400 manuals.zip",
+      "archive_member": "Starter_Kit_-_IBM_iSeries_&_AS400_Gary_Guthrie_Wayne_Madden_(c)_2001_.pdf",
+      "format": "PDF",
+      "review_status": "selected_pages_reviewed",
+      "pdf_page_count": 630,
+      "verified_sections": [
+        {
+          "pdf_pages": [
+            478
+          ],
+          "topic": "command definition example for CL program"
+        }
+      ]
+    },
+    {
+      "id": "install-guide-v2-1991",
+      "title": "SC41-9878-00 AS400 Licensed Programs and New Release Installation Guide - Version 2 - 199105",
+      "location": "as400 manuals.zip",
+      "archive_member": "SC41-9878-00 AS400 Licensed Programs and New Release Installation Guide - Version 2 - 199105.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "models2xx-install",
+      "title": "SA41-3140-0 AS400 Models 2xx Installation",
+      "location": "as400 manuals.zip",
+      "archive_member": "SA41-3140-0 AS400 Models 2xx Installation.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "parts-9404-1990",
+      "title": "S131-0903-2_AS400_System_Support_-_Parts_Catalog_9404_3rd_ed_199001",
+      "location": "as400 manuals.zip",
+      "archive_member": "S131-0903-2_AS400_System_Support_-_Parts_Catalog_9404_3rd_ed_199001.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "cisc-builder-redp0042",
+      "title": "REDP0042_AS400_CISC_System_Builder_V1R2-V3R6",
+      "location": "as400 manuals.zip",
+      "archive_member": "REDP0042_AS400_CISC_System_Builder_V1R2-V3R6.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "primer-1992",
+      "title": "AS/400 Primer — Ernie Malaga (1992)",
+      "location": "as400 manuals.zip",
+      "archive_member": "AS400_Primer_Ernie_Malaga_1992.pdf",
+      "format": "PDF",
+      "review_status": "selected_pages_reviewed",
+      "pdf_page_count": 464,
+      "verified_sections": [
+        {
+          "pdf_pages": [
+            30,
+            31
+          ],
+          "topic": "early device-description and user-profile setup"
+        },
+        {
+          "pdf_pages": [
+            217,
+            218
+          ],
+          "topic": "objects and library architecture"
+        },
+        {
+          "pdf_pages": [
+            230,
+            231,
+            232,
+            233,
+            234
+          ],
+          "topic": "historical OS/400 object roles and relationships"
+        }
+      ]
+    },
+    {
+      "id": "power-tips",
+      "title": "AS400_Power_Tips_and_Techniques_by_Steve_Bisel",
+      "location": "as400 manuals.zip",
+      "archive_member": "AS400_Power_Tips_and_Techniques_by_Steve_Bisel.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "cisc-builder-redp0042-alt",
+      "title": "AS400 CISC System Builder V1R21 to V3R2 - REDP0042-00",
+      "location": "as400 manuals.zip",
+      "archive_member": "AS400 CISC System Builder V1R21 to V3R2 - REDP0042-00.pdf",
+      "format": "PDF",
+      "review_status": "indexed_not_reviewed",
+      "verified_sections": []
+    },
+    {
+      "id": "redbook-sg245693",
+      "title": "AS/400 Disk Storage Topics and Tools — IBM Redbook SG24-5693",
+      "location": "AS400_Disk_Storage_Topics_and_Tools_sg245693.pdf",
+      "archive_member": null,
+      "format": "PDF",
+      "review_status": "selected_pages_reviewed",
+      "pdf_page_count": 252,
+      "verified_sections": [
+        {
+          "pdf_pages": [
+            61
+          ],
+          "topic": "storage architecture and ASPs"
+        },
+        {
+          "pdf_pages": [
+            109,
+            117
+          ],
+          "topic": "disk object metadata collection and type/attribute fields"
+        }
+      ]
+    }
+  ]
+}
