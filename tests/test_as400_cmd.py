@@ -90,6 +90,15 @@ class CommandEvidenceTests(unittest.TestCase):
         self.assertIn((0x1C6, "TOFLR"), strings)
         self.assertIn((0x23C, "TODOC"), strings)
 
+    def test_alternate_v2r3_header_byte_variant(self):
+        for marker in (0x81, 0xB9, 0x61, 0xCA, 0xD0):
+            with self.subTest(marker=marker):
+                data = bytearray(self.parameter_sample())
+                data[0x17E] = marker
+                self.assertEqual(
+                    9, len(candidate_parameter_keywords(data))
+                )
+
     def test_parameter_keyword_decoder_fails_closed_on_corruption(self):
         data = self.parameter_sample()
         examples = []
