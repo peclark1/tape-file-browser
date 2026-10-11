@@ -10,8 +10,11 @@ from test_type_capabilities import obj,inventory,Image
 
 def index_fixture(kind="0E/07", size=1024, root=0x800, key_len=47):
     data=bytearray(root+size)
-    lead,tail=(0xE0,0x2E) if kind=="0E/07" else (0x20,0x16)
-    data[0x100:0x106]=bytes([lead,0,0,0x4B,0,tail])
+    headers={"0E/07":bytes.fromhex("E000004B002E"),
+             "0E/91":bytes.fromhex("2000004B0016"),
+             "0E/D0":bytes.fromhex("200000160012"),
+             "0E/C8":bytes.fromhex("60000032001B")}
+    data[0x100:0x106]=headers[kind]
     data[0x106:0x10A]=(1).to_bytes(4,"big")
     data[0x420:0x426]=(0x100000+root).to_bytes(6,"big")
     data[0x42A:0x42E]=size.to_bytes(4,"big")
@@ -27,7 +30,9 @@ def index_fixture(kind="0E/07", size=1024, root=0x800, key_len=47):
 
 class ArchivalIndexTests(unittest.TestCase):
     def setup_view(self,kind,key_len=47):
-        o=obj("TESTIDX",(0x0E,0x07) if kind=="0E/07" else (0x0E,0x91))
+        pair={"0E/07":(0x0E,0x07),"0E/91":(0x0E,0x91),
+              "0E/D0":(0x0E,0xD0),"0E/C8":(0x0E,0xC8)}[kind]
+        o=obj("TESTIDX",pair)
         o.segment.virtual_address=0x100000
         d,key=index_fixture(kind,key_len=key_len)
         o.segment.extents=(NS(start_lba=10,virtual_address=0x100000,
@@ -37,7 +42,7 @@ class ArchivalIndexTests(unittest.TestCase):
         return o,ex,Guided5250(inv,archival_index_loader=ex.rows),key
 
     def test_both_release_page_sizes_and_key_lengths(self):
-        for kind,length in (("0E/07",47),("0E/91",81)):
+        for kind,length in (("0E/07",47),("0E/91",81),("0E/D0",32),("0E/C8",42)):
             for size,root in ((1024,0x800),(2048,0x1000),(2048,0x1800)):
                 d,key=index_fixture(kind,size=size,root=root,key_len=length)
                 found,warnings,scalar,page=decode_archival_index(d,0x100000,kind)
@@ -67,9 +72,33 @@ class ArchivalIndexTests(unittest.TestCase):
         self.assertTrue(any("differs" in x for x in warn))
         with self.assertRaises(ValueError):decode_archival_index(d,0x100000,"19/05")
 
+    def test_new_saved_variant_headers_and_corrupt_root_gates(self):
+        d,key=index_fixture("0E/D0",size=2048,root=0x1000)
+        got,warnings,_,size=decode_archival_index(d,0x100000,"0E/D0")
+        self.assertEqual([key],[item.raw for item in got])
+        self.assertFalse(warnings)
+        self.assertEqual(size,2048)
+        b=bytearray(d);b[0x103]=0x32
+        with self.assertRaises(ValueError):
+            decode_archival_index(b,0x100000,"0E/D0")
+        for header in ("200000160006","20000016000C","60000032001B"):
+            d,key=index_fixture("0E/C8",size=2048,root=0x1000)
+            b=bytearray(d);b[0x100:0x106]=bytes.fromhex(header)
+            got,warnings,_,size=decode_archival_index(b,0x100000,"0E/C8")
+            self.assertEqual([key],[item.raw for item in got])
+            self.assertFalse(warnings)
+        b[0x100:0x106]=bytes.fromhex("60000032000C")
+        with self.assertRaises(ValueError):
+            decode_archival_index(b,0x100000,"0E/C8")
+        b=bytearray(d);b[0x420:0x426]=bytes(6)
+        with self.assertRaises(ValueError):
+            decode_archival_index(b,0x100000,"0E/C8")
+
     def test_guided_hex_navigation_back_and_unresolved_semantics(self):
         for kind,length,command,arg in (("0E/07",47,"DSPSCHIDX","SCHIDX"),
-                                        ("0E/91",81,"DSPMSRVI","MSRVI")):
+                                        ("0E/91",81,"DSPMSRVI","MSRVI"),
+                                        ("0E/D0",32,"DSPEDTIDX","EDTIDX"),
+                                        ("0E/C8",42,"DSPSRMIDX","SRMIDX")):
             o,ex,model,key=self.setup_view(kind,length)
             model.run_command(f"{command} {arg}(TESTIDX) KEYHEX(C1)")
             self.assertEqual("Saved machine-index keys",model.rows()[0]["name"])

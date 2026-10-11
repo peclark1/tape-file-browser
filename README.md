@@ -968,3 +968,13 @@ historical primaries, compare raw relative byte patterns, and Back.
 The bytes are not decoded queue entries, live messages, addresses
 or data-queue capacity. No second logical page is assumed to be
 physically adjacent. See `docs/DTAQ_FIRST_PAGE_WORKFLOW.md`.
+
+### Additional saved CISC machine-index keys (offline)
+
+`DSPEDTIDX EDTIDX(*ALL/*) KEYHEX(C1)` and
+`DSPSRMIDX SRMIDX(*ALL/*) KEYHEX(C1)` add two guarded
+historical index variants to the existing raw terminal-key
+browser. Inspect supported recovered keys, page through
+large results, choose raw hex/CP037 display lenses and Back.
+Unknown saved editor, resource, ownership and runtime
+semantics are **not** inferred. See `docs/EDTIDX_SRMIDX_WORKFLOW.md`.

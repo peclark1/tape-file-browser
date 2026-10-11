@@ -46,6 +46,8 @@ COMMANDS = (
     CommandSpec("DSPALRTBL", "DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)", "Browse saved alert keys and exact message-ID candidates; no alert execution."),
     CommandSpec("DSPPRTQ", "DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)", "Inspect saved printer-queue index keys and tentative spool-control token matches."),
     CommandSpec("WRKOUTQ", "WRKOUTQ OUTQ(*ALL/QPRINT) FORM(*STD)", "Inspect saved output-queue index keys and tentative form tokens; no live spool state."),
+    CommandSpec("DSPEDTIDX", "DSPEDTIDX EDTIDX(*ALL/*) KEYHEX(C1)", "Browse saved editor-index terminal keys as opaque bytes."),
+    CommandSpec("DSPSRMIDX", "DSPSRMIDX SRMIDX(*ALL/*) KEYHEX(C1)", "Browse saved resource-index terminal keys, not runtime services."),
     CommandSpec("DSPSCHIDX", "DSPSCHIDX SCHIDX(*ALL/*) KEYHEX(C1)", "Browse archived opaque scheduler-index keys, not runtime schedules."),
     CommandSpec("DSPMSRVI", "DSPMSRVI MSRVI(*ALL/*) KEYHEX(C1)", "Browse saved opaque service-index keys without interpreting service actions."),
     CommandSpec("DSPRCT", "DSPRCT RCT(*ALL/*) KEYHEX(E2)", "Browse reference-code keys and corroborated opaque records."),
@@ -151,6 +153,8 @@ def parse_command(text):
         "DSPALRTBL": {"ALRTBL", "MSGID", "KEYHEX"},
         "DSPPRTQ": {"PRTQ", "KEYHEX", "TOKEN"},
         "WRKOUTQ": {"OUTQ", "KEYHEX", "FORM"},
+        "DSPEDTIDX": {"EDTIDX", "KEYHEX"},
+        "DSPSRMIDX": {"SRMIDX", "KEYHEX"},
         "DSPSCHIDX": {"SCHIDX", "KEYHEX"},
         "DSPMSRVI": {"MSRVI", "KEYHEX"},
         "DSPRCT": {"RCT", "KEYHEX"},
@@ -523,7 +527,7 @@ class Guided5250:
             return self.show_evidence(dict(obj=row["object"]), self.lda_loader)
         elif row["kind"] == "archival_index_action" and option == "5":
             return self.show_evidence(row["request"], self.archival_index_loader)
-        elif self.archival_index_loader and row.get("object") is not None and row["object"].type_code in ("0E/07", "0E/91") and option == "5":
+        elif self.archival_index_loader and row.get("object") is not None and row["object"].type_code in ("0E/07", "0E/91", "0E/D0", "0E/C8") and option == "5":
             return self.show_evidence(dict(obj=row["object"], keyhex=row.get("archival_keyhex", "")), self.archival_index_loader)
         elif row["kind"] == "subsystem_action" and option == "5":
             return self.show_evidence(row["request"], self.subsystem_loader)
@@ -773,9 +777,10 @@ class Guided5250:
                     self.show_evidence(dict(obj=rows[0]["object"], at=at, name=name_filter), self.panel_group_loader)
                 else:
                     self._goto("type_objects", view_rows=rows)
-            elif name in ("DSPSCHIDX", "DSPMSRVI"):
+            elif name in ("DSPSCHIDX", "DSPMSRVI", "DSPEDTIDX", "DSPSRMIDX"):
                 from as400_capabilities import select_objects
-                arg = "SCHIDX" if name == "DSPSCHIDX" else "MSRVI"
+                arg = {"DSPSCHIDX":"SCHIDX", "DSPMSRVI":"MSRVI",
+                       "DSPEDTIDX":"EDTIDX", "DSPSRMIDX":"SRMIDX"}[name]
                 keyhex = params.get("KEYHEX", "")
                 if len(bytes.fromhex(keyhex)) > 256: raise ValueError("KEYHEX exceeds 256 bytes")
                 rows = select_objects(self.inventory, params.get(arg, "*ALL/*"), "*" + arg)

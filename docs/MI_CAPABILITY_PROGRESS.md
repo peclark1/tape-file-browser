@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 50, blocked 0, queued 218.
+States: delivered 0, partial 52, blocked 0, queued 216.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -66,12 +66,12 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 52 | 14/01 | *COSD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 53 | 19/D4 | *DBRCVR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 54 | 19/08 | *EDTD | partial | DSPEDTD browses guarded CISC 19/08 saved edit pattern (30 printable EBCDIC bytes at +0x124), observed digit code +0x100, short sign tokens +0x188, Y/N-shaped flag +0x1C9 and exact peer-origin comparison; no numeric-edit semantics are inferred. | Confirm formatted-value behavior, flags, insertion rules and custom edit descriptions with applicable period CISC documentation and independent sample values. |
-| 55 | 0E/D0 | *EDTIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 55 | 0E/D0 | *EDTIDX | partial | DSPEDTIDX explores strictly guarded historical machine-index terminal keys as opaque bytes with paged KEYHEX prefix filtering, exact reconstructed-key detail and Back; no editor actions inferred. | Independently identify original editor-index key fields and related records, validate all recovered virtual roots and variants on both source images. |
 | 56 | 07/01 | *JRNRCV | partial | DSPJRNRCV opens receiver object identity and reverse-links all supported saved *JRN address slots referring to its complete eight-byte segment-owner key, preserving duplicate origins and withholding unsupported journal primaries. No journal-entry content or active attachment is claimed. | Prove saved receiver internal structure/entry ownership and sequence via period CISC references, extend reverse reference coverage beyond the two corroborated journal slots. |
 | 57 | 19/1B | *PRDDFN | partial | DSPPRDDFN shows exact supported Pete B10 0x1F0 saved literal EBCDIC text regions, retains unknown Mark variant length and navigates all same-name PRDLOD candidate primaries with Back. | Reconstruct the alternate large Mark V2R3 product-definition representation and corroborate the meaning of both saved text slots; prove links beyond name equality. |
 | 58 | 19/90 | *QDSP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 59 | 19/19 | *S36 | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 60 | 0E/C8 | *SRMIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 60 | 0E/C8 | *SRMIDX | partial | DSPSRMIDX supports three observed header variants, recovered virtual-root/page-size guards, selectable opaque saved machine keys, KEYHEX filtering and Back; stale/missing roots remain withheld. | Independently identify service-resource index key semantics, unknown root variants and cross-object references; verify missing physical roots on original Mark image. |
 | 61 | 0E/0A | *USRIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 62 | 19/0D | *CHTFMT | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 63 | 19/0B | *CLD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
