@@ -62,6 +62,11 @@
       "workflow": "WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible.",
       "next_step": "Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there."
     },
+    "1915": {
+      "state": "partial",
+      "workflow": "DSPPNLGRP searches reconstructed tagged 13/length/CP037 name-shaped compiled literals in bounded 32 KiB virtual windows, pages 50 symbol candidates, shows exact bytes and tentative same-name command-prefix candidates. No UIM panel display/actions are decoded.",
+      "next_step": "Prove UIM compiled symbol roles and panel/menu action table references from period CISC documentation; extend record handling across windows and verify links to menu variants independently."
+    },
     "1916": {
       "state": "partial",
       "workflow": "DSPMNU: observed P/F qualified-name candidates navigate program identities and display/message files. UIM stays unsupported.",
