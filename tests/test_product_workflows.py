@@ -91,7 +91,7 @@ class ProductTests(unittest.TestCase):
         model.selected=item;model.open_row(item)
         rows=model.rows()
         self.assertEqual("Saved product-load descriptor",rows[0]["name"])
-        self.assertIn("identical saved tokens: 1",rows[1]["lines"][0].lower())
+        self.assertIn("1 recovered peer origins",rows[1]["lines"][0])
         self.assertIn(b,[row["object"] for row in rows if row.get("object")])
         link=next(i for i,row in enumerate(rows) if row.get("object") is d)
         model.selected=link;model.open_row(link)

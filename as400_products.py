@@ -101,7 +101,7 @@ class SavedProductExplorer:
                                 else decode_prddfn(prefix, type_code=obj.type_code))
         return self._cache[key]
 
-    def rows(self, obj):
+    def rows(self, obj, sample=None):
         info = self.record(obj)
         identity = (f"{obj.type_code} {obj.library_name or '<unassigned>'}/{obj.name}; "
                     f"recovered primary LBA {obj.segment.start_lba}")
