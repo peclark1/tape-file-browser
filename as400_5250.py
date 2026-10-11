@@ -50,6 +50,7 @@ COMMANDS = (
     CommandSpec("DSPMSGD", "DSPMSGD MSGF(*ALL/QIWSMSG) MSGID(IWN*)", "Browse recovered message IDs and validated message records."),
     CommandSpec("WRKFLR", "WRKFLR FLR(*ALL/*)", "Explore recovered folder anchor relationships."),
     CommandSpec("WRKTYP", "WRKTYP TYPE(*)", "Explorer extension: browse all MI types and recovered counts."),
+    CommandSpec("DSPSPLCB", "DSPSPLCB SPLCB(*ALL/QSPSCB)", "Follow saved spool-control name-slot candidates and inspect original bytes; no live spool claims."),
     CommandSpec("DSPLDA", "DSPLDA LDA(*ALL/QLDA)", "Browse validated 1024-byte saved local-data-area positions, read-only."),
     CommandSpec("DSPDTAARA", "DSPDTAARA DTAARA(*ALL/*)", "Display bounded recovered character data-area values."),
     CommandSpec("DSPFD", "DSPFD FILE(*ALL/*)", "Inspect recovered file/format candidates and field layouts."),
@@ -133,6 +134,7 @@ def parse_command(text):
         "DSPAFP": {"OBJ"},
         "WRKJOBQ": {"JOBQ"},
         "DSPFD": {"FILE"},
+        "DSPSPLCB": {"SPLCB"},
         "DSPLDA": {"LDA"},
         "DSPDTAARA": {"DTAARA"},
         "DSPTBL": {"TBL", "HEX"},
@@ -532,7 +534,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("02/01", "19/03", "0E/01", "0E/C4", "19/09", "19/04", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("02/01", "19/03", "0E/01", "0E/C4", "19/09", "19/04", "19/C2", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
@@ -683,13 +685,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:

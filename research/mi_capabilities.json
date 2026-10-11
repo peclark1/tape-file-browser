@@ -181,6 +181,11 @@
       "state": "partial",
       "workflow": "DSPLDA browses empirically bounded 1024-byte saved QLDA value region at primary +0x160 in 128-byte paged hex/CP037 windows, with exact offsets, blank counts and strict header/boundary/virtual-extent checks; archival bytes are not an active job's current LDA.",
       "next_step": "Corroborate QLDA value origin, job association and release-specific boundary exceptions; interpret nonblank contents only under proven format/CCSID."
+    },
+    "19C2": {
+      "state": "partial",
+      "workflow": "DSPSPLCB displays exact ten-byte saved name slots and SPdddd-shaped token bytes at corroborated offsets, navigates same-library/name recovered target primaries, and retains duplicate/missing candidates without claiming pointer or active spool ownership.",
+      "next_step": "Use period CISC spool-control manuals and independent object/segment pointers to prove slot roles, job identity and spool-file references; avoid interpreting historical status from text patterns alone."
     }
   }
 }
