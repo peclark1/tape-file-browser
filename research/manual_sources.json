@@ -185,7 +185,7 @@
     },
     {
       "id": "starter-2001",
-      "title": "Starter Kit: IBM iSeries & AS/400 — Guthrie and Madden (2001)",
+      "title": "Starter Kit: IBM iSeries & AS/400 \u2014 Guthrie and Madden (2001)",
       "location": "as400 manuals.zip",
       "archive_member": "Starter_Kit_-_IBM_iSeries_&_AS400_Gary_Guthrie_Wayne_Madden_(c)_2001_.pdf",
       "format": "PDF",
@@ -288,7 +288,7 @@
     },
     {
       "id": "primer-1992",
-      "title": "AS/400 Primer — Ernie Malaga (1992)",
+      "title": "AS/400 Primer \u2014 Ernie Malaga (1992)",
       "location": "as400 manuals.zip",
       "archive_member": "AS400_Primer_Ernie_Malaga_1992.pdf",
       "format": "PDF",
@@ -335,6 +335,13 @@
             439
           ],
           "topic": "SNDBRKACT sample command source, MSG MSGTYPE QSYSOPR and BRK001CL processing program"
+        },
+        {
+          "pdf_pages": [
+            294,
+            295
+          ],
+          "topic": "data-area position/length retrieval and display; logical interface, not disk layout"
         }
       ],
       "lexical_scan": {
@@ -384,7 +391,7 @@
     },
     {
       "id": "redbook-sg245693",
-      "title": "AS/400 Disk Storage Topics and Tools — IBM Redbook SG24-5693",
+      "title": "AS/400 Disk Storage Topics and Tools \u2014 IBM Redbook SG24-5693",
       "location": "AS400_Disk_Storage_Topics_and_Tools_sg245693.pdf",
       "archive_member": null,
       "format": "PDF",

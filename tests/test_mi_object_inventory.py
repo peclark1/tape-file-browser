@@ -26,11 +26,11 @@ class MIResearchInventoryTests(unittest.TestCase):
 
     def test_reviewed_vs_catalog_only_is_explicit(self):
         progress = counts(self.rows)["by_status"]
-        self.assertEqual(28, sum(progress[k] for k, _ in STATUSES
+        self.assertEqual(30, sum(progress[k] for k, _ in STATUSES
                                  if k != "cataloged_only"))
-        self.assertEqual(240, progress["cataloged_only"])
+        self.assertEqual(238, progress["cataloged_only"])
         self.assertEqual(2, progress["substantial_decoder"])
-        self.assertEqual(8, progress["partial_decoder"])
+        self.assertEqual(10, progress["partial_decoder"])
         self.assertEqual(6, progress["evidence_only"])
         self.assertEqual(12, progress["identity_only"])
         found = {r["key"]: r for r in self.rows}
@@ -45,7 +45,7 @@ class MIResearchInventoryTests(unittest.TestCase):
         self.assertEqual(18, len(sources))
         self.assertEqual(5, sum(s["review_status"] == "selected_pages_reviewed"
                                 for s in sources.values()))
-        self.assertEqual(19, counts(self.rows)["manual_refs"])
+        self.assertEqual(20, counts(self.rows)["manual_refs"])
         scan = self.manuals["lexical_scan_summary"]
         self.assertEqual(18, scan["manuals_scanned"])
         self.assertEqual(764, scan["total_type_mentions"])

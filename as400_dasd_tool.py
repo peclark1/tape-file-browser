@@ -8871,8 +8871,11 @@ def cmd_browse5250(args):
                 state, {"kind": "member", "object": member, "file": file_item}
             )
 
+        from as400_capabilities import CapabilityExplorer
+        capabilities = CapabilityExplorer(state["image"], state["inventory"], state["segments"])
         browser = Guided5250(
             state["inventory"],
+            capability_loader=capabilities.rows,
             member_info=state["image"].read_member_info,
             member_loader=member_data,
             command_definition_loader=lambda obj: _tui_command_definition(state, obj),

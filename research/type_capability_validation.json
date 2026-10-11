@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "scope": "Normal object recovery and bounded Guided workflows; not physical candidate census or live-object counts. No recovered names/values exported.",
+  "images": {
+    "marks": {
+      "image_bytes": 1004257800,
+      "sha256": "49e4e989fcc6732ffb21bd0d0a610ffcf9afd582d5cd84e3af8f02ccc8593898",
+      "unchanged": true,
+      "recovered_type_count": 112,
+      "workflow_counts": {
+        "06/C1 navigable rows": 478732,
+        "06/C1 opened": 1832,
+        "06/C1 primaries": 1832,
+        "0B/90 navigable rows": 11039,
+        "0B/90 opened": 3630,
+        "0B/90 primaries": 3630,
+        "0C/90 navigable rows": 1224,
+        "0C/90 opened": 281,
+        "0C/90 primaries": 281,
+        "0D/50 navigable rows": 11621,
+        "0D/50 opened": 3779,
+        "0D/50 primaries": 3779,
+        "19/01 navigable rows": 3605,
+        "19/01 opened": 1343,
+        "19/01 primaries": 1343,
+        "19/06 navigable rows": 161653,
+        "19/06 opened": 629,
+        "19/06 primaries": 629,
+        "19/0A navigable rows": 412,
+        "19/0A opened": 35,
+        "19/0A primaries": 37,
+        "19/0E navigable rows": 3716,
+        "19/0E opened": 1858,
+        "19/0E primaries": 1858,
+        "19/51 navigable rows": 14535,
+        "19/51 opened": 749,
+        "19/51 primaries": 749,
+        "character data-area bytes": 11601,
+        "exact member storage links": 4063,
+        "file format candidate links": 1714,
+        "format fields": 13786
+      },
+      "withheld": {
+        "19/0A ValueError": 2
+      },
+      "reference_checks": [
+        "QASCII",
+        "QEBCDIC",
+        "QSYSTRNTBL"
+      ],
+      "original_ui_paths": [
+        "type/table/byte/back",
+        "file/format/field/back",
+        "member/storage/reverse/back"
+      ]
+    },
+    "petes": {
+      "image_bytes": 320523840,
+      "sha256": "1fc2e7be114d74a8e8f386565e38a636c76bde529161d93bd53bbeed8a0955f6",
+      "unchanged": true,
+      "recovered_type_count": 64,
+      "workflow_counts": {
+        "0B/90 navigable rows": 2551,
+        "0B/90 opened": 849,
+        "0B/90 primaries": 849,
+        "0C/90 navigable rows": 500,
+        "0C/90 opened": 138,
+        "0C/90 primaries": 138,
+        "0D/50 navigable rows": 2797,
+        "0D/50 opened": 944,
+        "0D/50 primaries": 944,
+        "19/01 navigable rows": 2222,
+        "19/01 opened": 942,
+        "19/01 primaries": 942,
+        "19/06 navigable rows": 22616,
+        "19/06 opened": 88,
+        "19/06 primaries": 88,
+        "19/0A navigable rows": 941,
+        "19/0A opened": 54,
+        "19/0A primaries": 54,
+        "19/0E navigable rows": 492,
+        "19/0E opened": 246,
+        "19/0E primaries": 246,
+        "19/51 navigable rows": 4388,
+        "19/51 opened": 311,
+        "19/51 primaries": 311,
+        "character data-area bytes": 27547,
+        "exact member storage links": 909,
+        "file format candidate links": 454,
+        "format fields": 4077
+      },
+      "withheld": {},
+      "reference_checks": [
+        "QASCII",
+        "QSYSTRNTBL"
+      ],
+      "original_ui_paths": [
+        "type/table/byte/back",
+        "file/format/field/back",
+        "member/storage/reverse/back"
+      ]
+    }
+  }
+}

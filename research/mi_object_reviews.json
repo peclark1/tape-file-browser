@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "basis": "Survey foundation through f3bb539; interactive command capability selectively incorporates reviewed PR #15 keyword recovery. Other audits retain their original scope.",
+  "basis": "Audited survey plus prompt-link and cross-type workflows on feature/type-capability-workflows; partial means observed formats only.",
   "status_vocabulary": {
     "cataloged_only": "Named in sourced IBM type tables; no object-specific repository decoder verified.",
     "identity_only": "Recovered MI type and common object identity; no validated type-specific payload fields.",
@@ -807,6 +807,45 @@
           "basis": "observed for selected QDOC documents"
         }
       ]
+    },
+    "1906": {
+      "status": "partial_decoder",
+      "scope": "Empirical complete 256-byte map at primary +0x100; navigable byte mappings, collisions and offline sample translation. Encodings/purpose/flags are not inferred.",
+      "implementation": [
+        "as400_capabilities.py:decode_translation_table"
+      ],
+      "next_step": "Validate other table forms and purpose/CCSID metadata; compare additional independently known mapping pairs.",
+      "manual_refs": [],
+      "interfaces": [
+        "DSPTBL",
+        "CRTTBL"
+      ],
+      "relationships": []
+    },
+    "190A": {
+      "status": "partial_decoder",
+      "scope": "Empirical selector 04 character value: u16 length +0x101, bytes +0x103; positional CP037/hex view. Selectors 03 and 84 withheld.",
+      "implementation": [
+        "as400_capabilities.py:decode_character_data_area"
+      ],
+      "next_step": "Compare selector 03 and 84 specimens with known numeric/logical definitions; establish scale/storage before displaying values.",
+      "manual_refs": [
+        {
+          "source": "primer-1992",
+          "pdf_pages": [
+            230,
+            294,
+            295
+          ],
+          "topic": "data-area purpose, display and position/length retrieval (logical only)"
+        }
+      ],
+      "interfaces": [
+        "DSPDTAARA",
+        "RTVDTAARA",
+        "CRTDTAARA"
+      ],
+      "relationships": []
     }
   }
 }
