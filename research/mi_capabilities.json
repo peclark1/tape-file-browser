@@ -211,6 +211,16 @@
       "state": "partial",
       "workflow": "DSPALRTBL traverses saved 12-byte release-2 alert-table keys in 50-entry windows, filters candidate 7-character message IDs/hex prefixes, inspects exact bytes and follows C-tagged ID candidates to same-name MSGF primaries only when exact MSGF index IDs are independently corroborated; message text still requires separate stored record validation.",
       "next_step": "Establish C/D alert key roles and four trailing bytes, historical alert actions and pointer ownership from period CISC sources; validate cross-release virtual-extent recoveries and older Pete message-file secondary storage."
+    },
+    "0901": {
+      "state": "partial",
+      "workflow": "DSPJRN inspects empirically corroborated full eight-byte saved receiver addresses at +0x110 and +0x240 and navigates all recovered *JRNRCV primaries whose exact segment-owner extender/address matches; null and missing addresses remain explicit, with no current receiver or chronology inferred.",
+      "next_step": "Corroborate precise journal control slot roles and additional receiver pointers at +0x280/+0x2C0/etc in independently reconstructed virtual extents; validate entry data and active receiver chain without guessing from proximity."
+    },
+    "0701": {
+      "state": "partial",
+      "workflow": "DSPJRNRCV opens receiver object identity and reverse-links all supported saved *JRN address slots referring to its complete eight-byte segment-owner key, preserving duplicate origins and withholding unsupported journal primaries. No journal-entry content or active attachment is claimed.",
+      "next_step": "Prove saved receiver internal structure/entry ownership and sequence via period CISC references, extend reverse reference coverage beyond the two corroborated journal slots."
     }
   }
 }
