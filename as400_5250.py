@@ -41,6 +41,9 @@ COMMANDS = (
     CommandSpec("DSPCNVTBL", "DSPCNVTBL CNVTBL(*ALL/TBT*) POS(128)", "Inspect 256 saved byte-pair slots and compare exact archived table bytes."),
     CommandSpec("DSPWSCST", "DSPWSCST WSCST(*ALL/QWPPAN2180)", "Inspect compiled TRANSFORM saved fields and candidate related WSCST origins."),
     CommandSpec("DSPGSS", "DSPGSS GSS(*ALL/ADMUVGEP) SLOT(1)", "Browse guarded saved symbol table slots and exact binary record boundaries."),
+    CommandSpec("DSPEPTAB", "DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)", "Browse cross-release saved EPTAB u16 word positions; no translation semantics."),
+    CommandSpec("DSPBNDDIR", "DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)", "Browse saved V2R3 binding entries and candidate service-program/module identities."),
+    CommandSpec("DSPSRVPGM", "DSPSRVPGM SRVPGM(*ALL/*)", "Find saved binding-directory records referring to service-program names; no runtime bindings."),
     CommandSpec("DSPJRN", "DSPJRN JRN(*ALL/*)", "Follow archived full internal receiver addresses; no active journal-chain claims."),
     CommandSpec("DSPJRNRCV", "DSPJRNRCV JRNRCV(*ALL/*)", "Find saved journal pointers into the selected receiver origin, read-only."),
     CommandSpec("DSPALRTBL", "DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)", "Browse saved alert keys and exact message-ID candidates; no alert execution."),
@@ -148,6 +151,9 @@ def parse_command(text):
         "DSPCNVTBL": {"CNVTBL", "POS"},
         "DSPWSCST": {"WSCST"},
         "DSPGSS": {"GSS", "SLOT"},
+        "DSPEPTAB": {"EPTAB", "WORD"},
+        "DSPBNDDIR": {"BNDDIR", "NAME"},
+        "DSPSRVPGM": {"SRVPGM"},
         "DSPJRN": {"JRN"},
         "DSPJRNRCV": {"JRNRCV"},
         "DSPALRTBL": {"ALRTBL", "MSGID", "KEYHEX"},
@@ -181,7 +187,9 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, gss_loader=None, conversion_loader=None, dtaq_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, gss_loader=None, conversion_loader=None, dtaq_loader=None, binding_loader=None, eptab_loader=None):
+        self.binding_loader = binding_loader
+        self.eptab_loader = eptab_loader
         self.dtaq_loader = dtaq_loader
         self.conversion_loader = conversion_loader
         self.gss_loader = gss_loader
@@ -493,7 +501,17 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "dtaq_pair_action" and option == "5":
+        if row["kind"] == "eptab_word_action" and option == "5":
+            return self.show_evidence(row["request"],self.eptab_loader)
+        elif self.eptab_loader and row.get("object") is not None and row["object"].type_code == "19/D7" and option == "5":
+            return self.show_evidence(dict(obj=row["object"],word=row.get("eptab_word","")),self.eptab_loader)
+        elif row["kind"] == "binding_entry_action" and option == "5":
+            return self.show_evidence(row["request"],self.binding_loader)
+        elif self.binding_loader and row.get("object") is not None and row["object"].type_code == "19/37" and option == "5":
+            return self.show_evidence(dict(obj=row["object"],name=row.get("binding_name","*")),self.binding_loader)
+        elif self.binding_loader and row.get("object") is not None and row["object"].type_code == "02/03" and option == "5":
+            return self.show_evidence(dict(obj=row["object"]),self.binding_loader)
+        elif row["kind"] == "dtaq_pair_action" and option == "5":
             return self.show_evidence(row["request"], self.dtaq_loader)
         elif self.dtaq_loader and row.get("object") is not None and row["object"].type_code == "0A/01" and option == "5":
             return self.show_evidence(dict(obj=row["object"], slot=row.get("dtaq_slot")), self.dtaq_loader)
@@ -742,6 +760,26 @@ class Guided5250:
                     self.show_evidence(dict(obj=rows[0]["object"], slot=slot), self.gss_loader)
                 else:
                     self._goto("type_objects", view_rows=rows)
+            elif name == "DSPEPTAB":
+                from as400_capabilities import select_objects
+                word=params.get("WORD","")
+                if word and (len(word)!=4 or any(c not in "0123456789ABCDEF" for c in word)):
+                    raise ValueError("WORD must be exactly four hexadecimal digits")
+                rows=select_objects(self.inventory,params.get("EPTAB","*ALL/*"),"*EPTAB")
+                for row in rows:row["eptab_word"]=word
+                if len(rows)==1:
+                    self.show_evidence(dict(obj=rows[0]["object"],word=word),self.eptab_loader)
+                else:
+                    self._goto("type_objects",view_rows=rows)
+            elif name == "DSPBNDDIR":
+                from as400_capabilities import select_objects
+                name_filter=params.get("NAME","*")
+                rows=select_objects(self.inventory,params.get("BNDDIR","*ALL/*"),"*BNDDIR")
+                for row in rows:row["binding_name"]=name_filter
+                if len(rows)==1:
+                    self.show_evidence(dict(obj=rows[0]["object"],name=name_filter),self.binding_loader)
+                else:
+                    self._goto("type_objects",view_rows=rows)
             elif name == "DSPALRTBL":
                 from as400_capabilities import select_objects
                 msgid = params.get("MSGID", "*")
@@ -830,13 +868,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB", "DSPJMQ", "DSPEDTD", "DSPJRN", "DSPJRNRCV", "DSPWSCST") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB", "DSPJMQ", "DSPEDTD", "DSPJRN", "DSPJRNRCV", "DSPWSCST", "DSPSRVPGM") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB", "DSPJMQ": "JMQ", "DSPEDTD": "EDTD", "DSPJRN": "JRN", "DSPJRNRCV": "JRNRCV", "DSPWSCST": "WSCST"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB", "DSPJMQ": "JMQ", "DSPEDTD": "EDTD", "DSPJRN": "JRN", "DSPJRNRCV": "JRNRCV", "DSPWSCST": "WSCST", "DSPSRVPGM": "SRVPGM"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB", "DSPJMQ": "*JMQ", "DSPEDTD": "*EDTD", "DSPJRN": "*JRN", "DSPJRNRCV": "*JRNRCV", "DSPWSCST": "*WSCST"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB", "DSPJMQ": "*JMQ", "DSPEDTD": "*EDTD", "DSPJRN": "*JRN", "DSPJRNRCV": "*JRNRCV", "DSPWSCST": "*WSCST", "DSPSRVPGM": "*SRVPGM"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:

@@ -92,6 +92,11 @@
       "workflow": "DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows.",
       "next_step": "Decode page-map and line-data formatting semantics against period references."
     },
+    "1937": {
+      "state": "partial",
+      "workflow": "DSPBNDDIR reads validated 48-byte saved binding entries, filters names and follows recovered name/type candidate *SRVPGM/*MODULE identities with exact saved record, byte offsets and Back; *LIBL stays unresolved.",
+      "next_step": "Independently confirm historic linker references, library-search scope and export/module ownership, including additional saved variants and full recovered-image acceptance."
+    },
     "1938": {
       "state": "partial",
       "workflow": "DSPWSCST validates saved CISC 19/38 outer/nested EBCDIC TRANSFORM descriptors with two echoed length fields and inspects strict 30-byte padded name candidates at +0x824/+0x1024, linking all exact-name recovered WSCST primaries in both directions with original offsets and withheld-source counts. No device inheritance or printer settings are inferred.",
@@ -261,6 +266,16 @@
       "state": "partial",
       "workflow": "DSPSRMIDX supports three observed header variants, recovered virtual-root/page-size guards, selectable opaque saved machine keys, KEYHEX filtering and Back; stale/missing roots remain withheld.",
       "next_step": "Independently identify service-resource index key semantics, unknown root variants and cross-object references; verify missing physical roots on original Mark image."
+    },
+    "0203": {
+      "state": "partial",
+      "workflow": "DSPSRVPGM reverse-finds saved BNDDIR entries using exact recovered program name and 02/03 target type, selects original binding-record offsets and Back; references are not proven runtime bindings.",
+      "next_step": "Validate service-program metadata, exports, actual link-time associations and context/library search behavior without assuming *LIBL resolution."
+    },
+    "19D7": {
+      "state": "partial",
+      "workflow": "DSPEPTAB browses 512 cross-release saved 16-bit big-endian word positions, exact bytes/offsets, hex-value filters and 50-row paging with Back; physical page discontinuity is handled by virtual extents.",
+      "next_step": "Establish historic EPTAB semantics independently: current saved words are not certified translation or glyph mappings, despite cross-image exact equality."
     }
   }
 }

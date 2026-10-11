@@ -978,3 +978,21 @@ browser. Inspect supported recovered keys, page through
 large results, choose raw hex/CP037 display lenses and Back.
 Unknown saved editor, resource, ownership and runtime
 semantics are **not** inferred. See `docs/EDTIDX_SRMIDX_WORKFLOW.md`.
+
+### Integrated saved binding directories, service programs and EPTAB words (offline)
+
+Use `DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)` to inspect
+validated V2R3 fixed-width saved binding records and follow
+candidate name/type matches to archived `*SRVPGM`/`*MODULE`
+primaries, or `DSPSRVPGM SRVPGM(*ALL/*)` for the reverse
+path into exact saved binding entries. These are candidate
+references, not proven program exports or runtime bindings:
+`*LIBL` remains unresolved.
+
+`DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)` browses
+512 exact saved 16-bit word positions across independent
+Mark/Pete images using recovered virtual page order, with
+50-row paging, exact 4-hex-digit word filters and Back.
+No translation, glyph or codepage meanings are asserted.
+See `docs/BINDING_DIRECTORY_WORKFLOW.md` and
+`docs/EPTAB_WORKFLOW.md`.
