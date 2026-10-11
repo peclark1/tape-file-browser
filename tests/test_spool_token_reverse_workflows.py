@@ -12,13 +12,7 @@ from test_printer_queue_workflows import PrinterQueueTests
 class SpoolTokenReverseTests(unittest.TestCase):
     def make(self,**kwargs):
         printer,spools,image,queue,_,key=PrinterQueueTests().make(**kwargs)
-        service=SpoolControlExplorer(image,
-                      type("Inv",(),{"objects":[printer,*spools]})(),
-                      printer_queue_explorer=queue)
-        inv=type("Inv",(),{"objects":[printer,*spools],
-                           "libraries":[],"context_entries":[]})()
-        # Use the same FakeInventory helpers as the application tests;
-        # this instance deliberately preserves all original origins.
+        # Preserve separate recovered origins in the normal test inventory.
         from test_type_capabilities import inventory
         inv=inventory([printer,*spools])
         service=SpoolControlExplorer(image,inv,printer_queue_explorer=queue)
