@@ -928,3 +928,7 @@ The `DSPJRNRCV` screen now also inspects the receiver primary's own eight-byte s
 ### Saved graphics/symbol-set binary records (offline)
 
 `DSPGSS GSS(*ALL/ADMUVGEP) SLOT(11)` navigates verified 176-slot two-byte offset tables in the supported historical 19/0C GSS 004A/4009 variant, preserves 94 populated slots and aliases, and displays bounded C1-tagged saved byte records with exact offsets and hex. These are **raw binary symbol records**, not decoded glyphs, font code points or executable graphics instructions. Other GSS variants remain withheld. See [independent Mark/Pete evidence and validation](docs/GSS_WORKFLOW.md). The [one-scan archival acceptance](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now checks seventeen recent types.
+
+### Archived workstation-customization TRANSFORM relationships (offline)
+
+`DSPWSCST WSCST(*ALL/QWPPAN2180)` validates the common Mark V2R3 19/38 saved `TRANSFORM` descriptor lengths and examines exact 30-byte EBCDIC padded name fields at primary +0x824/+0x1024. Select any recovered same-name WSCST candidate and navigate reverse candidate sources; unmatched names and unsupported virtual gaps are not guessed. These are **byte/name correlations only**, not certified printer control settings, inheritance or executed transformations. See [original-image WSCST evidence](docs/WSCST_WORKFLOW.md). The [one-scan archival acceptance](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now includes eighteen recent families.
