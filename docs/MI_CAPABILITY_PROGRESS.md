@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 41, blocked 0, queued 227.
+States: delivered 0, partial 42, blocked 0, queued 226.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -54,7 +54,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 40 | 19/04 | *CLS | partial | DSPCLS reverses exact-name occurrence candidates to recovered SBSD primaries with source offsets; no class payload interpretation or certified assignment claim. | Corroborate actual CLS attributes and subsystem class references from period sources and synthetic negative controls. |
 | 41 | 0A/01 | *DTAQ | queued | No type-specific Guided workflow audited yet. | Document internal queue layout and test against real CISC samples. |
 | 42 | 19/0C | *GSS | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 43 | 0E/09 | *ALRTBL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 43 | 0E/09 | *ALRTBL | partial | DSPALRTBL traverses saved 12-byte release-2 alert-table keys in 50-entry windows, filters candidate 7-character message IDs/hex prefixes, inspects exact bytes and follows C-tagged ID candidates to same-name MSGF primaries only when exact MSGF index IDs are independently corroborated; message text still requires separate stored record validation. | Establish C/D alert key roles and four trailing bytes, historical alert actions and pointer ownership from period CISC sources; validate cross-release virtual-extent recoveries and older Pete message-file secondary storage. |
 | 44 | 1B/01 | *AUTL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 45 | 19/37 | *BNDDIR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 46 | 0E/0C | *JOBSCD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
