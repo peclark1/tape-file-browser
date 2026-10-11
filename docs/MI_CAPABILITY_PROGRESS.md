@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 46, blocked 0, queued 222.
+States: delivered 0, partial 47, blocked 0, queued 221.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -82,7 +82,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 68 | 1C/01 | *SPADCT | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 69 | 19/D8 | *SYSRPYL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 70 | 19/34 | *USRSPC | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 71 | 19/D7 | *EPTAB | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 71 | 19/D7 | *EPTAB | partial | DSPEPTAB opens a fully bounded cross-release 19/D7 512-slot big-endian saved u16 word region (+0x100..+0x4FF) with exact hex-value filtering, 50-entry positional paging and selected raw word details. Mark/Pete virtual-address reconstructed QDMEPTB streams match byte-for-byte; numeric values are not assigned translation/edit/runtime meanings. | Find period CISC EPTAB field/schema references and link individual 16-bit words to independently corroborated system functions before claiming mapping, glyph or runtime semantics; validate normal recovered-object app path in both images. |
 | 72 | 19/E8 | *FSO | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 73 | 19/D5 | *INAUT | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 74 | 19/EE | *MSCSP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |

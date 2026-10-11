@@ -29,6 +29,7 @@ PRTQ_MODULE_PATH="${HOME}/.local/bin/as400_printer_queues.py"
 ALRTBL_MODULE_PATH="${HOME}/.local/bin/as400_alert_tables.py"
 JRN_MODULE_PATH="${HOME}/.local/bin/as400_journals.py"
 BNDDIR_MODULE_PATH="${HOME}/.local/bin/as400_binding_directories.py"
+EPTAB_MODULE_PATH="${HOME}/.local/bin/as400_eptab.py"
 ARCHIDX_MODULE_PATH="${HOME}/.local/bin/as400_archival_indexes.py"
 MESSAGE_QUEUES_MODULE_PATH="${HOME}/.local/bin/as400_message_queues.py"
 JOBS_MODULE_PATH="${HOME}/.local/bin/as400_jobs.py"
@@ -71,6 +72,7 @@ rm -f \
     "${ALRTBL_MODULE_PATH}" \
     "${JRN_MODULE_PATH}" \
     "${BNDDIR_MODULE_PATH}" \
+    "${EPTAB_MODULE_PATH}" \
     "${ARCHIDX_MODULE_PATH}" \
     "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \

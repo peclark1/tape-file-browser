@@ -928,3 +928,7 @@ The `DSPJRNRCV` screen now also inspects the receiver primary's own eight-byte s
 ### Saved binding directory and service-program references (offline)
 
 `DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)` shows V2R3 `*BNDDIR` records with checked 48-byte layout, saved object/library/type values, exact bytes, and clickable independently recovered candidate *SRVPGM/*MODULE origins. `DSPSRVPGM SRVPGM(*ALL/*)` finds saved binding records by matching a chosen service program’s recovered name/type. The saved `*LIBL` token does **not** resolve a historical library list, and the links do not prove actual runtime bindings. Pete B10 has no corroborated BNDDIR candidate. See [entry evidence and limitations](docs/BINDING_DIRECTORY_WORKFLOW.md).
+
+### Cross-release EPTAB saved 16-bit word browser (offline)
+
+`DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)` opens a 512-position bounded saved 16-bit word stream, filters on exact four-digit hex values and shows raw two-byte positions and counts. The source EPTAB bytes are identical in Mark's and Pete's original images **after virtual-address reconstruction of Pete's nonadjacent third page**, but their application meaning is **not** yet known. See [source and byte-boundary evidence](docs/EPTAB_WORKFLOW.md). The one-pass recovered-image acceptance runner now includes 19 recently advanced families.

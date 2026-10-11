@@ -11,13 +11,13 @@ from tools.validate_recent_workflows import assess, WORKFLOWS
 
 class RecentWorkflowAcceptanceTests(unittest.TestCase):
     def test_all_recent_types_and_commands_are_explicit(self):
-        self.assertEqual(18, len(WORKFLOWS))
-        self.assertEqual(18, len({item[0] for item in WORKFLOWS}))
+        self.assertEqual(19, len(WORKFLOWS))
+        self.assertEqual(19, len({item[0] for item in WORKFLOWS}))
         self.assertEqual({"0E/02", "0E/01", "0E/C4", "19/09", "19/04",
                           "0E/07", "0E/91", "19/CE", "19/C2", "18/A0",
-                          "19/15", "19/08", "0E/C7", "0E/09", "09/01", "07/01", "19/37", "02/03"}, {x[0] for x in WORKFLOWS})
+                          "19/15", "19/08", "0E/C7", "0E/09", "09/01", "07/01", "19/37", "02/03", "19/D7"}, {x[0] for x in WORKFLOWS})
         empty = assess(Image([]), inventory([]))
-        self.assertEqual(18, len(empty))
+        self.assertEqual(19, len(empty))
         self.assertTrue(all(entry["counts"]["ui_walkthroughs_not_possible"] == 1
                             for entry in empty.values()))
 
@@ -89,6 +89,13 @@ class RecentWorkflowAcceptanceTests(unittest.TestCase):
         self.assertEqual(1,result["19/37"]["counts"]["ui_detail_back_ok"])
         self.assertEqual(2,result["02/03"]["counts"]["bounded_views"])
         self.assertEqual(1,result["02/03"]["counts"]["ui_detail_back_ok"])
+
+    def test_cross_release_eptab_word_navigation_and_back(self):
+        from test_eptab_workflows import EPTabTests
+        obj_,image,explorer,model=EPTabTests().make()
+        result=assess(image,model.inventory)
+        self.assertEqual(1,result["19/D7"]["counts"]["bounded_views"])
+        self.assertEqual(1,result["19/D7"]["counts"]["ui_detail_back_ok"])
 
     def test_invalid_source_is_explicitly_withheld_not_counted(self):
         from test_local_data_workflows import LocalDataTests
