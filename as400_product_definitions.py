@@ -59,7 +59,7 @@ class ProductDefinition:
 def decode_product_definition(data, *, type_code):
     if type_code != "19/1B":
         raise ValueError("Not a recovered CISC product-definition primary")
-    if len(data) < 0x360:
+    if len(data) < 0x224:
         raise ValueError("Incomplete product-definition header")
     length = int.from_bytes(data[0x100:0x104], "big")
     if length < 1 or length > MAX_BYTES or 0x104 + length > len(data):
@@ -77,6 +77,8 @@ def decode_product_definition(data, *, type_code):
     if not product or not re.fullmatch("[0-9]{8}", release):
         raise ValueError("Unsupported product identifier or saved release-code layout")
     if signature == "PDO 11".encode("cp037"):
+        if len(data) < 0x364:
+            raise ValueError("Incomplete V2R3 product record-table header")
         count = int.from_bytes(data[0x358:0x35C], "big")
         measure = int.from_bytes(data[0x356:0x358], "big")
         if (not 1 <= count <= 8192 or length != 608 + ROW_BYTES * count or
