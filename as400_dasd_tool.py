@@ -8881,6 +8881,7 @@ def cmd_browse5250(args):
         from as400_programs import ProgramExplorer
         from as400_archival_indexes import ArchivalIndexExplorer
         from as400_subsystems import SubsystemExplorer
+        from as400_edit_indexes import EditIndexExplorer
         from as400_eptab import EPTabExplorer
         from as400_binding_directories import BindingDirectoryExplorer
         from as400_journals import JournalReceiverExplorer
@@ -8904,6 +8905,7 @@ def cmd_browse5250(args):
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
+        edit_indexes = EditIndexExplorer(state["image"])
         eptab = EPTabExplorer(state["image"])
         binding_directories = BindingDirectoryExplorer(state["image"], state["inventory"])
         journals = JournalReceiverExplorer(state["image"], state["inventory"])
@@ -8921,6 +8923,7 @@ def cmd_browse5250(args):
         menus = MenuExplorer(state["image"], state["inventory"])
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
+            if obj.type_code == "0E/D0": return edit_indexes.rows(obj)
             if obj.type_code == "19/D7": return eptab.rows(obj)
             if obj.type_code in ("19/37","02/03"): return binding_directories.rows(obj)
             if obj.type_code in ("09/01", "07/01"): return journals.rows(obj)
@@ -8947,6 +8950,7 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            edit_index_loader=edit_indexes.rows,
             eptab_loader=eptab.rows,
             binding_loader=binding_directories.rows,
             alert_loader=alerts.rows,
