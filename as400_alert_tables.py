@@ -74,10 +74,16 @@ class AlertTableExplorer:
         self.image = image
         self.message_explorer = message_explorer
         self._cache = {}
+        self._reverse = {}
+        self._alerts = {}
         self._messages = {}
         for obj in inventory.objects:
             if obj.type_code == "0E/03":
                 self._messages.setdefault(obj.name.upper(), []).append(obj)
+            if obj.type_code == "0E/09":
+                self._alerts.setdefault(obj.name.upper(), []).append(obj)
+        for items in self._alerts.values():
+            items.sort(key=lambda o:(o.library_name or "", o.segment.start_lba))
         for items in self._messages.values():
             items.sort(key=lambda o:(o.library_name or "", o.segment.start_lba))
 
@@ -90,6 +96,63 @@ class AlertTableExplorer:
                 read_prefix(self.image, obj.segment, MAX_PRIMARY_BYTES),
                 obj.segment.virtual_address)
         return self._cache[origin]
+
+    def alert_rows_for_message_id(self, msgf, identifier):
+        """Link a *selected* confirmed MSGF ID to equal C-tag alert key bytes.
+
+        An identical saved identifier does not establish that any alert was
+        raised or that the associated table owned the message record.
+        Invalid/missing alert roots remain explicitly withheld.
+        """
+        if msgf.type_code != "0E/03" or not MESSAGE_ID.fullmatch(identifier):
+            raise ValueError("Expected an independently selected MSGF message ID")
+        tables = self._alerts.get(msgf.name.upper(), ())
+        if not tables:
+            return []
+        candidates = []
+        withheld = 0
+        for table in tables:
+            origin = (table.segment.start_lba, table.segment.virtual_address)
+            if origin not in self._reverse:
+                try:
+                    keys, warnings, _ = self.entries(table)
+                except (ValueError, OSError):
+                    self._reverse[origin] = None
+                else:
+                    lookup = {}
+                    for key in keys:
+                        token = key.message_id_candidate
+                        if token:
+                            lookup.setdefault(token, []).append(key)
+                    self._reverse[origin] = lookup
+            indexed = self._reverse[origin]
+            if indexed is None:
+                withheld += 1
+                continue
+            candidates.extend((table, key) for key in indexed.get(identifier, ()))
+        candidates.sort(key=lambda pair:(pair[0].library_name or "",
+                                          pair[0].segment.start_lba,
+                                          pair[1].terminal_offset))
+        rows = [section("Same-name saved alert-table evidence", [
+            f"Recovered 0E/09 alert-table primaries named {msgf.name}: {len(tables)}",
+            f"C-tag saved keys containing exact seven-character ID {identifier}: {len(candidates)}",
+            f"Alert-table roots withheld/unsupported: {withheld}",
+            "This reverse lookup is exact saved ID equality only, not a compiled alert action, pointer or runtime event.",
+            "Choose a saved key for original bytes; no alert or command is executed."])]
+        for table, key in candidates[:50]:
+            link = action(f"Alert key in {table.name}", table, entry=key)
+            link["note"] = (f"Alert-table primary LBA {table.segment.start_lba}; "
+                            f"terminal +0x{key.terminal_offset:X}; candidate only")
+            rows.append(link)
+        if len(candidates) > 50:
+            rows.append(section("More matching saved keys", [
+                f"{len(candidates)-50} additional ambiguous alert keys not expanded.",
+                f"Use DSPALRTBL ALRTBL(*ALL/{msgf.name}) MSGID({identifier}) to page them."]))
+        if not candidates:
+            rows.append(section("No corroborated same-ID alert key", [
+                "No supported saved C-tag key with that ID was reconstructed.",
+                "An unsupported index cannot prove the alert never existed."]))
+        return rows
 
     def rows(self, obj, start=0, msgid="*", keyhex="", entry=None):
         if not isinstance(start, int) or start < 0:
