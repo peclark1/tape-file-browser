@@ -35,6 +35,7 @@ COMMANDS = (
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
+    CommandSpec("DSPEDTIDX", "DSPEDTIDX EDTIDX(*ALL/*) NAME(QIBM*)", "Search archived 22-byte edit-index key name candidates without assigning edit actions."),
     CommandSpec("DSPEPTAB", "DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)", "Browse cross-release saved EPTAB u16 word positions, never assume translation semantics."),
     CommandSpec("DSPBNDDIR", "DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)", "Inspect saved V2R3 48-byte binding records and candidate module/service-program identities."),
     CommandSpec("DSPSRVPGM", "DSPSRVPGM SRVPGM(*ALL/*)", "Find recovered service programs referenced by saved binding-directory name/type records."),
@@ -137,6 +138,7 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPEDTIDX": {"EDTIDX", "NAME", "KEYHEX"},
         "DSPEPTAB": {"EPTAB", "WORD"},
         "DSPBNDDIR": {"BNDDIR", "NAME"},
         "DSPSRVPGM": {"SRVPGM"},
@@ -171,7 +173,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, binding_loader=None, eptab_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, binding_loader=None, eptab_loader=None, edit_index_loader=None):
+        self.edit_index_loader = edit_index_loader
         self.eptab_loader = eptab_loader
         self.binding_loader = binding_loader
         self.alert_loader = alert_loader
@@ -482,7 +485,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "eptab_word_action" and option == "5":
+        if row["kind"] == "edit_index_action" and option == "5":
+            return self.show_evidence(row["request"],self.edit_index_loader)
+        elif self.edit_index_loader and row.get("object") is not None and row["object"].type_code == "0E/D0" and option == "5":
+            return self.show_evidence(dict(obj=row["object"],name=row.get("edit_index_name","*"),keyhex=row.get("edit_index_keyhex","")),self.edit_index_loader)
+        elif row["kind"] == "eptab_word_action" and option == "5":
             return self.show_evidence(row["request"],self.eptab_loader)
         elif self.eptab_loader and row.get("object") is not None and row["object"].type_code == "19/D7" and option == "5":
             return self.show_evidence(dict(obj=row["object"],word=row.get("eptab_word","")),self.eptab_loader)
@@ -685,6 +692,17 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPEDTIDX":
+                from as400_capabilities import select_objects
+                name_filter=params.get("NAME","*")
+                keyhex=params.get("KEYHEX","")
+                if len(bytes.fromhex(keyhex))>22:raise ValueError("KEYHEX exceeds 22-byte key")
+                rows=select_objects(self.inventory,params.get("EDTIDX","*ALL/*"),"*EDTIDX")
+                for row in rows:row["edit_index_name"],row["edit_index_keyhex"]=name_filter,keyhex
+                if len(rows)==1:
+                    self.show_evidence(dict(obj=rows[0]["object"],name=name_filter,keyhex=keyhex),self.edit_index_loader)
+                else:
+                    self._goto("type_objects",view_rows=rows)
             elif name == "DSPEPTAB":
                 from as400_capabilities import select_objects
                 word=params.get("WORD","")
