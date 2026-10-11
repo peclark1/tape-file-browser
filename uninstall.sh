@@ -30,6 +30,7 @@ ALRTBL_MODULE_PATH="${HOME}/.local/bin/as400_alert_tables.py"
 JRN_MODULE_PATH="${HOME}/.local/bin/as400_journals.py"
 GSS_MODULE_PATH="${HOME}/.local/bin/as400_gss.py"
 WSCST_MODULE_PATH="${HOME}/.local/bin/as400_wscst.py"
+PRDLOD_MODULE_PATH="${HOME}/.local/bin/as400_product_loads.py"
 ARCHIDX_MODULE_PATH="${HOME}/.local/bin/as400_archival_indexes.py"
 MESSAGE_QUEUES_MODULE_PATH="${HOME}/.local/bin/as400_message_queues.py"
 JOBS_MODULE_PATH="${HOME}/.local/bin/as400_jobs.py"
@@ -73,6 +74,7 @@ rm -f \
     "${JRN_MODULE_PATH}" \
     "${GSS_MODULE_PATH}" \
     "${WSCST_MODULE_PATH}" \
+    "${PRDLOD_MODULE_PATH}" \
     "${ARCHIDX_MODULE_PATH}" \
     "${ANCHORS_MODULE_PATH}" \
     "${EXTERNAL_TYPE_PATH}" \
