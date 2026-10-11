@@ -872,3 +872,7 @@ Use `DSPSBSD SBSD(*ALL/*)` to browse exact ten-byte padded-name occurrences refe
 ### Saved scheduler and service indexes (offline)
 
 Use `DSPSCHIDX SCHIDX(*ALL/*)` and `DSPMSRVI MSRVI(*ALL/*)` to select recovered CISC machine-index key evidence, page through supported terminals, apply `KEYHEX(C1)`, and inspect opaque hex/CP037 bytes. Neither command decodes historical actions or service records. See [documented evidence limits](docs/ARCHIVAL_INDEX_WORKFLOWS.md).
+
+### Saved QLDA position viewer (offline)
+
+Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse a validated candidate 1024-byte job-local data region in 128-byte, one-based position windows. Exact hex and CP037 display preserve spaces/NULs. Any missing virtual extent or unfamiliar control marker withholds the value; no live job, security, or CCSID interpretation is claimed. See [original-image checks and limits](docs/LOCAL_DATA_WORKFLOW.md).
