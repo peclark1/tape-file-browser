@@ -924,3 +924,7 @@ Use `DSPJRN JRN(*ALL/*)` to inspect corroborated full eight-byte CISC receiver-a
 ### Journal-receiver saved parent pointer corroboration
 
 The `DSPJRNRCV` screen now also inspects the receiver primary's own eight-byte saved journal-owner address at +0x108. This is independent evidence from the journal-side +0x110/+0x240 slots, and it can link a receiver to a journal even when those two journal slots do not include the receiver. `DSPJRN` shows matching receiver-owned pointers in the other direction, retaining null/unknown variants without guessing active relationships. See [both-source address evidence](docs/JOURNAL_RECEIVER_WORKFLOW.md).
+
+### Saved graphics/symbol-set binary records (offline)
+
+`DSPGSS GSS(*ALL/ADMUVGEP) SLOT(11)` navigates verified 176-slot two-byte offset tables in the supported historical 19/0C GSS 004A/4009 variant, preserves 94 populated slots and aliases, and displays bounded C1-tagged saved byte records with exact offsets and hex. These are **raw binary symbol records**, not decoded glyphs, font code points or executable graphics instructions. Other GSS variants remain withheld. See [independent Mark/Pete evidence and validation](docs/GSS_WORKFLOW.md). The [one-scan archival acceptance](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now checks seventeen recent types.

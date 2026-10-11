@@ -221,6 +221,11 @@
       "state": "partial",
       "workflow": "DSPJRNRCV opens receiver object identity and reverse-links all supported saved *JRN address slots referring to its complete eight-byte segment-owner key, preserving duplicate origins and withholding unsupported journal primaries. No journal-entry content or active attachment is claimed.",
       "next_step": "Prove saved receiver internal structure/entry ownership and sequence via period CISC references, extend reverse reference coverage beyond the two corroborated journal slots."
+    },
+    "190C": {
+      "state": "partial",
+      "workflow": "DSPGSS navigates the empirically corroborated CISC 19/0C 004A/4009 176-slot u16 saved symbol-offset table, 50 entries per page, preserving empty slots and aliases; strict C1 records bounded by next offset/FF00 and exact hex bytes, with final unproven tail labeled open.",
+      "next_step": "Decode saved vector/symbol coordinate commands and alternate GSS 0040/0042/0001/0041 variants from period CISC resources; certify slot-to-glyph/codepoint mapping before drawing or rendering."
     }
   }
 }
