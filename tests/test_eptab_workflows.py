@@ -89,8 +89,8 @@ class EPTabTests(unittest.TestCase):
         self.assertEqual([10,11,12],image.reads)
         for invalid in ("POS(512)", "POS(-1)", "POS(A)", "POS(1) WORD(0045)"):
             with self.subTest(invalid=invalid):
-                with self.assertRaises(ValueError):
-                    model.run_command("DSPEPTAB EPTAB(QDMEPTB) "+invalid)
+                self.assertFalse(model.run_command("DSPEPTAB EPTAB(QDMEPTB) "+invalid))
+                self.assertTrue(model.status)
         for bad in (-1,512,"20",True):
             with self.assertRaises(ValueError):
                 svc.rows(table,position=bad)
