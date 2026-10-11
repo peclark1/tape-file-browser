@@ -11,13 +11,13 @@ from tools.validate_recent_workflows import assess, WORKFLOWS
 
 class RecentWorkflowAcceptanceTests(unittest.TestCase):
     def test_all_recent_types_and_commands_are_explicit(self):
-        self.assertEqual(13, len(WORKFLOWS))
-        self.assertEqual(13, len({item[0] for item in WORKFLOWS}))
+        self.assertEqual(14, len(WORKFLOWS))
+        self.assertEqual(14, len({item[0] for item in WORKFLOWS}))
         self.assertEqual({"0E/02", "0E/01", "0E/C4", "19/09", "19/04",
                           "0E/07", "0E/91", "19/CE", "19/C2", "18/A0",
-                          "19/15", "19/08", "0E/C7"}, {x[0] for x in WORKFLOWS})
+                          "19/15", "19/08", "0E/C7", "0E/09"}, {x[0] for x in WORKFLOWS})
         empty = assess(Image([]), inventory([]))
-        self.assertEqual(13, len(empty))
+        self.assertEqual(14, len(empty))
         self.assertTrue(all(entry["counts"]["ui_walkthroughs_not_possible"] == 1
                             for entry in empty.values()))
 
@@ -63,6 +63,14 @@ class RecentWorkflowAcceptanceTests(unittest.TestCase):
         report = assess(image, model.inventory)
         self.assertEqual(1, report["0E/C7"]["counts"]["bounded_views"])
         self.assertEqual(1, report["0E/C7"]["counts"]["ui_detail_back_ok"])
+
+    def test_alert_id_candidate_and_correlated_message_navigation(self):
+        from test_alert_table_workflows import AlertTableTests
+        primary, targets, image, alert_service, model, key = AlertTableTests().make()
+        results = assess(image, model.inventory)
+        self.assertEqual(1, results["0E/09"]["counts"]["bounded_views"])
+        self.assertEqual(1, results["0E/09"]["counts"]["ui_detail_back_ok"])
+        self.assertEqual(1, results["0E/09"]["counts"]["views_with_navigable_candidates"])
 
     def test_invalid_source_is_explicitly_withheld_not_counted(self):
         from test_local_data_workflows import LocalDataTests
