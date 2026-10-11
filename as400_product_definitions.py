@@ -111,7 +111,7 @@ def decode_product_definition(data, *, type_code):
     if (signature == "PDO ".encode("cp037") + b"\x00\x00" and
             length == 496):
         vendor = data[0x104:0x136].decode("cp037",errors="replace").strip()
-        label = data[0x136:0x148].decode("cp037",errors="replace").split("\\x00")[0].strip()
+        label = data[0x136:0x148].decode("cp037",errors="replace").split("\x00")[0].strip()
         legal = data[0x228:0x288].decode("cp037",errors="replace").split("\x00")[0].rstrip(" ")
         if not vendor or not legal or not all(32 <= ord(c) <= 126 for c in vendor+label+legal):
             raise ValueError("Unsupported legacy vendor/legal-text candidate encoding")
