@@ -75,7 +75,7 @@ class WSCSTTests(unittest.TestCase):
         model.selected=link;model.open_row(link)
         self.assertEqual("Saved WSCST TRANSFORM descriptor",model.rows()[0]["name"])
         self.assertEqual([source],[r["object"] for r in model.rows() if r.get("object")])
-        self.assertIn("matching this WSCST: 1",model.rows()[1]["lines"][0])
+        self.assertIn("its exact name in one supported slot: 1",model.rows()[1]["lines"][0])
         model.back();self.assertEqual(link,model.selected)
         model.run_command("DSPWSCST WSCST(QWPIBM4208)")
         self.assertEqual("Saved WSCST TRANSFORM descriptor",model.rows()[0]["name"])
@@ -95,7 +95,7 @@ class WSCSTTests(unittest.TestCase):
 
     def test_malformed_control_and_unpadded_name_fail_closed(self):
         for at,value in ((0x103,0),(0x109,0),(0x10A,0),(0x117,0),
-                         (0x118,0),(0x137,0),(0x13C,0)):
+                         (0x11A,0),(0x137,0),(0x13C,0)):
             bad=fixture()
             bad[at]=value
             with self.assertRaises(ValueError):
