@@ -11,13 +11,13 @@ from tools.validate_recent_workflows import assess, WORKFLOWS
 
 class RecentWorkflowAcceptanceTests(unittest.TestCase):
     def test_all_recent_types_and_commands_are_explicit(self):
-        self.assertEqual(16, len(WORKFLOWS))
-        self.assertEqual(16, len({item[0] for item in WORKFLOWS}))
+        self.assertEqual(18, len(WORKFLOWS))
+        self.assertEqual(18, len({item[0] for item in WORKFLOWS}))
         self.assertEqual({"0E/02", "0E/01", "0E/C4", "19/09", "19/04",
                           "0E/07", "0E/91", "19/CE", "19/C2", "18/A0",
-                          "19/15", "19/08", "0E/C7", "0E/09", "09/01", "07/01"}, {x[0] for x in WORKFLOWS})
+                          "19/15", "19/08", "0E/C7", "0E/09", "09/01", "07/01", "19/37", "02/03"}, {x[0] for x in WORKFLOWS})
         empty = assess(Image([]), inventory([]))
-        self.assertEqual(16, len(empty))
+        self.assertEqual(18, len(empty))
         self.assertTrue(all(entry["counts"]["ui_walkthroughs_not_possible"] == 1
                             for entry in empty.values()))
 
@@ -80,6 +80,15 @@ class RecentWorkflowAcceptanceTests(unittest.TestCase):
         self.assertEqual(2,results["07/01"]["counts"]["bounded_views"])
         self.assertEqual(1,results["09/01"]["counts"]["ui_detail_back_ok"])
         self.assertEqual(1,results["07/01"]["counts"]["ui_detail_back_ok"])
+
+    def test_saved_bnddir_records_and_reverse_srvpgm_workflow(self):
+        from test_binding_directory_workflows import BindingDirectoryTests
+        directory, service_program, other, decoy, inv, image, exp, _ = BindingDirectoryTests().make()
+        result=assess(image,inv)
+        self.assertEqual(1,result["19/37"]["counts"]["bounded_views"])
+        self.assertEqual(1,result["19/37"]["counts"]["ui_detail_back_ok"])
+        self.assertEqual(2,result["02/03"]["counts"]["bounded_views"])
+        self.assertEqual(1,result["02/03"]["counts"]["ui_detail_back_ok"])
 
     def test_invalid_source_is_explicitly_withheld_not_counted(self):
         from test_local_data_workflows import LocalDataTests

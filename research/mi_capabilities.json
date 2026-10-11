@@ -92,6 +92,11 @@
       "workflow": "DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows.",
       "next_step": "Decode page-map and line-data formatting semantics against period references."
     },
+    "1937": {
+      "state": "partial",
+      "workflow": "DSPBNDDIR decodes empirically bounded V2R3 48-byte saved binding entries with validated u32 count/record stride and EBCDIC name/*LIBL/MI type fields, filters NAME, pages entries and links only independently recovered supported module/service-program name/type candidates; unknown 26-byte tail and library-list resolution remain opaque.",
+      "next_step": "Independently verify saved entry type/linker semantics, non-*LIBL library resolution and trailing fields from period CISC bind API material; test complete virtual extent recovery on Mark. Pete has no 19/37 signature candidates."
+    },
     "1951": {
       "state": "partial",
       "workflow": "Inspect descriptors and decode selected records using that exact chosen format; mismatched/out-of-record and invalid numeric fields remain visible.",
@@ -221,6 +226,11 @@
       "state": "partial",
       "workflow": "DSPJRNRCV opens receiver object identity and reverse-links all supported saved *JRN address slots referring to its complete eight-byte segment-owner key, preserving duplicate origins and withholding unsupported journal primaries. No journal-entry content or active attachment is claimed.",
       "next_step": "Prove saved receiver internal structure/entry ownership and sequence via period CISC references, extend reverse reference coverage beyond the two corroborated journal slots."
+    },
+    "0203": {
+      "state": "partial",
+      "workflow": "DSPSRVPGM provides a selected recovered service-program origin's reverse saved BNDDIR entry candidates, with exact stored 02/03 type plus name and separate directory/source offsets. No export table, resolved library list, activation or actual linkage inferred.",
+      "next_step": "Decode independently corroborated service-program exports/imports and actual binder-selected library paths or program storage, rather than treating same-name BNDDIR candidates as proven dependencies."
     }
   }
 }

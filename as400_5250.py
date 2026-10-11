@@ -35,6 +35,8 @@ COMMANDS = (
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
+    CommandSpec("DSPBNDDIR", "DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)", "Inspect saved V2R3 48-byte binding records and candidate module/service-program identities."),
+    CommandSpec("DSPSRVPGM", "DSPSRVPGM SRVPGM(*ALL/*)", "Find recovered service programs referenced by saved binding-directory name/type records."),
     CommandSpec("DSPJRN", "DSPJRN JRN(*ALL/*)", "Follow archived full internal receiver addresses; no active journal-chain claims."),
     CommandSpec("DSPJRNRCV", "DSPJRNRCV JRNRCV(*ALL/*)", "Find saved journal pointers into the selected receiver origin, read-only."),
     CommandSpec("DSPALRTBL", "DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)", "Browse saved alert keys and exact message-ID candidates; no alert execution."),
@@ -134,6 +136,8 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPBNDDIR": {"BNDDIR", "NAME"},
+        "DSPSRVPGM": {"SRVPGM"},
         "DSPJRN": {"JRN"},
         "DSPJRNRCV": {"JRNRCV"},
         "DSPALRTBL": {"ALRTBL", "MSGID", "KEYHEX"},
@@ -165,7 +169,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, binding_loader=None):
+        self.binding_loader = binding_loader
         self.alert_loader = alert_loader
         self.printer_queue_loader = printer_queue_loader
         self.panel_group_loader = panel_group_loader
@@ -474,7 +479,13 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "alert_index_action" and option == "5":
+        if row["kind"] == "binding_entry_action" and option == "5":
+            return self.show_evidence(row["request"], self.binding_loader)
+        elif self.binding_loader and row.get("object") is not None and row["object"].type_code == "19/37" and option == "5":
+            return self.show_evidence(dict(obj=row["object"], name=row.get("binding_name", "*")), self.binding_loader)
+        elif self.binding_loader and row.get("object") is not None and row["object"].type_code == "02/03" and option == "5":
+            return self.show_evidence(dict(obj=row["object"]), self.binding_loader)
+        elif row["kind"] == "alert_index_action" and option == "5":
             return self.show_evidence(row["request"], self.alert_loader)
         elif self.alert_loader and row.get("object") is not None and row["object"].type_code == "0E/09" and option == "5":
             return self.show_evidence(dict(obj=row["object"], msgid=row.get("alert_msgid", "*"), keyhex=row.get("alert_keyhex", "")), self.alert_loader)
@@ -667,6 +678,15 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPBNDDIR":
+                from as400_capabilities import select_objects
+                name_filter = params.get("NAME", "*")
+                rows = select_objects(self.inventory, params.get("BNDDIR", "*ALL/*"), "*BNDDIR")
+                for row in rows: row["binding_name"] = name_filter
+                if len(rows)==1:
+                    self.show_evidence(dict(obj=rows[0]["object"], name=name_filter),self.binding_loader)
+                else:
+                    self._goto("type_objects",view_rows=rows)
             elif name == "DSPALRTBL":
                 from as400_capabilities import select_objects
                 msgid = params.get("MSGID", "*")
@@ -754,13 +774,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB", "DSPJMQ", "DSPEDTD", "DSPJRN", "DSPJRNRCV") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB", "DSPJMQ", "DSPEDTD", "DSPJRN", "DSPJRNRCV", "DSPSRVPGM") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB", "DSPJMQ": "JMQ", "DSPEDTD": "EDTD", "DSPJRN": "JRN", "DSPJRNRCV": "JRNRCV"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB", "DSPJMQ": "JMQ", "DSPEDTD": "EDTD", "DSPJRN": "JRN", "DSPJRNRCV": "JRNRCV", "DSPSRVPGM": "SRVPGM"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB", "DSPJMQ": "*JMQ", "DSPEDTD": "*EDTD", "DSPJRN": "*JRN", "DSPJRNRCV": "*JRNRCV"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB", "DSPJMQ": "*JMQ", "DSPEDTD": "*EDTD", "DSPJRN": "*JRN", "DSPJRNRCV": "*JRNRCV", "DSPSRVPGM": "*SRVPGM"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:

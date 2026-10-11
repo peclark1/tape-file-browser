@@ -34,7 +34,7 @@ python3 tools/validate_recent_workflows.py /path/to/petes.hda \
   --output /tmp/petes-guided-acceptance.json
 ```
 
-Unlike running sixteen separate validators per image, this single
+Unlike running eighteen separate validators per image, this single
 runner performs **one physical scan and recovered inventory build per
 image**, reuses model services, then performs a SHA-256 before/after
 check. There are two complete SHA reads per image, independent of the
@@ -76,6 +76,8 @@ research documents need **not** match the normally recovered inventory.
 | 0E/09 | `DSPALRTBL` | Saved alert keys and independently corroborated same-name MSGF IDs |
 | 09/01 | `DSPJRN` | Exact saved eight-byte receiver addresses and target primary navigation |
 | 07/01 | `DSPJRNRCV` | Reverse exact segment-owner journal reference candidates |
+| 19/37 | `DSPBNDDIR` | Saved 48-byte V2R3 binding entries and candidate module/service-program origins |
+| 02/03 | `DSPSRVPGM` | Reverse saved BNDDIR name/type occurrences for chosen service-program primary |
 
 One missing image/release type should not block a different type.
 Importantly, this does not test any unimplemented live spool service,
@@ -104,6 +106,8 @@ DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)
 DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)
 DSPJRN JRN(*ALL/*)
 DSPJRNRCV JRNRCV(*ALL/*)
+DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)
+DSPSRVPGM SRVPGM(*ALL/*)
 # In DSPJRNRCV detail, inspect 'Receiver-saved journal pointer' and follow an exact address candidate.
 ```
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-scan read-only acceptance for 16 recent CISC Guided workflow types.
+"""One-scan read-only acceptance for 18 recent CISC Guided workflow types.
 
 Unlike per-family validators, this recovers original disk objects *once*,
 reuses the same image/model, and computes SHA256 before and after the run.
@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from as400_dasd import DASDImage
 from as400_5250 import Guided5250
+from as400_binding_directories import BindingDirectoryExplorer
 from as400_journals import JournalReceiverExplorer
 from as400_alert_tables import AlertTableExplorer
 from as400_messages import MessageExplorer
@@ -53,16 +54,19 @@ WORKFLOWS = (
     ("0E/09", "DSPALRTBL", "ALRTBL"),
     ("09/01", "DSPJRN", "JRN"),
     ("07/01", "DSPJRNRCV", "JRNRCV"),
+    ("19/37", "DSPBNDDIR", "BNDDIR"),
+    ("02/03", "DSPSRVPGM", "SRVPGM"),
 )
 TYPE_CODES = {t[0] for t in WORKFLOWS}
 DETAIL_ACTIONS = {
-    "outq_action", "printer_queue_action", "alert_index_action", "archival_index_action", "jmq_action",
+    "outq_action", "printer_queue_action", "alert_index_action", "binding_entry_action", "archival_index_action", "jmq_action",
     "panel_symbol_action", "lda_action", "subsystem_action",
 }
 
 
 def make_model(image, inventory, segments=None):
     """Use the same capability service routing as the production TUI."""
+    binding = BindingDirectoryExplorer(image,inventory)
     journals = JournalReceiverExplorer(image, inventory)
     messages = MessageExplorer(image, inventory, segments or NS(segments=[]))
     alerts = AlertTableExplorer(image, inventory, message_explorer=messages)
@@ -79,6 +83,8 @@ def make_model(image, inventory, segments=None):
     edits = EditDescriptionExplorer(image, inventory)
     jobs = JobExplorer(image, inventory)
     services = {
+        "19/37": binding,
+        "02/03": binding,
         "09/01": journals,
         "07/01": journals,
         "0E/09": alerts,
@@ -99,6 +105,7 @@ def make_model(image, inventory, segments=None):
     model = Guided5250(
         inventory,
         capability_loader=lambda obj, sample=None: services[obj.type_code].rows(obj),
+        binding_loader=binding.rows,
         alert_loader=alerts.rows,
         message_loader=messages.rows,
         printer_queue_loader=printer_queues.rows,
