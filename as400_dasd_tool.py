@@ -8903,6 +8903,7 @@ def cmd_browse5250(args):
         jobs = JobExplorer(state["image"], state["inventory"])
         messages = MessageExplorer(state["image"], state["inventory"], state["segments"])
         alerts = AlertTableExplorer(state["image"], state["inventory"], message_explorer=messages)
+        messages.alert_explorer = alerts
         printer_queues = PrinterQueueExplorer(state["image"], state["inventory"])
         edit_descriptions = EditDescriptionExplorer(state["image"], state["inventory"])
         panel_groups = PanelGroupExplorer(state["image"], state["inventory"])
