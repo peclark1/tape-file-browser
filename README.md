@@ -932,3 +932,16 @@ The `DSPJRNRCV` screen now also inspects the receiver primary's own eight-byte s
 ### Archived workstation-customization TRANSFORM relationships (offline)
 
 `DSPWSCST WSCST(*ALL/QWPPAN2180)` validates the common Mark V2R3 19/38 saved `TRANSFORM` descriptor lengths and examines exact 30-byte EBCDIC padded name fields at primary +0x824/+0x1024. Select any recovered same-name WSCST candidate and navigate reverse candidate sources; unmatched names and unsupported virtual gaps are not guessed. These are **byte/name correlations only**, not certified printer control settings, inheritance or executed transformations. See [original-image WSCST evidence](docs/WSCST_WORKFLOW.md). The [one-scan archival acceptance](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now includes eighteen recent families.
+
+### Archived CISC conversion-table byte pairs (offline)
+
+On branch `feature/cnvtbl-saved-map-explorer`, `DSPCNVTBL CNVTBL(*ALL/TBT*)`
+opens recovered MI `19/FB` `*CNVTBL` saved tables. Inspect 256 two-byte
+positions in 32-entry pages, jump to `POS(128)` (the entry crossing the
+first logical-page boundary), compare exact table bytes with other recovered
+CNVTBL origins, and return using Back. On the Mark V2R3 physical-primary
+survey 41 candidates share a raw +0x100 variant of `0001` or `0002` and a
+512-byte table beginning at +0x102. Pete's surviving image has no qualifying
+physical primary candidate. **These are exact archived bytes and positional
+comparisons, not established CCSIDs, character maps or conversion direction.**
+See `docs/CNVTBL_WORKFLOW.md` for evidence and validation limitations.
