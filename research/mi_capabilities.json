@@ -231,6 +231,16 @@
       "state": "partial",
       "workflow": "DSPGSS navigates the empirically corroborated CISC 19/0C 004A/4009 176-slot u16 saved symbol-offset table, 50 entries per page, preserving empty slots and aliases; strict C1 records bounded by next offset/FF00 and exact hex bytes, with final unproven tail labeled open.",
       "next_step": "Decode saved vector/symbol coordinate commands and alternate GSS 0040/0042/0001/0041 variants from period CISC resources; certify slot-to-glyph/codepoint mapping before drawing or rendering."
+    },
+    "191D": {
+      "state": "partial",
+      "workflow": "DSPPRDLOD decodes a strict saved 19/1D PLO/CV47 header, seven-character EBCDIC product code +0x111, four-character saved release-shaped token +0x118 and corroborating ten-byte loader identity +0x164; navigates matching independent Q+code *PRDDFN primaries and same-code sibling loaders with all original origins preserved.",
+      "next_step": "Verify saved PLO format fields and release/install-state meanings from period CISC product documentation; recover secondary load records and prove product-code-to-definition relationship beyond exact archived identifier equality."
+    },
+    "191B": {
+      "state": "partial",
+      "workflow": "DSPPRDDFN selects each recovered product-definition identity and reverse-lists supported PRDLOD saved PLO headers containing exactly its name after a Q-prefixed seven-character product code; same-code loaders, duplicate product-definition names, and unavailable original records remain selectable/explicit. The PRDDFN body is not interpreted.",
+      "next_step": "Decode period-specific PRDDFN object body/version/option structures and verify whether matching PRDLOD code metadata represents a supported product option, install inventory or historical definition. No execution or license decoding."
     }
   }
 }
