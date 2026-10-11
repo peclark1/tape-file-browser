@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-scan read-only acceptance for 17 recent CISC Guided workflow types.
+"""One-scan read-only acceptance for 18 recent CISC Guided workflow types.
 
 Unlike per-family validators, this recovers original disk objects *once*,
 reuses the same image/model, and computes SHA256 before and after the run.
@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from as400_dasd import DASDImage
 from as400_5250 import Guided5250
+from as400_wscst import WorkstationTransformExplorer
 from as400_gss import SavedSymbolExplorer
 from as400_journals import JournalReceiverExplorer
 from as400_alert_tables import AlertTableExplorer
@@ -55,6 +56,7 @@ WORKFLOWS = (
     ("09/01", "DSPJRN", "JRN"),
     ("07/01", "DSPJRNRCV", "JRNRCV"),
     ("19/0C", "DSPGSS", "GSS"),
+    ("19/38", "DSPWSCST", "WSCST"),
 )
 TYPE_CODES = {t[0] for t in WORKFLOWS}
 DETAIL_ACTIONS = {
@@ -65,6 +67,7 @@ DETAIL_ACTIONS = {
 
 def make_model(image, inventory, segments=None):
     """Use the same capability service routing as the production TUI."""
+    wscst = WorkstationTransformExplorer(image,inventory)
     gss = SavedSymbolExplorer(image)
     journals = JournalReceiverExplorer(image, inventory)
     messages = MessageExplorer(image, inventory, segments or NS(segments=[]))
@@ -82,6 +85,7 @@ def make_model(image, inventory, segments=None):
     edits = EditDescriptionExplorer(image, inventory)
     jobs = JobExplorer(image, inventory)
     services = {
+        "19/38": wscst,
         "19/0C": gss,
         "09/01": journals,
         "07/01": journals,
