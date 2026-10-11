@@ -568,7 +568,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("02/01", "19/03", "0E/01", "0E/C4", "19/09", "19/04", "19/C2", "19/08", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("02/01", "19/03", "0E/01", "0E/C4", "09/01", "07/01", "19/09", "19/04", "19/C2", "19/08", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
