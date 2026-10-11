@@ -274,6 +274,49 @@ See [object-type catalog documentation](docs/AS400_OBJECT_TYPE_CATALOG.md)
 for the IBM source URLs, category distinctions, data files, and maintenance
 rules. The install script includes both type tables.
 
+### MI decoding inventory and research roadmap
+
+To coordinate work on all IBM MI object types, the repository now has a
+[complete 268-type decoder progress inventory](docs/MI_OBJECT_INVENTORY.md),
+a [research/implementation roadmap](docs/MI_RESEARCH_ROADMAP.md), and a
+machine-readable audited review registry (research/mi_object_reviews.json).
+These track **what is actually decoded** separately from mere recognition
+of a documented object name. The first conservative audit reviews 28 types;
+the remaining 240 intentionally read **Catalog only** until individually
+audited. Draft *CMD parameter PR #15 is not merged and is not counted as
+a main-branch decoder.
+
+Inspect or regenerate the inventory from the source checkout:
+
+```bash
+python3 tools/mi_object_inventory.py --format summary
+python3 tools/mi_object_inventory.py --type-code 19/05
+python3 tools/mi_object_inventory.py --format markdown > docs/MI_OBJECT_INVENTORY.md
+python3 tools/mi_object_inventory.py --check-report
+```
+
+The 18 historical PDF filenames and initial page-level citations are
+tracked in research/manual_sources.json. We ran an initial full
+**18-PDF exact-object-name lexical scan**, yielding **764 matches across
+86 IBM object-type names**. Those are only page leads; four PDFs have
+selected pages independently reviewed so far. See
+[the first-pass manual scan findings](docs/MI_MANUAL_SCAN_FIRST_PASS.md)
+for the results and method limitations. PDF files and source disk images
+are **not** committed to the repository.
+
+For offline *unverified lexical leads* in the supplied PDF archive:
+
+```bash
+python3 tools/mi_manual_scan.py --archive "/path/to/as400 manuals.zip" \
+  --redbook "/path/to/AS400_Disk_Storage_Topics_and_Tools_sg245693.pdf" \
+  --output /tmp/mi_manual_hits.json
+```
+
+Every lexical hit requires human review before a page is cited as
+support for an object field, relationship or API. This tool does not
+perform OCR or silently treat an API receiver format as an on-disk
+CISC object format.
+
 ### AS/400 user, device and mode object viewers (experimental)
 
 The Guided 5250 Explorer now opens evidence-labeled, read-only screens
