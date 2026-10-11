@@ -37,6 +37,11 @@
       "workflow": "DSPJOBD follows stored queue/library-name candidates and safe profile-name correlations, preserving missing/unassigned origins.",
       "next_step": "Decode independently corroborated job-description attributes and validate reference semantics on older releases."
     },
+    "1904": {
+      "state": "partial",
+      "workflow": "DSPCLS reverses exact-name occurrence candidates to recovered SBSD primaries with source offsets; no class payload interpretation or certified assignment claim.",
+      "next_step": "Corroborate actual CLS attributes and subsystem class references from period sources and synthetic negative controls."
+    },
     "1905": {
       "state": "partial",
       "workflow": "Find commands, traverse linked prompt labels/hints, inspect tentative default/value tokens.",
@@ -46,6 +51,11 @@
       "state": "partial",
       "workflow": "DSPTBL: inspect 256 byte mappings/collisions and translate a bounded HEX sample offline.",
       "next_step": "Establish table purpose/CCSID/variant flags; compare other independently known conversion pairs."
+    },
+    "1909": {
+      "state": "partial",
+      "workflow": "DSPSBSD exposes bounded exact ten-byte padded EBCDIC name occurrences matching recovered JOBQ, CLS and PGM identities; self-name echoes withheld and all origins retained. Connections are candidates, not decoded pointers.",
+      "next_step": "Independently recover release-specific SBSD configuration tables and identify verified queue/class/initial-program fields; no active subsystem state inferred."
     },
     "1912": {
       "state": "partial",

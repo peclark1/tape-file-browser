@@ -864,3 +864,7 @@ Use `WRKOUTQ OUTQ(*ALL/QPRINT)` to inspect recovered 48-byte index keys. `FORM(*
 ### Internal-profile identity explorer (offline)
 
 Run `DSPINTPRF INTPRF(*ALL/*)` to browse recovered CISC internal-profile identities and follow exact-name user-profile candidates. The viewer uses only already recovered object identity metadata and never opens profile credential bodies. Missing or duplicated matches are reported without inventing pointers. See [evidence and limitations](docs/INTERNAL_PROFILE_WORKFLOW.md).
+
+### Saved subsystem and class candidates (offline)
+
+Use `DSPSBSD SBSD(*ALL/*)` to browse exact ten-byte padded-name occurrences referring to recovered `*JOBQ`, `*CLS`, and `*PGM` identities, or `DSPCLS CLS(*ALL/*)` for reverse candidate navigation. This is *not* decoded subsystem/class assignment; self-name echoes, duplicates and unknown ownership remain explicit. [Evidence and safeguards](docs/SUBSYSTEM_NAME_WORKFLOWS.md).
