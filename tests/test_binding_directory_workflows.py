@@ -138,14 +138,14 @@ class BindingDirectoryTests(unittest.TestCase):
             decode_binding_entries(original,type_code="02/03")
 
     def test_missing_virtual_extent_and_unrelated_entry_origin(self):
-        d,a,b,c,inv,image,svc,model=self.make()
+        d,a,b,c,inv,image,svc,model=self.make(names=[("QLEAWI","*LIBL","02/03")]*10)
         d.segment.extents=(NS(start_lba=10,virtual_address=0x100000,pages=1),
                            NS(start_lba=11,virtual_address=0x100400,pages=7))
         fresh=BindingDirectoryExplorer(image,inv)
         with self.assertRaises(ValueError):
             fresh.rows(d)
         with self.assertRaises(ValueError):
-            svc.rows(a,entry=svc.entries(d)[0])
+            svc.rows(a,entry=object())
         d,a,b,c,inv,image,svc,model=self.make()
         for bad in ({"start":-1},{"start":"0"},{"name":"QLE!"}):
             with self.assertRaises(ValueError):
