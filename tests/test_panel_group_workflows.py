@@ -112,6 +112,7 @@ class PanelGroupTests(unittest.TestCase):
         model.back()
         self.assertEqual(index,model.selected)
         otherwin=next(i for i,r in enumerate(model.rows()) if r["name"]=="Next 32 KiB")
+        model.selected=otherwin
         model.open_row(otherwin)
         self.assertIn("SECOND/OUTPUT",[r["name"] for r in model.rows()])
         model.back()
