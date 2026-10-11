@@ -8907,6 +8907,7 @@ def cmd_browse5250(args):
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
+        archival_indexes = ArchivalIndexExplorer(state["image"])
         data_queues = SavedDataQueueExplorer(state["image"],state["inventory"])
         products = SavedProductExplorer(state["image"],state["inventory"])
         conversions = SavedConversionExplorer(state["image"], state["inventory"])
@@ -8927,6 +8928,7 @@ def cmd_browse5250(args):
         menus = MenuExplorer(state["image"], state["inventory"])
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
+            if obj.type_code in ("0E/D0","0E/C8"): return archival_indexes.rows(obj)
             if obj.type_code == "0A/01": return data_queues.rows(obj)
             if obj.type_code in ("19/1D", "19/1B"): return products.rows(obj)
             if obj.type_code == "19/FB": return conversions.rows(obj)
@@ -8964,7 +8966,7 @@ def cmd_browse5250(args):
             panel_group_loader=panel_groups.rows,
             jmq_loader=jmq.rows,
             lda_loader=local_data.rows,
-            archival_index_loader=ArchivalIndexExplorer(state["image"]).rows,
+            archival_index_loader=archival_indexes.rows,
             subsystem_loader=subsystem_explorer.rows,
             outq_loader=OutputQueueExplorer(state["image"]).rows,
             afp_loader=AFPExplorer(state["image"], state["inventory"]).rows,
