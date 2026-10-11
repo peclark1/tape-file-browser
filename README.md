@@ -912,3 +912,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Saved alert-table / message-ID links in both directions
 
 `DSPALRTBL` selects a supported saved C-tag 12-byte alert key and checks for an independently decoded identical `*MSGF` index ID before allowing record navigation. `DSPMSGD` now also lists same-ID saved alert-key candidates from selected message definitions, even when the associated older message text segment is missing. Both directions are exact-name/ID evidence, not proof of live alert execution, alarm routing or record-pointer ownership. [Cross-release evidence and limits](docs/ALERT_TABLE_WORKFLOW.md).
+
+### Bidirectional saved alert/message ID cross-reference
+
+The existing `DSPMSGD` record-detail screen now includes any **same-name alert-table C-tag keys bearing its independently indexed seven-character message ID**. Select an alert key for its original bytes; Back returns to the same message definition. The reverse view works even when the older image has no recoverable message text, and unsupported alert index roots are counted as withheld. This is a saved-ID correlation, not a proven alert action. See [alert and message cross-reference evidence](docs/ALERT_TABLE_WORKFLOW.md).
