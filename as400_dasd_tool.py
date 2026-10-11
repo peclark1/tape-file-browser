@@ -8904,7 +8904,7 @@ def cmd_browse5250(args):
         edit_descriptions = EditDescriptionExplorer(state["image"], state["inventory"])
         panel_groups = PanelGroupExplorer(state["image"], state["inventory"])
         jmq = JobMessageQueueExplorer(state["image"])
-        spool_controls = SpoolControlExplorer(state["image"], state["inventory"])
+        spool_controls = SpoolControlExplorer(state["image"], state["inventory"], printer_queue_explorer=printer_queues)
         local_data = LocalDataExplorer(state["image"])
         internal_profiles = InternalProfileExplorer(state["inventory"])
         subsystem_explorer = SubsystemExplorer(state["image"], state["inventory"])
