@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 33, blocked 0, queued 235.
+States: delivered 0, partial 35, blocked 0, queued 233.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -47,8 +47,8 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 33 | 19/15 | *PNLGRP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 34 | 19/09 | *SBSD | partial | DSPSBSD exposes bounded exact ten-byte padded EBCDIC name occurrences matching recovered JOBQ, CLS and PGM identities; self-name echoes withheld and all origins retained. Connections are candidates, not decoded pointers. | Independently recover release-specific SBSD configuration tables and identify verified queue/class/initial-program fields; no active subsystem state inferred. |
 | 35 | 19/36 | *PAGDFN | partial | DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows. | Decode page-map and line-data formatting semantics against period references. |
-| 36 | 0E/91 | *MSRVI | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 37 | 0E/07 | *SCHIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 36 | 0E/91 | *MSRVI | partial | DSPMSRVI browses supported saved machine-index terminal keys in paged byte/hex detail, retaining full traversal and stored-header-count discrepancies without interpreting service records. | Establish MSRVI record identity and secondary storage pointer semantics on both releases before decoding service actions. |
+| 37 | 0E/07 | *SCHIDX | partial | DSPSCHIDX browses strict release-2 machine-index terminal keys with 50-entry pages, literal hex prefix search and opaque byte details; no historical schedule action semantics inferred. | Validate scheduler-key field boundaries, ordering and target record references against period CISC sources before identifying jobs or actions. |
 | 38 | 19/C2 | *SPLCB | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 39 | 09/01 | *JRN | queued | No type-specific Guided workflow audited yet. | Research journal and receiver object storage relationships. |
 | 40 | 19/04 | *CLS | partial | DSPCLS reverses exact-name occurrence candidates to recovered SBSD primaries with source offsets; no class payload interpretation or certified assignment claim. | Corroborate actual CLS attributes and subsystem class references from period sources and synthetic negative controls. |

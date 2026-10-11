@@ -236,8 +236,8 @@ class CapabilityTrackerTests(unittest.TestCase):
         from tools.mi_capability_progress import progress_rows,markdown,ROOT
         rows=progress_rows()
         self.assertEqual(268,len(rows));self.assertEqual(268,len({r['key'] for r in rows}))
-        self.assertEqual(235,sum(r['state']=='queued' for r in rows))
-        self.assertEqual(33,sum(r['state']=='partial' for r in rows))
+        self.assertEqual(233,sum(r['state']=='queued' for r in rows))
+        self.assertEqual(35,sum(r['state']=='partial' for r in rows))
         self.assertFalse(any(r['state']=='delivered' for r in rows))
         self.assertEqual(markdown(rows),(ROOT/'docs/MI_CAPABILITY_PROGRESS.md').read_text())
 

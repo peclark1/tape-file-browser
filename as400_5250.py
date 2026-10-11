@@ -36,6 +36,8 @@ COMMANDS = (
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
     CommandSpec("WRKOUTQ", "WRKOUTQ OUTQ(*ALL/QPRINT) FORM(*STD)", "Inspect saved output-queue index keys and tentative form tokens; no live spool state."),
+    CommandSpec("DSPSCHIDX", "DSPSCHIDX SCHIDX(*ALL/*) KEYHEX(C1)", "Browse archived opaque scheduler-index keys, not runtime schedules."),
+    CommandSpec("DSPMSRVI", "DSPMSRVI MSRVI(*ALL/*) KEYHEX(C1)", "Browse saved opaque service-index keys without interpreting service actions."),
     CommandSpec("DSPRCT", "DSPRCT RCT(*ALL/*) KEYHEX(E2)", "Browse reference-code keys and corroborated opaque records."),
     CommandSpec("DSPPGM", "DSPPGM PGM(*ALL/*)", "Explore command/menu program-name references; no instruction decoding."),
     CommandSpec("DSPMSG", "DSPMSG MSGQ(*ALL/*)", "Inspect saved message-definition references, not live queue messages."),
@@ -124,6 +126,8 @@ def parse_command(text):
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
         "WRKOUTQ": {"OUTQ", "KEYHEX", "FORM"},
+        "DSPSCHIDX": {"SCHIDX", "KEYHEX"},
+        "DSPMSRVI": {"MSRVI", "KEYHEX"},
         "DSPRCT": {"RCT", "KEYHEX"},
         "DSPAFP": {"OBJ"},
         "WRKJOBQ": {"JOBQ"},
@@ -143,7 +147,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None):
+        self.archival_index_loader = archival_index_loader
         self.subsystem_loader = subsystem_loader
         self.outq_loader = outq_loader
         self.afp_loader = afp_loader
@@ -446,7 +451,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "subsystem_action" and option == "5":
+        if row["kind"] == "archival_index_action" and option == "5":
+            return self.show_evidence(row["request"], self.archival_index_loader)
+        elif self.archival_index_loader and row.get("object") is not None and row["object"].type_code in ("0E/07", "0E/91") and option == "5":
+            return self.show_evidence(dict(obj=row["object"], keyhex=row.get("archival_keyhex", "")), self.archival_index_loader)
+        elif row["kind"] == "subsystem_action" and option == "5":
             return self.show_evidence(row["request"], self.subsystem_loader)
         elif row["kind"] == "outq_action" and option == "5":
             return self.show_evidence(row["request"], self.outq_loader)
@@ -615,6 +624,17 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name in ("DSPSCHIDX", "DSPMSRVI"):
+                from as400_capabilities import select_objects
+                arg = "SCHIDX" if name == "DSPSCHIDX" else "MSRVI"
+                keyhex = params.get("KEYHEX", "")
+                if len(bytes.fromhex(keyhex)) > 256: raise ValueError("KEYHEX exceeds 256 bytes")
+                rows = select_objects(self.inventory, params.get(arg, "*ALL/*"), "*" + arg)
+                for row in rows: row["archival_keyhex"] = keyhex
+                if len(rows) == 1:
+                    self.show_evidence(dict(obj=rows[0]["object"], keyhex=keyhex), self.archival_index_loader)
+                else:
+                    self._goto("type_objects", view_rows=rows)
             elif name == "WRKOUTQ":
                 from as400_capabilities import select_objects
                 keyhex = params.get("KEYHEX", "")
