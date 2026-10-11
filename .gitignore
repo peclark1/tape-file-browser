@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+# Archival images, archives and private recovery outputs belong outside this repo.
+*.hda
+*.hda.zip

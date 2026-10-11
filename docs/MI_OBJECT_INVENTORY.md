@@ -16,8 +16,8 @@ describe the audited capabilities in this repository only.
 |---|---:|
 | Catalog only | 240 |
 | Identity | 12 |
-| Evidence | 7 |
-| Partial | 7 |
+| Evidence | 6 |
+| Partial | 8 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -44,7 +44,7 @@ describe the audited capabilities in this repository only.
 | 19/A5 | *CIO | internal | Catalog only | — |
 | 19/0B | *CLD | external | Catalog only | — |
 | 19/04 | *CLS | external | Catalog only | — |
-| 19/05 | *CMD | external | Evidence | primer-1992 p.230,438,439; starter-2001 p.478,479,480,518,519,520 |
+| 19/05 | *CMD | external | Partial | primer-1992 p.230,438,439; starter-2001 p.478,479,480,518,519,520 |
 | 0E/A0 | *CMTCDRI | internal | Catalog only | — |
 | 17/01 | *CNNL | external | Catalog only | — |
 | 19/FB | *CNVTBL | internal | Catalog only | — |

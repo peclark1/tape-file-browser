@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "basis": "Audited main at bcf80ded77bdda86b57b5870bb1cd61c2d68810f; draft PR #15 excluded.",
+  "basis": "Survey foundation through f3bb539; interactive command capability selectively incorporates reviewed PR #15 keyword recovery. Other audits retain their original scope.",
   "status_vocabulary": {
     "cataloged_only": "Named in sourced IBM type tables; no object-specific repository decoder verified.",
     "identity_only": "Recovered MI type and common object identity; no validated type-specific payload fields.",
@@ -213,13 +213,17 @@
       "relationships": []
     },
     "1905": {
-      "status": "evidence_only",
-      "scope": "Compiled command title and candidate program text; on main branch only unclassified keyword strings; more complete keyword/ordinal parser is in separate draft PR #15.",
+      "status": "partial_decoder",
+      "scope": "Bounded empirical count/keyword/ordinal recovery with all-or-nothing diagnostics; interactive command search, parameter drill-down, origin and tentative processor-name lookup. No prompt/default/type/CPP pointer decoding or proof of semantic consistency.",
       "implementation": [
         "as400_cmd.py:command_information_lines",
-        "as400_dasd_tool.py:_tui_command_information_lines"
+        "as400_dasd_tool.py:_tui_command_information_lines",
+        "as400_cmd.py:recover_parameter_keywords",
+        "as400_cmd.py:command_exploration",
+        "as400_5250.py:Guided5250",
+        "as400_dasd_tool.py:_tui_command_definition"
       ],
-      "next_step": "With PR #15 kept separate, verify compiled parameter descriptors, actual processing program pointers, and prompt/message/default links against independent source examples.",
+      "next_step": "Resolve descriptor/prompt pointers using period-correct source and matching compiled objects; investigate Pete identity/payload conflict documented in docs/INTERACTIVE_COMMAND_EXPLORATION.md.",
       "manual_refs": [
         {
           "source": "primer-1992",
