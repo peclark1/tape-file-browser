@@ -206,6 +206,11 @@
       "state": "partial",
       "workflow": "DSPPRTQ reconstructs strict 1024/2048-byte saved printer-queue index keys, filters by raw KEYHEX or SPdddd-shaped prefix, exposes exact terminal bytes and follows equal saved SP token candidates to recovered SPLCB primaries with duplicate/missing origins explicit. Neither queue state nor token ownership is verified.",
       "next_step": "Establish release-specific PRTQ key schemas and SPLCB token ownership/pointer semantics from applicable CISC references; validate full recovered virtual-extent roots on both images and spool relationship ambiguity."
+    },
+    "0E09": {
+      "state": "partial",
+      "workflow": "DSPALRTBL traverses saved 12-byte release-2 alert-table keys in 50-entry windows, filters candidate 7-character message IDs/hex prefixes, inspects exact bytes and follows C-tagged ID candidates to same-name MSGF primaries only when exact MSGF index IDs are independently corroborated; message text still requires separate stored record validation.",
+      "next_step": "Establish C/D alert key roles and four trailing bytes, historical alert actions and pointer ownership from period CISC sources; validate cross-release virtual-extent recoveries and older Pete message-file secondary storage."
     }
   }
 }

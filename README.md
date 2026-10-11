@@ -904,3 +904,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Follow saved spool tokens in both directions
 
 `DSPPRTQ` can follow a saved `SPdddd` printer-queue key into same-token SPLCB origins. `DSPSPLCB` now also lists supported matching PRTQ saved keys to navigate back. Multiple origins, missing matches and unsupported printer-queue index roots stay distinct. No spool file ownership, live queue state or pointer is inferred. See [bidirectional evidence and limitations](docs/PRINTER_QUEUE_WORKFLOW.md).
+
+### Saved alert-table to message-file ID navigation (offline)
+
+`DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)` browses reconstructed 12-byte saved 0E/09 alert-table keys, and lets you follow a strict seven-character message-ID candidate into a same-name recovered *MSGF only when that exact ID exists in the separately validated message index. The four trailing bytes and C/D tag semantics remain unknown. This does not execute an alert or establish a historical runtime alert action. See [Mark/Pete index evidence](docs/ALERT_TABLE_WORKFLOW.md). The [one-scan acceptance runner](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now covers fourteen recent partial types.
