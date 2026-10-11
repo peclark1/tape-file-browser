@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 37, blocked 0, queued 231.
+States: delivered 0, partial 38, blocked 0, queued 230.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -40,7 +40,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 26 | 19/0A | *DTAARA | partial | DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens. | Validate selectors 03/84 against known numeric/logical definitions; scale/storage remains unresolved. |
 | 27 | 0E/02 | *OUTQ | partial | WRKOUTQ selects saved 48-byte machine-index keys, offers exact-hex and observed +0x20 form-token filtering, and inspects opaque key bytes; FA-prefixed control-like keys are not called live entries. | Independently validate saved spool-entry field boundaries, key identity and actual spooled-file references before assigning status, chronology or spool contents. |
 | 28 | 0E/C4 | *INTPRF | partial | DSPINTPRF navigates recovered 0E/C4 internal-profile identities to exact-name *USRPRF primary candidates without opening either profile body; missing and duplicate matches remain explicit. | Establish period-specific INTPRF structural semantics and certified links, if available, without reading password or authorization material. |
-| 29 | 18/A0 | *JMQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 29 | 18/A0 | *JMQ | partial | DSPJMQ navigates supported Mark V2R3 saved 18/A0 JMQ u16 count at +0x800 and exact 16-byte nonzero slots from +0x810, paging opaque bytes with warnings for extra following slots, strict control-layout and virtual-extent bounds. | Corroborate per-slot field identities and underlying message bodies or targets; prove release-specific JMQ semantics before claiming message text, live job status or chronology. |
 | 30 | 19/26 | *FNTRSC | partial | DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources. | Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution. |
 | 31 | 19/28 | *FORMDF | partial | DSPAFP -> bounded form-definition field windows -> matched begin/end categories -> opaque field payload windows. | Decode medium maps, controls and placement parameters; establish actual print layout. |
 | 32 | 19/CE | *LDA | partial | DSPLDA browses empirically bounded 1024-byte saved QLDA value region at primary +0x160 in 128-byte paged hex/CP037 windows, with exact offsets, blank counts and strict header/boundary/virtual-extent checks; archival bytes are not an active job's current LDA. | Corroborate QLDA value origin, job association and release-specific boundary exceptions; interpret nonblank contents only under proven format/CCSID. |
