@@ -231,6 +231,11 @@
       "state": "partial",
       "workflow": "DSPSRVPGM provides a selected recovered service-program origin's reverse saved BNDDIR entry candidates, with exact stored 02/03 type plus name and separate directory/source offsets. No export table, resolved library list, activation or actual linkage inferred.",
       "next_step": "Decode independently corroborated service-program exports/imports and actual binder-selected library paths or program storage, rather than treating same-name BNDDIR candidates as proven dependencies."
+    },
+    "19D7": {
+      "state": "partial",
+      "workflow": "DSPEPTAB opens a fully bounded cross-release 19/D7 512-slot big-endian saved u16 word region (+0x100..+0x4FF) with exact hex-value filtering, 50-entry positional paging and selected raw word details. Mark/Pete virtual-address reconstructed QDMEPTB streams match byte-for-byte; numeric values are not assigned translation/edit/runtime meanings.",
+      "next_step": "Find period CISC EPTAB field/schema references and link individual 16-bit words to independently corroborated system functions before claiming mapping, glyph or runtime semantics; validate normal recovered-object app path in both images."
     }
   }
 }
