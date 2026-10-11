@@ -51,6 +51,26 @@ virtual extents**, not raw physical adjacency. We do not claim all
 Mark/Pete keys have been recovered or that empty physical probes
 prove an empty queue.
 
+## Reverse navigation from saved SPLCB
+
+The existing `DSPSPLCB SPLCB(*ALL/QSPSCB)` viewer now also
+lists every supported saved `*PRTQ` key beginning with the exact
+`SPdddd` token found at that spool-control primary's +0x1C5.
+Select a queue-key candidate for its full original key bytes, then
+Back to return to the exact SPLCB origin. The lookup is built once
+per image and reuses the PRTQ decoder cache; if an index is
+unrecoverable, its source is **counted as withheld**, not silently
+interpreted as containing no matches. The view lists up to 50 reverse
+candidates; additional matches are available via
+`DSPPRTQ PRTQ(*ALL/*) TOKEN(SPdddd)`.
+
+This is **bidirectional same-token evidence**, not proof that
+one archived printer queue owns a saved spool-control entry.
+The new reverse-link tests verify duplicate ambiguous origins,
+missing token matches, unreadable printer queue roots and
+select/Back behavior. The read-only original-image validator
+now exercises both directions.
+
 ## Bounds, tests and next evidence gate
 
 - `decode_context_machine_index(..., strict_pages=True)` performs
