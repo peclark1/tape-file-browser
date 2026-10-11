@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 46, blocked 0, queued 222.
+States: delivered 0, partial 47, blocked 0, queued 221.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -97,7 +97,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 83 | 19/D0 | *WCBT | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 84 | 0E/C5 | *AUT | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 85 | 0E/D2 | *CCSIDI | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 86 | 19/FB | *CNVTBL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 86 | 19/FB | *CNVTBL | partial | DSPCNVTBL browses 256 saved two-byte positions with exact primary offsets, direct POS lookups and pairwise comparison/Back across recovered *CNVTBL primaries; unverified raw +0x100 variant 0001/0002 is preserved. | Establish table-entry semantics, conversion direction and codepage association from historical CISC documentation or independently cross-checked conversion pairs; run full recovered-object original-image acceptance. |
 | 87 | 19/F5 | *DCRENO | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 88 | 0A/C4 | *DCTQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 89 | 0E/D1 | *DRX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |

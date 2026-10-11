@@ -79,9 +79,7 @@ class CNVTBLTests(unittest.TestCase):
         self.assertEqual("Saved CNVTBL paired positions", model.rows()[0]["name"])
         link = next(i for i, row in enumerate(model.rows()) if row.get("object") is c)
         model.selected = link; model.open_row(link)
-        self.assertIn("raw +0x100 variant 0x0002", model.rows()[-2]["note"].lower()
-                      if model.rows()[-2].get("note") else
-                      "raw +0x100 variant 0x0002")
+        self.assertIn("Raw +0x100 variant 0x0002", model.rows()[0]["lines"][1])
         model.back()
         self.assertEqual(link, model.selected)
         model.back()
