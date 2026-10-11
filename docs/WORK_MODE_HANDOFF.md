@@ -4,6 +4,10 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## OUTQ saved index checkpoint — October 10, 2026
+
+Successor branch `feature/outq-saved-entry-explorer` starts at PR #23 head `8ddc9cb` without modifying that test branch. The new `WRKOUTQ OUTQ(*ALL/QPRINT) FORM(*STD) KEYHEX(C1)` path is read-only: it reconstructs 48-byte tree keys using the independently observed root/page-size control fields, pages/filter candidates, and permits exact opaque key-byte inspection. FA-prefixed control-like terminals are counted separately and never presented as historical live spool entries. Form tokens are supported *as byte candidates only*. `research/mi_capabilities.json` now records 30 partial / 238 queued and zero universal completions. Synthetic tests and GitHub CI results must be checked on the new branch before treating this as validated. Both original disk images were inspected separately read-only; full recovery/UI validation against them remains a follow-up. Further OUTQ semantics, INTPRF/JMQ/LDA and SBSD/CLS are queued.
+
 ## AFP continuation checkpoint — October 10, 2026
 
 RCT commit `257ae2c3f4cd23af5ee6183bbb8376eaefceb48f` is published in PR #23

@@ -2,25 +2,20 @@
   "schema_version": 1,
   "scope": "Sustained material progress across all 268 types; generic browsing is infrastructure, not type completion.",
   "types": {
-    "0401": {
-      "state": "partial",
-      "workflow": "Context-address-scoped recovery diagnostics with missing/ambiguous filters, paged references and all exact address/type primary candidates.",
-      "next_step": "Recover missing context branches and distinguish name-scoped warnings for duplicate library primaries."
-    },
-    "1905": {
-      "state": "partial",
-      "workflow": "Find commands, traverse linked prompt labels/hints, inspect tentative default/value tokens.",
-      "next_step": "Decode subordinate QUAL/ELEM ownership and value conversions; pursue MSGF/CPP links."
-    },
-    "0801": {
-      "state": "partial",
-      "workflow": "Safe identity/relationship view; no credential payload reads.",
-      "next_step": "Add independently established non-sensitive profile relationships, preserving credential exclusion."
-    },
     "1001": {
       "state": "partial",
       "workflow": "Device details plus navigable full-address occurrence candidates to controllers, retaining duplicates and reverse links.",
       "next_step": "Prove attachment field semantics against independent configuration output."
+    },
+    "1101": {
+      "state": "partial",
+      "workflow": "Line view reaches all recovered controller address-occurrence candidates.",
+      "next_step": "Decode line attributes and certify controller relationship semantics."
+    },
+    "1201": {
+      "state": "partial",
+      "workflow": "Controller address-occurrence candidates link devices and lines in both directions.",
+      "next_step": "Establish release-specific field roles; current links are evidence, not active topology."
     },
     "1501": {
       "state": "partial",
@@ -32,10 +27,70 @@
       "workflow": "DSPFD -> explicit format -> member -> paged selectable records; duplicate candidates retain exact origins.",
       "next_step": "Establish exact FCB format ownership/order and apply independently decoded logical-file selection rules."
     },
+    "1902": {
+      "state": "partial",
+      "workflow": "DSPMSG follows compound saved definition references to IDs confirmed in candidate MSGFs. Queue chronology and delivered-message bodies are not inferred.",
+      "next_step": "Establish message entry boundaries, substitution payloads and active/stale membership independently."
+    },
+    "1903": {
+      "state": "partial",
+      "workflow": "DSPJOBD follows stored queue/library-name candidates and safe profile-name correlations, preserving missing/unassigned origins.",
+      "next_step": "Decode independently corroborated job-description attributes and validate reference semantics on older releases."
+    },
+    "1905": {
+      "state": "partial",
+      "workflow": "Find commands, traverse linked prompt labels/hints, inspect tentative default/value tokens.",
+      "next_step": "Decode subordinate QUAL/ELEM ownership and value conversions; pursue MSGF/CPP links."
+    },
+    "1906": {
+      "state": "partial",
+      "workflow": "DSPTBL: inspect 256 byte mappings/collisions and translate a bounded HEX sample offline.",
+      "next_step": "Establish table purpose/CCSID/variant flags; compare other independently known conversion pairs."
+    },
+    "1912": {
+      "state": "partial",
+      "workflow": "WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible.",
+      "next_step": "Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there."
+    },
+    "1916": {
+      "state": "partial",
+      "workflow": "DSPMNU: observed P/F qualified-name candidates navigate program identities and display/message files. UIM stays unsupported.",
+      "next_step": "Decode UIM option/action structures; confirm P/F attributes independently of names."
+    },
+    "1926": {
+      "state": "partial",
+      "workflow": "DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources.",
+      "next_step": "Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution."
+    },
+    "1928": {
+      "state": "partial",
+      "workflow": "DSPAFP -> bounded form-definition field windows -> matched begin/end categories -> opaque field payload windows.",
+      "next_step": "Decode medium maps, controls and placement parameters; establish actual print layout."
+    },
+    "1936": {
+      "state": "partial",
+      "workflow": "DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows.",
+      "next_step": "Decode page-map and line-data formatting semantics against period references."
+    },
     "1951": {
       "state": "partial",
       "workflow": "Inspect descriptors and decode selected records using that exact chosen format; mismatched/out-of-record and invalid numeric fields remain visible.",
       "next_step": "Validate remaining field types, complete schema boundaries and CCSIDs against independent definitions."
+    },
+    "1952": {
+      "state": "partial",
+      "workflow": "OIRS -> candidate QDIDX -> selected identity slot cross-check without arbitrary payload display.",
+      "next_step": "Decode safe directory attributes and locate indexes missing on older images."
+    },
+    "0401": {
+      "state": "partial",
+      "workflow": "Context-address-scoped recovery diagnostics with missing/ambiguous filters, paged references and all exact address/type primary candidates.",
+      "next_step": "Recover missing context branches and distinguish name-scoped warnings for duplicate library primaries."
+    },
+    "0801": {
+      "state": "partial",
+      "workflow": "Safe identity/relationship view; no credential payload reads.",
+      "next_step": "Add independently established non-sensitive profile relationships, preserving credential exclusion."
     },
     "0D50": {
       "state": "partial",
@@ -52,11 +107,6 @@
       "workflow": "Paged tree-order keys with complete/partial distinction; exact two-pointer member matching opens a candidate ordinal record window.",
       "next_step": "Resolve partial key materialization and independently establish initial data-group origins."
     },
-    "1906": {
-      "state": "partial",
-      "workflow": "DSPTBL: inspect 256 byte mappings/collisions and translate a bounded HEX sample offline.",
-      "next_step": "Establish table purpose/CCSID/variant flags; compare other independently known conversion pairs."
-    },
     "190A": {
       "state": "partial",
       "workflow": "DSPDTAARA: inspect selector-04 character values by position with exact hex and CP037 lens.",
@@ -72,55 +122,20 @@
       "workflow": "Inspect validated byte streams including owner-matched contiguous continuations; navigate exact byte ranges.",
       "next_step": "Add explicit encoding selection and independently validated document-format interpretation; retain raw bytes."
     },
-    "1912": {
-      "state": "partial",
-      "workflow": "WRKFLR -> explicit QAOSSS14 source -> candidate anchors -> parent/child graph and object matches; ambiguity/cycles/missing source remain visible.",
-      "next_step": "Establish stronger object ownership links and user-facing QDLS paths; obtain Pete anchor storage before applying V2R3 layout there."
-    },
     "0E03": {
       "state": "partial",
       "workflow": "DSPMSGD: paged message IDs, validated first/second/ancillary record links and literal-text display; compressed bytes stay opaque.",
       "next_step": "Decode compressed text and older-release secondary storage; preserve count mismatches."
-    },
-    "1201": {
-      "state": "partial",
-      "workflow": "Controller address-occurrence candidates link devices and lines in both directions.",
-      "next_step": "Establish release-specific field roles; current links are evidence, not active topology."
-    },
-    "1101": {
-      "state": "partial",
-      "workflow": "Line view reaches all recovered controller address-occurrence candidates.",
-      "next_step": "Decode line attributes and certify controller relationship semantics."
-    },
-    "1916": {
-      "state": "partial",
-      "workflow": "DSPMNU: observed P/F qualified-name candidates navigate program identities and display/message files. UIM stays unsupported.",
-      "next_step": "Decode UIM option/action structures; confirm P/F attributes independently of names."
     },
     "0E90": {
       "state": "partial",
       "workflow": "Paged directory type/name entries cross-check candidate OIRS slots and expose missing repository/primary evidence.",
       "next_step": "Validate repository ownership pointer and additional directory variants."
     },
-    "1952": {
-      "state": "partial",
-      "workflow": "OIRS -> candidate QDIDX -> selected identity slot cross-check without arbitrary payload display.",
-      "next_step": "Decode safe directory attributes and locate indexes missing on older images."
-    },
-    "1903": {
-      "state": "partial",
-      "workflow": "DSPJOBD follows stored queue/library-name candidates and safe profile-name correlations, preserving missing/unassigned origins.",
-      "next_step": "Decode independently corroborated job-description attributes and validate reference semantics on older releases."
-    },
     "0E01": {
       "state": "partial",
       "workflow": "WRKJOBQ browses queue identities and reverse referring JOBD name candidates; never claims live waiting jobs.",
       "next_step": "Decode saved queue entries and distinguish active/stale structures before presenting queued jobs."
-    },
-    "1902": {
-      "state": "partial",
-      "workflow": "DSPMSG follows compound saved definition references to IDs confirmed in candidate MSGFs. Queue chronology and delivered-message bodies are not inferred.",
-      "next_step": "Establish message entry boundaries, substitution payloads and active/stale membership independently."
     },
     "0201": {
       "state": "partial",
@@ -132,20 +147,10 @@
       "workflow": "DSPRCT filtered eight-byte key lookup -> exact-owner secondary record with inclusive length and repeated-key checks -> paged opaque bytes / missing-storage diagnostic.",
       "next_step": "Establish RCT record field semantics from period references and recover Pete secondary ownership; D/F/S/P variant meanings remain unknown."
     },
-    "1926": {
+    "0E02": {
       "state": "partial",
-      "workflow": "DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources.",
-      "next_step": "Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution."
-    },
-    "1928": {
-      "state": "partial",
-      "workflow": "DSPAFP -> bounded form-definition field windows -> matched begin/end categories -> opaque field payload windows.",
-      "next_step": "Decode medium maps, controls and placement parameters; establish actual print layout."
-    },
-    "1936": {
-      "state": "partial",
-      "workflow": "DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows.",
-      "next_step": "Decode page-map and line-data formatting semantics against period references."
+      "workflow": "WRKOUTQ selects saved 48-byte machine-index keys, offers exact-hex and observed +0x20 form-token filtering, and inspects opaque key bytes; FA-prefixed control-like keys are not called live entries.",
+      "next_step": "Independently validate saved spool-entry field boundaries, key identity and actual spooled-file references before assigning status, chronology or spool contents."
     }
   }
 }
