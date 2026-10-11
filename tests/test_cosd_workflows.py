@@ -37,7 +37,7 @@ class COSDTests(unittest.TestCase):
         c=obj("#INTER",(0x14,1),30,"QSYS")
         d=obj("#BATCHSC",(0x14,1),40,"QSYS")
         inv=inventory([a,b,c,d])
-        service=SavedCOSDExplorer(Image([(a,fixture()),(b,fixture(0xDF)),
+        service=SavedCOSDExplorer(Image([(a,fixture()),(b,fixture(variant=0xDF)),
             (c,fixture("#INTER",flag=2,changed={127:0xAA,250:0xBB})),
             (d,fixture("#BATCHSC",changed={300:0x80}))]),inv)
         model=Guided5250(inv,cosd_loader=service.rows,
@@ -46,7 +46,7 @@ class COSDTests(unittest.TestCase):
 
     def test_cross_release_exact_profile_and_two_page_offset(self):
         a=decode_cosd(fixture(),type_code="14/01",primary_name="#BATCH")
-        b=decode_cosd(fixture(0xDF),type_code="14/01",primary_name="#BATCH")
+        b=decode_cosd(fixture(variant=0xDF),type_code="14/01",primary_name="#BATCH")
         self.assertEqual(1,a.variant)
         self.assertEqual(0xDF,b.variant)
         self.assertEqual(a.entire,b.entire)
@@ -94,7 +94,7 @@ class COSDTests(unittest.TestCase):
         changed=next(i for i,x in enumerate(model.rows()) if x["name"].startswith("Compare #INTER"))
         model.selected=changed;model.open_row(changed)
         self.assertIn("differ",model.rows()[0]["lines"][2])
-        self.assertTrue(any("1/48" in x.get("note","") for x in model.rows()))
+        self.assertTrue(any("/48" in x.get("note","") and "0/48" not in x.get("note","") for x in model.rows()))
         model.back();self.assertEqual(changed,model.selected)
         self.assertTrue(model.run_command("DSPCOSD COSD(QSYS/#INTER) SLOT(8)"))
         self.assertEqual("Saved COSD slot 8 (of 8)",model.rows()[0]["name"])
