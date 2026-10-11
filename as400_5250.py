@@ -35,6 +35,7 @@ COMMANDS = (
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
+    CommandSpec("DSPDTAQ", "DSPDTAQ DTAQ(*ALL/QNMACDQ) SLOT(9)", "Inspect corroborated first-page saved queue byte pairs, not live messages."),
     CommandSpec("DSPPRDLOD", "DSPPRDLOD PRDLOD(*ALL/QSZ0050)", "Browse archived product-load tokens and exact-name product-definition candidates."),
     CommandSpec("DSPPRDDFN", "DSPPRDDFN PRDDFN(*ALL/QSZ0050)", "Inspect saved product-definition text or alternate lengths and product-load names."),
     CommandSpec("DSPCNVTBL", "DSPCNVTBL CNVTBL(*ALL/TBT*) POS(128)", "Inspect 256 saved byte-pair slots and compare exact archived table bytes."),
@@ -139,6 +140,7 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPDTAQ": {"DTAQ", "SLOT"},
         "DSPPRDLOD": {"PRDLOD"},
         "DSPPRDDFN": {"PRDDFN"},
         "DSPCNVTBL": {"CNVTBL", "POS"},
@@ -175,7 +177,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, gss_loader=None, conversion_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, gss_loader=None, conversion_loader=None, dtaq_loader=None):
+        self.dtaq_loader = dtaq_loader
         self.conversion_loader = conversion_loader
         self.gss_loader = gss_loader
         self.alert_loader = alert_loader
@@ -486,7 +489,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "conversion_table_action" and option == "5":
+        if row["kind"] == "dtaq_pair_action" and option == "5":
+            return self.show_evidence(row["request"], self.dtaq_loader)
+        elif self.dtaq_loader and row.get("object") is not None and row["object"].type_code == "0A/01" and option == "5":
+            return self.show_evidence(dict(obj=row["object"], slot=row.get("dtaq_slot")), self.dtaq_loader)
+        elif row["kind"] == "conversion_table_action" and option == "5":
             return self.show_evidence(row["request"], self.conversion_loader)
         elif self.conversion_loader and row.get("object") is not None and row["object"].type_code == "19/FB" and option == "5":
             return self.show_evidence(dict(obj=row["object"], position=row.get("conversion_position")), self.conversion_loader)
@@ -687,6 +694,18 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPDTAQ":
+                from as400_capabilities import select_objects
+                requested=params.get("SLOT")
+                slot=int(requested,10) if requested else None
+                if slot is not None and not 1 <= slot <= 9:
+                    raise ValueError("SLOT must be a first-page position 1..9")
+                rows=select_objects(self.inventory,params.get("DTAQ","*ALL/*"),"*DTAQ")
+                for row in rows:row["dtaq_slot"]=slot
+                if len(rows)==1:
+                    self.show_evidence(dict(obj=rows[0]["object"],slot=slot),self.dtaq_loader)
+                else:
+                    self._goto("type_objects",view_rows=rows)
             elif name in ("DSPPRDLOD", "DSPPRDDFN"):
                 from as400_capabilities import select_objects
                 arg = "PRDLOD" if name == "DSPPRDLOD" else "PRDDFN"
