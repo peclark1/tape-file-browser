@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 38, blocked 0, queued 230.
+States: delivered 0, partial 39, blocked 0, queued 229.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -44,7 +44,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 30 | 19/26 | *FNTRSC | partial | DSPAFP -> bounded structured fields -> coded-font character-set/code-page references with begin-kind corroboration and explicit missing resources. | Decode font descriptors, mappings and glyph data; validate historical variants and resource resolution. |
 | 31 | 19/28 | *FORMDF | partial | DSPAFP -> bounded form-definition field windows -> matched begin/end categories -> opaque field payload windows. | Decode medium maps, controls and placement parameters; establish actual print layout. |
 | 32 | 19/CE | *LDA | partial | DSPLDA browses empirically bounded 1024-byte saved QLDA value region at primary +0x160 in 128-byte paged hex/CP037 windows, with exact offsets, blank counts and strict header/boundary/virtual-extent checks; archival bytes are not an active job's current LDA. | Corroborate QLDA value origin, job association and release-specific boundary exceptions; interpret nonblank contents only under proven format/CCSID. |
-| 33 | 19/15 | *PNLGRP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 33 | 19/15 | *PNLGRP | partial | DSPPNLGRP searches reconstructed tagged 13/length/CP037 name-shaped compiled literals in bounded 32 KiB virtual windows, pages 50 symbol candidates, shows exact bytes and tentative same-name command-prefix candidates. No UIM panel display/actions are decoded. | Prove UIM compiled symbol roles and panel/menu action table references from period CISC documentation; extend record handling across windows and verify links to menu variants independently. |
 | 34 | 19/09 | *SBSD | partial | DSPSBSD exposes bounded exact ten-byte padded EBCDIC name occurrences matching recovered JOBQ, CLS and PGM identities; self-name echoes withheld and all origins retained. Connections are candidates, not decoded pointers. | Independently recover release-specific SBSD configuration tables and identify verified queue/class/initial-program fields; no active subsystem state inferred. |
 | 35 | 19/36 | *PAGDFN | partial | DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows. | Decode page-map and line-data formatting semantics against period references. |
 | 36 | 0E/91 | *MSRVI | partial | DSPMSRVI browses supported saved machine-index terminal keys in paged byte/hex detail, retaining full traversal and stored-header-count discrepancies without interpreting service records. | Establish MSRVI record identity and secondary storage pointer semantics on both releases before decoding service actions. |
