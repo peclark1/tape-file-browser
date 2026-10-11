@@ -47,10 +47,12 @@ class JMQTests(unittest.TestCase):
                 read_jmq_slots(data,type_code="19/02" if reason=="Not a saved" else "18/A0")
 
     def test_corrupted_header_or_zero_slot_fails_closed(self):
-        for at,value in ((0x100,0),(0x802,1),(ENTRY_AT,0)):
+        for at,value in ((0x100,0),(0x802,1)):
             d=fixture();d[at]=value
             with self.assertRaises(ValueError):
                 read_jmq_slots(d,type_code="18/A0")
+        d=fixture();d[ENTRY_AT:ENTRY_AT+ENTRY_BYTES]=bytes(ENTRY_BYTES)
+        with self.assertRaises(ValueError):read_jmq_slots(d,type_code="18/A0")
         d=fixture();d[0x800:0x802]=(257).to_bytes(2,"big")
         with self.assertRaises(ValueError):read_jmq_slots(d,type_code="18/A0")
         _,_,warnings=read_jmq_slots(fixture(extra=True),type_code="18/A0")
