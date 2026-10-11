@@ -186,6 +186,11 @@
       "state": "partial",
       "workflow": "DSPSPLCB displays exact ten-byte saved name slots and SPdddd-shaped token bytes at corroborated offsets, navigates same-library/name recovered target primaries, and retains duplicate/missing candidates without claiming pointer or active spool ownership.",
       "next_step": "Use period CISC spool-control manuals and independent object/segment pointers to prove slot roles, job identity and spool-file references; avoid interpreting historical status from text patterns alone."
+    },
+    "18A0": {
+      "state": "partial",
+      "workflow": "DSPJMQ navigates supported Mark V2R3 saved 18/A0 JMQ u16 count at +0x800 and exact 16-byte nonzero slots from +0x810, paging opaque bytes with warnings for extra following slots, strict control-layout and virtual-extent bounds.",
+      "next_step": "Corroborate per-slot field identities and underlying message bodies or targets; prove release-specific JMQ semantics before claiming message text, live job status or chronology."
     }
   }
 }
