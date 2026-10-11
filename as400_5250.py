@@ -50,6 +50,7 @@ COMMANDS = (
     CommandSpec("DSPMSGD", "DSPMSGD MSGF(*ALL/QIWSMSG) MSGID(IWN*)", "Browse recovered message IDs and validated message records."),
     CommandSpec("WRKFLR", "WRKFLR FLR(*ALL/*)", "Explore recovered folder anchor relationships."),
     CommandSpec("WRKTYP", "WRKTYP TYPE(*)", "Explorer extension: browse all MI types and recovered counts."),
+    CommandSpec("DSPPNLGRP", "DSPPNLGRP PNLGRP(*ALL/QHDC) NAME(CRT*) AT(0)", "Browse saved tagged compiled panel identifiers, not UIM actions."),
     CommandSpec("DSPJMQ", "DSPJMQ JMQ(*ALL/QJOBMSGQ)", "Browse supported saved 16-byte job-message queue entries, without live-message semantics."),
     CommandSpec("DSPSPLCB", "DSPSPLCB SPLCB(*ALL/QSPSCB)", "Follow saved spool-control name-slot candidates and inspect original bytes; no live spool claims."),
     CommandSpec("DSPLDA", "DSPLDA LDA(*ALL/QLDA)", "Browse validated 1024-byte saved local-data-area positions, read-only."),
@@ -135,6 +136,7 @@ def parse_command(text):
         "DSPAFP": {"OBJ"},
         "WRKJOBQ": {"JOBQ"},
         "DSPFD": {"FILE"},
+        "DSPPNLGRP": {"PNLGRP", "NAME", "AT"},
         "DSPJMQ": {"JMQ"},
         "DSPSPLCB": {"SPLCB"},
         "DSPLDA": {"LDA"},
@@ -153,7 +155,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None):
+        self.panel_group_loader = panel_group_loader
         self.jmq_loader = jmq_loader
         self.lda_loader = lda_loader
         self.archival_index_loader = archival_index_loader
@@ -459,7 +462,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "jmq_action" and option == "5":
+        if row["kind"] == "panel_symbol_action" and option == "5":
+            return self.show_evidence(row["request"], self.panel_group_loader)
+        elif self.panel_group_loader and row.get("object") is not None and row["object"].type_code == "19/15" and option == "5":
+            return self.show_evidence(dict(obj=row["object"], at=row.get("panel_at", 0), name=row.get("panel_name", "*")), self.panel_group_loader)
+        elif row["kind"] == "jmq_action" and option == "5":
             return self.show_evidence(row["request"], self.jmq_loader)
         elif self.jmq_loader and row.get("object") is not None and row["object"].type_code == "18/A0" and option == "5":
             return self.show_evidence(dict(obj=row["object"]), self.jmq_loader)
@@ -640,6 +647,17 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPPNLGRP":
+                from as400_capabilities import select_objects
+                at = int(params.get("AT", "0"), 10)
+                if at < 0 or at % 32768: raise ValueError("AT must be a nonnegative multiple of 32768")
+                name_filter = params.get("NAME", "*")
+                rows = select_objects(self.inventory, params.get("PNLGRP", "*ALL/*"), "*PNLGRP")
+                for row in rows: row["panel_at"], row["panel_name"] = at, name_filter
+                if len(rows) == 1:
+                    self.show_evidence(dict(obj=rows[0]["object"], at=at, name=name_filter), self.panel_group_loader)
+                else:
+                    self._goto("type_objects", view_rows=rows)
             elif name in ("DSPSCHIDX", "DSPMSRVI"):
                 from as400_capabilities import select_objects
                 arg = "SCHIDX" if name == "DSPSCHIDX" else "MSRVI"
