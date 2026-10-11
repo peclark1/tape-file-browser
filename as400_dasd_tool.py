@@ -8881,6 +8881,7 @@ def cmd_browse5250(args):
         from as400_programs import ProgramExplorer
         from as400_archival_indexes import ArchivalIndexExplorer
         from as400_subsystems import SubsystemExplorer
+        from as400_jmq import JobMessageQueueExplorer
         from as400_spool_controls import SpoolControlExplorer
         from as400_local_data import LocalDataExplorer
         from as400_internal_profiles import InternalProfileExplorer
@@ -8896,6 +8897,7 @@ def cmd_browse5250(args):
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
+        jmq = JobMessageQueueExplorer(state["image"])
         spool_controls = SpoolControlExplorer(state["image"], state["inventory"])
         local_data = LocalDataExplorer(state["image"])
         internal_profiles = InternalProfileExplorer(state["inventory"])
@@ -8904,6 +8906,7 @@ def cmd_browse5250(args):
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
             if obj.type_code in ("19/09", "19/04"): return subsystem_explorer.rows(obj)
+            if obj.type_code == "18/A0": return jmq.rows(obj)
             if obj.type_code == "19/C2": return spool_controls.rows(obj)
             if obj.type_code == "19/CE": return local_data.rows(obj)
             if obj.type_code == "0E/C4": return internal_profiles.rows(obj)
@@ -8921,6 +8924,7 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            jmq_loader=jmq.rows,
             lda_loader=local_data.rows,
             archival_index_loader=ArchivalIndexExplorer(state["image"]).rows,
             subsystem_loader=subsystem_explorer.rows,
