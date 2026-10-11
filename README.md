@@ -924,3 +924,7 @@ Use `DSPJRN JRN(*ALL/*)` to inspect corroborated full eight-byte CISC receiver-a
 ### Journal-receiver saved parent pointer corroboration
 
 The `DSPJRNRCV` screen now also inspects the receiver primary's own eight-byte saved journal-owner address at +0x108. This is independent evidence from the journal-side +0x110/+0x240 slots, and it can link a receiver to a journal even when those two journal slots do not include the receiver. `DSPJRN` shows matching receiver-owned pointers in the other direction, retaining null/unknown variants without guessing active relationships. See [both-source address evidence](docs/JOURNAL_RECEIVER_WORKFLOW.md).
+
+### Saved binding directory and service-program references (offline)
+
+`DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)` shows V2R3 `*BNDDIR` records with checked 48-byte layout, saved object/library/type values, exact bytes, and clickable independently recovered candidate *SRVPGM/*MODULE origins. `DSPSRVPGM SRVPGM(*ALL/*)` finds saved binding records by matching a chosen service program’s recovered name/type. The saved `*LIBL` token does **not** resolve a historical library list, and the links do not prove actual runtime bindings. Pete B10 has no corroborated BNDDIR candidate. See [entry evidence and limitations](docs/BINDING_DIRECTORY_WORKFLOW.md).
