@@ -41,8 +41,13 @@ def decode_spool_slots(data, *, type_code):
 
 
 class SpoolControlExplorer:
-    def __init__(self,image,inventory):
+    def __init__(self,image,inventory,printer_queue_explorer=None):
         self.image=image
+        self.inventory=inventory
+        self._printer_queue_explorer=printer_queue_explorer
+        self._printer_sources=tuple(o for o in inventory.objects if o.type_code=="0E/C7")
+        self._printer_token_index=None
+        self._printer_withheld=0
         self._by_qualified={}
         for target in inventory.objects:
             if not target.name or target.type_code=="19/C2":
@@ -52,6 +57,36 @@ class SpoolControlExplorer:
         for group in self._by_qualified.values():
             group.sort(key=lambda item:(item.type_code,item.segment.start_lba))
         self._cache={}
+
+    def printer_token_candidates(self):
+        """Build a read-only reverse index of saved PRTQ SPdddd key prefixes.
+
+        The same-token join is *not* proof of spool ownership. An
+        unsupported saved index is counted, never treated as empty.
+        """
+        if self._printer_token_index is None:
+            from as400_printer_queues import PrinterQueueExplorer
+            reader=(self._printer_queue_explorer or
+                    PrinterQueueExplorer(self.image,self.inventory))
+            refs={};withheld=0
+            for prtq in self._printer_sources:
+                try:
+                    keys,warnings,size=reader.entries(prtq)
+                except (ValueError,OSError):
+                    withheld+=1
+                    continue
+                for key in keys:
+                    token=key.token_candidate
+                    if token:
+                        refs.setdefault(token,[]).append((prtq,key))
+            for values in refs.values():
+                values.sort(key=lambda pair:(pair[0].library_name or "",
+                                             pair[0].name,
+                                             pair[0].segment.start_lba,
+                                             pair[1].terminal_offset))
+            self._printer_token_index=refs
+            self._printer_withheld=withheld
+        return self._printer_token_index
 
     def rows(self,obj):
         if obj.type_code!="19/C2":
@@ -74,6 +109,27 @@ class SpoolControlExplorer:
             "These are saved fixed-offset patterns; slot roles, spool owner/job identity and runtime state are unproven.",
             "Only recovered object identity metadata is compared; no target body bytes are read.",
             "Names and tokens may be stale; token SPdddd is not a certified spool ID."])]
+        if tag and self._printer_sources:
+            from as400_printer_queues import action as printer_action
+            candidates=self.printer_token_candidates().get(tag,())
+            rows.append(section("Printer-queue token candidates",[
+                f"Saved PRTQ terminals with the same SPdddd token: {len(candidates)}",
+                f"Unresolved PRTQ primaries withheld from token matching: {self._printer_withheld}",
+                "This is an exact saved byte comparison, NOT spool/file ownership, active printing or a pointer.",
+                "Select a candidate to view its full opaque index key and original queue origin."]))
+            for queue,key in candidates[:50]:
+                link=printer_action(f"Saved key in {queue.name}",queue,entry=key)
+                link["note"]=(f"PRTQ primary LBA {queue.segment.start_lba}; "
+                              f"key element +0x{key.terminal_offset:X}; exact token evidence")
+                rows.append(link)
+            if len(candidates)>50:
+                rows.append(section("Additional candidates withheld",[
+                    f"{len(candidates)-50} more matches not expanded in this view.",
+                    f"Use DSPPRTQ PRTQ(*ALL/*) TOKEN({tag}) to browse them in bounded pages."]))
+            elif not candidates:
+                rows.append(section("No recovered printer-key match",[
+                    "None in the supported recovered index trees; other roots may be missing.",
+                    "Do not infer that a historical spool relationship was absent."]))
         if complete:
             targets=self._by_qualified.get((library,name),())
             rows.append(section("Qualified-name candidates",[
