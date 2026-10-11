@@ -292,6 +292,8 @@ class CapabilityExplorer:
             rows = [section("Keys", [f"Declared key specifications: {layout.dkey_count}",
                      f"Recovered key specifications: {len(layout.keys)}",
                      "Bounded DKEY/DKYT decoding; unknown attributes remain raw."])]
+            from as400_indexes import action as index_action
+            rows.append(index_action("Browse keyed entries", obj))
             for i, key in enumerate(layout.keys, 1):
                 lines = [f"Stored key count: {key.key_count}",
                          f"User key bytes: {key.user_key_length}; machine key bytes: {key.machine_key_length}",

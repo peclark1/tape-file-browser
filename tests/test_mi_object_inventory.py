@@ -26,17 +26,17 @@ class MIResearchInventoryTests(unittest.TestCase):
 
     def test_reviewed_vs_catalog_only_is_explicit(self):
         progress = counts(self.rows)["by_status"]
-        self.assertEqual(30, sum(progress[k] for k, _ in STATUSES
+        self.assertEqual(34, sum(progress[k] for k, _ in STATUSES
                                  if k != "cataloged_only"))
-        self.assertEqual(238, progress["cataloged_only"])
+        self.assertEqual(234, progress["cataloged_only"])
         self.assertEqual(2, progress["substantial_decoder"])
-        self.assertEqual(10, progress["partial_decoder"])
-        self.assertEqual(6, progress["evidence_only"])
-        self.assertEqual(12, progress["identity_only"])
+        self.assertEqual(19, progress["partial_decoder"])
+        self.assertEqual(8, progress["evidence_only"])
+        self.assertEqual(5, progress["identity_only"])
         found = {r["key"]: r for r in self.rows}
         self.assertEqual("substantial_decoder", found["0401"]["status"])
         self.assertEqual("partial_decoder", found["1905"]["status"])
-        self.assertEqual("identity_only", found["0201"]["status"])
+        self.assertEqual("evidence_only", found["0201"]["status"])
         self.assertEqual("cataloged_only", found["19D4"]["status"])
         self.assertEqual("unreviewed", found["19D4"]["documentation"])
 
@@ -97,9 +97,9 @@ class MIResearchInventoryTests(unittest.TestCase):
             {"1901", "0E03", "0201"},
             {link["target"] for link in menu["relationships"]}
         )
-        self.assertEqual("identity_only", msgf["status"])
-        self.assertEqual("identity_only", pgm["status"])
-        self.assertEqual("identity_only", menu["status"])
+        self.assertEqual("partial_decoder", msgf["status"])
+        self.assertEqual("evidence_only", pgm["status"])
+        self.assertEqual("partial_decoder", menu["status"])
         self.assertEqual("partial_decoder", cmd["status"])
 
     def test_partial_image_presence_preserves_unscanned_distinction(self):

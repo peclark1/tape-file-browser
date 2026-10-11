@@ -4,6 +4,111 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## AFP continuation checkpoint — October 10, 2026
+
+RCT commit `257ae2c3f4cd23af5ee6183bbb8376eaefceb48f` is published in PR #23
+and passed Tests run `38089817781`. Continued with print resources. `DSPAFP`
+adds structured-field/boundary browsing for FNTRSC, FORMDF and PAGDFN, with
+FOCA-coded-font dependencies navigable to begin-kind-corroborated targets.
+Mark: 1,547 resources, 9,912 fields, all 2,542 dependencies corroborated. Pete:
+597 resources, 2,922 fields, 478 corroborated / 520 missing dependencies.
+The newer architecture references and independently checked CISC wrapper
+offsets are distinguished in EXTENDED_TYPE_WORKFLOWS.md. Rendering is not claimed.
+
+Current ledger: **29 partial / 239 queued**; 34 binary/evidence-reviewed types.
+Fourteen newly advanced workflow families in this successor branch.
+270 synthetic tests pass; original hashes unchanged. The UIM/PNLGRP simple
+name/address hypotheses failed and are documented. Work remains active.
+
+## RCT continuation checkpoint — October 10, 2026
+
+Prior follow-on commit `8247c44dfdd1a9c51c909fa0ddbf043c5706aa5d` is published
+in PR #23 and passed Tests run `38089462003`. Work continued through RCT.
+`DSPRCT` now provides byte-prefix key lookup -> exact-owner, length/repeated-key
+validated record -> paged opaque bytes. 36,794 Mark records pass; all 8,451 Pete
+index entries remain navigable with explicit unavailable-storage diagnostics.
+Both original hashes remain unchanged; six model paths and 266 synthetic tests
+pass, plus isolated installed-module imports.
+
+Current ledger: **26 partial / 242 queued**, zero universal completions; 31 types
+have some audited binary/evidence coverage. RCT is the eleventh newly advanced
+family in this successor branch. Full record semantics remain unknown.
+JMQ/LDA direct-address probes are documented; next investigation is the UIM
+MENU -> PNLGRP relationship. Earlier checkpoint counts below are historical.
+
+## Continued after publication — October 10, 2026
+
+[PR #23](https://github.com/peclark1/tape-file-browser/pull/23) is open on
+`feature/message-index-workflows`, targeting #22. Initial implementation
+`fb581ac5b29aee861c9533650aa1f3a5fb4671a9` passed Tests run `38088615048`.
+Local Git push lacks credentials, so publication uses the connected GitHub
+Git-data API; content trees are compared before synchronizing the local branch.
+
+Work continued immediately after publication. Added JOBD/JOBQ saved-reference
+navigation (`DSPJOBD` / `WRKJOBQ`) and MSGQ -> corroborated MSGF-ID navigation
+(`DSPMSG`). All 34 Mark JOBD and 10 Pete JOBD queue paths pass forward/reverse/Back
+walkthroughs; five Pete descriptions retain unresolved references. Three queue
+reference walkthroughs per image pass; 97 Mark and 93 Pete references have IDs
+confirmed, three Pete references do not. No live jobs/message chronology are
+claimed. Safe profile-name links never inspect credentials.
+
+Ledger: **25 partial / 243 queued**. The full-inventory task remains active.
+See extended workflow documentation and the refreshed aggregate validation JSON.
+Program reference exploration was added after the queue pass: DSPPGM reaches
+command definitions through qualified-name candidates. It does not decode MI
+instructions or establish CPP pointers. Original walkthroughs pass on three
+programs per image; 773/218 program primaries have candidates. This supersedes
+the earlier checkpoint note keeping PGM queued after identity-only navigation.
+
+Library diagnostics now scope entries by full context address and retain all
+matching primary candidates. Missing/ambiguous/resolved filters and paging are
+reachable through WRKTYP TYPE(*LIB), option 5 on a primary. Mark/Pete: 61/185
+missing references, 21,531/206 resolved; three model walkthroughs each pass.
+
+Follow-on validation: **263 tests pass**, isolated installed-module imports pass,
+and both original hashes remain unchanged. The aggregate validator's program
+checks were moved out of an unreachable loader branch into the inventory loop;
+the refreshed report now includes all six program walkthroughs.
+
+All currently added workflow modules are included in the installer/uninstaller.
+
+## Sustained cross-family checkpoint — October 10, 2026
+
+Branch `feature/message-index-workflows` starts from PR #22 head `03cb891`.
+PR #21/#22 and main remain untouched. The user explicitly reaffirmed continuing
+through the ranked queue without stopping for reprompts at commits/tests/PRs.
+The continuation contract is now also in AGENTS.md.
+
+Delivered Guided paths: MSGF ID -> validated record -> literal text/opaque bytes;
+QDDSI keyed entries -> exact two-pointer member match -> candidate record window;
+DEVD/CTLD/LIND address-occurrence navigation; P/F MENU qualified-name target
+navigation; QDIDX entry -> OIRS identity-slot cross-check / missing primary
+candidate, with reverse OIRS -> index navigation. Detailed evidence, bounds,
+manual references, probes and remaining experiments are in
+[EXTENDED_TYPE_WORKFLOWS.md](EXTENDED_TYPE_WORKFLOWS.md).
+
+The ledger now records **21 partial / 247 queued**, zero universal completions.
+Six newly audited partial families: MSGF, CTLD, LIND, MENU, QDIDX and OIRS.
+PGM stays queued: following a menu to program identity is not a program decoder.
+
+Original validation aggregates are in `research/extended_workflow_validation.json`:
+Mark 39,107 message IDs / 86,043 corroborated records / 1,984 literal text records;
+Pete 27,920 IDs with text storage unavailable. Mark 128,347 / Pete 20,022 index
+terminals; partial keys remain partial. Three Mark and one Pete key-to-record
+model walkthroughs passed. Configuration: 43 / 8 full-address occurrences.
+Mark 17,611 directory identities match candidate repository slots; Pete 254
+identities retain missing-repository diagnostics. Both SHA-256 hashes match the
+previous checkpoint and remain unchanged after validation. Originals remain
+0444. No private records or manuals are committed.
+
+Synthetic tests, strict page bounds, installed-module smoke test, generated
+reports and UI keyboard/rendering checks accompany the implementation. This
+is model/curses-loop validation, not a human terminal acceptance test.
+
+Next queue: deeper UIM MENU structures; MSGF compression and Pete's older
+text-storage ownership; JOBD/queue relationships; MSGQ/PGM evidence gates.
+Do not stop at publication of this checkpoint if execution capacity remains.
+
 ## Explicit records and folder navigation — October 10, 2026
 
 Current work branch: `feature/explicit-record-explorer`, based on PR #21 head

@@ -34,31 +34,31 @@ research/mi_survey_scoring.json.
 | 3 | 19/05 | *CMD | Commands, programs and 5250 | 92.0 | 5/4/5/4/5 | 3129 | 1117 | partial_decoder |
 | 4 | 04/01 | *LIB | Core metadata and indexes | 92.0 | 5/5/5/3/4 | 50 | 22 | substantial_decoder |
 | 5 | 19/51 | *FMT | Core metadata and indexes | 89.0 | 5/5/3/4/5 | 751 | 311 | partial_decoder |
-| 6 | 0B/90 | *QDDS | Core metadata and indexes | 86.0 | 5/5/3/3/5 | 490 | 66 | partial_decoder |
-| 7 | 0E/03 | *MSGF | Commands, programs and 5250 | 85.0 | 5/5/4/2/4 | 56 | 38 | identity_only |
-| 8 | 02/01 | *PGM | Commands, programs and 5250 | 84.0 | 5/5/4/1/5 | 4346 | 3102 | identity_only |
-| 9 | 0C/90 | *QDDSI | Core metadata and indexes | 84.0 | 5/5/3/3/4 | 35 | 18 | partial_decoder |
-| 10 | 0E/90 | *QDIDX | Core metadata and indexes | 84.0 | 5/5/3/3/4 | 41 | 22 | evidence_only |
-| 11 | 10/01 | *DEVD | Devices and communications | 82.0 | 5/3/5/3/4 | 42 | 12 | evidence_only |
-| 12 | 19/16 | *MENU | Commands, programs and 5250 | 82.0 | 5/4/4/2/5 | 574 | 223 | identity_only |
+| 6 | 0E/03 | *MSGF | Commands, programs and 5250 | 89.0 | 5/5/5/2/4 | 56 | 38 | partial_decoder |
+| 7 | 02/01 | *PGM | Commands, programs and 5250 | 88.0 | 5/5/5/1/5 | 4346 | 3102 | evidence_only |
+| 8 | 0E/90 | *QDIDX | Core metadata and indexes | 87.0 | 5/5/3/4/4 | 41 | 22 | partial_decoder |
+| 9 | 19/16 | *MENU | Commands, programs and 5250 | 86.0 | 5/4/5/2/5 | 574 | 223 | partial_decoder |
+| 10 | 0B/90 | *QDDS | Core metadata and indexes | 86.0 | 5/5/3/3/5 | 490 | 66 | partial_decoder |
+| 11 | 0C/90 | *QDDSI | Core metadata and indexes | 84.0 | 5/5/3/3/4 | 35 | 18 | partial_decoder |
+| 12 | 10/01 | *DEVD | Devices and communications | 82.0 | 5/3/5/3/4 | 42 | 12 | evidence_only |
 | 13 | 19/06 | *TBL | Database and data access | 82.0 | 4/4/4/4/5 | 631 | 88 | partial_decoder |
-| 14 | 19/02 | *MSGQ | Commands, programs and 5250 | 81.0 | 4/4/5/3/4 | 50 | 31 | evidence_only |
-| 15 | 19/52 | *OIRS | Core metadata and indexes | 78.0 | 4/5/3/3/4 | 41 | 33 | evidence_only |
-| 16 | 08/01 | *USRPRF | Users and security | 78.0 | 4/4/5/2/4 | 43 | 10 | evidence_only |
-| 17 | 12/01 | *CTLD | Devices and communications | 74.0 | 4/4/4/2/4 | 21 | 4 | identity_only |
-| 18 | 19/0E | *DOC | Documents and office | 74.0 | 4/3/4/3/5 | 2016 | 258 | partial_decoder |
-| 19 | 15/01 | *MODD | Devices and communications | 74.0 | 4/3/5/3/3 | 9 | 4 | evidence_only |
-| 20 | 19/12 | *FLR | Documents and office | 72.0 | 4/3/4/3/4 | 24 | 5 | partial_decoder |
-| 21 | 11/01 | *LIND | Devices and communications | 72.0 | 4/4/4/2/3 | 5 | 2 | identity_only |
-| 22 | 06/C1 | *DOCBSS | Documents and office | 69.0 | 4/4/3/3/2 | 1987 | 0 | partial_decoder |
-| 23 | 19/0A | *DTAARA | Database and data access | 69.0 | 4/1/5/4/4 | 37 | 54 | partial_decoder |
-| 24 | 19/03 | *JOBD | Database and data access | 69.0 | 4/3/4/2/4 | 34 | 15 | identity_only |
-| 25 | 0E/01 | *JOBQ | Database and data access | 69.0 | 4/3/4/2/4 | 22 | 4 | identity_only |
-| 26 | 0E/02 | *OUTQ | Database and data access | 67.0 | 4/3/4/2/3 | 9 | 2 | identity_only |
-| 27 | 0E/08 | *RCT | Core metadata and indexes | 67.0 | 4/3/3/2/5 | 172 | 48 | cataloged_only |
+| 14 | 12/01 | *CTLD | Devices and communications | 81.0 | 4/4/5/3/4 | 21 | 4 | evidence_only |
+| 15 | 19/02 | *MSGQ | Commands, programs and 5250 | 81.0 | 4/4/5/3/4 | 50 | 31 | evidence_only |
+| 16 | 19/52 | *OIRS | Core metadata and indexes | 81.0 | 4/5/3/4/4 | 41 | 33 | partial_decoder |
+| 17 | 19/03 | *JOBD | Database and data access | 79.0 | 4/3/5/4/4 | 34 | 15 | partial_decoder |
+| 18 | 11/01 | *LIND | Devices and communications | 79.0 | 4/4/5/3/3 | 5 | 2 | evidence_only |
+| 19 | 08/01 | *USRPRF | Users and security | 78.0 | 4/4/5/2/4 | 43 | 10 | evidence_only |
+| 20 | 0E/08 | *RCT | Core metadata and indexes | 77.0 | 4/3/4/4/5 | 172 | 48 | partial_decoder |
+| 21 | 0E/01 | *JOBQ | Database and data access | 76.0 | 4/3/5/3/4 | 22 | 4 | evidence_only |
+| 22 | 19/0E | *DOC | Documents and office | 74.0 | 4/3/4/3/5 | 2016 | 258 | partial_decoder |
+| 23 | 15/01 | *MODD | Devices and communications | 74.0 | 4/3/5/3/3 | 9 | 4 | evidence_only |
+| 24 | 19/12 | *FLR | Documents and office | 72.0 | 4/3/4/3/4 | 24 | 5 | partial_decoder |
+| 25 | 06/C1 | *DOCBSS | Documents and office | 69.0 | 4/4/3/3/2 | 1987 | 0 | partial_decoder |
+| 26 | 19/0A | *DTAARA | Database and data access | 69.0 | 4/1/5/4/4 | 37 | 54 | partial_decoder |
+| 27 | 0E/02 | *OUTQ | Database and data access | 67.0 | 4/3/4/2/3 | 9 | 2 | identity_only |
 | 28 | 0E/C4 | *INTPRF | Users and security | 66.0 | 4/4/2/2/4 | 17 | 4 | identity_only |
 | 29 | 18/A0 | *JMQ | Core metadata and indexes | 62.0 | 4/4/2/2/2 | 415 | 0 | cataloged_only |
-| 30 | 19/CE | *LDA | Core metadata and indexes | 57.0 | 4/1/3/2/5 | 414 | 20 | cataloged_only |
+| 30 | 19/26 | *FNTRSC | Documents and office | 61.0 | 3/1/4/4/5 | 1513 | 592 | partial_decoder |
 
 ## Full 268-type ranking
 
@@ -73,47 +73,47 @@ metadata. Zero below means **no signature match**, not absence.
 | 3 | *CMD | 19/05 | Commands, programs and 5250 | Tier 1 | 92.0 | 3129 | 1117 | partial_decoder | initial_sources |
 | 4 | *LIB | 04/01 | Core metadata and indexes | Tier 1 | 92.0 | 50 | 22 | substantial_decoder | initial_sources |
 | 5 | *FMT | 19/51 | Core metadata and indexes | Tier 1 | 89.0 | 751 | 311 | partial_decoder | unreviewed |
-| 6 | *QDDS | 0B/90 | Core metadata and indexes | Tier 1 | 86.0 | 490 | 66 | partial_decoder | unreviewed |
-| 7 | *MSGF | 0E/03 | Commands, programs and 5250 | Tier 1 | 85.0 | 56 | 38 | identity_only | initial_sources |
-| 8 | *PGM | 02/01 | Commands, programs and 5250 | Tier 1 | 84.0 | 4346 | 3102 | identity_only | initial_sources |
-| 9 | *QDDSI | 0C/90 | Core metadata and indexes | Tier 1 | 84.0 | 35 | 18 | partial_decoder | unreviewed |
-| 10 | *QDIDX | 0E/90 | Core metadata and indexes | Tier 1 | 84.0 | 41 | 22 | evidence_only | unreviewed |
-| 11 | *DEVD | 10/01 | Devices and communications | Tier 1 | 82.0 | 42 | 12 | evidence_only | initial_sources |
-| 12 | *MENU | 19/16 | Commands, programs and 5250 | Tier 1 | 82.0 | 574 | 223 | identity_only | initial_sources |
+| 6 | *MSGF | 0E/03 | Commands, programs and 5250 | Tier 1 | 89.0 | 56 | 38 | partial_decoder | initial_sources |
+| 7 | *PGM | 02/01 | Commands, programs and 5250 | Tier 1 | 88.0 | 4346 | 3102 | evidence_only | initial_sources |
+| 8 | *QDIDX | 0E/90 | Core metadata and indexes | Tier 1 | 87.0 | 41 | 22 | partial_decoder | unreviewed |
+| 9 | *MENU | 19/16 | Commands, programs and 5250 | Tier 1 | 86.0 | 574 | 223 | partial_decoder | initial_sources |
+| 10 | *QDDS | 0B/90 | Core metadata and indexes | Tier 1 | 86.0 | 490 | 66 | partial_decoder | unreviewed |
+| 11 | *QDDSI | 0C/90 | Core metadata and indexes | Tier 1 | 84.0 | 35 | 18 | partial_decoder | unreviewed |
+| 12 | *DEVD | 10/01 | Devices and communications | Tier 1 | 82.0 | 42 | 12 | evidence_only | initial_sources |
 | 13 | *TBL | 19/06 | Database and data access | Tier 1 | 82.0 | 631 | 88 | partial_decoder | unreviewed |
-| 14 | *MSGQ | 19/02 | Commands, programs and 5250 | Tier 1 | 81.0 | 50 | 31 | evidence_only | initial_sources |
-| 15 | *OIRS | 19/52 | Core metadata and indexes | Tier 1 | 78.0 | 41 | 33 | evidence_only | unreviewed |
-| 16 | *USRPRF | 08/01 | Users and security | Tier 1 | 78.0 | 43 | 10 | evidence_only | initial_sources |
-| 17 | *CTLD | 12/01 | Devices and communications | Tier 2 | 74.0 | 21 | 4 | identity_only | initial_sources |
-| 18 | *DOC | 19/0E | Documents and office | Tier 2 | 74.0 | 2016 | 258 | partial_decoder | unreviewed |
-| 19 | *MODD | 15/01 | Devices and communications | Tier 2 | 74.0 | 9 | 4 | evidence_only | initial_sources |
-| 20 | *FLR | 19/12 | Documents and office | Tier 2 | 72.0 | 24 | 5 | partial_decoder | unreviewed |
-| 21 | *LIND | 11/01 | Devices and communications | Tier 2 | 72.0 | 5 | 2 | identity_only | initial_sources |
-| 22 | *DOCBSS | 06/C1 | Documents and office | Tier 2 | 69.0 | 1987 | 0 | partial_decoder | unreviewed |
-| 23 | *DTAARA | 19/0A | Database and data access | Tier 2 | 69.0 | 37 | 54 | partial_decoder | initial_sources |
-| 24 | *JOBD | 19/03 | Database and data access | Tier 2 | 69.0 | 34 | 15 | identity_only | initial_sources |
-| 25 | *JOBQ | 0E/01 | Database and data access | Tier 2 | 69.0 | 22 | 4 | identity_only | initial_sources |
-| 26 | *OUTQ | 0E/02 | Database and data access | Tier 2 | 67.0 | 9 | 2 | identity_only | initial_sources |
-| 27 | *RCT | 0E/08 | Core metadata and indexes | Tier 2 | 67.0 | 172 | 48 | cataloged_only | unreviewed |
+| 14 | *CTLD | 12/01 | Devices and communications | Tier 1 | 81.0 | 21 | 4 | evidence_only | initial_sources |
+| 15 | *MSGQ | 19/02 | Commands, programs and 5250 | Tier 1 | 81.0 | 50 | 31 | evidence_only | initial_sources |
+| 16 | *OIRS | 19/52 | Core metadata and indexes | Tier 1 | 81.0 | 41 | 33 | partial_decoder | unreviewed |
+| 17 | *JOBD | 19/03 | Database and data access | Tier 1 | 79.0 | 34 | 15 | partial_decoder | initial_sources |
+| 18 | *LIND | 11/01 | Devices and communications | Tier 1 | 79.0 | 5 | 2 | evidence_only | initial_sources |
+| 19 | *USRPRF | 08/01 | Users and security | Tier 1 | 78.0 | 43 | 10 | evidence_only | initial_sources |
+| 20 | *RCT | 0E/08 | Core metadata and indexes | Tier 1 | 77.0 | 172 | 48 | partial_decoder | unreviewed |
+| 21 | *JOBQ | 0E/01 | Database and data access | Tier 1 | 76.0 | 22 | 4 | evidence_only | initial_sources |
+| 22 | *DOC | 19/0E | Documents and office | Tier 2 | 74.0 | 2016 | 258 | partial_decoder | unreviewed |
+| 23 | *MODD | 15/01 | Devices and communications | Tier 2 | 74.0 | 9 | 4 | evidence_only | initial_sources |
+| 24 | *FLR | 19/12 | Documents and office | Tier 2 | 72.0 | 24 | 5 | partial_decoder | unreviewed |
+| 25 | *DOCBSS | 06/C1 | Documents and office | Tier 2 | 69.0 | 1987 | 0 | partial_decoder | unreviewed |
+| 26 | *DTAARA | 19/0A | Database and data access | Tier 2 | 69.0 | 37 | 54 | partial_decoder | initial_sources |
+| 27 | *OUTQ | 0E/02 | Database and data access | Tier 2 | 67.0 | 9 | 2 | identity_only | initial_sources |
 | 28 | *INTPRF | 0E/C4 | Users and security | Tier 2 | 66.0 | 17 | 4 | identity_only | unreviewed |
 | 29 | *JMQ | 18/A0 | Core metadata and indexes | Tier 2 | 62.0 | 415 | 0 | cataloged_only | unreviewed |
-| 30 | *LDA | 19/CE | Core metadata and indexes | Tier 3 | 57.0 | 414 | 20 | cataloged_only | unreviewed |
-| 31 | *PNLGRP | 19/15 | Commands, programs and 5250 | Tier 3 | 57.0 | 513 | 234 | cataloged_only | unreviewed |
-| 32 | *SBSD | 19/09 | Database and data access | Tier 3 | 57.0 | 15 | 4 | cataloged_only | unreviewed |
-| 33 | *MSRVI | 0E/91 | Core metadata and indexes | Tier 3 | 53.0 | 6 | 3 | cataloged_only | unreviewed |
-| 34 | *SCHIDX | 0E/07 | Core metadata and indexes | Tier 3 | 53.0 | 1 | 5 | cataloged_only | unreviewed |
-| 35 | *SPLCB | 19/C2 | Core metadata and indexes | Tier 3 | 53.0 | 415 | 19 | cataloged_only | unreviewed |
-| 36 | *FNTRSC | 19/26 | Documents and office | Tier 3 | 51.0 | 1513 | 592 | cataloged_only | unreviewed |
-| 37 | *JRN | 09/01 | Database and data access | Tier 3 | 51.0 | 10 | 4 | identity_only | initial_sources |
-| 38 | *CLS | 19/04 | Commands, programs and 5250 | Tier 3 | 49.0 | 26 | 10 | cataloged_only | unreviewed |
-| 39 | *DTAQ | 0A/01 | Database and data access | Tier 3 | 49.0 | 3 | 0 | identity_only | initial_sources |
-| 40 | *GSS | 19/0C | Devices and communications | Tier 3 | 49.0 | 43 | 21 | cataloged_only | unreviewed |
-| 41 | *ALRTBL | 0E/09 | Commands, programs and 5250 | Tier 3 | 47.0 | 2 | 2 | cataloged_only | unreviewed |
-| 42 | *FORMDF | 19/28 | Commands, programs and 5250 | Tier 3 | 47.0 | 12 | 5 | cataloged_only | unreviewed |
-| 43 | *AUTL | 1B/01 | Users and security | Tier 3 | 45.0 | 2 | 0 | cataloged_only | unreviewed |
-| 44 | *BNDDIR | 19/37 | Commands, programs and 5250 | Tier 3 | 45.0 | 5 | 0 | cataloged_only | unreviewed |
-| 45 | *JOBSCD | 0E/0C | Database and data access | Tier 3 | 45.0 | 1 | 0 | cataloged_only | unreviewed |
-| 46 | *PAGDFN | 19/36 | Commands, programs and 5250 | Tier 3 | 45.0 | 22 | 0 | cataloged_only | unreviewed |
+| 30 | *FNTRSC | 19/26 | Documents and office | Tier 2 | 61.0 | 1513 | 592 | partial_decoder | unreviewed |
+| 31 | *FORMDF | 19/28 | Commands, programs and 5250 | Tier 3 | 57.0 | 12 | 5 | partial_decoder | unreviewed |
+| 32 | *LDA | 19/CE | Core metadata and indexes | Tier 3 | 57.0 | 414 | 20 | cataloged_only | unreviewed |
+| 33 | *PNLGRP | 19/15 | Commands, programs and 5250 | Tier 3 | 57.0 | 513 | 234 | cataloged_only | unreviewed |
+| 34 | *SBSD | 19/09 | Database and data access | Tier 3 | 57.0 | 15 | 4 | cataloged_only | unreviewed |
+| 35 | *PAGDFN | 19/36 | Commands, programs and 5250 | Tier 3 | 55.0 | 22 | 0 | partial_decoder | unreviewed |
+| 36 | *MSRVI | 0E/91 | Core metadata and indexes | Tier 3 | 53.0 | 6 | 3 | cataloged_only | unreviewed |
+| 37 | *SCHIDX | 0E/07 | Core metadata and indexes | Tier 3 | 53.0 | 1 | 5 | cataloged_only | unreviewed |
+| 38 | *SPLCB | 19/C2 | Core metadata and indexes | Tier 3 | 53.0 | 415 | 19 | cataloged_only | unreviewed |
+| 39 | *JRN | 09/01 | Database and data access | Tier 3 | 51.0 | 10 | 4 | identity_only | initial_sources |
+| 40 | *CLS | 19/04 | Commands, programs and 5250 | Tier 3 | 49.0 | 26 | 10 | cataloged_only | unreviewed |
+| 41 | *DTAQ | 0A/01 | Database and data access | Tier 3 | 49.0 | 3 | 0 | identity_only | initial_sources |
+| 42 | *GSS | 19/0C | Devices and communications | Tier 3 | 49.0 | 43 | 21 | cataloged_only | unreviewed |
+| 43 | *ALRTBL | 0E/09 | Commands, programs and 5250 | Tier 3 | 47.0 | 2 | 2 | cataloged_only | unreviewed |
+| 44 | *AUTL | 1B/01 | Users and security | Tier 3 | 45.0 | 2 | 0 | cataloged_only | unreviewed |
+| 45 | *BNDDIR | 19/37 | Commands, programs and 5250 | Tier 3 | 45.0 | 5 | 0 | cataloged_only | unreviewed |
+| 46 | *JOBSCD | 0E/0C | Database and data access | Tier 3 | 45.0 | 1 | 0 | cataloged_only | unreviewed |
 | 47 | *PRDLOD | 19/1D | Devices and communications | Tier 3 | 45.0 | 40 | 0 | cataloged_only | unreviewed |
 | 48 | *SQLPKG | 02/02 | Commands, programs and 5250 | Tier 3 | 45.0 | 1 | 0 | cataloged_only | unreviewed |
 | 49 | *SRVPGM | 02/03 | Commands, programs and 5250 | Tier 3 | 45.0 | 3 | 0 | cataloged_only | unreviewed |

@@ -8,16 +8,16 @@ tools/mi_object_inventory.py command-line script.
 IBM object names come from later published tables; research states
 describe the audited capabilities in this repository only.
 
-**268 types**: 102 external; 166 internal. **30 reviewed types**, **20 with indexed historical manual pages**.
+**268 types**: 102 external; 166 internal. **34 reviewed types**, **20 with indexed historical manual pages**.
 
 ## Decoder maturity
 
 | Status | Count |
 |---|---:|
-| Catalog only | 238 |
-| Identity | 12 |
-| Evidence | 6 |
-| Partial | 10 |
+| Catalog only | 234 |
+| Identity | 5 |
+| Evidence | 8 |
+| Partial | 19 |
 | Substantial | 2 |
 
 ## Full IBM type inventory
@@ -55,7 +55,7 @@ describe the audited capabilities in this repository only.
 | 19/35 | *CSI | external | Catalog only | — |
 | 19/22 | *CSPMAP | external | Catalog only | — |
 | 19/23 | *CSPTBL | external | Catalog only | — |
-| 12/01 | *CTLD | external | Identity | primer-1992 p.230 |
+| 12/01 | *CTLD | external | Evidence | primer-1992 p.230 |
 | 19/55 | *DBCOLES | internal | Catalog only | — |
 | 19/50 | *DBDIR | internal | Catalog only | — |
 | 19/D4 | *DBRCVR | internal | Catalog only | — |
@@ -101,9 +101,9 @@ describe the audited capabilities in this repository only.
 | 19/01 | *FILE | external | Partial | primer-1992 p.231 |
 | 19/12 | *FLR | external | Partial | — |
 | 19/51 | *FMT | internal | Partial | — |
-| 19/26 | *FNTRSC | external | Catalog only | — |
+| 19/26 | *FNTRSC | external | Partial | — |
 | 19/2B | *FNTTBL | external | Catalog only | — |
-| 19/28 | *FORMDF | external | Catalog only | — |
+| 19/28 | *FORMDF | external | Partial | — |
 | 19/E8 | *FSO | internal | Catalog only | — |
 | 0E/0B | *FTR | external | Catalog only | — |
 | 19/CD | *GDA | internal | Catalog only | — |
@@ -132,8 +132,8 @@ describe the audited capabilities in this repository only.
 | 04/C2 | *ISYSLIB | internal | Catalog only | — |
 | 19/CA | *JAR | internal | Catalog only | — |
 | 18/A0 | *JMQ | internal | Catalog only | — |
-| 19/03 | *JOBD | external | Identity | primer-1992 p.232 |
-| 0E/01 | *JOBQ | external | Identity | primer-1992 p.232 |
+| 19/03 | *JOBD | external | Partial | primer-1992 p.232 |
+| 0E/01 | *JOBQ | external | Evidence | primer-1992 p.232 |
 | 0E/0C | *JOBSCD | external | Catalog only | — |
 | 09/01 | *JRN | external | Identity | primer-1992 p.232 |
 | 0E/A6 | *JRNIX | internal | Catalog only | — |
@@ -145,7 +145,7 @@ describe the audited capabilities in this repository only.
 | 19/CE | *LDA | internal | Catalog only | — |
 | 04/01 | *LIB | external | Substantial | primer-1992 p.217,218,230; operations p.110,111,112 |
 | 19/D1 | *LIBRCVR | internal | Catalog only | — |
-| 11/01 | *LIND | external | Identity | primer-1992 p.233; operations p.615 |
+| 11/01 | *LIND | external | Evidence | primer-1992 p.233; operations p.615 |
 | 19/F2 | *LIRCVR | internal | Catalog only | — |
 | 19/21 | *LOCALE | external | Catalog only | — |
 | 1E/04 | *M36 | external | Catalog only | — |
@@ -157,7 +157,7 @@ describe the audited capabilities in this repository only.
 | 19/E6 | *MDOC | internal | Catalog only | — |
 | 19/1C | *MEDDFN | external | Catalog only | — |
 | 0D/50 | *MEM | internal | Substantial | operations p.110,112 |
-| 19/16 | *MENU | external | Identity | primer-1992 p.233 |
+| 19/16 | *MENU | external | Partial | primer-1992 p.233 |
 | 19/2D | *MGTCOL | external | Catalog only | — |
 | 0E/C1 | *MNINX | internal | Catalog only | — |
 | 19/CB | *MNTXT | internal | Catalog only | — |
@@ -165,7 +165,7 @@ describe the audited capabilities in this repository only.
 | 03/01 | *MODULE | external | Catalog only | — |
 | 19/DF | *MQLOCK | internal | Catalog only | — |
 | 19/EE | *MSCSP | internal | Catalog only | — |
-| 0E/03 | *MSGF | external | Identity | primer-1992 p.233; operations p.146,147,150,151,152,153,172; power-tips p.352,353 |
+| 0E/03 | *MSGF | external | Partial | primer-1992 p.233; operations p.146,147,150,151,152,153,172; power-tips p.352,353 |
 | 19/02 | *MSGQ | external | Evidence | primer-1992 p.233 |
 | 0E/91 | *MSRVI | internal | Catalog only | — |
 | 19/E5 | *NFSP | internal | Catalog only | — |
@@ -177,7 +177,7 @@ describe the audited capabilities in this repository only.
 | 1D/01 | *NWSD | external | Catalog only | — |
 | 0D/EF | *OCUR | internal | Catalog only | — |
 | 0D/EE | *OHCUR | internal | Catalog only | — |
-| 19/52 | *OIRS | internal | Evidence | — |
+| 19/52 | *OIRS | internal | Partial | — |
 | 1E/51 | *OLBSF | internal | Catalog only | — |
 | 06/A0 | *OPTBSS | internal | Catalog only | — |
 | 1E/ED | *OPTSTMF | internal | Catalog only | — |
@@ -185,13 +185,13 @@ describe the audited capabilities in this repository only.
 | 0E/02 | *OUTQ | external | Identity | primer-1992 p.233 |
 | 19/29 | *OVL | external | Catalog only | — |
 | 0D/ED | *OWCUR | internal | Catalog only | — |
-| 19/36 | *PAGDFN | external | Catalog only | — |
+| 19/36 | *PAGDFN | external | Partial | — |
 | 19/27 | *PAGSEG | external | Catalog only | — |
 | 19/CC | *PCCR | internal | Catalog only | — |
 | 0E/11 | *PDFMAP | external | Catalog only | — |
 | 19/30 | *PDG | external | Catalog only | — |
 | 19/C7 | *PDT | internal | Catalog only | — |
-| 02/01 | *PGM | external | Identity | primer-1992 p.230,234,439; starter-2001 p.478,480,521,524; operations p.111 |
+| 02/01 | *PGM | external | Evidence | primer-1992 p.230,234,439; starter-2001 p.478,480,521,524; operations p.111 |
 | 19/15 | *PNLGRP | external | Catalog only | — |
 | 1E/B2 | *POBSF | internal | Catalog only | — |
 | 19/33 | *PRDAVL | external | Catalog only | — |
@@ -207,7 +207,7 @@ describe the audited capabilities in this repository only.
 | 01/90 | *QDAG | internal | Catalog only | — |
 | 0B/90 | *QDDS | internal | Partial | — |
 | 0C/90 | *QDDSI | internal | Partial | — |
-| 0E/90 | *QDIDX | internal | Evidence | — |
+| 0E/90 | *QDIDX | internal | Partial | — |
 | 1A/90 | *QDPCS | internal | Catalog only | — |
 | 0A/90 | *QDQ | internal | Catalog only | — |
 | 19/90 | *QDSP | internal | Catalog only | — |
@@ -222,7 +222,7 @@ describe the audited capabilities in this repository only.
 | 1A/EF | *QTPCS | internal | Catalog only | — |
 | 0A/EF | *QTQ | internal | Catalog only | — |
 | 19/EF | *QTSP | internal | Catalog only | — |
-| 0E/08 | *RCT | external | Catalog only | — |
+| 0E/08 | *RCT | external | Partial | — |
 | 19/A0 | *RCYAP | internal | Catalog only | — |
 | 19/C5 | *RWCB | internal | Catalog only | — |
 | 19/A3 | *RZHRIPD | internal | Catalog only | — |

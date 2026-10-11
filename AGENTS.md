@@ -36,3 +36,13 @@ Track per-type workflow status independently of binary decoder maturity in
 - [docs/WORK_MODE_HANDOFF.md](docs/WORK_MODE_HANDOFF.md): active capability milestone and continuity
 
 Read the source and tests rather than relying exclusively on README summaries.
+
+## Continuation contract (user reaffirmed October 10, 2026)
+
+A green test run, commit, or PR is not a reason to end an authorized session.
+After each checkpoint, take the next ranked family without requesting another
+"continue". Keep the user's current test branch fixed and use a successor branch.
+Send progress updates while working. Stop only for an actual decision/access
+blocker that prevents further useful work, a user pause, or a concrete execution
+limit. Record the exact stopping reason and next action; do not claim the queue
+is complete. These instructions do not authorize merging to main.

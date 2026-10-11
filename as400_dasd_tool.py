@@ -8873,14 +8873,49 @@ def cmd_browse5250(args):
 
         from as400_capabilities import CapabilityExplorer
         from as400_records import RecordExplorer
+        from as400_message_queues import MessageQueueExplorer
+        from as400_afp import AFPExplorer
+        from as400_reference_codes import ReferenceCodeExplorer
+        from as400_libraries import LibraryExplorer
+        from as400_programs import ProgramExplorer
+        from as400_jobs import JobExplorer
+        from as400_directory import DirectoryExplorer
+        from as400_menus import MenuExplorer
+        from as400_connections import ConnectionExplorer
+        from as400_indexes import IndexExplorer
+        from as400_messages import MessageExplorer
         from as400_anchors import AnchorExplorer
         capabilities = CapabilityExplorer(state["image"], state["inventory"], state["segments"])
         records = RecordExplorer(state["image"], state["inventory"], state["segments"])
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
+        programs = ProgramExplorer(state["image"], state["inventory"])
+        jobs = JobExplorer(state["image"], state["inventory"])
+        menus = MenuExplorer(state["image"], state["inventory"])
+        connections = ConnectionExplorer(state["image"], state["inventory"])
+        def load_capabilities(obj, sample=None):
+            if obj.type_code == "02/01": return programs.rows(obj)
+            if obj.type_code in ("19/03", "0E/01"): return jobs.rows(obj)
+            if obj.type_code == "19/12": return anchors.object_rows(obj)
+            if obj.type_code == "19/16": return menus.rows(obj)
+            if obj.type_code in ("10/01", "12/01", "11/01"):
+                rows = connections.rows(obj)
+                if obj.type_code == "10/01":
+                    from as400_capabilities import section
+                    rows.append(section("Device details", _tui_config_information_lines(state, obj)))
+                return rows
+            return capabilities.rows(obj, sample)
+
         browser = Guided5250(
             state["inventory"],
+            afp_loader=AFPExplorer(state["image"], state["inventory"]).rows,
+            reference_loader=ReferenceCodeExplorer(state["image"], state["inventory"], state["segments"]).rows,
+            library_loader=LibraryExplorer(state["inventory"]).rows,
+            queue_loader=MessageQueueExplorer(state["image"], state["inventory"]).rows,
+            directory_loader=DirectoryExplorer(state["image"], state["inventory"]).rows,
+            index_loader=IndexExplorer(state["image"], state["inventory"], state["segments"]).rows,
+            message_loader=MessageExplorer(state["image"], state["inventory"], state["segments"]).rows,
             record_loader=records.rows,
-            capability_loader=lambda obj, sample=None: anchors.object_rows(obj) if obj.type_code == "19/12" else capabilities.rows(obj, sample),
+            capability_loader=load_capabilities,
             anchor_loader=anchors.rows,
             member_info=state["image"].read_member_info,
             member_loader=member_data,
