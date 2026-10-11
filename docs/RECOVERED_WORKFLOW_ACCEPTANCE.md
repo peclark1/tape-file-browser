@@ -34,7 +34,7 @@ python3 tools/validate_recent_workflows.py /path/to/petes.hda \
   --output /tmp/petes-guided-acceptance.json
 ```
 
-Unlike running twelve separate validators per image, this single
+Unlike running thirteen separate validators per image, this single
 runner performs **one physical scan and recovered inventory build per
 image**, reuses model services, then performs a SHA-256 before/after
 check. There are two complete SHA reads per image, independent of the
@@ -72,6 +72,7 @@ research documents need **not** match the normally recovered inventory.
 | 18/A0 | `DSPJMQ` | Count-checked 16-byte saved slots |
 | 19/15 | `DSPPNLGRP` | Tagged compiled symbol details |
 | 19/08 | `DSPEDTD` | Saved edit pattern and peer navigation |
+| 0E/C7 | `DSPPRTQ` | Saved printer-queue index keys and token-correlated SPLCB origins |
 
 One missing image/release type should not block a different type.
 Importantly, this does not test any unimplemented live spool service,
@@ -96,6 +97,7 @@ DSPLDA LDA(*ALL/QLDA)
 DSPJMQ JMQ(*ALL/QJOBMSGQ)
 DSPPNLGRP PNLGRP(*ALL/*) NAME(CRT*)
 DSPEDTD EDTD(*ALL/QEDIT*)
+DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)
 ```
 
 For Pete, prefer `DSPEDTD EDTD(*ALL/QEDIT*)` and

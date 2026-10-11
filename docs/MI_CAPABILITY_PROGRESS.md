@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 40, blocked 0, queued 228.
+States: delivered 0, partial 41, blocked 0, queued 227.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -62,7 +62,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 48 | 02/02 | *SQLPKG | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 49 | 02/03 | *SRVPGM | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 50 | 19/38 | *WSCST | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 51 | 0E/C7 | *PRTQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 51 | 0E/C7 | *PRTQ | partial | DSPPRTQ reconstructs strict 1024/2048-byte saved printer-queue index keys, filters by raw KEYHEX or SPdddd-shaped prefix, exposes exact terminal bytes and follows equal saved SP token candidates to recovered SPLCB primaries with duplicate/missing origins explicit. Neither queue state nor token ownership is verified. | Establish release-specific PRTQ key schemas and SPLCB token ownership/pointer semantics from applicable CISC references; validate full recovered virtual-extent roots on both images and spool relationship ambiguity. |
 | 52 | 14/01 | *COSD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 53 | 19/D4 | *DBRCVR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 54 | 19/08 | *EDTD | partial | DSPEDTD browses guarded CISC 19/08 saved edit pattern (30 printable EBCDIC bytes at +0x124), observed digit code +0x100, short sign tokens +0x188, Y/N-shaped flag +0x1C9 and exact peer-origin comparison; no numeric-edit semantics are inferred. | Confirm formatted-value behavior, flags, insertion rules and custom edit descriptions with applicable period CISC documentation and independent sample values. |

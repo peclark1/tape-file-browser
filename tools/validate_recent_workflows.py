@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-scan read-only acceptance for the 12 recent CISC Guided workflow types.
+"""One-scan read-only acceptance for 13 recent CISC Guided workflow types.
 
 Unlike per-family validators, this recovers original disk objects *once*,
 reuses the same image/model, and computes SHA256 before and after the run.
@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from as400_dasd import DASDImage
 from as400_5250 import Guided5250
+from as400_printer_queues import PrinterQueueExplorer
 from as400_outq import OutputQueueExplorer
 from as400_internal_profiles import InternalProfileExplorer
 from as400_subsystems import SubsystemExplorer
@@ -44,16 +45,18 @@ WORKFLOWS = (
     ("18/A0", "DSPJMQ", "JMQ"),
     ("19/15", "DSPPNLGRP", "PNLGRP"),
     ("19/08", "DSPEDTD", "EDTD"),
+    ("0E/C7", "DSPPRTQ", "PRTQ"),
 )
 TYPE_CODES = {t[0] for t in WORKFLOWS}
 DETAIL_ACTIONS = {
-    "outq_action", "archival_index_action", "jmq_action",
+    "outq_action", "printer_queue_action", "archival_index_action", "jmq_action",
     "panel_symbol_action", "lda_action", "subsystem_action",
 }
 
 
 def make_model(image, inventory):
     """Use the same capability service routing as the production TUI."""
+    printer_queues = PrinterQueueExplorer(image, inventory)
     outq = OutputQueueExplorer(image)
     profiles = InternalProfileExplorer(inventory)
     subsystems = SubsystemExplorer(image, inventory)
@@ -65,6 +68,7 @@ def make_model(image, inventory):
     edits = EditDescriptionExplorer(image, inventory)
     jobs = JobExplorer(image, inventory)
     services = {
+        "0E/C7": printer_queues,
         "0E/02": outq,
         "0E/01": jobs,
         "0E/C4": profiles,
@@ -81,6 +85,7 @@ def make_model(image, inventory):
     model = Guided5250(
         inventory,
         capability_loader=lambda obj, sample=None: services[obj.type_code].rows(obj),
+        printer_queue_loader=printer_queues.rows,
         outq_loader=outq.rows,
         subsystem_loader=subsystems.rows,
         archival_index_loader=indexes.rows,

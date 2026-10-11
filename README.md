@@ -895,4 +895,8 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 
 ### One-pass original-image acceptance for recent CISC families
 
-`python3 tools/validate_recent_workflows.py /path/to/marks.hda --output /tmp/marks-acceptance.json` tests 12 recent family viewers against the **normal recovered-object inventory**, after a single physical scan and before/after SHA checks. Synthetic CI tests do not substitute for a real-image run. Work in a **detached worktree** without reinstalling the stable TUI; see [read-only acceptance and hands-on Guided 5250 instructions](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md).
+`python3 tools/validate_recent_workflows.py /path/to/marks.hda --output /tmp/marks-acceptance.json` tests 13 recent family viewers against the **normal recovered-object inventory**, after a single physical scan and before/after SHA checks. Synthetic CI tests do not substitute for a real-image run. Work in a **detached worktree** without reinstalling the stable TUI; see [read-only acceptance and hands-on Guided 5250 instructions](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md).
+
+### Saved printer-queue key and SPLCB token candidates (offline)
+
+`DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)` browses saved 0E/C7 machine-index keys, filters by exact hex or supported six-character token, inspects full bytes and follows every recovered 19/C2 spool-control primary with an identical `SPdddd` token. The token relationship is **only a name/byte correlation**, not a certified printer job, owner or active queue. See [Mark/Pete empirical index evidence](docs/PRINTER_QUEUE_WORKFLOW.md). The [one-pass acceptance runner](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now covers 13 recent types.

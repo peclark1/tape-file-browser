@@ -35,6 +35,7 @@ COMMANDS = (
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
+    CommandSpec("DSPPRTQ", "DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)", "Inspect saved printer-queue index keys and tentative spool-control token matches."),
     CommandSpec("WRKOUTQ", "WRKOUTQ OUTQ(*ALL/QPRINT) FORM(*STD)", "Inspect saved output-queue index keys and tentative form tokens; no live spool state."),
     CommandSpec("DSPSCHIDX", "DSPSCHIDX SCHIDX(*ALL/*) KEYHEX(C1)", "Browse archived opaque scheduler-index keys, not runtime schedules."),
     CommandSpec("DSPMSRVI", "DSPMSRVI MSRVI(*ALL/*) KEYHEX(C1)", "Browse saved opaque service-index keys without interpreting service actions."),
@@ -130,6 +131,7 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPPRTQ": {"PRTQ", "KEYHEX", "TOKEN"},
         "WRKOUTQ": {"OUTQ", "KEYHEX", "FORM"},
         "DSPSCHIDX": {"SCHIDX", "KEYHEX"},
         "DSPMSRVI": {"MSRVI", "KEYHEX"},
@@ -157,7 +159,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None):
+        self.printer_queue_loader = printer_queue_loader
         self.panel_group_loader = panel_group_loader
         self.jmq_loader = jmq_loader
         self.lda_loader = lda_loader
@@ -464,7 +467,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "panel_symbol_action" and option == "5":
+        if row["kind"] == "printer_queue_action" and option == "5":
+            return self.show_evidence(row["request"], self.printer_queue_loader)
+        elif self.printer_queue_loader and row.get("object") is not None and row["object"].type_code == "0E/C7" and option == "5":
+            return self.show_evidence(dict(obj=row["object"], keyhex=row.get("printer_keyhex", ""), token=row.get("printer_token", "")), self.printer_queue_loader)
+        elif row["kind"] == "panel_symbol_action" and option == "5":
             return self.show_evidence(row["request"], self.panel_group_loader)
         elif self.panel_group_loader and row.get("object") is not None and row["object"].type_code == "19/15" and option == "5":
             return self.show_evidence(dict(obj=row["object"], at=row.get("panel_at", 0), name=row.get("panel_name", "*")), self.panel_group_loader)
@@ -649,6 +656,17 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name == "DSPPRTQ":
+                from as400_capabilities import select_objects
+                keyhex = params.get("KEYHEX", "")
+                if len(bytes.fromhex(keyhex)) > 256: raise ValueError("KEYHEX exceeds 256 bytes")
+                token = params.get("TOKEN", "")
+                rows = select_objects(self.inventory, params.get("PRTQ", "*ALL/*"), "*PRTQ")
+                for row in rows: row["printer_keyhex"], row["printer_token"] = keyhex, token
+                if len(rows) == 1:
+                    self.show_evidence(dict(obj=rows[0]["object"], keyhex=keyhex, token=token), self.printer_queue_loader)
+                else:
+                    self._goto("type_objects", view_rows=rows)
             elif name == "DSPPNLGRP":
                 from as400_capabilities import select_objects
                 at = int(params.get("AT", "0"), 10)
