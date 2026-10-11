@@ -888,3 +888,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Tagged compiled panel-group symbol search (offline)
 
 `DSPPNLGRP PNLGRP(*ALL/*) NAME(CRT*) AT(0)` browses 19/15 compiled PNLGRP tagged EBCDIC identifier candidates in 32-KiB virtual windows. Inspect exact tagged bytes, page 50 candidate names, and follow *tentative* same-name command identities. This does **not** decode UIM panel actions or render screens. See [two-release binary evidence and restrictions](docs/PANEL_GROUP_WORKFLOW.md).
+
+### Saved edit-description pattern comparison (offline)
+
+`DSPEDTD EDTD(*ALL/QEDIT*)` opens recovered 19/08 edit descriptions and shows the 30-byte punctuation candidate, positional exact-hex/CP037 lenses, optional `-`/`CR` sign token, and observed Y/N-shaped byte. Compare other selected edit descriptions by exact recovered origins. This is **not** a numeric formatting engine or a certified historical edit-code implementation. See [two-image evidence and test guidance](docs/EDIT_DESCRIPTION_WORKFLOW.md).
