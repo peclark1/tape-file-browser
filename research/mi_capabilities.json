@@ -251,6 +251,16 @@
       "state": "partial",
       "workflow": "DSPDTAQ inspects nine structurally corroborated first-page 16-byte address-shaped byte pairs by position/hex and compares duplicate same-name historical recovered DTAQ origins with Back; no queue contents or pointer dereferencing.",
       "next_step": "Prove queue root and actual entry bounds from period CISC references and independently reconstructed full virtual pages; current saved candidate shapes do not establish message order, live count or capacity."
+    },
+    "0ED0": {
+      "state": "partial",
+      "workflow": "DSPEDTIDX explores strictly guarded historical machine-index terminal keys as opaque bytes with paged KEYHEX prefix filtering, exact reconstructed-key detail and Back; no editor actions inferred.",
+      "next_step": "Independently identify original editor-index key fields and related records, validate all recovered virtual roots and variants on both source images."
+    },
+    "0EC8": {
+      "state": "partial",
+      "workflow": "DSPSRMIDX supports three observed header variants, recovered virtual-root/page-size guards, selectable opaque saved machine keys, KEYHEX filtering and Back; stale/missing roots remain withheld.",
+      "next_step": "Independently identify service-resource index key semantics, unknown root variants and cross-object references; verify missing physical roots on original Mark image."
     }
   }
 }
