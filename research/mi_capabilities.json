@@ -52,6 +52,11 @@
       "workflow": "DSPTBL: inspect 256 byte mappings/collisions and translate a bounded HEX sample offline.",
       "next_step": "Establish table purpose/CCSID/variant flags; compare other independently known conversion pairs."
     },
+    "1908": {
+      "state": "partial",
+      "workflow": "DSPEDTD browses guarded CISC 19/08 saved edit pattern (30 printable EBCDIC bytes at +0x124), observed digit code +0x100, short sign tokens +0x188, Y/N-shaped flag +0x1C9 and exact peer-origin comparison; no numeric-edit semantics are inferred.",
+      "next_step": "Confirm formatted-value behavior, flags, insertion rules and custom edit descriptions with applicable period CISC documentation and independent sample values."
+    },
     "1909": {
       "state": "partial",
       "workflow": "DSPSBSD exposes bounded exact ten-byte padded EBCDIC name occurrences matching recovered JOBQ, CLS and PGM identities; self-name echoes withheld and all origins retained. Connections are candidates, not decoded pointers.",

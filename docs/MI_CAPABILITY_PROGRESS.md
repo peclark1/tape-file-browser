@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 39, blocked 0, queued 229.
+States: delivered 0, partial 40, blocked 0, queued 228.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -65,7 +65,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 51 | 0E/C7 | *PRTQ | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 52 | 14/01 | *COSD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 53 | 19/D4 | *DBRCVR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 54 | 19/08 | *EDTD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 54 | 19/08 | *EDTD | partial | DSPEDTD browses guarded CISC 19/08 saved edit pattern (30 printable EBCDIC bytes at +0x124), observed digit code +0x100, short sign tokens +0x188, Y/N-shaped flag +0x1C9 and exact peer-origin comparison; no numeric-edit semantics are inferred. | Confirm formatted-value behavior, flags, insertion rules and custom edit descriptions with applicable period CISC documentation and independent sample values. |
 | 55 | 0E/D0 | *EDTIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 56 | 07/01 | *JRNRCV | queued | No type-specific Guided workflow audited yet. | Identify receiver entry structure and retention semantics. |
 | 57 | 19/1B | *PRDDFN | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
