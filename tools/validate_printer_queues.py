@@ -75,6 +75,36 @@ def validate(path):
                 raise ValueError("PRTQ key/Back lost selection")
             count["PRTQ key/Back walkthroughs"]+=1
             walked=True
+    reverse_walked=False
+    for sp in inventory.objects:
+        if sp.type_code!="19/C2":
+            continue
+        try:
+            rows=spool.rows(sp)
+        except (OSError,ValueError):
+            count["unreadable spool-control primaries"]+=1
+            continue
+        links=[(i,row) for i,row in enumerate(rows)
+               if row["kind"]=="printer_queue_action" and
+               row.get("request",{}).get("entry") is not None]
+        count["reverse PRTQ token candidate actions"]+=len(links)
+        count["SPLCB origins with reverse token candidates"]+=bool(links)
+        if len(links)>1:
+            count["ambiguous reverse candidate origins"]+=1
+        if links and not reverse_walked:
+            model.show_evidence(dict(obj=sp),spool.rows)
+            i=next(i for i,row in enumerate(model.rows())
+                   if row["kind"]=="printer_queue_action")
+            model.selected=i
+            model.open_row(i)
+            if model.rows()[0]["name"]!="Saved printer-queue key":
+                raise ValueError("Reverse SPLCB->PRTQ key did not open")
+            model.back()
+            if model.selected!=i:
+                raise ValueError("Reverse token navigation lost Back selection")
+            reverse_walked=True
+            count["reverse SPLCB/PRTQ/Back walkthroughs"]+=1
+    count["unsupported PRTQ sources withheld from reverse matching"] = spool._printer_withheld
     after=digest(path)
     if before!=after:
         raise ValueError("Original archival HDA digest changed")
