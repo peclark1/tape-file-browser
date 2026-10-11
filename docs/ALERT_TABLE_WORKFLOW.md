@@ -64,6 +64,28 @@ These numbers describe **physical signature and adjacency probes**,
 not full recovered-app validation. They are kept separate from
 normally recovered object counts and TUI acceptance results.
 
+## Reverse navigation from saved message definitions
+
+The existing `DSPMSGD MSGF(*ALL/QPQMSGF) MSGID(PQT*)` message
+record-detail viewer now uses the same cached alert-key index for
+its **reverse** link: after selecting an independently decoded
+message definition ID, the screen lists matching `C`-tagged
+saved alert-table terminal keys with that exact seven-character
+ID and the same recovered *object name*. Select a saved alert key
+to inspect its original 12 bytes, then Back to return to the
+selected message definition.
+
+This reverse view remains available when the MSGF 0280 text/record
+storage is unavailable on Pete's earlier image: selected message
+ID/index evidence alone suffices for the tentative alert-key match.
+Unreadable alert roots are counted and withheld rather than silently
+treated as no alert. All duplicate alert origins are retained and a
+50-key display cap provides a `DSPALRTBL` filtered follow-up.
+
+The forward and reverse views are **exact saved ID correlations only**.
+Neither direction proves a historical alert action, owner pointer,
+rule activation or message delivery.
+
 ## Tests and evidence gates
 
 `tests/test_alert_table_workflows.py` covers both page sizes,

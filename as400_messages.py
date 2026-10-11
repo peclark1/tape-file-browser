@@ -69,8 +69,9 @@ def action(name,obj,start=0,pattern='*',entry=None):
 
 
 class MessageExplorer:
-    def __init__(self,image,inventory,segments):
+    def __init__(self,image,inventory,segments,alert_explorer=None):
         self.image,self.inventory,self.segments=image,inventory,segments
+        self.alert_explorer=alert_explorer
         self._cache={}
         self._storage={}
         for segment in segments.segments:
@@ -98,6 +99,16 @@ class MessageExplorer:
             r=action(e.identifier,obj,entry=e);r['note']=f'Index +0x{e.terminal_offset:X}; select record evidence';rows.append(r)
         return rows
 
+    def alert_reference_rows(self,obj,entry):
+        if self.alert_explorer is None:
+            return []
+        try:
+            return self.alert_explorer.alert_rows_for_message_id(obj,entry.identifier)
+        except (ValueError,OSError) as exc:
+            return [section("Saved alert evidence unavailable", [
+                f"Could not cross-check same-name alert-table keys: {exc}",
+                "No alert relationship is inferred from missing or unreadable records."])]
+
     def record_rows(self,obj,entry):
         rows=[section('Index evidence',[f'{obj.name}/{entry.identifier}; primary LBA {obj.segment.start_lba}',
              f'Terminal element +0x{entry.terminal_offset:X}',
@@ -108,6 +119,7 @@ class MessageExplorer:
         if len(candidates)!=1:
             rows.append(section('Text unavailable',[f'Exact-owner 0280 segments: {len(candidates)}; no implicit substitute.',
                         'IDs remain navigable. Older-release storage/continuations require further evidence.']))
+            rows.extend(self.alert_reference_rows(obj,entry))
             return rows
         segment=candidates[0]
         for role,offset in zip(('first','second','ancillary'),entry.offsets):
@@ -128,4 +140,5 @@ class MessageExplorer:
                 lines+=['Payload hex (first 256 bytes): '+payload[:256].hex(' ').upper()]
                 rows.append(section(role.title(),lines,'Literal text' if literal else 'Opaque payload'))
             except (OSError,ValueError) as exc:rows.append(section(role.title()+' unavailable',[str(exc)]))
+        rows.extend(self.alert_reference_rows(obj,entry))
         return rows

@@ -108,6 +108,13 @@ Also test the reverse evidence path:
 is normally recovered) -> Back. An unsupported PRTQ index is
 a withheld source, not proof no archived match existed.
 
+For a recovered MSGF with a same-named alert table, also test
+`DSPMSGD MSGF(*ALL/QPQMSGF) MSGID(PQT*)` -> select a saved
+message ID -> `Same-name saved alert-table evidence` -> select
+a saved alert key -> Back. The message-ID link is independent of
+available message text storage and must remain labeled candidate
+evidence.
+
 For Pete, prefer `DSPEDTD EDTD(*ALL/QEDIT*)` and
 `DSPPNLGRP PNLGRP(*ALL/*)`; Pete may have no recoverable
 18/A0 JMQ primary, so an empty JMQ list would not alone be a failure.
@@ -124,7 +131,7 @@ you've approved it.
 
 ## Review milestone
 
-The current ledger remains **40 partial, 228 queued, 0 universally
+The current ledger is **42 partial, 226 queued, 0 universally
 completed**. This acceptance harness improves confidence in those
 existing capabilities and does **not** advance the type count merely
 by running general navigation. The runner's synthetic tests are

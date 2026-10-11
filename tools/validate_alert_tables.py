@@ -29,11 +29,13 @@ def validate(path):
     inventory=image.recover_objects(scan,segments)
     messages=MessageExplorer(image,inventory,segments)
     alerts=AlertTableExplorer(image,inventory,message_explorer=messages)
+    messages.alert_explorer=alerts
     model=Guided5250(inventory,alert_loader=alerts.rows,message_loader=messages.rows)
     counts=Counter()
     msgid_sets={}
     saw_key=False
     saw_confirmed=False
+    saw_reverse=False
     for obj in inventory.objects:
         if obj.type_code!="0E/09":
             continue
@@ -73,6 +75,42 @@ def validate(path):
             counts["independently corroborated exact MSGF ID links"]+=corroborated
             counts["candidate IDs without corroborated saved MSGF ID"]+=(corroborated==0)
             counts["ambiguous same-ID message-file candidates"]+=(corroborated>1)
+            if corroborated and not saw_reverse:
+                verified_source=next(
+                    source for source in sources
+                    if (msgid_sets[(source.segment.start_lba,
+                                    source.segment.virtual_address)] is not None and
+                        token in msgid_sets[(source.segment.start_lba,
+                                             source.segment.virtual_address)]))
+                model.show_evidence(dict(obj=verified_source, pattern=token),
+                                    messages.rows)
+                idx=next((i for i,row in enumerate(model.rows())
+                          if (row.get("kind")=="message_action" and
+                              row.get("name")==token and
+                              row.get("request",{}).get("entry") is not None)),None)
+                if idx is None:
+                    raise ValueError("Independently verified MSGF ID is missing from Guided message view")
+                model.selected=idx
+                model.open_row(idx)
+                if model.rows()[0]["name"]!="Index evidence":
+                    raise ValueError("Saved message record detail did not open")
+                rev=next((j for j,row in enumerate(model.rows())
+                          if row.get("kind")=="alert_index_action" and
+                          row.get("request",{}).get("entry") is not None),None)
+                if rev is None:
+                    raise ValueError("Exact-ID reverse alert link missing")
+                model.selected=rev
+                model.open_row(rev)
+                if model.rows()[0]["name"]!="Saved alert-table key":
+                    raise ValueError("Reverse message-to-alert key did not open")
+                model.back()
+                if model.selected!=rev:
+                    raise ValueError("Reverse alert-key Back selection changed")
+                model.back()
+                if model.selected!=idx:
+                    raise ValueError("Reverse saved-message Back selection changed")
+                counts["reverse MSGF to alert-key/Back walkthroughs"]+=1
+                saw_reverse=True
         if keys and not saw_key:
             model.show_evidence(dict(obj=obj),alerts.rows)
             i=next((i for i,r in enumerate(model.rows())
