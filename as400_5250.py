@@ -35,6 +35,8 @@ COMMANDS = (
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
+    CommandSpec("DSPPRDLOD", "DSPPRDLOD PRDLOD(*ALL/QSZ0050)", "Browse archived product-load tokens and exact-name product-definition candidates."),
+    CommandSpec("DSPPRDDFN", "DSPPRDDFN PRDDFN(*ALL/QSZ0050)", "Inspect saved product-definition text or alternate lengths and product-load names."),
     CommandSpec("DSPCNVTBL", "DSPCNVTBL CNVTBL(*ALL/TBT*) POS(128)", "Inspect 256 saved byte-pair slots and compare exact archived table bytes."),
     CommandSpec("DSPWSCST", "DSPWSCST WSCST(*ALL/QWPPAN2180)", "Inspect compiled TRANSFORM saved fields and candidate related WSCST origins."),
     CommandSpec("DSPGSS", "DSPGSS GSS(*ALL/ADMUVGEP) SLOT(1)", "Browse guarded saved symbol table slots and exact binary record boundaries."),
@@ -137,6 +139,8 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPPRDLOD": {"PRDLOD"},
+        "DSPPRDDFN": {"PRDDFN"},
         "DSPCNVTBL": {"CNVTBL", "POS"},
         "DSPWSCST": {"WSCST"},
         "DSPGSS": {"GSS", "SLOT"},
@@ -584,7 +588,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("02/01", "19/03", "0E/01", "0E/C4", "09/01", "07/01", "19/38", "19/09", "19/04", "19/C2", "19/08", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("02/01", "19/03", "0E/01", "0E/C4", "09/01", "07/01", "19/1D", "19/1B", "19/38", "19/09", "19/04", "19/C2", "19/08", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
@@ -683,6 +687,14 @@ class Guided5250:
                 rows=[r for r in select_objects(self.inventory,params.get("OBJ","*ALL/*")) if r["object"].type_code in ("19/26","19/28","19/36")]
                 if len(rows)==1:self.show_evidence(dict(obj=rows[0]["object"]),self.afp_loader)
                 else:self._goto("type_objects",view_rows=rows)
+            elif name in ("DSPPRDLOD", "DSPPRDDFN"):
+                from as400_capabilities import select_objects
+                arg = "PRDLOD" if name == "DSPPRDLOD" else "PRDDFN"
+                rows = select_objects(self.inventory, params.get(arg, "*ALL/*"), "*" + arg)
+                if len(rows) == 1 and self.explore_object(rows[0]["object"]):
+                    pass
+                else:
+                    self._goto("type_objects", file=arg, view_rows=rows)
             elif name == "DSPCNVTBL":
                 from as400_capabilities import select_objects
                 raw_position = params.get("POS")

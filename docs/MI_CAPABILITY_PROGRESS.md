@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 47, blocked 0, queued 221.
+States: delivered 0, partial 49, blocked 0, queued 219.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -58,7 +58,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 44 | 1B/01 | *AUTL | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 45 | 19/37 | *BNDDIR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 46 | 0E/0C | *JOBSCD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 47 | 19/1D | *PRDLOD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 47 | 19/1D | *PRDLOD | partial | DSPPRDLOD validates 0x14A Mark V2R3 saved load descriptor, 24-byte text token and exact EPA self-name echo; browses identical-token peers and same-name recovered PRDDFN origins with Back. | Determine true load-token field meanings and explicit product-definition pointer roles from period OS/400; validate recovered virtual primary extents, historical options and installation semantics. |
 | 48 | 02/02 | *SQLPKG | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 49 | 02/03 | *SRVPGM | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 50 | 19/38 | *WSCST | partial | DSPWSCST validates saved CISC 19/38 outer/nested EBCDIC TRANSFORM descriptors with two echoed length fields and inspects strict 30-byte padded name candidates at +0x824/+0x1024, linking all exact-name recovered WSCST primaries in both directions with original offsets and withheld-source counts. No device inheritance or printer settings are inferred. | Decode period CISC compiled workstation customization transformation records, distinguish referenced WSCST from programs or internal name tokens, and independently validate printer/device control semantics and non-Mark release layouts. |
@@ -68,7 +68,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 54 | 19/08 | *EDTD | partial | DSPEDTD browses guarded CISC 19/08 saved edit pattern (30 printable EBCDIC bytes at +0x124), observed digit code +0x100, short sign tokens +0x188, Y/N-shaped flag +0x1C9 and exact peer-origin comparison; no numeric-edit semantics are inferred. | Confirm formatted-value behavior, flags, insertion rules and custom edit descriptions with applicable period CISC documentation and independent sample values. |
 | 55 | 0E/D0 | *EDTIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 56 | 07/01 | *JRNRCV | partial | DSPJRNRCV opens receiver object identity and reverse-links all supported saved *JRN address slots referring to its complete eight-byte segment-owner key, preserving duplicate origins and withholding unsupported journal primaries. No journal-entry content or active attachment is claimed. | Prove saved receiver internal structure/entry ownership and sequence via period CISC references, extend reverse reference coverage beyond the two corroborated journal slots. |
-| 57 | 19/1B | *PRDDFN | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 57 | 19/1B | *PRDDFN | partial | DSPPRDDFN shows exact supported Pete B10 0x1F0 saved literal EBCDIC text regions, retains unknown Mark variant length and navigates all same-name PRDLOD candidate primaries with Back. | Reconstruct the alternate large Mark V2R3 product-definition representation and corroborate the meaning of both saved text slots; prove links beyond name equality. |
 | 58 | 19/90 | *QDSP | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 59 | 19/19 | *S36 | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 60 | 0E/C8 | *SRMIDX | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
