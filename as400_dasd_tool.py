@@ -8881,6 +8881,7 @@ def cmd_browse5250(args):
         from as400_programs import ProgramExplorer
         from as400_archival_indexes import ArchivalIndexExplorer
         from as400_subsystems import SubsystemExplorer
+        from as400_printer_queues import PrinterQueueExplorer
         from as400_edit_descriptions import EditDescriptionExplorer
         from as400_panel_groups import PanelGroupExplorer
         from as400_jmq import JobMessageQueueExplorer
@@ -8899,6 +8900,7 @@ def cmd_browse5250(args):
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
+        printer_queues = PrinterQueueExplorer(state["image"], state["inventory"])
         edit_descriptions = EditDescriptionExplorer(state["image"], state["inventory"])
         panel_groups = PanelGroupExplorer(state["image"], state["inventory"])
         jmq = JobMessageQueueExplorer(state["image"])
@@ -8910,6 +8912,7 @@ def cmd_browse5250(args):
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
             if obj.type_code in ("19/09", "19/04"): return subsystem_explorer.rows(obj)
+            if obj.type_code == "0E/C7": return printer_queues.rows(obj)
             if obj.type_code == "19/08": return edit_descriptions.rows(obj)
             if obj.type_code == "19/15": return panel_groups.rows(obj)
             if obj.type_code == "18/A0": return jmq.rows(obj)
@@ -8930,6 +8933,7 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            printer_queue_loader=printer_queues.rows,
             panel_group_loader=panel_groups.rows,
             jmq_loader=jmq.rows,
             lda_loader=local_data.rows,
