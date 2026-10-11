@@ -231,6 +231,11 @@
       "state": "partial",
       "workflow": "DSPGSS navigates the empirically corroborated CISC 19/0C 004A/4009 176-slot u16 saved symbol-offset table, 50 entries per page, preserving empty slots and aliases; strict C1 records bounded by next offset/FF00 and exact hex bytes, with final unproven tail labeled open.",
       "next_step": "Decode saved vector/symbol coordinate commands and alternate GSS 0040/0042/0001/0041 variants from period CISC resources; certify slot-to-glyph/codepoint mapping before drawing or rendering."
+    },
+    "19FB": {
+      "state": "partial",
+      "workflow": "DSPCNVTBL browses 256 saved two-byte positions with exact primary offsets, direct POS lookups and pairwise comparison/Back across recovered *CNVTBL primaries; unverified raw +0x100 variant 0001/0002 is preserved.",
+      "next_step": "Establish table-entry semantics, conversion direction and codepage association from historical CISC documentation or independently cross-checked conversion pairs; run full recovered-object original-image acceptance."
     }
   }
 }
