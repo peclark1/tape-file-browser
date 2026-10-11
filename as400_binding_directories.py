@@ -83,8 +83,8 @@ def decode_binding_entries(data, *, type_code):
     return tuple(records)
 
 
-def action(name, obj, **kwargs):
-    return dict(kind="binding_entry_action", name=name,
+def action(label, obj, **kwargs):
+    return dict(kind="binding_entry_action", name=label,
                 type="Saved binding entry", note="",
                 request=dict(obj=obj, **kwargs))
 
