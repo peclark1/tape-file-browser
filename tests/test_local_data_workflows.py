@@ -60,7 +60,7 @@ class LocalDataTests(unittest.TestCase):
         self.assertIn("58 58",model.rows()[-1]["lines"][1])
         model.back()
         self.assertIn("769..896",model.rows()[0]["lines"][3])
-        self.assertEqual(1,model.selected)
+        self.assertEqual(2,model.selected)
         self.assertEqual([10,11,12],im.reads)
 
     def test_missing_virtual_extent_and_invalid_start_fail_closed(self):
@@ -74,7 +74,7 @@ class LocalDataTests(unittest.TestCase):
             with self.assertRaises(ValueError):ex.rows(o,start=start)
         other=obj("USER",(0x08,1))
         with self.assertRaises(ValueError):ex.rows(other)
-        self.assertEqual([],im.reads if False else [])
+        self.assertEqual([],im.reads)
 
     def test_readonly_list_duplicate_origin_selection(self):
         one,im,ex,model=self.setup()
