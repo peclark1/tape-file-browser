@@ -880,3 +880,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Saved spool-control name candidates (offline)
 
 `DSPSPLCB SPLCB(*ALL/QSPSCB)` shows bounded CISC 19/C2 fixed-width saved name slots, an opaque SPdddd-shaped token and selectable recovered identity matches. Matches are **not** proven spool/device/job relationships. See [two-image evidence and limits](docs/SPOOL_CONTROL_WORKFLOW.md).
+
+### Saved job-message queue entries (offline)
+
+`DSPJMQ JMQ(*ALL/QJOBMSGQ)` shows the 18/A0 V2R3 saved 16-byte slot array with a checked two-byte header count, 50-entry windows and opaque byte details. This does **not** reconstruct a live queue, timestamps, job ownership or message texts; Pete's older image has no validated 18/A0 layout. [JMQ evidence and safety](docs/JMQ_WORKFLOW.md).
