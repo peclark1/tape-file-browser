@@ -892,3 +892,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Saved edit-description pattern comparison (offline)
 
 `DSPEDTD EDTD(*ALL/QEDIT*)` opens recovered 19/08 edit descriptions and shows the 30-byte punctuation candidate, positional exact-hex/CP037 lenses, optional `-`/`CR` sign token, and observed Y/N-shaped byte. Compare other selected edit descriptions by exact recovered origins. This is **not** a numeric formatting engine or a certified historical edit-code implementation. See [two-image evidence and test guidance](docs/EDIT_DESCRIPTION_WORKFLOW.md).
+
+### One-pass original-image acceptance for recent CISC families
+
+`python3 tools/validate_recent_workflows.py /path/to/marks.hda --output /tmp/marks-acceptance.json` tests 12 recent family viewers against the **normal recovered-object inventory**, after a single physical scan and before/after SHA checks. Synthetic CI tests do not substitute for a real-image run. Work in a **detached worktree** without reinstalling the stable TUI; see [read-only acceptance and hands-on Guided 5250 instructions](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md).
