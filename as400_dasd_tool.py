@@ -8881,6 +8881,7 @@ def cmd_browse5250(args):
         from as400_programs import ProgramExplorer
         from as400_archival_indexes import ArchivalIndexExplorer
         from as400_subsystems import SubsystemExplorer
+        from as400_product_definitions import ProductDefinitionExplorer
         from as400_alert_tables import AlertTableExplorer
         from as400_printer_queues import PrinterQueueExplorer
         from as400_edit_descriptions import EditDescriptionExplorer
@@ -8902,6 +8903,7 @@ def cmd_browse5250(args):
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
         messages = MessageExplorer(state["image"], state["inventory"], state["segments"])
+        products = ProductDefinitionExplorer(state["image"], state["inventory"], message_explorer=messages)
         alerts = AlertTableExplorer(state["image"], state["inventory"], message_explorer=messages)
         messages.alert_explorer = alerts
         printer_queues = PrinterQueueExplorer(state["image"], state["inventory"])
@@ -8916,6 +8918,7 @@ def cmd_browse5250(args):
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
             if obj.type_code in ("19/09", "19/04"): return subsystem_explorer.rows(obj)
+            if obj.type_code == "19/1B": return products.rows(obj)
             if obj.type_code == "0E/09": return alerts.rows(obj)
             if obj.type_code == "0E/C7": return printer_queues.rows(obj)
             if obj.type_code == "19/08": return edit_descriptions.rows(obj)
@@ -8938,6 +8941,7 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            product_definition_loader=products.rows,
             alert_loader=alerts.rows,
             printer_queue_loader=printer_queues.rows,
             panel_group_loader=panel_groups.rows,
