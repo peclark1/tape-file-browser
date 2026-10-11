@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "method": "Whole-name case-insensitive lexical matching of IBM *TYPE names in text layers of 18 AS/400 archival PDFs. See tools/mi_manual_scan.py and docs/MI_MANUAL_SCAN_FIRST_PASS.md.",
+  "evidence_level": "unverified_text_hits_not_documentation_or_field_structure",
+  "total_documents_scanned": 18,
+  "distinct_type_names_matched": 86,
+  "total_exact_name_mentions": 764,
+  "types": {
+    "*ALRTBL": {
+      "exact_name_mentions": 14,
+      "distinct_pdfs": 3
+    },
+    "*AUTL": {
+      "exact_name_mentions": 14,
+      "distinct_pdfs": 4
+    },
+    "*BNDDIR": {
+      "exact_name_mentions": 7,
+      "distinct_pdfs": 2
+    },
+    "*CFGL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CHTFMT": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CLD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CLS": {
+      "exact_name_mentions": 2,
+      "distinct_pdfs": 2
+    },
+    "*CMD": {
+      "exact_name_mentions": 28,
+      "distinct_pdfs": 5
+    },
+    "*CNNL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*COSD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CRG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CRQD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CSI": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CSPMAP": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CSPTBL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*CTLD": {
+      "exact_name_mentions": 5,
+      "distinct_pdfs": 3
+    },
+    "*DEVD": {
+      "exact_name_mentions": 41,
+      "distinct_pdfs": 3
+    },
+    "*DIR": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*DOC": {
+      "exact_name_mentions": 5,
+      "distinct_pdfs": 3
+    },
+    "*DTAARA": {
+      "exact_name_mentions": 12,
+      "distinct_pdfs": 4
+    },
+    "*DTADCT": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*DTAQ": {
+      "exact_name_mentions": 18,
+      "distinct_pdfs": 3
+    },
+    "*EDTD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*EXITRG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*FCT": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*FIFO": {
+      "exact_name_mentions": 6,
+      "distinct_pdfs": 2
+    },
+    "*FILE": {
+      "exact_name_mentions": 103,
+      "distinct_pdfs": 5
+    },
+    "*FLR": {
+      "exact_name_mentions": 4,
+      "distinct_pdfs": 3
+    },
+    "*FNTRSC": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*FNTTBL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*FORMDF": {
+      "exact_name_mentions": 5,
+      "distinct_pdfs": 2
+    },
+    "*FTR": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*GDA": {
+      "exact_name_mentions": 10,
+      "distinct_pdfs": 2
+    },
+    "*GSS": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*IPXD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*JOBD": {
+      "exact_name_mentions": 53,
+      "distinct_pdfs": 4
+    },
+    "*JOBQ": {
+      "exact_name_mentions": 10,
+      "distinct_pdfs": 3
+    },
+    "*JOBSCD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*JRN": {
+      "exact_name_mentions": 12,
+      "distinct_pdfs": 4
+    },
+    "*JRNRCV": {
+      "exact_name_mentions": 28,
+      "distinct_pdfs": 5
+    },
+    "*LDA": {
+      "exact_name_mentions": 10,
+      "distinct_pdfs": 2
+    },
+    "*LIB": {
+      "exact_name_mentions": 37,
+      "distinct_pdfs": 5
+    },
+    "*LIND": {
+      "exact_name_mentions": 23,
+      "distinct_pdfs": 3
+    },
+    "*LOCALE": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*M36CFG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*MEDDFN": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*MENU": {
+      "exact_name_mentions": 8,
+      "distinct_pdfs": 5
+    },
+    "*MGTCOL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*MODD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*MODULE": {
+      "exact_name_mentions": 2,
+      "distinct_pdfs": 2
+    },
+    "*MSGF": {
+      "exact_name_mentions": 6,
+      "distinct_pdfs": 3
+    },
+    "*MSGQ": {
+      "exact_name_mentions": 17,
+      "distinct_pdfs": 5
+    },
+    "*NODGRP": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*NODL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*NTBD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*NWID": {
+      "exact_name_mentions": 4,
+      "distinct_pdfs": 2
+    },
+    "*NWSD": {
+      "exact_name_mentions": 3,
+      "distinct_pdfs": 2
+    },
+    "*OUTQ": {
+      "exact_name_mentions": 29,
+      "distinct_pdfs": 3
+    },
+    "*OVL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PAGDFN": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PAGSEG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PDG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PGM": {
+      "exact_name_mentions": 56,
+      "distinct_pdfs": 6
+    },
+    "*PNLGRP": {
+      "exact_name_mentions": 6,
+      "distinct_pdfs": 4
+    },
+    "*PRDAVL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PRDDFN": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PRDLOD": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*PSFCFG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*QMFORM": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*QMQRY": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*QRYDFN": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*RCT": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*S36": {
+      "exact_name_mentions": 26,
+      "distinct_pdfs": 5
+    },
+    "*SBSD": {
+      "exact_name_mentions": 10,
+      "distinct_pdfs": 3
+    },
+    "*SPADCT": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*SQLPKG": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*SQLUDT": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*SRVPGM": {
+      "exact_name_mentions": 3,
+      "distinct_pdfs": 3
+    },
+    "*SSND": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*SYSRPYL": {
+      "exact_name_mentions": 8,
+      "distinct_pdfs": 2
+    },
+    "*TBL": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*USRPRF": {
+      "exact_name_mentions": 87,
+      "distinct_pdfs": 5
+    },
+    "*USRQ": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    },
+    "*USRSPC": {
+      "exact_name_mentions": 2,
+      "distinct_pdfs": 2
+    },
+    "*VLDL": {
+      "exact_name_mentions": 2,
+      "distinct_pdfs": 2
+    },
+    "*WSCST": {
+      "exact_name_mentions": 1,
+      "distinct_pdfs": 1
+    }
+  }
+}

@@ -317,6 +317,43 @@ support for an object field, relationship or API. This tool does not
 perform OCR or silently treat an API receiver format as an on-disk
 CISC object format.
 
+### Full 268-type MI image survey and research prioritization
+
+The [full survey report](docs/MI_FULL_SURVEY_V1.md) compares all IBM
+type labels with every candidate primary found in **both** historical
+520-byte-sector disk images, our existing decoder audit, and the
+historical PDF source index. Its
+[complete weighted ranked list](docs/MI_SURVEY_PRIORITIES.md)
+includes 268 types, individual factor scores, and raw signature
+candidate counts. The model weights value 30%, dependency leverage
+25%, research evidence 20%, feasibility 15%, coverage 10%.
+
+The physical scanner is **read-only** and produces **aggregate-only**
+results; it does not output object names or raw image data:
+
+```bash
+python3 tools/mi_full_primary_survey.py /path/to/marks.hda.zip \
+  --output /tmp/marks-mi-survey.json
+python3 tools/mi_full_primary_survey.py /path/to/petes.hda.zip \
+  --output /tmp/petes-mi-survey.json
+
+python3 tools/mi_survey_priorities.py --format summary
+python3 tools/mi_survey_priorities.py --format json
+python3 tools/mi_survey_priorities.py --check-report
+```
+
+The survey found **109 raw MI codes** across the two images, including
+**106** names in the modern IBM catalog and three raw/unmapped codes
+(0E/00, 19/C4, 19/ED). A missing physical signature is **not proof
+of absence** from OS/400 or the disk. Candidate primaries can be stale
+orphans; context-resolved live objects are a separate evidence tier.
+
+The ranking is **provisional research planning**, not a validated
+measure of complexity or a plan to decode 268 binary formats at once.
+Edit research/mi_survey_scoring.json as additional evidence arrives
+or the project's objectives change. No existing object decoder
+is modified by this research branch.
+
 ### Historical CMD, MSGF, MENU and PGM research
 
 The [interconnected object research](docs/MI_INTERACTIVE_OBJECT_RELATIONSHIPS.md)

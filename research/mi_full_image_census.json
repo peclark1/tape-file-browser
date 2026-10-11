@@ -1,0 +1,1069 @@
+{
+  "schema_version": 2,
+  "scan_kind": "all_mi_code_physical_primary_candidates",
+  "method": "Read-only complete physical-sector scan using payload offset +0x20 EPA 80 00, group marker +0x00=01, nonzero pages at +0x02 and valid 30-byte EBCDIC names at +0x24; MI code at +0x22. See tools/mi_full_primary_survey.py.",
+  "limitations": [
+    "All results are physical primary signature candidates; NOT active objects, complete valid primaries, or recovered file contents.",
+    "A zero count means no match under this particular heuristic; it DOES NOT mean absent from an OS/400 release/image.",
+    "Unknown/undocumented MI codes are retained unchanged, never forced into the later IBM type catalog.",
+    "Segment group tag variants are observed raw bytes, not a fully decoded public object layout.",
+    "Distinct contexts/library membership and version compatibility are not established by these counts."
+  ],
+  "images": {
+    "marks-v2r3": {
+      "image_file": "marks.hda.zip",
+      "sector_bytes": 520,
+      "physical_sectors_scanned": 1931265,
+      "accepted_candidates": 20271,
+      "distinct_codes": 104,
+      "near_candidate_rejections": {
+        "invalid_ebcdic_name": 7570,
+        "zero_declared_pages": 3
+      },
+      "by_type": {
+        "1001": {
+          "physical_primary_candidates": 42,
+          "segment_group_variants": {
+            "80": 42
+          }
+        },
+        "1101": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "80": 5
+          }
+        },
+        "1201": {
+          "physical_primary_candidates": 21,
+          "segment_group_variants": {
+            "80": 21
+          }
+        },
+        "1401": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "80": 5
+          }
+        },
+        "1501": {
+          "physical_primary_candidates": 9,
+          "segment_group_variants": {
+            "80": 9
+          }
+        },
+        "1701": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "1901": {
+          "physical_primary_candidates": 1325,
+          "segment_group_variants": {
+            "80": 759,
+            "81": 566
+          }
+        },
+        "1902": {
+          "physical_primary_candidates": 50,
+          "segment_group_variants": {
+            "81": 50
+          }
+        },
+        "1903": {
+          "physical_primary_candidates": 34,
+          "segment_group_variants": {
+            "81": 34
+          }
+        },
+        "1904": {
+          "physical_primary_candidates": 26,
+          "segment_group_variants": {
+            "80": 26
+          }
+        },
+        "1905": {
+          "physical_primary_candidates": 3129,
+          "segment_group_variants": {
+            "89": 3129
+          }
+        },
+        "1906": {
+          "physical_primary_candidates": 631,
+          "segment_group_variants": {
+            "80": 628,
+            "89": 3
+          }
+        },
+        "1908": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "80": 5
+          }
+        },
+        "1909": {
+          "physical_primary_candidates": 15,
+          "segment_group_variants": {
+            "81": 15
+          }
+        },
+        "1912": {
+          "physical_primary_candidates": 24,
+          "segment_group_variants": {
+            "81": 24
+          }
+        },
+        "1915": {
+          "physical_primary_candidates": 513,
+          "segment_group_variants": {
+            "81": 513
+          }
+        },
+        "1916": {
+          "physical_primary_candidates": 574,
+          "segment_group_variants": {
+            "80": 4,
+            "81": 570
+          }
+        },
+        "1919": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "1926": {
+          "physical_primary_candidates": 1513,
+          "segment_group_variants": {
+            "80": 1513
+          }
+        },
+        "1928": {
+          "physical_primary_candidates": 12,
+          "segment_group_variants": {
+            "80": 12
+          }
+        },
+        "1930": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "1933": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "81": 2
+          }
+        },
+        "1934": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "1936": {
+          "physical_primary_candidates": 22,
+          "segment_group_variants": {
+            "80": 22
+          }
+        },
+        "1937": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "81": 5
+          }
+        },
+        "1938": {
+          "physical_primary_candidates": 66,
+          "segment_group_variants": {
+            "80": 66
+          }
+        },
+        "1951": {
+          "physical_primary_candidates": 751,
+          "segment_group_variants": {
+            "80": 751
+          }
+        },
+        "1952": {
+          "physical_primary_candidates": 41,
+          "segment_group_variants": {
+            "80": 41
+          }
+        },
+        "1990": {
+          "physical_primary_candidates": 8,
+          "segment_group_variants": {
+            "81": 8
+          }
+        },
+        "0201": {
+          "physical_primary_candidates": 4346,
+          "segment_group_variants": {
+            "80": 1,
+            "81": 2791,
+            "82": 30,
+            "83": 9,
+            "89": 1494,
+            "91": 21
+          }
+        },
+        "0202": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "0203": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "91": 3
+          }
+        },
+        "0401": {
+          "physical_primary_candidates": 50,
+          "segment_group_variants": {
+            "90": 50
+          }
+        },
+        "06C1": {
+          "physical_primary_candidates": 1987,
+          "segment_group_variants": {
+            "90": 1987
+          }
+        },
+        "0801": {
+          "physical_primary_candidates": 43,
+          "segment_group_variants": {
+            "90": 2,
+            "91": 41
+          }
+        },
+        "0901": {
+          "physical_primary_candidates": 10,
+          "segment_group_variants": {
+            "91": 10
+          }
+        },
+        "0A01": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "90": 3
+          }
+        },
+        "0AC4": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "0AC6": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "0AF0": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0B90": {
+          "physical_primary_candidates": 490,
+          "segment_group_variants": {
+            "94": 490
+          }
+        },
+        "0C90": {
+          "physical_primary_candidates": 35,
+          "segment_group_variants": {
+            "B4": 35
+          }
+        },
+        "0D50": {
+          "physical_primary_candidates": 505,
+          "segment_group_variants": {
+            "89": 15,
+            "99": 490
+          }
+        },
+        "0E01": {
+          "physical_primary_candidates": 22,
+          "segment_group_variants": {
+            "90": 22
+          }
+        },
+        "0E02": {
+          "physical_primary_candidates": 9,
+          "segment_group_variants": {
+            "90": 9
+          }
+        },
+        "0E03": {
+          "physical_primary_candidates": 56,
+          "segment_group_variants": {
+            "90": 56
+          }
+        },
+        "0E07": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0E08": {
+          "physical_primary_candidates": 172,
+          "segment_group_variants": {
+            "90": 172
+          }
+        },
+        "0E09": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0E0A": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0E0C": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0E90": {
+          "physical_primary_candidates": 41,
+          "segment_group_variants": {
+            "90": 41
+          }
+        },
+        "0E91": {
+          "physical_primary_candidates": 6,
+          "segment_group_variants": {
+            "90": 6
+          }
+        },
+        "0EC2": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "93": 1
+          }
+        },
+        "0EC4": {
+          "physical_primary_candidates": 17,
+          "segment_group_variants": {
+            "90": 17
+          }
+        },
+        "0EC5": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0EC6": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0EC7": {
+          "physical_primary_candidates": 15,
+          "segment_group_variants": {
+            "90": 15
+          }
+        },
+        "0EC8": {
+          "physical_primary_candidates": 10,
+          "segment_group_variants": {
+            "90": 10
+          }
+        },
+        "0EC9": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0ECB": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0ECC": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0ECD": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0ECE": {
+          "physical_primary_candidates": 82,
+          "segment_group_variants": {
+            "90": 82
+          }
+        },
+        "0ED0": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "91": 4
+          }
+        },
+        "0ED1": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0ED2": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "90": 3
+          }
+        },
+        "0EF0": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "93": 1
+          }
+        },
+        "0EF1": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0EF2": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "18A0": {
+          "physical_primary_candidates": 415,
+          "segment_group_variants": {
+            "81": 415
+          }
+        },
+        "190A": {
+          "physical_primary_candidates": 37,
+          "segment_group_variants": {
+            "80": 37
+          }
+        },
+        "190B": {
+          "physical_primary_candidates": 7,
+          "segment_group_variants": {
+            "80": 7
+          }
+        },
+        "190C": {
+          "physical_primary_candidates": 43,
+          "segment_group_variants": {
+            "81": 43
+          }
+        },
+        "190E": {
+          "physical_primary_candidates": 2016,
+          "segment_group_variants": {
+            "81": 2016
+          }
+        },
+        "191B": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "80": 3
+          }
+        },
+        "191D": {
+          "physical_primary_candidates": 40,
+          "segment_group_variants": {
+            "80": 40
+          }
+        },
+        "19C1": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19C2": {
+          "physical_primary_candidates": 415,
+          "segment_group_variants": {
+            "81": 415
+          }
+        },
+        "19C3": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "82": 2
+          }
+        },
+        "19C5": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "81": 2
+          }
+        },
+        "19CE": {
+          "physical_primary_candidates": 414,
+          "segment_group_variants": {
+            "81": 414
+          }
+        },
+        "19D0": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "19D2": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "82": 2
+          }
+        },
+        "19D3": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "19D4": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19D5": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "19D7": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19D8": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19DA": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19DE": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19E7": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19E8": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "81": 2
+          }
+        },
+        "19EA": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19ED": {
+          "physical_primary_candidates": 27,
+          "segment_group_variants": {
+            "80": 27
+          }
+        },
+        "19EE": {
+          "physical_primary_candidates": 7,
+          "segment_group_variants": {
+            "80": 5,
+            "81": 2
+          }
+        },
+        "19EF": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19F3": {
+          "physical_primary_candidates": 7,
+          "segment_group_variants": {
+            "80": 7
+          }
+        },
+        "19F4": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "19F5": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "80": 3
+          }
+        },
+        "19F7": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19F9": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19FB": {
+          "physical_primary_candidates": 41,
+          "segment_group_variants": {
+            "80": 41
+          }
+        },
+        "1B01": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "91": 2
+          }
+        }
+      }
+    },
+    "petes-b10": {
+      "image_file": "petes.hda.zip",
+      "sector_bytes": 520,
+      "physical_sectors_scanned": 616392,
+      "accepted_candidates": 7570,
+      "distinct_codes": 64,
+      "near_candidate_rejections": {
+        "invalid_ebcdic_name": 2014,
+        "zero_declared_pages": 2
+      },
+      "by_type": {
+        "1001": {
+          "physical_primary_candidates": 12,
+          "segment_group_variants": {
+            "80": 12
+          }
+        },
+        "1101": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "1201": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "80": 4
+          }
+        },
+        "1401": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "80": 3
+          }
+        },
+        "1501": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "80": 4
+          }
+        },
+        "1901": {
+          "physical_primary_candidates": 1009,
+          "segment_group_variants": {
+            "80": 329,
+            "81": 680
+          }
+        },
+        "1902": {
+          "physical_primary_candidates": 31,
+          "segment_group_variants": {
+            "81": 31
+          }
+        },
+        "1903": {
+          "physical_primary_candidates": 15,
+          "segment_group_variants": {
+            "80": 12,
+            "81": 3
+          }
+        },
+        "1904": {
+          "physical_primary_candidates": 10,
+          "segment_group_variants": {
+            "80": 10
+          }
+        },
+        "1905": {
+          "physical_primary_candidates": 1117,
+          "segment_group_variants": {
+            "89": 1117
+          }
+        },
+        "1906": {
+          "physical_primary_candidates": 88,
+          "segment_group_variants": {
+            "80": 83,
+            "89": 5
+          }
+        },
+        "1908": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "1909": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "80": 4
+          }
+        },
+        "1912": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "81": 5
+          }
+        },
+        "1915": {
+          "physical_primary_candidates": 234,
+          "segment_group_variants": {
+            "80": 190,
+            "81": 44
+          }
+        },
+        "1916": {
+          "physical_primary_candidates": 223,
+          "segment_group_variants": {
+            "80": 209,
+            "81": 14
+          }
+        },
+        "1919": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "1926": {
+          "physical_primary_candidates": 592,
+          "segment_group_variants": {
+            "80": 592
+          }
+        },
+        "1928": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "80": 5
+          }
+        },
+        "1951": {
+          "physical_primary_candidates": 311,
+          "segment_group_variants": {
+            "80": 311
+          }
+        },
+        "1952": {
+          "physical_primary_candidates": 33,
+          "segment_group_variants": {
+            "80": 33
+          }
+        },
+        "0201": {
+          "physical_primary_candidates": 3102,
+          "segment_group_variants": {
+            "81": 2744,
+            "82": 12,
+            "83": 5,
+            "89": 337,
+            "91": 4
+          }
+        },
+        "0401": {
+          "physical_primary_candidates": 22,
+          "segment_group_variants": {
+            "90": 22
+          }
+        },
+        "0801": {
+          "physical_primary_candidates": 10,
+          "segment_group_variants": {
+            "90": 10
+          }
+        },
+        "0901": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "91": 4
+          }
+        },
+        "0B90": {
+          "physical_primary_candidates": 66,
+          "segment_group_variants": {
+            "B4": 66
+          }
+        },
+        "0C90": {
+          "physical_primary_candidates": 18,
+          "segment_group_variants": {
+            "B4": 18
+          }
+        },
+        "0D50": {
+          "physical_primary_candidates": 73,
+          "segment_group_variants": {
+            "99": 73
+          }
+        },
+        "0E00": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "90": 4
+          }
+        },
+        "0E01": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "90": 4
+          }
+        },
+        "0E02": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0E03": {
+          "physical_primary_candidates": 38,
+          "segment_group_variants": {
+            "90": 38
+          }
+        },
+        "0E07": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "90": 5
+          }
+        },
+        "0E08": {
+          "physical_primary_candidates": 48,
+          "segment_group_variants": {
+            "90": 48
+          }
+        },
+        "0E09": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "90": 2
+          }
+        },
+        "0E90": {
+          "physical_primary_candidates": 22,
+          "segment_group_variants": {
+            "90": 22
+          }
+        },
+        "0E91": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "90": 3
+          }
+        },
+        "0EC2": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "93": 1
+          }
+        },
+        "0EC4": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "90": 4
+          }
+        },
+        "0EC7": {
+          "physical_primary_candidates": 3,
+          "segment_group_variants": {
+            "90": 3
+          }
+        },
+        "0ECD": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "0ECE": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "90": 1
+          }
+        },
+        "190A": {
+          "physical_primary_candidates": 54,
+          "segment_group_variants": {
+            "80": 54
+          }
+        },
+        "190C": {
+          "physical_primary_candidates": 21,
+          "segment_group_variants": {
+            "81": 21
+          }
+        },
+        "190D": {
+          "physical_primary_candidates": 8,
+          "segment_group_variants": {
+            "80": 8
+          }
+        },
+        "190E": {
+          "physical_primary_candidates": 258,
+          "segment_group_variants": {
+            "81": 258
+          }
+        },
+        "191B": {
+          "physical_primary_candidates": 4,
+          "segment_group_variants": {
+            "80": 4
+          }
+        },
+        "19C2": {
+          "physical_primary_candidates": 19,
+          "segment_group_variants": {
+            "80": 19
+          }
+        },
+        "19C3": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "82": 1
+          }
+        },
+        "19C4": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19C5": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19C6": {
+          "physical_primary_candidates": 2,
+          "segment_group_variants": {
+            "80": 2
+          }
+        },
+        "19CE": {
+          "physical_primary_candidates": 20,
+          "segment_group_variants": {
+            "80": 20
+          }
+        },
+        "19D0": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19D5": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19D7": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19DA": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19DE": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "80": 1
+          }
+        },
+        "19E7": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19E8": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19EA": {
+          "physical_primary_candidates": 1,
+          "segment_group_variants": {
+            "81": 1
+          }
+        },
+        "19ED": {
+          "physical_primary_candidates": 12,
+          "segment_group_variants": {
+            "80": 12
+          }
+        },
+        "19EE": {
+          "physical_primary_candidates": 5,
+          "segment_group_variants": {
+            "80": 4,
+            "81": 1
+          }
+        },
+        "1C01": {
+          "physical_primary_candidates": 18,
+          "segment_group_variants": {
+            "80": 18
+          }
+        }
+      }
+    }
+  }
+}
