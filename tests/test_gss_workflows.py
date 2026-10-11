@@ -110,8 +110,8 @@ class SavedGSSTests(unittest.TestCase):
         self.assertEqual("Saved slot unavailable",model.rows()[0]["name"])
         model.run_command("DSPGSS GSS(ADMUVGEP) SLOT(177)")
         self.assertIn("SLOT must",model.status)
-        for corrupted in ((0x100,0), (0x118,0), (0x120,0), (0x102,0xFF),
-                          (0x112,0)):
+        for corrupted in ((0x100,0), (0x119,0), (0x120,0), (0x102,0xFF),
+                          (0x115,0)):
             with self.assertRaises(ValueError):
                 decode_gss_symbol_slots(gss_fixture(corrupt=corrupted),type_code="19/0C")
         with self.assertRaises(ValueError):
