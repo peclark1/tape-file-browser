@@ -945,3 +945,15 @@ survey 41 candidates share a raw +0x100 variant of `0001` or `0002` and a
 physical primary candidate. **These are exact archived bytes and positional
 comparisons, not established CCSIDs, character maps or conversion direction.**
 See `docs/CNVTBL_WORKFLOW.md` for evidence and validation limitations.
+
+### Archived CISC product-load and product-definition comparisons (offline)
+
+On `feature/product-descriptor-links`, `DSPPRDLOD PRDLOD(*ALL/QSZ0050)`
+and `DSPPRDDFN PRDDFN(*ALL/QSZ0050)` inspect independently observed 19/1D
+load tokens, corroborated embedded self-names, older Pete B10 19/1B saved
+printable identification strings and exact-name cross-type candidates.
+Open any equal saved load token peer or same-name product definition and Back
+to the exact original selection. Text fields, release semantics and same-name
+dependency roles are **not** certified. The alternate Mark PRDDFN form
+withholds unsupported text rather than guessing.
+See `docs/PRODUCT_DESCRIPTOR_WORKFLOW.md`.

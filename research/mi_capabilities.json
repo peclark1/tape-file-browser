@@ -236,6 +236,16 @@
       "state": "partial",
       "workflow": "DSPCNVTBL browses 256 saved two-byte positions with exact primary offsets, direct POS lookups and pairwise comparison/Back across recovered *CNVTBL primaries; unverified raw +0x100 variant 0001/0002 is preserved.",
       "next_step": "Establish table-entry semantics, conversion direction and codepage association from historical CISC documentation or independently cross-checked conversion pairs; run full recovered-object original-image acceptance."
+    },
+    "191D": {
+      "state": "partial",
+      "workflow": "DSPPRDLOD validates 0x14A Mark V2R3 saved load descriptor, 24-byte text token and exact EPA self-name echo; browses identical-token peers and same-name recovered PRDDFN origins with Back.",
+      "next_step": "Determine true load-token field meanings and explicit product-definition pointer roles from period OS/400; validate recovered virtual primary extents, historical options and installation semantics."
+    },
+    "191B": {
+      "state": "partial",
+      "workflow": "DSPPRDDFN shows exact supported Pete B10 0x1F0 saved literal EBCDIC text regions, retains unknown Mark variant length and navigates all same-name PRDLOD candidate primaries with Back.",
+      "next_step": "Reconstruct the alternate large Mark V2R3 product-definition representation and corroborate the meaning of both saved text slots; prove links beyond name equality."
     }
   }
 }
