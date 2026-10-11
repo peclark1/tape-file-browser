@@ -100,6 +100,12 @@ DSPEDTD EDTD(*ALL/QEDIT*)
 DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)
 ```
 
+Also test the reverse evidence path:
+`DSPSPLCB SPLCB(*ALL/QSPSCB)` -> select an origin with
+`SPdddd` text -> select an associated saved PRTQ key (if one
+is normally recovered) -> Back. An unsupported PRTQ index is
+a withheld source, not proof no archived match existed.
+
 For Pete, prefer `DSPEDTD EDTD(*ALL/QEDIT*)` and
 `DSPPNLGRP PNLGRP(*ALL/*)`; Pete may have no recoverable
 18/A0 JMQ primary, so an empty JMQ list would not alone be a failure.

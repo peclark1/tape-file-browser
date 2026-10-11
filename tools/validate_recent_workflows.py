@@ -62,7 +62,7 @@ def make_model(image, inventory):
     subsystems = SubsystemExplorer(image, inventory)
     indexes = ArchivalIndexExplorer(image)
     lda = LocalDataExplorer(image)
-    spool = SpoolControlExplorer(image, inventory)
+    spool = SpoolControlExplorer(image, inventory, printer_queue_explorer=printer_queues)
     jmq = JobMessageQueueExplorer(image)
     panels = PanelGroupExplorer(image, inventory)
     edits = EditDescriptionExplorer(image, inventory)
