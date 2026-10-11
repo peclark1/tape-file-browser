@@ -111,7 +111,7 @@ class ProductLoadTests(unittest.TestCase):
 
     def test_no_virtual_gap_content_substitution_and_cached_correlations(self):
         src,sibling,other,bad,definition,dup,missing,img,service,model=self.model()
-        src.segment.extents=(NS(start_lba=10,virtual_address=0x100000,pages=1),
+        src.segment.extents=(NS(start_lba=10,virtual_address=0x100200,pages=1),
                              NS(start_lba=11,virtual_address=0x100400,pages=1))
         fresh=ProductLoadExplorer(img,inventory([src,sibling,other,bad,definition,dup,missing]))
         with self.assertRaises(ValueError):fresh.rows(src)
