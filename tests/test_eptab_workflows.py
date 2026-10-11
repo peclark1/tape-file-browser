@@ -71,7 +71,7 @@ class EPTabTests(unittest.TestCase):
         self.assertEqual("Word 511: 0000",model.rows()[-1]["name"])
         model.back()
         self.assertEqual(next_i,model.selected)
-        self.assertEqual("Word 450: 0000",model.rows()[2]["name"])
+        self.assertEqual("Word 450: 0000",next(r["name"] for r in model.rows() if r["name"].startswith("Word ")))
 
     def test_malformed_gapped_and_wrong_type_data_fail_closed(self):
         raw=eptab_fixture()
