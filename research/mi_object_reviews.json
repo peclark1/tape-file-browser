@@ -214,16 +214,18 @@
     },
     "1905": {
       "status": "partial_decoder",
-      "scope": "Bounded empirical count/keyword/ordinal recovery with all-or-nothing diagnostics; interactive command search, parameter drill-down, origin and tentative processor-name lookup. No prompt/default/type/CPP pointer decoding or proof of semantic consistency.",
+      "scope": "Partial empirical CMD decoder: count/keywords/ordinals, descriptor chains, length-prefixed prompt/hint references and tentative default/value records. Guided read-only prompt form with parameter drill-down. Typed conversions, nested qualifiers/elements, message-file and CPP pointers remain unknown.",
       "implementation": [
         "as400_cmd.py:command_information_lines",
         "as400_dasd_tool.py:_tui_command_information_lines",
         "as400_cmd.py:recover_parameter_keywords",
         "as400_cmd.py:command_exploration",
         "as400_5250.py:Guided5250",
-        "as400_dasd_tool.py:_tui_command_definition"
+        "as400_dasd_tool.py:_tui_command_definition",
+        "as400_cmd.py:recover_definition_links",
+        "as400_cmd.py:prompt_form_lines"
       ],
-      "next_step": "Resolve descriptor/prompt pointers using period-correct source and matching compiled objects; investigate Pete identity/payload conflict documented in docs/INTERACTIVE_COMMAND_EXPLORATION.md.",
+      "next_step": "Decode typed value conversions and nested qualifier/element relationships from explicit references; see docs/CMD_PROMPT_LINKS.md. Matching source/object output is corroboration, not a prerequisite.",
       "manual_refs": [
         {
           "source": "primer-1992",

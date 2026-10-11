@@ -2,11 +2,80 @@
 
 **Purpose:** provide a durable, version-controlled technical handoff across normal chat, ChatGPT Work, future assistants, and Joe's testing. Read this file at the **start and end** of each substantial work session. Treat GitHub and verified source bytes as authoritative; this file is a navigation aid that must be refreshed when facts change.
 
-**Status checked:** October 9, 2026 (US Central), against GitHub PR details. Verify live status before acting.
+**Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
+
+## Scope correction — October 10, 2026
+
+PR #19 is an **intermediate keyword-browsing increment**, not completion of
+Interactive Command Exploration. The user explicitly rejected stopping after
+that increment. Continue research across related structures, integrate and test
+real prompting/definition capabilities, or demonstrate a genuine blocker and
+implement the next useful capability. Tests/commits/PR publication are gates,
+not a reason to stop. Missing schema documentation alone is not a blocker.
+
+A matching source/compiled-object/F4 triplet would strengthen validation, but
+is NOT a prerequisite to testing pointer/boundary hypotheses using the available
+images. No additional user permission is needed for the already authorized
+read-only research, feature-branch implementation, testing and PR publication.
+Main and Joe's stable checkout remain protected; do not merge without approval.
+
+Continuation branch: `feature/command-prompt-links`, based on #19 at `9dd282f`.
+The original session record below is historical and superseded by this correction.
+
+## Continuation results — October 10, 2026
+
+**Working capability delivered:** a navigable read-only prompt form with
+per-parameter linked labels and display hints, tentative default/value tokens,
+exact reference evidence, and Back restoring the selected prompt. Open
+`DSPCMD CMD(QIWS/CPYTOPCD)`, select **Prompt form**, use arrows/Page keys and
+Enter to inspect a parameter. The top heading distinguishes linked text from
+candidate default/value meanings. No commands execute or values are editable.
+
+This resolves the earlier prompt-link "blocker": testing relative references
+on the existing images was sufficient to establish the empirical layout.
+`as400_cmd.py:recover_definition_links` validates the ordinal descriptor chain,
+a secondary chain, exact length-prefixed prompt records and bounded tag/length
+attribute records. CPYTOPCD's secondary order ends TRNIGC, RCDFMT, while
+stored ordinal order ends RCDFMT, TRNIGC. No modern ordering is imposed.
+TRNIGC's blank historical prompt is preserved rather than invented.
+
+**Validation:** 212 synthetic tests pass, including relocated references,
+cycles, malformed/truncated records, incomplete lists, fragmented extent reads,
+8 KiB cap and keyboard/rendering at 80x24 and 64x16. Compilation, shell syntax,
+inventory/priority synchronization and diff whitespace checks pass. Full
+original-image validator runs pass for Mark and Pete; hashes match the
+previous session and remain unchanged after validation. 2,571 / 476 complete
+keyword tables have validated primary descriptor chains; 13,851 / 2,889
+nonblank prompt labels and 16,163 / 2,538 nonblank display hints are linked.
+These counts are not unique live objects or proofs of complete semantics.
+
+**Scope still unfinished:** type/translation semantics, definitive defaults,
+complete choices/ranges/required flags, nested QUAL/ELEM, MSGF/CPP pointer
+relationships, historical F4 behavior and Pete's identity inconsistencies.
+The milestone has moved beyond keyword browsing; the entire roadmap is not
+complete. The [prompt-link record](CMD_PROMPT_LINKS.md) gives exact structures,
+negative tests, original-image findings and remaining experiments.
+
+**Precise next work:** start in `recover_definition_links` tag 01/02 handling.
+Follow both value references and conversion bytes for CPYTOPCD REPLACE and
+TRNFMT, contrast CRTCMD MAXPOS binary/numeric cases, then establish subordinate
+file/library qualifier ownership using explicit references. Do not wait for
+external documentation before testing those relationships. Preserve candidate
+labels until semantics are established. Keep scope-based acceptance checks;
+PR publication and passing tests alone are not completion criteria.
+
+Git: continuation branch `feature/command-prompt-links` targets #19's
+`feature/interactive-command-explorer` at `9dd282f`. [PR #20](https://github.com/peclark1/tape-file-browser/pull/20) is open for review.
+Implementation commit `03a2ad11eb0d66feee36e4c1220ecf1084c17132` passed
+[GitHub Actions Tests run 38053877451](https://github.com/peclark1/tape-file-browser/actions/runs/38053877451).
+A documentation-only follow-up records publication and corpus ordering counts;
+the PR head identifies that final revision. PR #19's title/body now explicitly
+mark it as intermediate and link #20. #15–#19 are still open and unmerged.
+Main and Joe's stable checkout remain unchanged; no merges are authorized.
 
 ## Latest capability session — October 9–10, 2026
 
-**Delivered:** Interactive Command Exploration, with an intentional safe subset
+**Intermediate increment delivered (milestone unfinished):** an intentional safe subset
 of historical command-definition recovery. Branch
 `feature/interactive-command-explorer`, based on `feature/mi-full-corpus-survey`
 commit `f3bb5394d3d9be9f426176ae459917ac4519c168`.
@@ -58,9 +127,9 @@ offsets, negative evidence and required comparison inputs are in
 
 **Next session:** start at `as400_cmd.py:recover_parameter_keywords`,
 `as400_5250.py:Guided5250.explore_command`, and the capability record's
-blockers. First obtain a period-correct source/compiled-object/DSPCMD or F4
-triplet (ideally a one-attribute PROMPT/DFT/VALUES change) before decoding
-prompt/value pointers. Separately compare Pete LBA 587728 EPA/context and
+blockers. Test bounded descriptor/prompt pointer hypotheses against the available
+virtual-order primaries. Seek a period-correct source/compiled-object/DSPCMD or F4
+triplet as corroboration, not an assumed prerequisite. Separately compare Pete LBA 587728 EPA/context and
 payload against another capture to investigate stale/reused/renamed storage;
 do not rename it from text clues. Until that evidence exists, retain the
 safe browsing workflow and prioritize user-tested navigation improvements.

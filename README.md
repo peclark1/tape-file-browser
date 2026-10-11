@@ -425,7 +425,8 @@ Navigation:
 - Type **12** then Enter to work with a selected library or file.
 - Type **5** then Enter to display a selected member or object details.
 - Enter (or **5**) on a recovered **`*CMD`** opens **Explore Command Definition**.
-  Browse empirical keywords in stored ordinal order; Enter opens a parameter's
+  Choose **Prompt form** for selectable linked labels, display hints and
+  candidate defaults/value tokens. Enter opens the selected parameter's
   offsets and known/unknown fields. Summary shows origin and recovery failures;
   Evidence preserves tentative whole-command text. PGM matches follows candidate
   names without claiming a decoded processing-program pointer.
@@ -463,7 +464,8 @@ WRKCMD CMD(*ALL/CPY*)
 DSPCMD CMD(QIWS/CPYTOPCD)
 ```
 
-See [command exploration evidence and validation](docs/INTERACTIVE_COMMAND_EXPLORATION.md).
+See [command exploration evidence and validation](docs/INTERACTIVE_COMMAND_EXPLORATION.md)
+and [linked prompt browsing, research and limitations](docs/CMD_PROMPT_LINKS.md).
 
 Only the listed subset and explicitly supported named parameters are accepted.
 Other OS/400 commands, including live-job and destructive commands, are

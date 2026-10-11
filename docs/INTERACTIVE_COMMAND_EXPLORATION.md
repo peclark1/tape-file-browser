@@ -1,4 +1,8 @@
-# Interactive Command Exploration: delivered workflow and evidence
+# Interactive Command Exploration: intermediate keyword-browsing increment
+
+Historical PR #19 record. This increment did not complete the agreed milestone.
+[The continuation](CMD_PROMPT_LINKS.md) establishes prompt/hint/value links and
+a navigable prompt form; its findings supersede the earlier prompt-link blocker.
 
 October 9–10, 2026. Experimental, read-only capability on
 `feature/interactive-command-explorer`, based on survey branch `f3bb539`.
