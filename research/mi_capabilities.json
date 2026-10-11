@@ -176,6 +176,11 @@
       "state": "partial",
       "workflow": "DSPMSRVI browses supported saved machine-index terminal keys in paged byte/hex detail, retaining full traversal and stored-header-count discrepancies without interpreting service records.",
       "next_step": "Establish MSRVI record identity and secondary storage pointer semantics on both releases before decoding service actions."
+    },
+    "19CE": {
+      "state": "partial",
+      "workflow": "DSPLDA browses empirically bounded 1024-byte saved QLDA value region at primary +0x160 in 128-byte paged hex/CP037 windows, with exact offsets, blank counts and strict header/boundary/virtual-extent checks; archival bytes are not an active job's current LDA.",
+      "next_step": "Corroborate QLDA value origin, job association and release-specific boundary exceptions; interpret nonblank contents only under proven format/CCSID."
     }
   }
 }
