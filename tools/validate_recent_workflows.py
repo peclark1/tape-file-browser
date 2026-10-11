@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-scan read-only acceptance for 13 recent CISC Guided workflow types.
+"""One-scan read-only acceptance for 14 recent CISC Guided workflow types.
 
 Unlike per-family validators, this recovers original disk objects *once*,
 reuses the same image/model, and computes SHA256 before and after the run.
@@ -8,6 +8,7 @@ Synthetic CI calls assess(); run on original extracted .hda on your own rig.
 """
 import argparse
 from collections import Counter
+from types import SimpleNamespace as NS
 import json
 from pathlib import Path
 import sys
@@ -16,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from as400_dasd import DASDImage
 from as400_5250 import Guided5250
+from as400_alert_tables import AlertTableExplorer
+from as400_messages import MessageExplorer
 from as400_printer_queues import PrinterQueueExplorer
 from as400_outq import OutputQueueExplorer
 from as400_internal_profiles import InternalProfileExplorer
@@ -46,16 +49,19 @@ WORKFLOWS = (
     ("19/15", "DSPPNLGRP", "PNLGRP"),
     ("19/08", "DSPEDTD", "EDTD"),
     ("0E/C7", "DSPPRTQ", "PRTQ"),
+    ("0E/09", "DSPALRTBL", "ALRTBL"),
 )
 TYPE_CODES = {t[0] for t in WORKFLOWS}
 DETAIL_ACTIONS = {
-    "outq_action", "printer_queue_action", "archival_index_action", "jmq_action",
+    "outq_action", "printer_queue_action", "alert_index_action", "archival_index_action", "jmq_action",
     "panel_symbol_action", "lda_action", "subsystem_action",
 }
 
 
-def make_model(image, inventory):
+def make_model(image, inventory, segments=None):
     """Use the same capability service routing as the production TUI."""
+    messages = MessageExplorer(image, inventory, segments or NS(segments=[]))
+    alerts = AlertTableExplorer(image, inventory, message_explorer=messages)
     printer_queues = PrinterQueueExplorer(image, inventory)
     outq = OutputQueueExplorer(image)
     profiles = InternalProfileExplorer(inventory)
@@ -68,6 +74,7 @@ def make_model(image, inventory):
     edits = EditDescriptionExplorer(image, inventory)
     jobs = JobExplorer(image, inventory)
     services = {
+        "0E/09": alerts,
         "0E/C7": printer_queues,
         "0E/02": outq,
         "0E/01": jobs,
@@ -85,6 +92,8 @@ def make_model(image, inventory):
     model = Guided5250(
         inventory,
         capability_loader=lambda obj, sample=None: services[obj.type_code].rows(obj),
+        alert_loader=alerts.rows,
+        message_loader=messages.rows,
         printer_queue_loader=printer_queues.rows,
         outq_loader=outq.rows,
         subsystem_loader=subsystems.rows,
@@ -136,9 +145,9 @@ def _run_ui_walkthrough(model, obj, command, arg):
     return "summary_ok"
 
 
-def assess(image, inventory):
+def assess(image, inventory, segments=None):
     """Summarize all family origins with one reusable recovered-image model."""
-    services, model = make_model(image, inventory)
+    services, model = make_model(image, inventory, segments)
     by_type = {}
     for type_code, command, argument in WORKFLOWS:
         objects = [o for o in inventory.objects if o.type_code == type_code]
@@ -182,7 +191,7 @@ def validate(path):
     scan = image.scan()
     segments = image.recover_segments(scan)
     inventory = image.recover_objects(scan, segments)
-    families = assess(image, inventory)
+    families = assess(image, inventory, segments)
     after = digest(path)
     if before != after:
         raise ValueError("Archived image SHA256 changed during read-only audit")
