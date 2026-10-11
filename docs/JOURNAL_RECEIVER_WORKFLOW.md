@@ -62,6 +62,38 @@ walkthrough success. The production explorer uses the normal
 reconstructed `RecoveredSegment.extents` model, not naive physical
 contiguity.
 
+## Receiver-owned journal address — independent second evidence path
+
+Read-only inspection of the same archived 07/01 receiver primaries
+identified a full **eight-byte saved journal owner address at
+receiver primary +0x108**, separately from the journal-side slots.
+Both releases have several different leading flags/length words;
+the supported cross-release control check only requires a leading
+`02` or `03` and +0x106..+0x107 `00 01`, leaving all other
+header bits uninterpreted.
+
+| Physical EPA/YYSGHDR candidate evidence | Mark V2R3 | Pete B10 |
+|---|---:|---:|
+| Receiver +0x108 matches full independently recovered journal owner address | 13 of 15 | 4 of 11 |
+| Receiver +0x108 saved null (no decoded journal parent) | 2 of 15 | 7 of 11 |
+
+The new `DSPJRNRCV` display shows its **own** candidate +0x108
+parent pointer and links exact matching journal primaries even if
+neither journal-side +0x110/+0x240 slot lists the receiver.
+`DSPJRN` can also show every receiver whose own saved pointer
+matches that selected journal, without duplicating a receiver
+already linked through a supported journal-side slot.
+
+These two directions are independent byte evidence, **not** proof
+of the current receiver, parent/previous/next receiver semantics,
+chain history, entry sequence or any runtime state. Null pointers
+and unsupported layouts are distinguished from missing journal
+primaries, and full extender/address equality remains mandatory.
+Additional synthetic regression tests verify both common release
+variants, null parent pointers, six-byte-suffix false positives,
+unreadable controls and a direct receiver parent link that exists
+without either supported journal-side slot.
+
 ## Testing and remaining gates
 
 - `tests/test_journal_receiver_workflows.py` exercises both
