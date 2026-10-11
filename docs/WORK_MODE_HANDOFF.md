@@ -4,6 +4,56 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## Explicit records and folder navigation — October 10, 2026
+
+Current work branch: `feature/explicit-record-explorer`, based on PR #21 head
+`a6bdcbe4129efb5f2b27bd3e489bf4649522aa98`. [PR #22](https://github.com/peclark1/tape-file-browser/pull/22) is open, ready
+for review, and targets PR #21. Implementation commit
+`ac3ba31515a5bb6da4c8b3e49b29e97b94c513f5` passed
+[Tests run 38057345370](https://github.com/peclark1/tape-file-browser/actions/runs/38057345370).
+A documentation-only follow-up records publication; the PR head is authoritative.
+PR #21's `feature/type-capability-workflows` remains unchanged for user testing.
+Main and Joe's stable version are untouched; no merge is authorized.
+
+**Delivered:** member **6** → explicit format/raw choice → 50-entry windows →
+record → fields, status filters, paging and Back; DSPFD → format → Records →
+member retains the exact selected schema. Member **9** now reaches storage from
+the actual curses key loop (PR #21 model supported it, but its key loop did not).
+`WRKFLR` → folder → anchor source or roots → parents/children/candidate objects
+adds a useful FLR workflow. The installer now includes all three workflow
+modules, fixing PR #21's omitted capability module; an isolated installation
+smoke test passes. WOSEFDOC's observed field width is corrected from
+12 to 20 bytes, corroborated by all 11 recovered Mark WOSFMT14 descriptors.
+
+**Validation:** 242 synthetic tests pass, including actual key-loop 6/9,
+malformed/short records, virtual gaps/overlaps, explicit duplicate format
+selection, invalid numbers, and anchor ambiguity/cycles. Compilation, shell
+syntax, generated-report consistency and whitespace checks pass. Read-only
+original validation opened 3,779 Mark and 528 Pete member readers; first and
+last windows had no storage warnings. Three original UI record walkthroughs
+and whole-stream comparisons per image pass; explicit schema walkthroughs
+pass (3 Mark, 1 Pete). Mark's folder graph has 1,885 records, 1,867 parent edges,
+1,882 paths reaching roots and 3 missing-parent paths. Both image hashes remain
+unchanged and originals remain 0444. Aggregate results only are committed.
+
+**Unresolved:** Pete has 91 cursors with absent QDDS primaries and 325 without
+recovered owner-matched 03B4 groups. Its four folders have no recovered anchor
+source. Record ordinals do not independently rule out missing initial groups.
+Format and anchor key occurrences are candidate associations, not ownership.
+CP037 is a display lens; 80/C0 are status hints. No live commands are executed.
+
+See [workflow instructions, evidence and blockers](RECORD_AND_FOLDER_WORKFLOWS.md)
+and `research/record_workflow_validation.json`. Capability progress is now
+15 partial / 253 queued, independently of decoder maturity. The all-268 mandate
+continues; a PR is a review checkpoint.
+
+**Precise next steps:** incorporate the user's PR #21/TUI findings; inspect
+Pete's missing storage targets using full internal addresses and older-release
+header evidence; discriminate FILE/FMT ownership pointers and FLR self-key vs
+child-key arrays using cross-object negative controls. If either is blocked,
+advance ranked QDDSI/INX key navigation or device configuration with a complete
+Guided workflow. Retain ambiguous/missing evidence rather than guessing.
+
 ## Active mandate and cross-type results — October 10, 2026
 
 The accepted program is sustained material improvement across **all 268 documented

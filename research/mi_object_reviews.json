@@ -269,10 +269,11 @@
     },
     "1912": {
       "status": "partial_decoder",
-      "scope": "QDLS folder identities and partial parent-path reconstruction through QAOSS anchor records.",
+      "scope": "QDLS folder identities and partial parent-path reconstruction through QAOSS anchor records. Guided anchor-source selection, exact key candidate matches, parent/child navigation and ambiguity/cycle diagnostics now integrated; no certified QDLS path claim.",
       "implementation": [
         "as400_dasd_tool.py:cmd_dlo_paths",
-        "as400_dasd_tool.py:_qaosss14_path"
+        "as400_dasd_tool.py:_qaosss14_path",
+        "as400_anchors.py:AnchorExplorer"
       ],
       "next_step": "Validate folder membership and deleted-row behavior across larger corpus.",
       "manual_refs": [],

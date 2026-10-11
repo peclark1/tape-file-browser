@@ -1,0 +1,57 @@
+{
+  "method": "Read-only first/last bounded windows using previously recovered object inventories and freshly recovered segment metadata; original UI walkthroughs and three whole-stream comparisons per image. Aggregate output only.",
+  "images": {
+    "marks": {
+      "image_bytes": 1004257800,
+      "sha256": "49e4e989fcc6732ffb21bd0d0a610ffcf9afd582d5cd84e3af8f02ccc8593898",
+      "unchanged": true,
+      "counts": {
+        "anchor parent edges": 1867,
+        "anchor paths: missing parent": 3,
+        "anchor paths: root reached": 1882,
+        "anchor records": 1885,
+        "anchor roots browsed": 15,
+        "anchor source cursors": 1,
+        "direct readers opened": 3779,
+        "explicit format walkthroughs": 3,
+        "first-window deleted hints": 393,
+        "first-window entries": 116995,
+        "first-window unknown statuses": 0,
+        "folder anchor candidates": 1781,
+        "folder primaries": 24,
+        "folders with candidate anchors": 24,
+        "last-window entries": 40132,
+        "last-window warnings": 0,
+        "member cursors": 3779,
+        "original folder walkthroughs": 1,
+        "original record walkthroughs": 3,
+        "readers with warnings": 0
+      },
+      "unsupported_readers": {}
+    },
+    "petes": {
+      "image_bytes": 320523840,
+      "sha256": "1fc2e7be114d74a8e8f386565e38a636c76bde529161d93bd53bbeed8a0955f6",
+      "unchanged": true,
+      "counts": {
+        "anchor source cursors": 0,
+        "direct readers opened": 528,
+        "explicit format walkthroughs": 1,
+        "first-window deleted hints": 3,
+        "first-window entries": 15897,
+        "first-window unknown statuses": 0,
+        "folder primaries": 4,
+        "last-window entries": 5514,
+        "last-window warnings": 0,
+        "member cursors": 944,
+        "missing anchor source diagnostic verified": 1,
+        "original record walkthroughs": 3,
+        "readers with warnings": 0
+      },
+      "unsupported_readers": {
+        "No recovered owner-matched 03B4 record groups": 325,
+        "Direct QDDS pointer has 0 matching primaries; choose no implicit substitute": 91
+      }
+    }
+  }
+}

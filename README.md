@@ -43,6 +43,19 @@ Browsing is read-only. Conversion writes a new output image and then reopens it 
 - Desktop launcher for Ubuntu/GNOME
 - Installer can pin the application to the Ubuntu/GNOME dock
 
+## Guided 5250 record and folder exploration
+
+[PR #22](https://github.com/peclark1/tape-file-browser/pull/22), branch
+`feature/explicit-record-explorer`, adds member **6 + Enter** for
+explicit format selection and paged record/field inspection; **9 + Enter** opens storage
+and fixes the previous key-loop omission. `DSPFD` → format → **Records** retains
+the selected schema. `WRKFLR FLR(*ALL/*)` opens folder anchor-source/root navigation.
+These are read-only offline workflows; uncertain associations are labeled.
+
+Run `python3 as400_dasd_tool.py browse5250 /path/to/image.hda` from that checkout.
+See [testing instructions and evidence](docs/RECORD_AND_FOLDER_WORKFLOWS.md).
+PR #21's testing branch is unchanged; the follow-up is separate and unmerged.
+
 ## Requirements
 
 The core, CLI, and TUI use only the Python standard library. On normal Linux Python installations, the curses module is included as well.

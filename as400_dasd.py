@@ -1844,7 +1844,7 @@ QAOSSS14_V2_FIELD_LAYOUT = {
     "WOSEDOCT": (77, 2),
     "WOSESYSC": (83, 13),
     "WOSEOWNR": (96, 16),
-    "WOSEFDOC": (112, 12),
+    "WOSEFDOC": (112, 20),
     "WOSEPLDN": (132, 8),
     "WOSEWIPI": (142, 1),
     "WOSESLVL": (147, 1),
