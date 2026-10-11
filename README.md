@@ -876,3 +876,7 @@ Use `DSPSCHIDX SCHIDX(*ALL/*)` and `DSPMSRVI MSRVI(*ALL/*)` to select recovered 
 ### Saved QLDA position viewer (offline)
 
 Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse a validated candidate 1024-byte job-local data region in 128-byte, one-based position windows. Exact hex and CP037 display preserve spaces/NULs. Any missing virtual extent or unfamiliar control marker withholds the value; no live job, security, or CCSID interpretation is claimed. See [original-image checks and limits](docs/LOCAL_DATA_WORKFLOW.md).
+
+### Saved spool-control name candidates (offline)
+
+`DSPSPLCB SPLCB(*ALL/QSPSCB)` shows bounded CISC 19/C2 fixed-width saved name slots, an opaque SPdddd-shaped token and selectable recovered identity matches. Matches are **not** proven spool/device/job relationships. See [two-image evidence and limits](docs/SPOOL_CONTROL_WORKFLOW.md).
