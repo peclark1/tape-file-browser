@@ -2,11 +2,11 @@
 
 ## What the Guided 5250 viewer can do
 
-Use `DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)` to select a
+Use `DSPEPTAB EPTAB(*ALL/QDMEPTB) POS(250)` to jump to an exact zero-based saved word (0..511), or `DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)` to select a
 recovered 19/D7 `*EPTAB` object and browse a bounded **512-slot
 big-endian unsigned 16-bit word region**. `WORD(0045)` searches
 for an **exact four-hex-digit saved value**, not a character,
-translation entry or source-code mnemonic. Leave `WORD` unset to
+translation entry or source-code mnemonic. `POS` and `WORD` are mutually exclusive. Leave both unset to
 page through all 512 positions (50 rows per screen). Select any
 saved word for its original primary byte offset, original two
 hex bytes, zero-based slot index, integer value, and raw value
@@ -61,7 +61,7 @@ Data outside the supported 19/D7 byte region remains opaque.
 ## Checks and remaining evidence gaps
 
 `tests/test_eptab_workflows.py` exercises 512 exact slots,
-corroborated prefix, exact hex value filtering, end offset,
+corroborated prefix, exact hexadecimal value filtering, direct position lookup (including upper bound and invalid combinations), end offset,
 50-word pagination through positions 500..511, selection/Back,
 zero and repeated words, malformed header and short/virtual-gap
 reconstruction. No actual image bytes are copied into these

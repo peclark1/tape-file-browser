@@ -73,6 +73,28 @@ class EPTabTests(unittest.TestCase):
         self.assertEqual(next_i,model.selected)
         self.assertEqual("Word 450: 0000",next(r["name"] for r in model.rows() if r["name"].startswith("Word ")))
 
+
+    def test_exact_position_command_and_selection_restore(self):
+        table,image,svc,model=self.make()
+        self.assertEqual(("DSPEPTAB",{"EPTAB":"QDMEPTB","POS":"250"}),
+                         parse_command("DSPEPTAB EPTAB(QDMEPTB) POS(250)"))
+        model.run_command("DSPEPTAB EPTAB(QDMEPTB) POS(250)")
+        self.assertEqual("Saved EPTAB word",model.rows()[0]["name"])
+        self.assertIn("index: 250",model.rows()[0]["lines"][1])
+        self.assertIn("+0x2F4",model.rows()[0]["lines"][1])
+        self.assertIn("03 13",model.rows()[0]["lines"][2])
+        self.assertEqual([10,11,12],image.reads)
+        model.run_command("DSPEPTAB EPTAB(QDMEPTB) POS(511)")
+        self.assertIn("index: 511",model.rows()[0]["lines"][1])
+        self.assertEqual([10,11,12],image.reads)
+        for invalid in ("POS(512)", "POS(-1)", "POS(A)", "POS(1) WORD(0045)"):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(model.run_command("DSPEPTAB EPTAB(QDMEPTB) "+invalid))
+                self.assertTrue(model.status)
+        for bad in (-1,512,"20",True):
+            with self.assertRaises(ValueError):
+                svc.rows(table,position=bad)
+
     def test_malformed_gapped_and_wrong_type_data_fail_closed(self):
         raw=eptab_fixture()
         for cut in (0,0x100,0x300,END-1):

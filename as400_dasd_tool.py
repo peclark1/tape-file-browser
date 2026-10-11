@@ -8883,6 +8883,7 @@ def cmd_browse5250(args):
         from as400_subsystems import SubsystemExplorer
         from as400_binding_directories import BindingDirectoryExplorer
         from as400_eptab import EPTabExplorer
+        from as400_cosd import SavedCOSDExplorer
         from as400_dtaq import SavedDataQueueExplorer
         from as400_products import SavedProductExplorer
         from as400_cnvtbl import SavedConversionExplorer
@@ -8911,6 +8912,7 @@ def cmd_browse5250(args):
         jobs = JobExplorer(state["image"], state["inventory"])
         binding_directories = BindingDirectoryExplorer(state["image"],state["inventory"])
         eptab = EPTabExplorer(state["image"])
+        cosd = SavedCOSDExplorer(state["image"],state["inventory"])
         archival_indexes = ArchivalIndexExplorer(state["image"])
         data_queues = SavedDataQueueExplorer(state["image"],state["inventory"])
         products = SavedProductExplorer(state["image"],state["inventory"])
@@ -8934,6 +8936,7 @@ def cmd_browse5250(args):
         def load_capabilities(obj, sample=None):
             if obj.type_code in ("19/37","02/03"): return binding_directories.rows(obj)
             if obj.type_code == "19/D7": return eptab.rows(obj)
+            if obj.type_code == "14/01": return cosd.rows(obj)
             if obj.type_code in ("0E/D0","0E/C8"): return archival_indexes.rows(obj)
             if obj.type_code == "0A/01": return data_queues.rows(obj)
             if obj.type_code in ("19/1D", "19/1B"): return products.rows(obj)
@@ -8966,6 +8969,7 @@ def cmd_browse5250(args):
             state["inventory"],
             binding_loader=binding_directories.rows,
             eptab_loader=eptab.rows,
+            cosd_loader=cosd.rows,
             dtaq_loader=data_queues.rows,
             conversion_loader=conversions.rows,
             gss_loader=gss.rows,

@@ -61,13 +61,20 @@ class EPTabExplorer:
             self._cache[origin]=decode_eptab_words(data,type_code=obj.type_code)
         return self._cache[origin]
 
-    def rows(self,obj,start=0,word="",entry=None):
+    def rows(self,obj,start=0,word="",entry=None,position=None):
         if not isinstance(start,int) or start<0:
             raise ValueError("Invalid EPTAB saved-word window")
         if word and (not isinstance(word,str) or len(word)!=4 or
                      any(c not in "0123456789ABCDEF" for c in word)):
             raise ValueError("WORD must contain exactly four hexadecimal digits")
+        if position is not None:
+            if not isinstance(position,int) or isinstance(position,bool) or not 0<=position<WORD_COUNT:
+                raise ValueError("POS must be a zero-based saved-word position from 0 to 511")
+            if word:
+                raise ValueError("POS and WORD filters cannot be combined")
         values=self.words(obj)
+        if position is not None:
+            entry=values[position]
         if entry is not None:
             if entry not in values:
                 raise ValueError("Word is not from selected recovered EPTAB primary")
