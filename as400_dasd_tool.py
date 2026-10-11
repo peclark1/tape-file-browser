@@ -8881,6 +8881,7 @@ def cmd_browse5250(args):
         from as400_programs import ProgramExplorer
         from as400_archival_indexes import ArchivalIndexExplorer
         from as400_subsystems import SubsystemExplorer
+        from as400_cosd import SavedCOSDExplorer
         from as400_binding_directories import BindingDirectoryExplorer
         from as400_eptab import EPTabExplorer
         from as400_dtaq import SavedDataQueueExplorer
@@ -8909,6 +8910,7 @@ def cmd_browse5250(args):
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
+        cosd = SavedCOSDExplorer(state["image"],state["inventory"])
         binding_directories = BindingDirectoryExplorer(state["image"],state["inventory"])
         eptab = EPTabExplorer(state["image"])
         archival_indexes = ArchivalIndexExplorer(state["image"])
@@ -8932,6 +8934,7 @@ def cmd_browse5250(args):
         menus = MenuExplorer(state["image"], state["inventory"])
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
+            if obj.type_code == "14/01": return cosd.rows(obj)
             if obj.type_code in ("19/37","02/03"): return binding_directories.rows(obj)
             if obj.type_code == "19/D7": return eptab.rows(obj)
             if obj.type_code in ("0E/D0","0E/C8"): return archival_indexes.rows(obj)
@@ -8964,6 +8967,7 @@ def cmd_browse5250(args):
 
         browser = Guided5250(
             state["inventory"],
+            cosd_loader=cosd.rows,
             binding_loader=binding_directories.rows,
             eptab_loader=eptab.rows,
             dtaq_loader=data_queues.rows,
