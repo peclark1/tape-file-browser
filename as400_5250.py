@@ -41,6 +41,7 @@ COMMANDS = (
     CommandSpec("DSPCNVTBL", "DSPCNVTBL CNVTBL(*ALL/TBT*) POS(128)", "Inspect 256 saved byte-pair slots and compare exact archived table bytes."),
     CommandSpec("DSPWSCST", "DSPWSCST WSCST(*ALL/QWPPAN2180)", "Inspect compiled TRANSFORM saved fields and candidate related WSCST origins."),
     CommandSpec("DSPGSS", "DSPGSS GSS(*ALL/ADMUVGEP) SLOT(1)", "Browse guarded saved symbol table slots and exact binary record boundaries."),
+    CommandSpec("DSPCOSD", "DSPCOSD COSD(*ALL/#*) SLOT(8)", "Explore saved CISC service-class profile byte slots and exact comparisons; no routing assumptions."),
     CommandSpec("DSPEPTAB", "DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)", "Browse cross-release saved EPTAB u16 word positions; no translation semantics."),
     CommandSpec("DSPBNDDIR", "DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)", "Browse saved V2R3 binding entries and candidate service-program/module identities."),
     CommandSpec("DSPSRVPGM", "DSPSRVPGM SRVPGM(*ALL/*)", "Find saved binding-directory records referring to service-program names; no runtime bindings."),
@@ -151,6 +152,7 @@ def parse_command(text):
         "DSPCNVTBL": {"CNVTBL", "POS"},
         "DSPWSCST": {"WSCST"},
         "DSPGSS": {"GSS", "SLOT"},
+        "DSPCOSD": {"COSD", "SLOT"},
         "DSPEPTAB": {"EPTAB", "WORD"},
         "DSPBNDDIR": {"BNDDIR", "NAME"},
         "DSPSRVPGM": {"SRVPGM"},
@@ -187,7 +189,8 @@ class Guided5250:
 
     def __init__(self, inventory, *, member_info=None, member_loader=None,
                  command_info_loader=None, config_info_loader=None,
-                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, gss_loader=None, conversion_loader=None, dtaq_loader=None, binding_loader=None, eptab_loader=None):
+                 command_definition_loader=None, capability_loader=None, record_loader=None, anchor_loader=None, message_loader=None, index_loader=None, directory_loader=None, queue_loader=None, library_loader=None, reference_loader=None, afp_loader=None, outq_loader=None, subsystem_loader=None, archival_index_loader=None, lda_loader=None, jmq_loader=None, panel_group_loader=None, printer_queue_loader=None, alert_loader=None, gss_loader=None, conversion_loader=None, dtaq_loader=None, binding_loader=None, eptab_loader=None, cosd_loader=None):
+        self.cosd_loader = cosd_loader
         self.binding_loader = binding_loader
         self.eptab_loader = eptab_loader
         self.dtaq_loader = dtaq_loader
@@ -501,7 +504,11 @@ class Guided5250:
         row = rows[index]
         default = "12" if row["kind"] in ("library", "file") else "5"
         option = str(option or default)
-        if row["kind"] == "eptab_word_action" and option == "5":
+        if row["kind"] == "cosd_action" and option == "5":
+            return self.show_evidence(row["request"],self.cosd_loader)
+        elif self.cosd_loader and row.get("object") is not None and row["object"].type_code == "14/01" and option == "5":
+            return self.show_evidence(dict(obj=row["object"],slot=row.get("cosd_slot")),self.cosd_loader)
+        elif row["kind"] == "eptab_word_action" and option == "5":
             return self.show_evidence(row["request"],self.eptab_loader)
         elif self.eptab_loader and row.get("object") is not None and row["object"].type_code == "19/D7" and option == "5":
             return self.show_evidence(dict(obj=row["object"],word=row.get("eptab_word","")),self.eptab_loader)
@@ -760,6 +767,18 @@ class Guided5250:
                     self.show_evidence(dict(obj=rows[0]["object"], slot=slot), self.gss_loader)
                 else:
                     self._goto("type_objects", view_rows=rows)
+            elif name == "DSPCOSD":
+                from as400_capabilities import select_objects
+                requested=params.get("SLOT")
+                slot=int(requested,10) if requested else None
+                if slot is not None and not 1<=slot<=8:
+                    raise ValueError("COSD SLOT must be a one-based saved slot from 1 to 8")
+                rows=select_objects(self.inventory,params.get("COSD","*ALL/*"),"*COSD")
+                for row in rows:row["cosd_slot"]=slot
+                if len(rows)==1:
+                    self.show_evidence(dict(obj=rows[0]["object"],slot=slot),self.cosd_loader)
+                else:
+                    self._goto("type_objects",view_rows=rows)
             elif name == "DSPEPTAB":
                 from as400_capabilities import select_objects
                 word=params.get("WORD","")
