@@ -900,3 +900,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Saved printer-queue key and SPLCB token candidates (offline)
 
 `DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)` browses saved 0E/C7 machine-index keys, filters by exact hex or supported six-character token, inspects full bytes and follows every recovered 19/C2 spool-control primary with an identical `SPdddd` token. The token relationship is **only a name/byte correlation**, not a certified printer job, owner or active queue. See [Mark/Pete empirical index evidence](docs/PRINTER_QUEUE_WORKFLOW.md). The [one-pass acceptance runner](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now covers 13 recent types.
+
+### Follow saved spool tokens in both directions
+
+`DSPPRTQ` can follow a saved `SPdddd` printer-queue key into same-token SPLCB origins. `DSPSPLCB` now also lists supported matching PRTQ saved keys to navigate back. Multiple origins, missing matches and unsupported printer-queue index roots stay distinct. No spool file ownership, live queue state or pointer is inferred. See [bidirectional evidence and limitations](docs/PRINTER_QUEUE_WORKFLOW.md).
