@@ -5,7 +5,7 @@ Workflow state is independent of binary decoder maturity. Shared type/search nav
 Queued means a type-specific Guided workflow still needs work/audit; existing forensic decoders may already exist.
 Partial means a usable bounded workflow exists and its remaining scope is explicit. No type is claimed universally decoded.
 
-States: delivered 0, partial 45, blocked 0, queued 223.
+States: delivered 0, partial 46, blocked 0, queued 222.
 
 Generated from `research/mi_capabilities.json` and the ranked research inventory.
 See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
@@ -61,7 +61,7 @@ See [workflow evidence and validation](TYPE_CAPABILITY_WORKFLOWS.md).
 | 47 | 19/1D | *PRDLOD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 48 | 02/02 | *SQLPKG | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 49 | 02/03 | *SRVPGM | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
-| 50 | 19/38 | *WSCST | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
+| 50 | 19/38 | *WSCST | partial | DSPWSCST validates saved CISC 19/38 outer/nested EBCDIC TRANSFORM descriptors with two echoed length fields and inspects strict 30-byte padded name candidates at +0x824/+0x1024, linking all exact-name recovered WSCST primaries in both directions with original offsets and withheld-source counts. No device inheritance or printer settings are inferred. | Decode period CISC compiled workstation customization transformation records, distinguish referenced WSCST from programs or internal name tokens, and independently validate printer/device control semantics and non-Mark release layouts. |
 | 51 | 0E/C7 | *PRTQ | partial | DSPPRTQ reconstructs strict 1024/2048-byte saved printer-queue index keys, filters by raw KEYHEX or SPdddd-shaped prefix, exposes exact terminal bytes and follows equal saved SP token candidates to recovered SPLCB primaries with duplicate/missing origins explicit. Neither queue state nor token ownership is verified. | Establish release-specific PRTQ key schemas and SPLCB token ownership/pointer semantics from applicable CISC references; validate full recovered virtual-extent roots on both images and spool relationship ambiguity. |
 | 52 | 14/01 | *COSD | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
 | 53 | 19/D4 | *DBRCVR | queued | No type-specific Guided workflow audited yet. | Review historical references and validate the object format before attempting type-specific field decoding. |
