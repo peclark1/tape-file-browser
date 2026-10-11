@@ -17,6 +17,11 @@
       "workflow": "Controller address-occurrence candidates link devices and lines in both directions.",
       "next_step": "Establish release-specific field roles; current links are evidence, not active topology."
     },
+    "1401": {
+      "state": "partial",
+      "workflow": "DSPCOSD opens supported cross-release eight 48-byte saved class-of-service profile slots with exact hex, slot offsets and peer raw-byte comparisons; no CPU/routing/service semantics inferred.",
+      "next_step": "Confirm COSD field meanings and profile applicability against CISC-era reference material and full recovered-image virtual extents; no active service configuration claimed."
+    },
     "1501": {
       "state": "partial",
       "workflow": "Mode identity and bounded configuration evidence.",
