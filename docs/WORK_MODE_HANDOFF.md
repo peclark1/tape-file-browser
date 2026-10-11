@@ -4,6 +4,10 @@
 
 **Status checked:** October 10, 2026 (US Central), against GitHub PR details. Verify live status before acting.
 
+## WSCST saved TRANSFORM exact-name candidates — October 10, 2026
+
+Successor branch `feature/wscst-transform-candidates` starts from the stable, unmerged GSS PR #41 head `f35bf5ae`; main stays at the user-approved 44-type tested release. `DSPWSCST WSCST(*ALL/QWPPAN2180)` now validates an independently corroborated 19/38 compiled TRANSFORM wrapper: +0x100 0x34, class 0002, EBCDIC TRANSFORM and TRANSFRM, +0x104 declared payload size and two +0x34-adjusted echoes. Only exact 30-byte EBCDIC padded saved names at +0x824 and +0x1024 are exposed and matched to individual recovered WSCST primaries with selectable original source/target and reverse links, preserving missing/duplicate/unassigned origins and unreadable candidate counts. Direct read-only first-page/physical-contiguous scans found 66 Mark V2R3 WSCST signature candidates all sharing the same nested headers, no Pete candidates; 55/24 candidate slots inside length bounds, 18/13 accepted padded names, and 4/9 same-name WSCST physical identity matches, respectively. **These are candidate name correlations, not actual printer transformation semantics or proven inheritance.** See `docs/WSCST_WORKFLOW.md` and SHA-safe optional recovered-original `tools/validate_wscst_workflows.py`. Synthetic tests for selection/Back/malformed data and combined **18-family** acceptance have passed on this branch; verify final exact-head CI. Tracker **46 partial / 222 queued / 0 complete**. Keep new work separate from tested main pending user acceptance; continue ranked types and decode depth rather than stop at a PR.
+
 ## GSS saved symbol offset table -> bounded raw byte records — October 10, 2026
 
 User explicitly authorized merging the review stack for hands-on testing. GitHub PRs #16–#39 were merged sequentially into `main` (last merge commit `20c841ff`), and the corresponding `main` GitHub Actions synthetic suite passed. Prior unrelated draft/tape PRs #1, #2, #8, #10 and #15 were **not** merged. Main now records **44 partial / 224 queued / zero universal completions**.

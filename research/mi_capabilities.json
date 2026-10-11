@@ -92,6 +92,11 @@
       "workflow": "DSPAFP -> bounded page-definition field windows -> matched begin/end categories -> opaque field payload windows.",
       "next_step": "Decode page-map and line-data formatting semantics against period references."
     },
+    "1938": {
+      "state": "partial",
+      "workflow": "DSPWSCST validates saved CISC 19/38 outer/nested EBCDIC TRANSFORM descriptors with two echoed length fields and inspects strict 30-byte padded name candidates at +0x824/+0x1024, linking all exact-name recovered WSCST primaries in both directions with original offsets and withheld-source counts. No device inheritance or printer settings are inferred.",
+      "next_step": "Decode period CISC compiled workstation customization transformation records, distinguish referenced WSCST from programs or internal name tokens, and independently validate printer/device control semantics and non-Mark release layouts."
+    },
     "1951": {
       "state": "partial",
       "workflow": "Inspect descriptors and decode selected records using that exact chosen format; mismatched/out-of-record and invalid numeric fields remain visible.",
