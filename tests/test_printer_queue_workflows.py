@@ -73,7 +73,7 @@ class PrinterQueueTests(unittest.TestCase):
             self.assertEqual(1,len(values))
             self.assertEqual(key,values[0].raw)
             self.assertEqual("SP0002",values[0].token_candidate)
-            self.assertEqual(root+14,values[0].terminal_offset)
+            self.assertEqual(root+8,values[0].terminal_offset)  # tree element, not payload offset
 
     def test_strict_candidate_and_no_claimed_token_identity(self):
         for raw in (
