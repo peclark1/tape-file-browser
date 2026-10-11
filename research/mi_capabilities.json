@@ -201,6 +201,11 @@
       "state": "partial",
       "workflow": "DSPJMQ navigates supported Mark V2R3 saved 18/A0 JMQ u16 count at +0x800 and exact 16-byte nonzero slots from +0x810, paging opaque bytes with warnings for extra following slots, strict control-layout and virtual-extent bounds.",
       "next_step": "Corroborate per-slot field identities and underlying message bodies or targets; prove release-specific JMQ semantics before claiming message text, live job status or chronology."
+    },
+    "0EC7": {
+      "state": "partial",
+      "workflow": "DSPPRTQ reconstructs strict 1024/2048-byte saved printer-queue index keys, filters by raw KEYHEX or SPdddd-shaped prefix, exposes exact terminal bytes and follows equal saved SP token candidates to recovered SPLCB primaries with duplicate/missing origins explicit. Neither queue state nor token ownership is verified.",
+      "next_step": "Establish release-specific PRTQ key schemas and SPLCB token ownership/pointer semantics from applicable CISC references; validate full recovered virtual-extent roots on both images and spool relationship ambiguity."
     }
   }
 }
