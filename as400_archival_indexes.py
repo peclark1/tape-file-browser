@@ -14,6 +14,8 @@ MAX_KEY_SIZE = 256
 TYPES = {
     "0E/07": ("SCHIDX", 0xE0, 0x2E),
     "0E/91": ("MSRVI", 0x20, 0x16),
+    "0E/D0": ("EDTIDX", 0x20, 0x12),
+    "0E/C8": ("SRMIDX", None, None),
 }
 
 
@@ -30,8 +32,16 @@ def decode_archival_index(data, virtual_address, type_code):
     if len(data) < 0x42E:
         raise ValueError("Truncated primary before saved index control fields")
     header = data[0x100:0x106]
-    if (header[0:3] != bytes([leading,0,0]) or
-            header[4:6] != bytes([0,last])):
+    if type_code == "0E/D0":
+        if header != bytes.fromhex("200000160012"):
+            raise ValueError("Unsupported EDTIDX saved header variant")
+    elif type_code == "0E/C8":
+        if header not in (bytes.fromhex("200000160006"),
+                          bytes.fromhex("20000016000C"),
+                          bytes.fromhex("60000032001B")):
+            raise ValueError("Unsupported SRMIDX saved header variant")
+    elif (header[0:3] != bytes([leading,0,0]) or
+          header[4:6] != bytes([0,last])):
         raise ValueError(f"Unsupported {kind} index header; field variant withheld")
     # +0x103 remains an unknown control/layout byte. The observed header
     # scalar at +0x106 has not been proven to be a universal live entry count.
@@ -68,7 +78,7 @@ class ArchivalIndexExplorer:
 
     def entries(self,obj):
         if obj.type_code not in TYPES:
-            raise ValueError("Not SCHIDX or MSRVI")
+            raise ValueError("Unsupported saved archival index type")
         key=(obj.segment.start_lba,obj.segment.virtual_address,obj.type_code)
         if key not in self._cache:
             self._cache[key]=decode_archival_index(
