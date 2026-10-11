@@ -64,11 +64,18 @@ def decode_product_definition(data, *, type_code):
     length = int.from_bytes(data[0x100:0x104], "big")
     if length < 1 or length > MAX_BYTES or 0x104 + length > len(data):
         raise ValueError("Saved program-product definition is truncated or oversized")
-    product = padded(data[0x209:0x213], IDENT)
+    signature = data[0x200:0x206]
+    if signature == "PDO 11".encode("cp037"):
+        product = padded(data[0x209:0x213], IDENT)
+    else:
+        # The B10 variant uses a seven-byte EBCDIC product ID followed
+        # by three binary NUL bytes, unlike Mark's padded name field.
+        raw_id = data[0x209:0x213]
+        older = raw_id[:7].decode("cp037", errors="replace")
+        product = older if raw_id[7:] == bytes(3) and IDENT.fullmatch(older) else None
     release = data[0x21C:0x224].decode("cp037", errors="replace")
     if not product or not re.fullmatch("[0-9]{8}", release):
         raise ValueError("Unsupported product identifier or saved release-code layout")
-    signature = data[0x200:0x206]
     if signature == "PDO 11".encode("cp037"):
         count = int.from_bytes(data[0x358:0x35C], "big")
         measure = int.from_bytes(data[0x356:0x358], "big")
@@ -104,7 +111,7 @@ def decode_product_definition(data, *, type_code):
     if (signature == "PDO ".encode("cp037") + b"\x00\x00" and
             length == 496):
         vendor = data[0x104:0x136].decode("cp037",errors="replace").strip()
-        label = data[0x136:0x148].decode("cp037",errors="replace").strip()
+        label = data[0x136:0x148].decode("cp037",errors="replace").split("\\x00")[0].strip()
         legal = data[0x228:0x288].decode("cp037",errors="replace").split("\x00")[0].rstrip(" ")
         if not vendor or not legal or not all(32 <= ord(c) <= 126 for c in vendor+label+legal):
             raise ValueError("Unsupported legacy vendor/legal-text candidate encoding")
