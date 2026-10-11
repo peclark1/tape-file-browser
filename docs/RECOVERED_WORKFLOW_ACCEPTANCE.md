@@ -131,7 +131,7 @@ you've approved it.
 
 ## Review milestone
 
-The current ledger remains **40 partial, 228 queued, 0 universally
+The current ledger is **42 partial, 226 queued, 0 universally
 completed**. This acceptance harness improves confidence in those
 existing capabilities and does **not** advance the type count merely
 by running general navigation. The runner's synthetic tests are
