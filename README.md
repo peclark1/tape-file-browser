@@ -884,3 +884,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Saved job-message queue entries (offline)
 
 `DSPJMQ JMQ(*ALL/QJOBMSGQ)` shows the 18/A0 V2R3 saved 16-byte slot array with a checked two-byte header count, 50-entry windows and opaque byte details. This does **not** reconstruct a live queue, timestamps, job ownership or message texts; Pete's older image has no validated 18/A0 layout. [JMQ evidence and safety](docs/JMQ_WORKFLOW.md).
+
+### Tagged compiled panel-group symbol search (offline)
+
+`DSPPNLGRP PNLGRP(*ALL/*) NAME(CRT*) AT(0)` browses 19/15 compiled PNLGRP tagged EBCDIC identifier candidates in 32-KiB virtual windows. Inspect exact tagged bytes, page 50 candidate names, and follow *tentative* same-name command identities. This does **not** decode UIM panel actions or render screens. See [two-release binary evidence and restrictions](docs/PANEL_GROUP_WORKFLOW.md).
