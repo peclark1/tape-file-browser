@@ -66,6 +66,22 @@ User profile rule: do not dump, catalog, or export credentials, password
 material or arbitrary unverified *USRPRF bytes in a general-purpose report.
 The dedicated viewer deliberately avoids raw profile sampling.
 
+## Focused CMD/MSGF/MENU/PGM source-and-disk pass
+
+See docs/MI_INTERACTIVE_OBJECT_RELATIONSHIPS.md for verified historical
+manual pages, concrete source-level parameter/program examples, and
+read-only candidate counts from Mark V2R3 and Pete B10 disk archives.
+
+The reusable tools/mi_primary_census.py scanner recognizes each family's
+observed primary-segment group variants rather than misapplying the CMD
+tag to every type. Its reports contain counts only, not recovered names.
+
+The inspected *MSGF and *MENU primaries have repeatable text/binary
+clues, but no message entry layout, menu option/action pointer or
+program MI/ODT instruction map is yet decoded. Continue in the
+dependency order MSGF -> MENU -> CMD prompt links -> PGM templates.
+Keep the separate draft PR #15 isolated until its tests/human trial.
+
 ## Initial workstreams (dependency-first)
 
 ### A. Core storage and database metadata
@@ -119,10 +135,10 @@ The supplied archive contains 17 PDFs, and the disk-storage Redbook is
 the 18th source. All 18 have now been **automatically searched** for
 literal IBM star-prefixed object type names: 764 textual hits covering
 86 of the 268 catalog types. See docs/MI_MANUAL_SCAN_FIRST_PASS.md.
-These are **unverified candidate page leads only**. Four selected PDFs
+These are **unverified candidate page leads only**. Five selected PDFs
 have **initial manual page reviews**, covering object roles, command
 processing, security/communications setup, and disk-object metadata.
-The remaining 14 are indexed and lexically scanned but **not manually
+The remaining 13 are indexed and lexically scanned but **not manually
 reviewed**. No exact name hits in the CISC Builder or service manuals
 does NOT mean those sources lack structural information.
 

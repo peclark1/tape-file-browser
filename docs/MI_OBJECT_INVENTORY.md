@@ -44,7 +44,7 @@ describe the audited capabilities in this repository only.
 | 19/A5 | *CIO | internal | Catalog only | — |
 | 19/0B | *CLD | external | Catalog only | — |
 | 19/04 | *CLS | external | Catalog only | — |
-| 19/05 | *CMD | external | Evidence | primer-1992 p.230; starter-2001 p.478 |
+| 19/05 | *CMD | external | Evidence | primer-1992 p.230,438,439; starter-2001 p.478,479,480,518,519,520 |
 | 0E/A0 | *CMTCDRI | internal | Catalog only | — |
 | 17/01 | *CNNL | external | Catalog only | — |
 | 19/FB | *CNVTBL | internal | Catalog only | — |
@@ -165,7 +165,7 @@ describe the audited capabilities in this repository only.
 | 03/01 | *MODULE | external | Catalog only | — |
 | 19/DF | *MQLOCK | internal | Catalog only | — |
 | 19/EE | *MSCSP | internal | Catalog only | — |
-| 0E/03 | *MSGF | external | Identity | primer-1992 p.233 |
+| 0E/03 | *MSGF | external | Identity | primer-1992 p.233; operations p.146,147,150,151,152,153,172; power-tips p.352,353 |
 | 19/02 | *MSGQ | external | Evidence | primer-1992 p.233 |
 | 0E/91 | *MSRVI | internal | Catalog only | — |
 | 19/E5 | *NFSP | internal | Catalog only | — |
@@ -191,7 +191,7 @@ describe the audited capabilities in this repository only.
 | 0E/11 | *PDFMAP | external | Catalog only | — |
 | 19/30 | *PDG | external | Catalog only | — |
 | 19/C7 | *PDT | internal | Catalog only | — |
-| 02/01 | *PGM | external | Identity | primer-1992 p.230,234; operations p.111 |
+| 02/01 | *PGM | external | Identity | primer-1992 p.230,234,439; starter-2001 p.478,480,521,524; operations p.111 |
 | 19/15 | *PNLGRP | external | Catalog only | — |
 | 1E/B2 | *POBSF | internal | Catalog only | — |
 | 19/33 | *PRDAVL | external | Catalog only | — |
@@ -292,6 +292,20 @@ describe the audited capabilities in this repository only.
 | 0E/F0 | *X4Q | internal | Catalog only | — |
 | 0E/A1 | *ZMFINX | internal | Catalog only | — |
 | 19/A2 | *ZMFSPC | internal | Catalog only | — |
+
+## Physical primary candidate evidence (partial scan)
+
+These numbers are **not active/context-resolved objects**. A dash
+means not scanned, **not** that the object was absent.
+
+| MI | IBM type | Mark V2R3 | Pete B10 |
+|---|---|---:|---:|
+| 02/01 | *PGM | 4286 | 3081 |
+| 0E/03 | *MSGF | 56 | 38 |
+| 19/05 | *CMD | 3129 | 1117 |
+| 19/16 | *MENU | 574 | 223 |
+
+For all other IBM types, image census remains **not scanned**.
 
 ## Next steps and safety
 

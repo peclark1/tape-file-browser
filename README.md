@@ -298,7 +298,7 @@ python3 tools/mi_object_inventory.py --check-report
 The 18 historical PDF filenames and initial page-level citations are
 tracked in research/manual_sources.json. We ran an initial full
 **18-PDF exact-object-name lexical scan**, yielding **764 matches across
-86 IBM object-type names**. Those are only page leads; four PDFs have
+86 IBM object-type names**. Those are only page leads; five PDFs have
 selected pages independently reviewed so far. See
 [the first-pass manual scan findings](docs/MI_MANUAL_SCAN_FIRST_PASS.md)
 for the results and method limitations. PDF files and source disk images
@@ -316,6 +316,24 @@ Every lexical hit requires human review before a page is cited as
 support for an object field, relationship or API. This tool does not
 perform OCR or silently treat an API receiver format as an on-disk
 CISC object format.
+
+### Historical CMD, MSGF, MENU and PGM research
+
+The [interconnected object research](docs/MI_INTERACTIVE_OBJECT_RELATIONSHIPS.md)
+records exact PDF-page evidence of command processing-program links,
+parameters, message descriptions and display/menu associations.
+A new read-only primary census tool can compare the four MI types
+on either archived 520-byte-sector image, including zipped HDA files:
+
+```bash
+python3 tools/mi_primary_census.py "/path/to/marks.hda.zip"
+python3 tools/mi_primary_census.py "/path/to/petes.hda.zip"
+```
+
+Results are **physical primary candidates**, not a list of active
+objects, and the tool emits no recovered object names or raw contents.
+No compiled MSGF/MENU/PGM binary field decoder is claimed by the
+documentation. Draft command work in PR #15 is still separate.
 
 ### AS/400 user, device and mode object viewers (experimental)
 

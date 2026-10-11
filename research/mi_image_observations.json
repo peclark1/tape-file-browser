@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "method": "Read-only 520-byte-sector physical primary EPA candidate scan; conservative family-specific segment group signatures, decoded EBCDIC name constraints. See tools/mi_primary_census.py.",
+  "caveats": [
+    "Counts include physically surviving candidate primary segments; NOT context-resolved active system objects, unique programs, or proof of a specific OS release.",
+    "Only four explicitly validated families were scanned for this evidence set; every other IBM MI code remains NOT SCANNED, not zero.",
+    "Stale, orphaned, or duplicate primaries may be included; some valid objects can be missed if their layout uses unrecognized header variants."
+  ],
+  "images": {
+    "marks-v2r3": {
+      "label": "Mark V2R3",
+      "input": "marks.hda.zip",
+      "physical_sector_bytes": 520,
+      "logical_payload_bytes": 512,
+      "results": {
+        "1905": {
+          "primary_candidates": 3129,
+          "segment_group_variants": {
+            "89": 3129
+          }
+        },
+        "1916": {
+          "primary_candidates": 574,
+          "segment_group_variants": {
+            "80": 4,
+            "81": 570
+          }
+        },
+        "0E03": {
+          "primary_candidates": 56,
+          "segment_group_variants": {
+            "90": 56
+          }
+        },
+        "0201": {
+          "primary_candidates": 4286,
+          "segment_group_variants": {
+            "80": 1,
+            "81": 2791,
+            "89": 1494
+          }
+        }
+      }
+    },
+    "petes-b10": {
+      "label": "Pete B10",
+      "input": "petes.hda.zip",
+      "physical_sector_bytes": 520,
+      "logical_payload_bytes": 512,
+      "results": {
+        "1905": {
+          "primary_candidates": 1117,
+          "segment_group_variants": {
+            "89": 1117
+          }
+        },
+        "1916": {
+          "primary_candidates": 223,
+          "segment_group_variants": {
+            "80": 209,
+            "81": 14
+          }
+        },
+        "0E03": {
+          "primary_candidates": 38,
+          "segment_group_variants": {
+            "90": 38
+          }
+        },
+        "0201": {
+          "primary_candidates": 3081,
+          "segment_group_variants": {
+            "81": 2744,
+            "89": 337
+          }
+        }
+      }
+    }
+  }
+}

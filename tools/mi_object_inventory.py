@@ -72,8 +72,30 @@ def read_data(root=ROOT):
     return entries, reviews, manuals
 
 
+def image_observations(entries, root=ROOT):
+    """Validate a partial census, keeping 'not scanned' separate from zero."""
+    path = root / "research/mi_image_observations.json"
+    if not path.exists():
+        return {}
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    if doc.get("schema_version") != 1:
+        raise ValueError("Unsupported image observation schema")
+    by_type = {}
+    for image_id, image in doc["images"].items():
+        for code, record in image["results"].items():
+            if code not in entries:
+                raise ValueError("Unknown image-observed MI type: " + code)
+            if record["primary_candidates"] < 0:
+                raise ValueError("Negative candidate count")
+            if sum(record["segment_group_variants"].values()) != record["primary_candidates"]:
+                raise ValueError("Variant/candidate mismatch: " + code)
+            by_type.setdefault(code, {})[image_id] = record
+    return by_type
+
+
 def inventory(entries, reviews):
     rows = []
+    presence = image_observations(entries)
     for code, entry in entries.items():
         audit = reviews["reviews"].get(code)
         rows.append({
@@ -83,6 +105,11 @@ def inventory(entries, reviews):
             "documentation": "initial_sources" if audit and audit["manual_refs"]
                              else "unreviewed",
             "review": audit,
+            "image_evidence": (
+                {"status": "scanned_physical_primary_candidates",
+                 "images": presence[code]}
+                if code in presence else {"status": "not_scanned"}
+            ),
         })
     return sorted(rows, key=lambda r: (r["name"], r["key"]))
 
@@ -132,6 +159,26 @@ def markdown(rows):
             f"| {row['code']} | {row['name']} | {row['category']} | "
             f"{LABELS[row['status']]} | {pages} |"
         )
+    observed = [row for row in rows
+                if row["image_evidence"]["status"] == "scanned_physical_primary_candidates"]
+    lines.extend([
+        "", "## Physical primary candidate evidence (partial scan)", "",
+        "These numbers are **not active/context-resolved objects**. A dash",
+        "means not scanned, **not** that the object was absent.",
+        "", "| MI | IBM type | Mark V2R3 | Pete B10 |",
+        "|---|---|---:|---:|",
+    ])
+    for row in sorted(observed, key=lambda r: r["key"]):
+        image_data = row["image_evidence"]["images"]
+        mark = image_data.get("marks-v2r3", {}).get("primary_candidates")
+        pete = image_data.get("petes-b10", {}).get("primary_candidates")
+        lines.append(
+            f"| {row['code']} | {row['name']} | "
+            f"{mark if mark is not None else '—'} | "
+            f"{pete if pete is not None else '—'} |"
+        )
+    lines.append("")
+    lines.append("For all other IBM types, image census remains **not scanned**.")
     lines.extend([
         "", "## Next steps and safety", "",
         "Run the script with --type-code 19/05 for full decoder evidence,",

@@ -37,6 +37,23 @@
             34
           ],
           "topic": "user profile identity and sign-on"
+        },
+        {
+          "pdf_pages": [
+            146,
+            147
+          ],
+          "topic": "predefined messages, substitutions and severity"
+        },
+        {
+          "pdf_pages": [
+            150,
+            151,
+            152,
+            153,
+            172
+          ],
+          "topic": "message description lookup and message-file creation/maintenance commands"
         }
       ],
       "lexical_scan": {
@@ -180,6 +197,26 @@
             478
           ],
           "topic": "command definition example for CL program"
+        },
+        {
+          "pdf_pages": [
+            478,
+            479,
+            480
+          ],
+          "topic": "PRTOBJAUT command definition, OBJ/OBJTYPE parameters and PRTOBJAUT1 processing program"
+        },
+        {
+          "pdf_pages": [
+            518,
+            519,
+            520,
+            521,
+            522,
+            523,
+            524
+          ],
+          "topic": "SNDBRKMSGU definition and validity/processing program separation"
         }
       ],
       "lexical_scan": {
@@ -291,6 +328,13 @@
             234
           ],
           "topic": "historical OS/400 object roles and relationships"
+        },
+        {
+          "pdf_pages": [
+            438,
+            439
+          ],
+          "topic": "SNDBRKACT sample command source, MSG MSGTYPE QSYSOPR and BRK001CL processing program"
         }
       ],
       "lexical_scan": {
@@ -306,8 +350,16 @@
       "location": "as400 manuals.zip",
       "archive_member": "AS400_Power_Tips_and_Techniques_by_Steve_Bisel.pdf",
       "format": "PDF",
-      "review_status": "indexed_not_reviewed",
-      "verified_sections": [],
+      "review_status": "selected_pages_reviewed",
+      "verified_sections": [
+        {
+          "pdf_pages": [
+            352,
+            353
+          ],
+          "topic": "DDS MSGID reference to QGPL/USRMSGF and CRTMSGF/ADDMSGD"
+        }
+      ],
       "lexical_scan": {
         "status": "automated_unverified_text_layer",
         "pdf_pages_scanned": 414,
