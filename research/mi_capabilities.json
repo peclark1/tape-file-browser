@@ -17,6 +17,11 @@
       "workflow": "Controller address-occurrence candidates link devices and lines in both directions.",
       "next_step": "Establish release-specific field roles; current links are evidence, not active topology."
     },
+    "1401": {
+      "state": "partial",
+      "workflow": "DSPCOSD selects supported CISC class-of-service description profiles, browses eight saved 48-byte records across virtual pages, compares other archived COSD objects with exact changed-slot/byte offsets, and navigates Back; three shared historical profiles match byte-for-byte across both original images.",
+      "next_step": "Establish IBM-defined meanings of per-slot metrics and header flag controls; execute full recovered-object dual-image regression/acceptance rather than relying only on physical first-page evidence."
+    },
     "1501": {
       "state": "partial",
       "workflow": "Mode identity and bounded configuration evidence.",
