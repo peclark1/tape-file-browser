@@ -908,3 +908,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Saved alert-table to message-file ID navigation (offline)
 
 `DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)` browses reconstructed 12-byte saved 0E/09 alert-table keys, and lets you follow a strict seven-character message-ID candidate into a same-name recovered *MSGF only when that exact ID exists in the separately validated message index. The four trailing bytes and C/D tag semantics remain unknown. This does not execute an alert or establish a historical runtime alert action. See [Mark/Pete index evidence](docs/ALERT_TABLE_WORKFLOW.md). The [one-scan acceptance runner](docs/RECOVERED_WORKFLOW_ACCEPTANCE.md) now covers fourteen recent partial types.
+
+### Saved alert-table / message-ID links in both directions
+
+`DSPALRTBL` selects a supported saved C-tag 12-byte alert key and checks for an independently decoded identical `*MSGF` index ID before allowing record navigation. `DSPMSGD` now also lists same-ID saved alert-key candidates from selected message definitions, even when the associated older message text segment is missing. Both directions are exact-name/ID evidence, not proof of live alert execution, alarm routing or record-pointer ownership. [Cross-release evidence and limits](docs/ALERT_TABLE_WORKFLOW.md).
