@@ -916,3 +916,7 @@ Use `DSPLDA LDA(*ALL/QLDA)` to select recovered 19/CE QLDA primaries and browse 
 ### Bidirectional saved alert/message ID cross-reference
 
 The existing `DSPMSGD` record-detail screen now includes any **same-name alert-table C-tag keys bearing its independently indexed seven-character message ID**. Select an alert key for its original bytes; Back returns to the same message definition. The reverse view works even when the older image has no recoverable message text, and unsupported alert index roots are counted as withheld. This is a saved-ID correlation, not a proven alert action. See [alert and message cross-reference evidence](docs/ALERT_TABLE_WORKFLOW.md).
+
+### Saved journal and receiver exact-address navigation (offline)
+
+Use `DSPJRN JRN(*ALL/*)` to inspect corroborated full eight-byte CISC receiver-address slots at +0x110/+0x240 and follow every recovered receiver primary with an identical YYSGHDR owner address. `DSPJRNRCV JRNRCV(*ALL/*)` goes in reverse to saved journal address references. This is **full binary extender/address matching**, not similar-name guessing, but does not establish a live receiver or journal chronology. See [Mark/Pete evidence and unsupported variants](docs/JOURNAL_RECEIVER_WORKFLOW.md).

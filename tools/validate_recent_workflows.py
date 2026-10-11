@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-scan read-only acceptance for 14 recent CISC Guided workflow types.
+"""One-scan read-only acceptance for 16 recent CISC Guided workflow types.
 
 Unlike per-family validators, this recovers original disk objects *once*,
 reuses the same image/model, and computes SHA256 before and after the run.
@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from as400_dasd import DASDImage
 from as400_5250 import Guided5250
+from as400_journals import JournalReceiverExplorer
 from as400_alert_tables import AlertTableExplorer
 from as400_messages import MessageExplorer
 from as400_printer_queues import PrinterQueueExplorer
@@ -50,6 +51,8 @@ WORKFLOWS = (
     ("19/08", "DSPEDTD", "EDTD"),
     ("0E/C7", "DSPPRTQ", "PRTQ"),
     ("0E/09", "DSPALRTBL", "ALRTBL"),
+    ("09/01", "DSPJRN", "JRN"),
+    ("07/01", "DSPJRNRCV", "JRNRCV"),
 )
 TYPE_CODES = {t[0] for t in WORKFLOWS}
 DETAIL_ACTIONS = {
@@ -60,6 +63,7 @@ DETAIL_ACTIONS = {
 
 def make_model(image, inventory, segments=None):
     """Use the same capability service routing as the production TUI."""
+    journals = JournalReceiverExplorer(image, inventory)
     messages = MessageExplorer(image, inventory, segments or NS(segments=[]))
     alerts = AlertTableExplorer(image, inventory, message_explorer=messages)
     messages.alert_explorer = alerts
@@ -75,6 +79,8 @@ def make_model(image, inventory, segments=None):
     edits = EditDescriptionExplorer(image, inventory)
     jobs = JobExplorer(image, inventory)
     services = {
+        "09/01": journals,
+        "07/01": journals,
         "0E/09": alerts,
         "0E/C7": printer_queues,
         "0E/02": outq,

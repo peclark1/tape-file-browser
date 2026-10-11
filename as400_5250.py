@@ -35,6 +35,8 @@ COMMANDS = (
     CommandSpec("WRKCMD", "WRKCMD CMD(*ALL/CPY*)", "Find recovered commands, including unassigned primaries."),
     CommandSpec("DSPCMD", "DSPCMD CMD(QIWS/CPYTOPCD)", "Explore a recovered command definition; never execute it."),
     CommandSpec("DSPAFP", "DSPAFP OBJ(*ALL/*)", "Browse embedded print-resource fields and coded-font dependencies."),
+    CommandSpec("DSPJRN", "DSPJRN JRN(*ALL/*)", "Follow archived full internal receiver addresses; no active journal-chain claims."),
+    CommandSpec("DSPJRNRCV", "DSPJRNRCV JRNRCV(*ALL/*)", "Find saved journal pointers into the selected receiver origin, read-only."),
     CommandSpec("DSPALRTBL", "DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)", "Browse saved alert keys and exact message-ID candidates; no alert execution."),
     CommandSpec("DSPPRTQ", "DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)", "Inspect saved printer-queue index keys and tentative spool-control token matches."),
     CommandSpec("WRKOUTQ", "WRKOUTQ OUTQ(*ALL/QPRINT) FORM(*STD)", "Inspect saved output-queue index keys and tentative form tokens; no live spool state."),
@@ -132,6 +134,8 @@ def parse_command(text):
         "DSPJOBD": {"JOBD"},
         "DSPMSG": {"MSGQ"},
         "DSPPGM": {"PGM"},
+        "DSPJRN": {"JRN"},
+        "DSPJRNRCV": {"JRNRCV"},
         "DSPALRTBL": {"ALRTBL", "MSGID", "KEYHEX"},
         "DSPPRTQ": {"PRTQ", "KEYHEX", "TOKEN"},
         "WRKOUTQ": {"OUTQ", "KEYHEX", "FORM"},
@@ -564,7 +568,7 @@ class Guided5250:
             return True
         elif (row.get("object") is not None and self.capability_loader and
               ((option == "5" and row["object"].type_code in
-                ("02/01", "19/03", "0E/01", "0E/C4", "19/09", "19/04", "19/C2", "19/08", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
+                ("02/01", "19/03", "0E/01", "0E/C4", "09/01", "07/01", "19/09", "19/04", "19/C2", "19/08", "19/16", "10/01", "12/01", "11/01", "19/01", "19/51", "19/06", "19/0A", "19/0E", "19/12", "06/C1", "0B/90", "0C/90")) or
                (option == "9" and row["object"].is_member_cursor))):
             if self.explore_object(row["object"], row.get("sample")):
                 if row.get("source_file") is not None and self.record_loader:
@@ -750,13 +754,13 @@ class Guided5250:
                 from as400_capabilities import type_rows
                 self._goto("mi_types", view_rows=type_rows(self.inventory, params.get("TYPE", "*")))
                 self.status = "Later catalog names; not proof of CISC presence or decoder support."
-            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB", "DSPJMQ", "DSPEDTD") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
+            elif name in ("DSPFD", "DSPTBL", "DSPDTAARA", "WRKFLR", "DSPMNU", "DSPJOBD", "WRKJOBQ", "DSPPGM", "DSPINTPRF", "DSPSBSD", "DSPCLS", "DSPLDA", "DSPSPLCB", "DSPJMQ", "DSPEDTD", "DSPJRN", "DSPJRNRCV") or (name == "WRKOBJ" and ("OBJ" in params or "OBJTYPE" in params)):
                 from as400_capabilities import select_objects, hex_sample
                 if name == "WRKOBJ" and "LIB" in params and "OBJ" in params:
                     raise ValueError("Use OBJ(library/name) or LIB(name), not both.")
-                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB", "DSPJMQ": "JMQ", "DSPEDTD": "EDTD"}.get(name, "OBJ")
+                arg = {"DSPFD": "FILE", "DSPTBL": "TBL", "DSPDTAARA": "DTAARA", "WRKFLR": "FLR", "DSPMNU": "MENU", "DSPJOBD": "JOBD", "WRKJOBQ": "JOBQ", "DSPPGM": "PGM", "DSPINTPRF": "INTPRF", "DSPSBSD": "SBSD", "DSPCLS": "CLS", "DSPLDA": "LDA", "DSPSPLCB": "SPLCB", "DSPJMQ": "JMQ", "DSPEDTD": "EDTD", "DSPJRN": "JRN", "DSPJRNRCV": "JRNRCV"}.get(name, "OBJ")
                 pattern = params.get(arg, params.get("LIB", "*ALL") + "/*")
-                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB", "DSPJMQ": "*JMQ", "DSPEDTD": "*EDTD"}.get(name, params.get("OBJTYPE", "*ALL"))
+                objtype = {"DSPFD": "*FILE", "DSPTBL": "*TBL", "DSPDTAARA": "*DTAARA", "WRKFLR": "*FLR", "DSPMNU": "*MENU", "DSPJOBD": "*JOBD", "WRKJOBQ": "*JOBQ", "DSPPGM": "*PGM", "DSPINTPRF": "*INTPRF", "DSPSBSD": "*SBSD", "DSPCLS": "*CLS", "DSPLDA": "*LDA", "DSPSPLCB": "*SPLCB", "DSPJMQ": "*JMQ", "DSPEDTD": "*EDTD", "DSPJRN": "*JRN", "DSPJRNRCV": "*JRNRCV"}.get(name, params.get("OBJTYPE", "*ALL"))
                 sample = hex_sample(params["HEX"]) if "HEX" in params else None
                 rows = select_objects(self.inventory, pattern, objtype)
                 for row in rows:
