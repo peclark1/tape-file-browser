@@ -29,6 +29,7 @@ def validate(path):
     counts=Counter()
     seen_source=False
     seen_receiver=False
+    seen_direct_parent=False
     for obj in inventory.objects:
         if obj.type_code!="09/01":
             continue
@@ -75,6 +76,26 @@ def validate(path):
             continue
         counts["recovered receiver primaries"]+=1
         rows=ex.rows(receiver)
+        try:
+            saved_parent=ex.receiver_parent_address(receiver)
+        except (OSError,ValueError):
+            counts["unsupported receiver-owned journal pointers"]+=1
+        else:
+            counts["supported receiver-owned pointer fields"]+=1
+            counts["saved null parent addresses"]+=saved_parent.is_null
+            if not saved_parent.is_null:
+                count=len(ex._journals_by_address.get(saved_parent.key,()))
+                counts["exact receiver-to-journal owner key matches"]+=count
+                counts["receiver pointers with no journal primary"]+=(count==0)
+                counts["ambiguous direct receiver parent candidates"]+=(count>1)
+                if count and not seen_direct_parent:
+                    model.show_evidence(dict(obj=receiver),ex.rows)
+                    evidence=next((i for i,row in enumerate(model.rows())
+                                  if row.get("name")=="Receiver-saved journal pointer"),None)
+                    if evidence is None:
+                        raise ValueError("Receiver-owned +0x108 pointer evidence missing")
+                    counts["receiver direct-parent evidence walkthroughs"]+=1
+                    seen_direct_parent=True
         links=[(i,row) for i,row in enumerate(rows) if row.get("object") is not None]
         counts["reverse saved-address references"]+=len(links)
         counts["receivers with saved journal links"]+=bool(links)
@@ -97,6 +118,7 @@ def validate(path):
             counts["receiver-to-journal/Back walkthroughs"]+=1
             seen_receiver=True
     counts["unsupported journal primaries excluded from reverse index"]=ex._withheld
+    counts["receiver records withheld from parent reverse index"]=ex._receiver_direct_withheld
     after=digest(path)
     if before!=after:
         raise ValueError("Original archived HDA SHA256 changed")
