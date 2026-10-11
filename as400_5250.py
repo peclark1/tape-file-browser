@@ -41,7 +41,7 @@ COMMANDS = (
     CommandSpec("DSPCNVTBL", "DSPCNVTBL CNVTBL(*ALL/TBT*) POS(128)", "Inspect 256 saved byte-pair slots and compare exact archived table bytes."),
     CommandSpec("DSPWSCST", "DSPWSCST WSCST(*ALL/QWPPAN2180)", "Inspect compiled TRANSFORM saved fields and candidate related WSCST origins."),
     CommandSpec("DSPGSS", "DSPGSS GSS(*ALL/ADMUVGEP) SLOT(1)", "Browse guarded saved symbol table slots and exact binary record boundaries."),
-    CommandSpec("DSPEPTAB", "DSPEPTAB EPTAB(*ALL/QDMEPTB) WORD(0045)", "Browse cross-release saved EPTAB u16 word positions; no translation semantics."),
+    CommandSpec("DSPEPTAB", "DSPEPTAB EPTAB(*ALL/QDMEPTB) POS(128)", "Jump to an exact EPTAB word position or filter WORD(0045); no translation semantics."),
     CommandSpec("DSPBNDDIR", "DSPBNDDIR BNDDIR(*ALL/QILE) NAME(QLE*)", "Browse saved V2R3 binding entries and candidate service-program/module identities."),
     CommandSpec("DSPSRVPGM", "DSPSRVPGM SRVPGM(*ALL/*)", "Find saved binding-directory records referring to service-program names; no runtime bindings."),
     CommandSpec("DSPJRN", "DSPJRN JRN(*ALL/*)", "Follow archived full internal receiver addresses; no active journal-chain claims."),
@@ -151,7 +151,7 @@ def parse_command(text):
         "DSPCNVTBL": {"CNVTBL", "POS"},
         "DSPWSCST": {"WSCST"},
         "DSPGSS": {"GSS", "SLOT"},
-        "DSPEPTAB": {"EPTAB", "WORD"},
+        "DSPEPTAB": {"EPTAB", "WORD", "POS"},
         "DSPBNDDIR": {"BNDDIR", "NAME"},
         "DSPSRVPGM": {"SRVPGM"},
         "DSPJRN": {"JRN"},
@@ -504,7 +504,7 @@ class Guided5250:
         if row["kind"] == "eptab_word_action" and option == "5":
             return self.show_evidence(row["request"],self.eptab_loader)
         elif self.eptab_loader and row.get("object") is not None and row["object"].type_code == "19/D7" and option == "5":
-            return self.show_evidence(dict(obj=row["object"],word=row.get("eptab_word","")),self.eptab_loader)
+            return self.show_evidence(dict(obj=row["object"],word=row.get("eptab_word",""),position=row.get("eptab_position")),self.eptab_loader)
         elif row["kind"] == "binding_entry_action" and option == "5":
             return self.show_evidence(row["request"],self.binding_loader)
         elif self.binding_loader and row.get("object") is not None and row["object"].type_code == "19/37" and option == "5":
@@ -763,12 +763,20 @@ class Guided5250:
             elif name == "DSPEPTAB":
                 from as400_capabilities import select_objects
                 word=params.get("WORD","")
+                pos_raw=params.get("POS")
                 if word and (len(word)!=4 or any(c not in "0123456789ABCDEF" for c in word)):
                     raise ValueError("WORD must be exactly four hexadecimal digits")
+                if pos_raw is not None and (not pos_raw.isdecimal() or int(pos_raw)>511):
+                    raise ValueError("POS must be an integer between 0 and 511")
+                if word and pos_raw is not None:
+                    raise ValueError("Use either POS or WORD, not both")
+                position=int(pos_raw) if pos_raw is not None else None
                 rows=select_objects(self.inventory,params.get("EPTAB","*ALL/*"),"*EPTAB")
-                for row in rows:row["eptab_word"]=word
+                for row in rows:
+                    row["eptab_word"]=word
+                    row["eptab_position"]=position
                 if len(rows)==1:
-                    self.show_evidence(dict(obj=rows[0]["object"],word=word),self.eptab_loader)
+                    self.show_evidence(dict(obj=rows[0]["object"],word=word,position=position),self.eptab_loader)
                 else:
                     self._goto("type_objects",view_rows=rows)
             elif name == "DSPBNDDIR":
