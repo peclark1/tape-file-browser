@@ -89,7 +89,7 @@ class JournalReceiverTests(unittest.TestCase):
     def test_null_pointer_unassigned_and_duplicate_address_origins(self):
         j,a,b,other,image,ex,model=self.make(duplicate=True,second_null=True)
         rows=ex.rows(j)
-        self.assertEqual([a,other],[r["object"] for r in rows if r.get("object")])
+        self.assertEqual([other,a],[r["object"] for r in rows if r.get("object")])
         null_section=next(row for row in rows if row["name"]=="Saved slot +0x240")
         self.assertIn("0000:000000000000",null_section["lines"][0])
         rev=ex.rows(other)
