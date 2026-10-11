@@ -24,7 +24,7 @@ def validate(path):
     scan=image.scan();segments=image.recover_segments(scan)
     inventory=image.recover_objects(scan,segments)
     exp=PrinterQueueExplorer(image,inventory)
-    spool=SpoolControlExplorer(image,inventory)
+    spool=SpoolControlExplorer(image,inventory,printer_queue_explorer=exp)
     model=Guided5250(inventory,
                       printer_queue_loader=exp.rows,
                       capability_loader=lambda obj,sample=None:
