@@ -8879,6 +8879,7 @@ def cmd_browse5250(args):
         from as400_reference_codes import ReferenceCodeExplorer
         from as400_libraries import LibraryExplorer
         from as400_programs import ProgramExplorer
+        from as400_internal_profiles import InternalProfileExplorer
         from as400_jobs import JobExplorer
         from as400_directory import DirectoryExplorer
         from as400_menus import MenuExplorer
@@ -8891,9 +8892,11 @@ def cmd_browse5250(args):
         anchors = AnchorExplorer(state["image"], state["inventory"], state["segments"])
         programs = ProgramExplorer(state["image"], state["inventory"])
         jobs = JobExplorer(state["image"], state["inventory"])
+        internal_profiles = InternalProfileExplorer(state["inventory"])
         menus = MenuExplorer(state["image"], state["inventory"])
         connections = ConnectionExplorer(state["image"], state["inventory"])
         def load_capabilities(obj, sample=None):
+            if obj.type_code == "0E/C4": return internal_profiles.rows(obj)
             if obj.type_code == "02/01": return programs.rows(obj)
             if obj.type_code in ("19/03", "0E/01"): return jobs.rows(obj)
             if obj.type_code == "19/12": return anchors.object_rows(obj)
