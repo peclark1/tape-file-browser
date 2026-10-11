@@ -104,6 +104,7 @@ DSPPRTQ PRTQ(*ALL/QSPSIDQ) TOKEN(SP0002)
 DSPALRTBL ALRTBL(*ALL/QPQMSGF) MSGID(PQT*)
 DSPJRN JRN(*ALL/*)
 DSPJRNRCV JRNRCV(*ALL/*)
+# In DSPJRNRCV detail, inspect 'Receiver-saved journal pointer' and follow an exact address candidate.
 ```
 
 Also test the reverse evidence path:

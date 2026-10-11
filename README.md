@@ -920,3 +920,7 @@ The existing `DSPMSGD` record-detail screen now includes any **same-name alert-t
 ### Saved journal and receiver exact-address navigation (offline)
 
 Use `DSPJRN JRN(*ALL/*)` to inspect corroborated full eight-byte CISC receiver-address slots at +0x110/+0x240 and follow every recovered receiver primary with an identical YYSGHDR owner address. `DSPJRNRCV JRNRCV(*ALL/*)` goes in reverse to saved journal address references. This is **full binary extender/address matching**, not similar-name guessing, but does not establish a live receiver or journal chronology. See [Mark/Pete evidence and unsupported variants](docs/JOURNAL_RECEIVER_WORKFLOW.md).
+
+### Journal-receiver saved parent pointer corroboration
+
+The `DSPJRNRCV` screen now also inspects the receiver primary's own eight-byte saved journal-owner address at +0x108. This is independent evidence from the journal-side +0x110/+0x240 slots, and it can link a receiver to a journal even when those two journal slots do not include the receiver. `DSPJRN` shows matching receiver-owned pointers in the other direction, retaining null/unknown variants without guessing active relationships. See [both-source address evidence](docs/JOURNAL_RECEIVER_WORKFLOW.md).

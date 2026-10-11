@@ -22,6 +22,8 @@ ADDRESS_BYTES = 8
 READ_LIMIT = SECOND_AT + ADDRESS_BYTES
 HEADER_PREFIX = bytes.fromhex("0006001A")
 CONTROL_SUFFIX = bytes.fromhex("000A")
+RECEIVER_PARENT_AT = 0x108
+RECEIVER_READ_LIMIT = RECEIVER_PARENT_AT + ADDRESS_BYTES
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,23 @@ def decode_journal_receiver_addresses(data, *, type_code):
         for off in (FIRST_AT, SECOND_AT))
 
 
+def decode_receiver_saved_journal_address(data, *, type_code):
+    """Decode only the corroborated receiver +0x108 full address.
+
+    Mark and Pete show several earlier variant/control words; both
+    independent image surveys agree on leading 02/03 and +0x106..107
+    00 01. All other receiver fields are opaque.
+    """
+    if type_code != "07/01":
+        raise ValueError("Not a saved journal receiver")
+    if (len(data) < RECEIVER_READ_LIMIT or
+            data[0x100] not in (2, 3) or
+            data[0x106:0x108] != bytes.fromhex("0001")):
+        raise ValueError("Unsupported or truncated saved JRNRCV parent-address header")
+    return InternalAddress.from_bytes(
+        data[RECEIVER_PARENT_AT:RECEIVER_READ_LIMIT])
+
+
 class JournalReceiverExplorer:
     def __init__(self, image, inventory):
         self.image = image
@@ -52,6 +71,11 @@ class JournalReceiverExplorer:
                                if o.type_code == "09/01")
         self._receivers = tuple(o for o in inventory.objects
                                 if o.type_code == "07/01")
+        self._journals_by_address = {}
+        for journal in self._journals:
+            self._journals_by_address.setdefault(self._identity(journal), []).append(journal)
+        for matches in self._journals_by_address.values():
+            matches.sort(key=lambda o:(o.library_name or "",o.name,o.segment.start_lba))
         self._receivers_by_address = {}
         for receiver in self._receivers:
             self._receivers_by_address.setdefault(
@@ -60,6 +84,9 @@ class JournalReceiverExplorer:
             receivers.sort(key=lambda o:(o.library_name or "",
                                          o.name, o.segment.start_lba))
         self._saved = {}
+        self._receiver_saved = {}
+        self._receiver_direct_reverse = None
+        self._receiver_direct_withheld = 0
         self._reverse = None
         self._withheld = 0
 
@@ -78,6 +105,34 @@ class JournalReceiverExplorer:
                 read_prefix(self.image, obj.segment, READ_LIMIT),
                 type_code=obj.type_code)
         return self._saved[origin]
+
+    def receiver_parent_address(self, obj):
+        if obj.type_code != "07/01":
+            raise ValueError("Not a recovered journal receiver")
+        origin = (obj.segment.start_lba, obj.segment.virtual_address)
+        if origin not in self._receiver_saved:
+            self._receiver_saved[origin] = decode_receiver_saved_journal_address(
+                read_prefix(self.image, obj.segment, RECEIVER_READ_LIMIT),
+                type_code=obj.type_code)
+        return self._receiver_saved[origin]
+
+    def _direct_parent_reverse(self):
+        if self._receiver_direct_reverse is None:
+            index = {}
+            withheld = 0
+            for receiver in self._receivers:
+                try:
+                    ptr = self.receiver_parent_address(receiver)
+                except (OSError, ValueError):
+                    withheld += 1
+                    continue
+                if not ptr.is_null:
+                    index.setdefault(ptr.key, []).append(receiver)
+            for matches in index.values():
+                matches.sort(key=lambda o:(o.library_name or "",o.name,o.segment.start_lba))
+            self._receiver_direct_reverse = index
+            self._receiver_direct_withheld = withheld
+        return self._receiver_direct_reverse
 
     def _reverse_index(self):
         if self._reverse is None:
@@ -108,6 +163,7 @@ class JournalReceiverExplorer:
                 "Address equality is exact extender + six-byte address, not a name match.",
                 "Saved pointers cannot establish current receiver, attached status, order, journal entries or contents.",
                 "Select a corroborated receiver origin to inspect reverse source evidence."])]
+            existing_target_ids = set()
             for pointer in slots:
                 candidates = () if pointer.address.is_null else (
                     self._receivers_by_address.get(pointer.address.key, ()))
@@ -120,6 +176,16 @@ class JournalReceiverExplorer:
                 rows.extend(object_row(target,
                     f"Full address matches journal primary +0x{pointer.offset:X}; role unverified")
                     for target in candidates)
+                existing_target_ids.update(id(target) for target in candidates)
+            direct = self._direct_parent_reverse().get(self._identity(obj), ())
+            rows.append(section("Receiver-owned saved journal pointers", [
+                f"Receiver primaries whose own +0x108 full pointer matches this journal: {len(direct)}",
+                f"Receiver primaries withheld due to unsupported primary layouts: {self._receiver_direct_withheld}",
+                "Independent receiver-record evidence; no current attachment or journal-chain order established.",
+                "Duplicate origins remain distinct."] ))
+            rows.extend(object_row(receiver,
+                "Receiver's own saved +0x108 pointer matches this exact journal owner address")
+                for receiver in direct if id(receiver) not in existing_target_ids)
             return rows
         if obj.type_code == "07/01":
             source_key = self._identity(obj)
@@ -131,6 +197,24 @@ class JournalReceiverExplorer:
                 f"Unsupported journal source primaries withheld: {self._withheld}",
                 "These are saved internal-address occurrences, not proven current attachment or receiver sequence.",
                 "No journal-entry bodies or receiver records are decoded."])]
+            try:
+                source = self.receiver_parent_address(obj)
+            except (OSError, ValueError) as exc:
+                rows.append(section("Receiver-saved journal pointer unavailable", [
+                    f"Direct +0x{RECEIVER_PARENT_AT:X} pointer withheld: {exc}",
+                    "Reverse matches from supported journal slots remain separately available."]))
+            else:
+                matches = () if source.is_null else (
+                    self._journals_by_address.get(source.key, ()))
+                rows.append(section("Receiver-saved journal pointer", [
+                    f"Raw +0x{RECEIVER_PARENT_AT:X} full address: {source}",
+                    f"Recovered journal primaries with exact same owner address: {len(matches)}",
+                    "This stored receiver record can name a journal beyond the two supported journal-side slots.",
+                    "It does not certify current association, receiver sequence, or saved journal-entry content."]))
+                linked_ids = {id(journal) for journal, _ in links}
+                rows.extend(object_row(journal,
+                    f"Receiver-record +0x{RECEIVER_PARENT_AT:X} pointer matches journal owner")
+                    for journal in matches if id(journal) not in linked_ids)
             for journal, offset in links:
                 rows.append(object_row(journal,
                     f"Exact receiver owner address appears at journal +0x{offset:X}; follow source"))
