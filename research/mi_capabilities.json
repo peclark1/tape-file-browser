@@ -246,6 +246,11 @@
       "state": "partial",
       "workflow": "DSPPRDDFN shows exact supported Pete B10 0x1F0 saved literal EBCDIC text regions, retains unknown Mark variant length and navigates all same-name PRDLOD candidate primaries with Back.",
       "next_step": "Reconstruct the alternate large Mark V2R3 product-definition representation and corroborate the meaning of both saved text slots; prove links beyond name equality."
+    },
+    "0A01": {
+      "state": "partial",
+      "workflow": "DSPDTAQ inspects nine structurally corroborated first-page 16-byte address-shaped byte pairs by position/hex and compares duplicate same-name historical recovered DTAQ origins with Back; no queue contents or pointer dereferencing.",
+      "next_step": "Prove queue root and actual entry bounds from period CISC references and independently reconstructed full virtual pages; current saved candidate shapes do not establish message order, live count or capacity."
     }
   }
 }

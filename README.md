@@ -957,3 +957,14 @@ to the exact original selection. Text fields, release semantics and same-name
 dependency roles are **not** certified. The alternate Mark PRDDFN form
 withholds unsupported text rather than guessing.
 See `docs/PRODUCT_DESCRIPTOR_WORKFLOW.md`.
+
+### Saved CISC first-page data queue pairs (offline)
+
+On branch `feature/dtaq-first-page-evidence`, use
+`DSPDTAQ DTAQ(*ALL/QNMACDQ) SLOT(9)` to inspect the nine
+corroborated 16-byte first-page saved byte pairs in each recovered
+0A/01 `*DTAQ` candidate. Navigate among distinct same-name
+historical primaries, compare raw relative byte patterns, and Back.
+The bytes are not decoded queue entries, live messages, addresses
+or data-queue capacity. No second logical page is assumed to be
+physically adjacent. See `docs/DTAQ_FIRST_PAGE_WORKFLOW.md`.
