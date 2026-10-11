@@ -11,15 +11,22 @@ from tools.validate_recent_workflows import assess, WORKFLOWS
 
 class RecentWorkflowAcceptanceTests(unittest.TestCase):
     def test_all_recent_types_and_commands_are_explicit(self):
-        self.assertEqual(16, len(WORKFLOWS))
-        self.assertEqual(16, len({item[0] for item in WORKFLOWS}))
+        self.assertEqual(17, len(WORKFLOWS))
+        self.assertEqual(17, len({item[0] for item in WORKFLOWS}))
         self.assertEqual({"0E/02", "0E/01", "0E/C4", "19/09", "19/04",
                           "0E/07", "0E/91", "19/CE", "19/C2", "18/A0",
-                          "19/15", "19/08", "0E/C7", "0E/09", "09/01", "07/01"}, {x[0] for x in WORKFLOWS})
+                          "19/15", "19/08", "0E/C7", "0E/09", "09/01", "07/01", "19/0C"}, {x[0] for x in WORKFLOWS})
         empty = assess(Image([]), inventory([]))
-        self.assertEqual(16, len(empty))
+        self.assertEqual(17, len(empty))
         self.assertTrue(all(entry["counts"]["ui_walkthroughs_not_possible"] == 1
                             for entry in empty.values()))
+
+    def test_gss_saved_symbol_boundaries_and_back(self):
+        from test_gss_workflows import SavedGSSTests
+        source, image, explorer, model = SavedGSSTests().setup()
+        results=assess(image,model.inventory)
+        self.assertEqual(1,results["19/0C"]["counts"]["bounded_views"])
+        self.assertEqual(1,results["19/0C"]["counts"]["ui_detail_back_ok"])
 
     def test_lda_command_real_selection_and_paging(self):
         from test_local_data_workflows import LocalDataTests
