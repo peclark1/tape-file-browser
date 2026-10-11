@@ -62,6 +62,7 @@ def make_model(image, inventory, segments=None):
     """Use the same capability service routing as the production TUI."""
     messages = MessageExplorer(image, inventory, segments or NS(segments=[]))
     alerts = AlertTableExplorer(image, inventory, message_explorer=messages)
+    messages.alert_explorer = alerts
     printer_queues = PrinterQueueExplorer(image, inventory)
     outq = OutputQueueExplorer(image)
     profiles = InternalProfileExplorer(inventory)
